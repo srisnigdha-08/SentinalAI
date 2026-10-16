@@ -19,6 +19,8 @@ import os
 import sys
 import time
 import uuid
+import threading
+from typing import Any, Dict, List, Optional, Tuple
 import pytest
 from unittest.mock import patch, MagicMock
 
@@ -875,4 +877,397 @@ def test_def04_dedup_thread_safety():
 
     assert len(errors) == 0, f"Deduplication cache concurrency errors: {errors}"
     orch.shutdown()
+
+
+# ==============================================================================
+# 10. DEF-05: Bounded Worker-Pool & In-Flight Capacity Regression Tests
+# ==============================================================================
+
+class EventControlledDetector(BaseDetector):
+    """
+    Detector whose execution blocks deterministically until an external threading.Event is set.
+    Allows exact testing of thread holding, timeout behavior, and cancellation without arbitrary sleeps.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        start_event: threading.Event,
+        release_event: threading.Event,
+        result: Optional[DetectorResult] = None
+    ):
+        super().__init__(detector_id=name, version="1.0.0")
+        self.start_event = start_event
+        self.release_event = release_event
+        self.result = result
+        self.invocations = 0
+
+    def _inspect(self, clean_telemetry: Dict[str, Any], cid: str) -> DetectorResult:
+        self.invocations += 1
+        self.start_event.set()
+        self.release_event.wait(timeout=5.0)  # Safe bounded wait to prevent deadlocks
+        if self.result:
+            return self.result
+        return DetectorResult(
+            detector_id=self.detector_id,
+            version=self.version,
+            status=DetectorStatus.HEALTHY,
+            decision=PolicyDecision.ALLOW,
+            confidence=0.0,
+            severity=SeverityLevel.INFORMATIONAL,
+            evidence=EvidenceRecord(trigger_rule="BENIGN", summary="Event controlled test", details={})
+        )
+
+    def health_check(self) -> bool:
+        return True
+
+
+def test_def05_capacity_and_inflight_never_exceed_limit():
+    """
+    DEF-05 REGRESSION TEST (Requirement 1):
+    Confirms total in-flight capacity never exceeds the configured max_pending_tasks.
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+
+    # 2 threads, max_pending_tasks=4
+    orch = ModularOrchestrator(detector_timeout_seconds=0.1, max_threads=2, max_pending_tasks=4)
+    orch.register_detector(EventControlledDetector("det1", start_event, release_event))
+    orch.register_detector(EventControlledDetector("det2", start_event, release_event))
+
+    # Event 1: submits 2 tasks (in_flight becomes 2)
+    t1 = threading.Thread(target=orch.evaluate_shadow, args=({"sourceIP": "10.0.0.1"}, None, True))
+    t1.start()
+    start_event.wait(timeout=1.0)
+
+    # Event 2: submits 2 tasks (in_flight becomes 4 == max_pending_tasks)
+    t2 = threading.Thread(target=orch.evaluate_shadow, args=({"sourceIP": "10.0.0.2"}, None, True))
+    t2.start()
+    time.sleep(0.02)
+    assert orch.in_flight_tasks == 4
+
+    # Event 3: requires 2 tasks, but 4 + 2 > 4 -> rejected!
+    res3 = orch.evaluate_shadow({"sourceIP": "10.0.0.3"}, force_shadow=True)
+    assert res3.ensemble_status == DetectorStatus.UNAVAILABLE
+    assert res3.overall_decision == PolicyDecision.MONITOR
+    assert "orchestrator:WORKER_POOL_SATURATED" in res3.degraded_detectors
+    assert orch.in_flight_tasks == 4  # Did not exceed 4!
+
+    # Release workers and wait
+    release_event.set()
+    t1.join(timeout=1.0)
+    t2.join(timeout=1.0)
+    time.sleep(0.05)
+    assert orch.in_flight_tasks == 0
+    orch.shutdown()
+
+
+def test_def05_saturation_fast_fail_rejects_without_submitting():
+    """
+    DEF-05 REGRESSION TEST (Requirement 2):
+    Confirms saturation rejects new work promptly without submitting additional tasks to executor.
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+    orch = ModularOrchestrator(detector_timeout_seconds=0.05, max_threads=2, max_pending_tasks=2)
+    orch.register_detector(EventControlledDetector("det1", start_event, release_event))
+    orch.register_detector(EventControlledDetector("det2", start_event, release_event))
+
+    # Fill capacity (2 tasks)
+    t1 = threading.Thread(target=orch.evaluate_shadow, args=({"sourceIP": "10.0.0.1"}, None, True))
+    t1.start()
+    start_event.wait(timeout=1.0)
+
+    metrics_before = orch.get_metrics()
+    assert metrics_before["in_flight_tasks"] == 2
+    submitted_before = metrics_before["submitted_tasks"]
+
+    # Now attempt evaluation while saturated
+    t0 = time.perf_counter()
+    res = orch.evaluate_shadow({"sourceIP": "10.0.0.2"}, force_shadow=True)
+    elapsed_ms = (time.perf_counter() - t0) * 1000.0
+
+    # Fast-fail must return immediately (well under 50ms timeout)
+    assert elapsed_ms < 35.0
+    assert res.ensemble_status == DetectorStatus.UNAVAILABLE
+    assert res.overall_decision == PolicyDecision.MONITOR
+    assert "orchestrator:WORKER_POOL_SATURATED" in res.degraded_detectors
+    assert res.requires_triage is True
+
+    # Confirm NO new tasks were submitted to executor
+    metrics_after = orch.get_metrics()
+    assert metrics_after["submitted_tasks"] == submitted_before
+    assert metrics_after["rejected_events"] == 1
+
+    release_event.set()
+    t1.join(timeout=1.0)
+    orch.shutdown()
+
+
+def test_def05_unstarted_futures_cancelled_on_timeout():
+    """
+    DEF-05 REGRESSION TEST (Requirement 3):
+    Confirms unstarted queued futures are cancelled when caller timeout expires,
+    and their capacity slot is freed immediately.
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+
+    det_slow = EventControlledDetector("det_slow", start_event, release_event)
+    det_queued = MockBenignDetector("det_queued")
+
+    # 1 worker thread, capacity 3
+    orch = ModularOrchestrator(detector_timeout_seconds=0.03, max_threads=1, max_pending_tasks=3)
+    orch.register_detector(det_slow)
+    orch.register_detector(det_queued)
+
+    res = orch.evaluate_shadow({"sourceIP": "10.0.0.1"}, force_shadow=True)
+    assert res.ensemble_status in (DetectorStatus.UNAVAILABLE, DetectorStatus.DEGRADED)
+
+    # det_queued should be cancelled before start
+    det_queued_res = res.detector_results["det_queued"]
+    assert det_queued_res.status == DetectorStatus.TIMEOUT
+    assert "cancelled before start" in det_queued_res.evidence.summary
+
+    # det_slow is still running on thread 1, so in_flight_tasks is 1 (det_queued was released)
+    metrics = orch.get_metrics()
+    assert metrics["cancelled_tasks"] == 1
+    assert orch.in_flight_tasks == 1
+
+    release_event.set()
+    time.sleep(0.05)
+    assert orch.in_flight_tasks == 0
+    orch.shutdown()
+
+
+def test_def05_running_tasks_remain_accounted_until_finished():
+    """
+    DEF-05 REGRESSION TEST (Requirement 4):
+    Confirms that running tasks remain accounted in in_flight_tasks after caller timeout
+    until the OS worker thread actually finishes execution.
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+
+    orch = ModularOrchestrator(detector_timeout_seconds=0.03, max_threads=2, max_pending_tasks=4)
+    orch.register_detector(EventControlledDetector("held_worker", start_event, release_event))
+
+    res = orch.evaluate_shadow({"sourceIP": "10.0.0.1"}, force_shadow=True)
+    assert res.detector_results["held_worker"].status == DetectorStatus.TIMEOUT
+    assert "worker still executing" in res.detector_results["held_worker"].evidence.summary
+
+    # In CPython, worker thread is still running: capacity must NOT be released yet!
+    assert orch.in_flight_tasks == 1
+
+    # Now release the worker thread
+    release_event.set()
+    time.sleep(0.05)
+
+    # After worker completion, capacity drops to 0
+    assert orch.in_flight_tasks == 0
+    orch.shutdown()
+
+
+def test_def05_capacity_recovered_after_completion_and_cancellation():
+    """
+    DEF-05 REGRESSION TEST (Requirement 5):
+    Confirms capacity is fully recovered after a sequence of completed, cancelled, and timed-out tasks.
+    """
+    orch = ModularOrchestrator(detector_timeout_seconds=0.05, max_threads=2, max_pending_tasks=4)
+    orch.register_detector(MockBenignDetector("fast1"))
+    orch.register_detector(MockBenignDetector("fast2"))
+
+    # Normal completions
+    res1 = orch.evaluate_shadow({"sourceIP": "10.0.0.1"}, force_shadow=True)
+    assert res1.ensemble_status == DetectorStatus.HEALTHY
+    assert orch.in_flight_tasks == 0
+
+    # Add slow detector
+    orch.register_detector(MockSlowDetector(delay_seconds=0.08))  # 80ms > 50ms
+    res2 = orch.evaluate_shadow({"sourceIP": "10.0.0.2"}, force_shadow=True)
+    assert "mock_slow:TIMEOUT" in res2.degraded_detectors
+
+    # Wait for slow detector to complete
+    time.sleep(0.1)
+    assert orch.in_flight_tasks == 0
+
+    # Ensure full capacity is available again
+    metrics = orch.get_metrics()
+    assert metrics["in_flight_tasks"] == 0
+    assert metrics["completed_tasks"] >= 3
+    orch.shutdown()
+
+
+def test_def05_exceptions_and_cancellations_do_not_leak_or_double_release():
+    """
+    DEF-05 REGRESSION TEST (Requirement 6):
+    Confirms exceptions in detectors do not leak capacity or corrupt metrics,
+    and manual double-release cannot cause underflow.
+    """
+    orch = ModularOrchestrator(detector_timeout_seconds=0.05, max_threads=2, max_pending_tasks=4)
+    orch.register_detector(MockFailingDetector("Simulated catastrophic crash"))
+
+    res = orch.evaluate_shadow({"sourceIP": "10.0.0.1"}, force_shadow=True)
+    assert res.ensemble_status in (DetectorStatus.DEGRADED, DetectorStatus.UNAVAILABLE)
+    assert orch.in_flight_tasks == 0
+
+    # Direct test of TaskSlot idempotency: multiple release calls do not underflow
+    from modular.orchestrator import TaskSlot
+    slot = TaskSlot(orch, "test_det", "cid_123")
+    with orch._capacity_lock:
+        orch._in_flight_tasks = 1
+
+    assert slot.release("call_1") is True
+    assert orch.in_flight_tasks == 0
+
+    # Subsequent release calls must return False and NOT decrement below 0
+    assert slot.release("call_2") is False
+    assert slot.release("call_3") is False
+    assert orch.in_flight_tasks == 0
+
+    orch.shutdown()
+
+
+def test_def05_repeated_slow_submissions_prevent_unbounded_queue_growth():
+    """
+    DEF-05 REGRESSION TEST (Requirement 7):
+    Confirms repeated slow-task submissions cannot cause unbounded queue growth (DEF-05 root cause fix).
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+
+    orch = ModularOrchestrator(
+        detector_timeout_seconds=0.02,
+        max_threads=2,
+        max_pending_tasks=2  # strictly bounded to worker threads
+    )
+    orch.register_detector(EventControlledDetector("slow1", start_event, release_event))
+    orch.register_detector(EventControlledDetector("slow2", start_event, release_event))
+
+    # Submit 10 consecutive requests in rapid succession
+    for i in range(10):
+        res = orch.evaluate_shadow({"sourceIP": f"10.0.0.{i}"}, force_shadow=True)
+        metrics = orch.get_metrics()
+        # In-flight tasks MUST NEVER exceed max_pending_tasks (2)
+        assert metrics["in_flight_tasks"] <= 2, f"Queue grew to {metrics['in_flight_tasks']} > 2!"
+
+    # After saturating capacity (2 tasks), subsequent requests must be rejected with WORKER_POOL_SATURATED
+    metrics = orch.get_metrics()
+    assert metrics["rejected_events"] > 0
+    assert metrics["in_flight_tasks"] <= 2
+
+    release_event.set()
+    time.sleep(0.05)
+    assert orch.in_flight_tasks == 0
+    orch.shutdown()
+
+
+def test_def05_late_results_cannot_alter_finalized_decisions_or_duplicate_alerts():
+    """
+    DEF-05 REGRESSION TEST (Requirement 8):
+    Confirms late worker completions cannot alter finalized decisions or create duplicate alerts.
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+
+    attack_res = DetectorResult(
+        detector_id="late_attack",
+        version="1.0.0",
+        status=DetectorStatus.HEALTHY,
+        decision=PolicyDecision.SIMULATED_BLOCK,
+        confidence=0.99,
+        severity=SeverityLevel.CRITICAL,
+        evidence=EvidenceRecord(trigger_rule="LATE_ATTACK", summary="Late attack alert", details={}),
+        mitigation_recommendation=SimulatedMitigation(
+            action=MitigationAction.SIMULATED_BLOCK,
+            simulated=True,
+            watermark="[SIMULATED BLOCK]",
+            reason="Late attack test"
+        )
+    )
+
+    orch = ModularOrchestrator(detector_timeout_seconds=0.03, dedup_window_seconds=60.0)
+    orch.register_detector(EventControlledDetector("late_attack", start_event, release_event, result=attack_res))
+
+    # Evaluate: times out in 30ms, caller receives MONITOR (degraded timeout)
+    caller_res = orch.evaluate_shadow({"sourceIP": "192.168.1.100"}, force_shadow=True)
+    assert caller_res.overall_decision == PolicyDecision.MONITOR
+    assert caller_res.simulated_block is False
+    assert caller_res.is_duplicate is False
+
+    # Now let the late worker finish
+    release_event.set()
+    time.sleep(0.05)
+
+    # Caller result object remains untouched and immutable
+    assert caller_res.overall_decision == PolicyDecision.MONITOR
+    assert caller_res.simulated_block is False
+
+    # Deduplication cache must NOT have been updated by late execution
+    with orch._dedup_lock:
+        assert ("192.168.1.100", "LATE_ATTACK") not in orch._dedup_cache
+
+    orch.shutdown()
+
+
+def test_def05_concurrent_callers_cannot_bypass_capacity_limit():
+    """
+    DEF-05 REGRESSION TEST (Requirement 9):
+    Confirms concurrent callers cannot bypass the capacity limit.
+    """
+    start_event = threading.Event()
+    release_event = threading.Event()
+
+    orch = ModularOrchestrator(detector_timeout_seconds=0.05, max_threads=4, max_pending_tasks=8)
+    orch.register_detector(EventControlledDetector("det1", start_event, release_event))
+    orch.register_detector(EventControlledDetector("det2", start_event, release_event))
+
+    results = []
+    threads = []
+
+    def worker(i):
+        res = orch.evaluate_shadow({"sourceIP": f"10.0.0.{i}"}, force_shadow=True)
+        results.append(res)
+
+    for i in range(12):  # 12 callers x 2 tasks = 24 tasks requested (> 8 capacity)
+        t = threading.Thread(target=worker, args=(i,))
+        threads.append(t)
+        t.start()
+
+    time.sleep(0.05)
+    # Check that in_flight_tasks never exceeded 8
+    assert orch.in_flight_tasks <= 8
+
+    release_event.set()
+    for t in threads:
+        t.join(timeout=1.0)
+
+    # Some callers must have been rejected due to saturation
+    saturated_results = [
+        r for r in results
+        if r is not None and "orchestrator:WORKER_POOL_SATURATED" in r.degraded_detectors
+    ]
+    assert len(saturated_results) > 0, "No callers were rejected despite 24 tasks submitted for 8 capacity!"
+
+    time.sleep(0.05)
+    assert orch.in_flight_tasks == 0
+    orch.shutdown()
+
+
+def test_def05_empty_pipeline_and_existing_safeties_preserved():
+    """
+    DEF-05 REGRESSION TEST (Requirement 10):
+    Confirms empty-pipeline fail-safe (DEF-01) and feature flag gating are preserved.
+    """
+    orch = ModularOrchestrator(max_pending_tasks=10)
+    assert len(orch.list_detectors()) == 0
+
+    res = orch.evaluate_shadow({"sourceIP": "10.0.0.1"}, force_shadow=True)
+    assert res.ensemble_status == DetectorStatus.UNAVAILABLE
+    assert res.overall_decision == PolicyDecision.MONITOR
+    assert "NO_DETECTORS_REGISTERED" in res.degraded_detectors[0]
+    assert orch.in_flight_tasks == 0
+
+    orch.shutdown()
+
 

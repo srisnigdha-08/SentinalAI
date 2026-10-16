@@ -1,11 +1,11 @@
 """
 SentinelAI Modular Policy Orchestrator & Isolated Shadow Scaffold
-Phase 9C.2 Remediation Milestone: DEF-01 and DEF-04 Fixes
+Phase 9C.3 Remediation Milestone: DEF-05 (Bounded In-Flight Capacity & Timed-Out Worker Management)
 
 This module orchestrates specialized detectors in an isolated shadow mode.
 Enforces concurrent dispatch, bounded timeout isolation, fail-safe degraded states,
-empty-pipeline fail-closed handling, alert de-duplication, and explicit simulated
-mitigation watermarks.
+empty-pipeline fail-closed handling, alert de-duplication, strictly bounded
+in-flight task capacity (DEF-05), and explicit simulated mitigation watermarks.
 
 Architectural Design Notes & Concurrency Guarantees:
 1. DEF-01 Remediated: When zero detectors are registered, evaluate_shadow() returns
@@ -13,13 +13,26 @@ Architectural Design Notes & Concurrency Guarantees:
 2. DEF-04 Remediated: Detectors are dispatched in parallel via ThreadPoolExecutor.
    Waiting is performed concurrently via concurrent.futures.wait(timeout=self.detector_timeout).
    Total latency is bounded by the detector timeout rather than cumulative sequential sum.
-3. Thread Safety: Alert deduplication cache is guarded by a dedicated threading.Lock.
-4. Python ThreadPoolExecutor Limitation:
-   In CPython, running OS threads cannot be asynchronously terminated without process termination.
-   Futures that time out will continue execution until completion in the worker thread.
-   Late results are safely discarded upon return and cannot overwrite newer ensemble decisions.
-   To avoid thread pool exhaustion, specialized detector implementations must avoid unbounded
-   blocking socket operations without native socket-level timeouts.
+3. DEF-05 Remediated:
+   a. Strictly Bounded Capacity: Total outstanding tasks (actively executing on OS worker
+      threads plus waiting in queue) are capped at `max_pending_tasks` (default 16).
+   b. Fast-Fail on Saturation: When active in-flight tasks + required tasks exceed capacity,
+      new work is rejected immediately without submitting to the executor queue. Returns
+      fail-safe status=UNAVAILABLE, decision=MONITOR, and reason=WORKER_POOL_SATURATED.
+   c. Cancellation of Unstarted Tasks: For timed-out futures, `fut.cancel()` is attempted.
+      If the task was queued and not yet running, it is cancelled and capacity is freed immediately.
+   d. Exactly-Once Capacity Accounting: Each task's capacity slot is tracked by TaskSlot
+      and released exactly once upon true completion or cancellation. A caller timeout does NOT
+      release capacity for an OS thread that is still actively running.
+4. CPython ThreadPoolExecutor Limitation:
+   In CPython, running OS threads cannot be forcibly killed or preempted without process
+   termination. If a detector has already begun execution when the caller's timeout expires,
+   fut.cancel() returns False, and the thread continues until completion. The orchestrator:
+   - Holds capacity for running tasks until the OS thread truly finishes.
+   - Bounds admission to prevent unbounded queued work and thread pool starvation.
+   - Discards late worker results safely upon return so they cannot overwrite finalized decisions.
+5. Thread Safety: Deduplication cache is guarded by self._dedup_lock. Capacity accounting
+   is guarded by self._capacity_lock. Individual task slots are guarded by TaskSlot._lock.
 """
 
 from __future__ import annotations
@@ -58,10 +71,55 @@ def is_modular_enabled() -> bool:
     return os.getenv("ENABLE_EXPERIMENTAL_MODULAR_DETECTORS", "false").lower() == "true"
 
 
+class TaskSlot:
+    """
+    Thread-safe tracker for an individual detector task capacity slot (DEF-05).
+    Guarantees that capacity is released EXACTLY ONCE, regardless of whether
+    completion occurs via normal return, exception, cancellation before execution,
+    or late execution following a caller timeout.
+    """
+
+    def __init__(self, orchestrator: "ModularOrchestrator", det_id: str, correlation_id: str):
+        self.orchestrator = orchestrator
+        self.det_id = det_id
+        self.correlation_id = correlation_id
+        self._released = False
+        self._lock = threading.Lock()
+        self.started = False
+        self.completed = False
+        self.cancelled = False
+
+    def mark_started(self) -> None:
+        with self._lock:
+            self.started = True
+
+    def mark_completed(self) -> None:
+        with self._lock:
+            self.completed = True
+
+    def mark_cancelled(self) -> None:
+        with self._lock:
+            self.cancelled = True
+
+    def release(self, reason: str = "done") -> bool:
+        """
+        Releases the capacity slot exactly once.
+        Returns True if this invocation performed the release, False if already released.
+        """
+        with self._lock:
+            if self._released:
+                return False
+            self._released = True
+
+        self.orchestrator._release_capacity(self.det_id, reason)
+        return True
+
+
 class ModularOrchestrator:
     """
     Shadow-mode multi-tier detector orchestrator.
-    Executes modular detectors with concurrent timeout isolation and consensus policy.
+    Executes modular detectors with concurrent timeout isolation, consensus policy,
+    and strictly bounded in-flight capacity (DEF-05).
     """
 
     def __init__(
@@ -69,6 +127,7 @@ class ModularOrchestrator:
         detector_timeout_seconds: float = 0.05,  # 50 ms per detector/batch
         dedup_window_seconds: float = 60.0,
         max_threads: int = 4,
+        max_pending_tasks: int = 16,  # Bound on all in-flight tasks (running + queued)
     ):
         if detector_timeout_seconds <= 0:
             raise ValueError(f"detector_timeout_seconds must be positive, got {detector_timeout_seconds}")
@@ -76,18 +135,128 @@ class ModularOrchestrator:
             raise ValueError(f"dedup_window_seconds must be positive, got {dedup_window_seconds}")
         if max_threads <= 0:
             raise ValueError(f"max_threads must be positive, got {max_threads}")
+        if max_pending_tasks <= 0:
+            raise ValueError(f"max_pending_tasks must be positive, got {max_pending_tasks}")
+        if max_pending_tasks < max_threads:
+            raise ValueError(
+                f"max_pending_tasks ({max_pending_tasks}) cannot be less than max_threads ({max_threads})"
+            )
 
         self.detector_timeout = detector_timeout_seconds
         self.dedup_window = dedup_window_seconds
         self.max_threads = max_threads
+        self.max_pending_tasks = max_pending_tasks
 
         self._detectors: Dict[str, BaseDetector] = {}
         self._dedup_cache: Dict[Tuple[str, str], float] = {}  # (src_ip, threat_type) -> last_seen
         self._dedup_lock = threading.Lock()
+
+        # DEF-05: Capacity & In-Flight Accounting
+        # Covers all submitted but unfinished tasks (both actively executing and queued).
+        self._in_flight_tasks: int = 0
+        self._capacity_lock = threading.Lock()
+        self._metrics: Dict[str, int] = {
+            "submitted_tasks": 0,
+            "completed_tasks": 0,
+            "cancelled_tasks": 0,
+            "rejected_events": 0,
+        }
+
         self._executor = concurrent.futures.ThreadPoolExecutor(
             max_workers=self.max_threads,
             thread_name_prefix="mod_det_"
         )
+
+    @property
+    def in_flight_tasks(self) -> int:
+        """Returns the current number of in-flight (running + queued) tasks."""
+        with self._capacity_lock:
+            return self._in_flight_tasks
+
+    def get_metrics(self) -> Dict[str, Any]:
+        """Returns snapshot of executor and capacity metrics."""
+        with self._capacity_lock:
+            wq = getattr(self._executor, "_work_queue", None)
+            qsize = getattr(wq, "qsize", lambda: len(getattr(wq, "queue", [])))() if wq is not None else 0
+            return {
+                "in_flight_tasks": self._in_flight_tasks,
+                "queued_tasks": qsize,
+                "max_pending_tasks": self.max_pending_tasks,
+                "max_threads": self.max_threads,
+                "submitted_tasks": self._metrics["submitted_tasks"],
+                "completed_tasks": self._metrics["completed_tasks"],
+                "cancelled_tasks": self._metrics["cancelled_tasks"],
+                "rejected_events": self._metrics["rejected_events"],
+            }
+
+    def _release_capacity(self, det_id: str, reason: str) -> None:
+        """
+        Thread-safe decrement of in-flight capacity.
+        Guaranteed to be called at most once per task slot.
+        """
+        with self._capacity_lock:
+            if self._in_flight_tasks <= 0:
+                self._safe_log(
+                    logging.ERROR,
+                    "Underflow in capacity accounting on release for %s (reason: %s)",
+                    det_id, reason
+                )
+                return
+            self._in_flight_tasks -= 1
+            if reason.startswith("cancel"):
+                self._metrics["cancelled_tasks"] += 1
+            else:
+                self._metrics["completed_tasks"] += 1
+
+    def _prune_cancelled_tasks(self) -> int:
+        """
+        Removes cancelled _WorkItem entries from the internal executor queue.
+        In Python's ThreadPoolExecutor, cancelled tasks remain in the SimpleQueue until
+        worker threads pop them. Pruning them proactively prevents physical queue accumulation.
+        """
+        wq = getattr(self._executor, "_work_queue", None)
+        if wq is None or wq.empty():
+            return 0
+
+        pruned = 0
+        items = []
+        with self._capacity_lock:
+            while not wq.empty():
+                try:
+                    item = wq.get_nowait()
+                except Exception:
+                    break
+                if item is None:
+                    # Shutdown sentinel; preserve and exit
+                    items.append(item)
+                    break
+                fut = getattr(item, "future", None)
+                if fut is not None and fut.cancelled():
+                    pruned += 1
+                else:
+                    items.append(item)
+            for it in items:
+                wq.put_nowait(it)
+
+        return pruned
+
+    def _run_detector_with_slot(
+        self,
+        detector: BaseDetector,
+        clean_telemetry: Dict[str, Any],
+        cid: str,
+        slot: TaskSlot
+    ) -> DetectorResult:
+        """
+        Worker execution wrapper (DEF-05).
+        Marks slot started and guarantees slot release upon worker termination or exception.
+        """
+        slot.mark_started()
+        try:
+            return detector.evaluate(clean_telemetry, cid)
+        finally:
+            slot.mark_completed()
+            slot.release(reason="worker_finished")
 
     def register_detector(self, detector: BaseDetector) -> None:
         """Registers a detector instance into the orchestrator."""
@@ -191,12 +360,70 @@ class ModularOrchestrator:
                 )
             )
 
-        # Step 3: Parallel Dispatch with Concurrent Timeout Waiting (DEF-04 Remediation)
+        # Step 3: Admission Control & Capacity Bound Check (DEF-05 Remediation)
+        # Verify that submitting tasks for all registered detectors will not exceed
+        # the strictly bounded in-flight capacity limit (max_pending_tasks).
+        self._prune_cancelled_tasks()
+        num_detectors = len(self._detectors)
+        with self._capacity_lock:
+            if self._in_flight_tasks + num_detectors > self.max_pending_tasks:
+                self._metrics["rejected_events"] += 1
+                current_in_flight = self._in_flight_tasks
+                max_tasks = self.max_pending_tasks
+                self._safe_log(
+                    logging.WARNING,
+                    "Worker pool saturated: in-flight tasks (%d) + requested (%d) > limit (%d)",
+                    current_in_flight, num_detectors, max_tasks
+                )
+                return EnsembleResult(
+                    correlation_id=cid,
+                    timestamp=now_iso,
+                    ensemble_status=DetectorStatus.UNAVAILABLE,
+                    overall_decision=PolicyDecision.MONITOR,
+                    max_threat_confidence=0.0,
+                    simulated_block=False,
+                    requires_triage=True,
+                    is_duplicate=False,
+                    detector_results={
+                        det_id: create_degraded_result(
+                            detector_id=det_id,
+                            status=DetectorStatus.UNAVAILABLE,
+                            reason="Worker pool saturated: task capacity exceeded (WORKER_POOL_SATURATED)",
+                            correlation_id=cid,
+                            execution_time_ms=0.0
+                        )
+                        for det_id in self._detectors
+                    },
+                    degraded_detectors=["orchestrator:WORKER_POOL_SATURATED"],
+                    summary_evidence=(
+                        f"Worker pool saturated: in-flight tasks ({current_in_flight}) + "
+                        f"requested ({num_detectors}) exceeds limit ({max_tasks}). "
+                        f"Fast-fail policy applied: decision set to MONITOR (WORKER_POOL_SATURATED)."
+                    )
+                )
+
+            # Atomically acquire capacity slots for all registered detectors
+            self._in_flight_tasks += num_detectors
+            self._metrics["submitted_tasks"] += num_detectors
+
+        # Step 4: Parallel Dispatch with TaskSlot Capacity Management (DEF-04 & DEF-05)
         t_start = time.perf_counter()
-        futures: Dict[concurrent.futures.Future, str] = {}
+        futures: Dict[concurrent.futures.Future, Tuple[str, TaskSlot]] = {}
+
         for det_id, detector in list(self._detectors.items()):
-            fut = self._executor.submit(detector.evaluate, clean_telemetry, cid)
-            futures[fut] = det_id
+            slot = TaskSlot(self, det_id, cid)
+            fut = self._executor.submit(
+                self._run_detector_with_slot,
+                detector,
+                clean_telemetry,
+                cid,
+                slot
+            )
+            # Fail-safe callback ensuring capacity is released on cancellation or completion
+            fut.add_done_callback(
+                lambda f, s=slot: s.release(reason="cancelled_in_queue" if f.cancelled() else "future_done_callback")
+            )
+            futures[fut] = (det_id, slot)
 
         done, not_done = concurrent.futures.wait(
             futures.keys(),
@@ -208,7 +435,7 @@ class ModularOrchestrator:
 
         # Collect finished results
         for fut in done:
-            det_id = futures[fut]
+            det_id, slot = futures[fut]
             try:
                 res = fut.result()
                 detector_results[det_id] = res
@@ -222,23 +449,40 @@ class ModularOrchestrator:
                     execution_time_ms=elapsed_all_ms
                 )
 
-        # Collect timed-out detectors
+        # Handle timed-out detectors and attempt cancellation (DEF-05 Remediation)
+        any_cancelled = False
         for fut in not_done:
-            det_id = futures[fut]
+            det_id, slot = futures[fut]
+            cancelled = fut.cancel()
+            if cancelled:
+                any_cancelled = True
+                # Task was in queue and successfully cancelled before execution started
+                slot.mark_cancelled()
+                slot.release(reason="cancelled_in_queue")
+                status_reason = f"Execution timed out and cancelled before start ({self.detector_timeout * 1000.0:.1f}ms)"
+            else:
+                # Task is already actively running on a worker thread.
+                # In CPython, running threads cannot be asynchronously terminated.
+                # Capacity remains held until the worker thread actually finishes execution!
+                status_reason = f"Execution exceeded timeout limit ({self.detector_timeout * 1000.0:.1f}ms); worker still executing"
+
             self._safe_log(
                 logging.WARNING,
-                "Detector '%s' timed out (threshold: %.2f ms)",
-                det_id, self.detector_timeout * 1000.0
+                "Detector '%s' timed out (threshold: %.2f ms, cancelled_before_run: %s)",
+                det_id, self.detector_timeout * 1000.0, cancelled
             )
             detector_results[det_id] = create_degraded_result(
                 detector_id=det_id,
                 status=DetectorStatus.TIMEOUT,
-                reason=f"Execution exceeded timeout limit ({self.detector_timeout * 1000.0:.1f}ms)",
+                reason=status_reason,
                 correlation_id=cid,
                 execution_time_ms=elapsed_all_ms
             )
 
-        # Step 4: Compute Consensus & Enforce Fail-Safe Invariants
+        if any_cancelled:
+            self._prune_cancelled_tasks()
+
+        # Step 5: Compute Consensus & Enforce Fail-Safe Invariants
         any_degraded = False
         degraded_list: List[str] = []
         any_threat = False
@@ -312,7 +556,7 @@ class ModularOrchestrator:
             requires_triage = False
             summary = f"All {len(detector_results)} registered detector(s) reported healthy with no threats."
 
-        # Step 5: Alert De-Duplication Check
+        # Step 6: Alert De-Duplication Check
         src_ip = str(clean_telemetry.get("sourceIP", clean_telemetry.get("source_ip", "0.0.0.0")))
         is_dup = False
         if any_threat and threat_type:
