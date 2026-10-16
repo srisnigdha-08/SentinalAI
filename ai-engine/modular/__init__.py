@@ -30,6 +30,9 @@ from modular.orchestrator import (
     ModularOrchestrator,
     is_modular_enabled,
 )
+from modular.volumetric_flood import VolumetricFloodDetector
+from modular.auth_abuse import AuthAbuseDetector
+from modular.layer7_waf import Layer7WAFDetector
 
 __all__ = [
     "DetectorStatus",
@@ -51,4 +54,7 @@ __all__ = [
     "BaseDetector",
     "ModularOrchestrator",
     "is_modular_enabled",
+    "VolumetricFloodDetector",
+    "AuthAbuseDetector",
+    "Layer7WAFDetector",
 ]
