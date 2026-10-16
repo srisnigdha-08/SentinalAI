@@ -45,6 +45,8 @@ function sanitizeRecord(obj, depth = 0) {
   return clean
 }
 
+const MAX_ROTATED_FILES = 5 // Bounded retention threshold: keep at most 5 rotated logs
+
 /**
  * Ensures the target log directory exists.
  */
@@ -55,13 +57,32 @@ function ensureLogDir() {
 }
 
 /**
- * Simple file rotation when exceeding MAX_LOG_SIZE_BYTES.
+ * Bounded file rotation when exceeding MAX_LOG_SIZE_BYTES.
+ * Prunes oldest rotated archives to guarantee bounded disk usage.
  */
 function checkRotation() {
   try {
     if (fs.existsSync(EMERGENCY_AUDIT_PATH)) {
       const stats = fs.statSync(EMERGENCY_AUDIT_PATH)
       if (stats.size >= MAX_LOG_SIZE_BYTES) {
+        // Enforce bounded retention: prune oldest rotated files if count exceeds limit
+        const files = fs
+          .readdirSync(LOGS_DIR)
+          .filter((f) => f.startsWith('emergency_audit.') && f.endsWith('.log'))
+          .map((f) => ({
+            name: f,
+            path: path.join(LOGS_DIR, f),
+            mtime: fs.statSync(path.join(LOGS_DIR, f)).mtimeMs,
+          }))
+          .sort((a, b) => a.mtime - b.mtime)
+
+        while (files.length >= MAX_ROTATED_FILES) {
+          const oldest = files.shift()
+          try {
+            fs.unlinkSync(oldest.path)
+          } catch (_) {}
+        }
+
         const rotatedPath = path.join(LOGS_DIR, `emergency_audit.${Date.now()}.log`)
         fs.renameSync(EMERGENCY_AUDIT_PATH, rotatedPath)
       }

@@ -82,7 +82,38 @@ const runFullPipeline = async (record, io = null) => {
     }
   }
 
-  const score = Math.max(0, Math.min(1, Number(result.threatScore || 0)))
+  // Validate raw threatScore before clamping (Reject non-finite / out-of-range scores)
+  let score = 0.5
+  if (!isDegraded) {
+    const rawScore =
+      result.threatScore !== undefined && result.threatScore !== null && result.threatScore !== ''
+        ? Number(result.threatScore)
+        : NaN
+
+    if (!Number.isFinite(rawScore) || rawScore < 0 || rawScore > 1) {
+      logger.warn(
+        `[AI Pipeline] Invalid threatScore received (${result.threatScore}). Rejecting inference as invalid and falling back to degraded state.`
+      )
+      isDegraded = true
+      result = {
+        predictedClass: 'UNINSPECTED_TRAFFIC',
+        threatScore: 0.5,
+        action: 'MONITOR',
+        status: 'DEGRADED',
+        isAnomaly: false,
+        anomalyScore: 0,
+        classProbabilities: { UNINSPECTED_TRAFFIC: 1.0 },
+        modelVersion: result.modelVersion || 'v2.1-fallback',
+        featureSchemaVersion: result.featureSchemaVersion || 'v2.1_53feat',
+        inferenceTimeMs: result.inferenceTimeMs || 0,
+        notes: `Invalid inference threatScore: ${result.threatScore}`,
+      }
+      score = 0.5
+    } else {
+      score = rawScore
+    }
+  }
+
   const blockThreshold = await module.exports.getBlockThreshold()
 
   // Action Precedence Rule:

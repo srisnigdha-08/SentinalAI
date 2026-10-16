@@ -14,10 +14,12 @@ const STATUS_STYLES = {
   MONITORING: { background:'rgba(255,170,0,.1)',   color:'#ffaa00', border:'1px solid rgba(255,170,0,.3)'  },
   DETECTED:   { background:'rgba(0,212,255,.1)',   color:'#00d4ff', border:'1px solid rgba(0,212,255,.25)' },
   RESOLVED:   { background:'rgba(0,255,136,.1)',   color:'#00ff88', border:'1px solid rgba(0,255,136,.3)'  },
+  DEGRADED:   { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px dashed rgba(255,170,0,.5)' },
 }
 
 const TYPES = ['SSH Brute Force','SQL Injection','Port Scan','DDoS','RCE Attempt',
-               'XSS Attempt','Malware Beacon','Credential Stuffing','Lateral Movement','Data Exfiltration']
+               'XSS Attempt','Malware Beacon','Credential Stuffing','Lateral Movement','Data Exfiltration',
+               'UNINSPECTED_TRAFFIC']
 
 export default function ThreatLogs() {
   const { user } = useAuth()

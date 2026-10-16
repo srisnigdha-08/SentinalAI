@@ -227,28 +227,108 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   })
 
   // --------------------------------------------------------------------------
-  // Scenario 9: Missing, Non-Finite, and Out-of-Range Scores (Unit / Validation)
+  // Scenario 9: Missing, Non-Finite, and Out-of-Range Scores (Fail-Safe Validation)
   // --------------------------------------------------------------------------
-  test('9. Missing or out-of-range scores are clamped and handled safely', async () => {
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
-      result: {
-        predictedClass: 'DDoS',
-        threatScore: 1.5, // out of range [0, 1]
-        action: 'MONITOR',
-      },
+  test('9. Missing, non-finite, and out-of-range scores are rejected as invalid degraded states', async () => {
+    let storedPayload = null
+    jest.spyOn(aiService, 'storePrediction').mockImplementation(async (p) => {
+      storedPayload = p
+      return { _id: 'pred-test-9', ...p }
     })
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockImplementation(async (p) => ({
-      _id: 'pred-clamped-1',
-      ...p,
-    }))
 
-    const res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.90' })
+    // 9A: Out of range > 1 (e.g. 1.5) -> Rejected to degraded MONITOR
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'DDoS', threatScore: 1.5, action: 'BLOCK' },
+    })
+    let res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.91' })
     expect(res.action).toBe('MONITOR')
-    expect(mockStorePrediction).toHaveBeenCalledWith(
-      expect.objectContaining({
-        threatScore: 1.0, // Clamped to 1.0
-      })
-    )
+    expect(res.status).toBe('DEGRADED')
+    expect(res.predictedClass).toBe('UNINSPECTED_TRAFFIC')
+    expect(storedPayload.threatScore).toBe(0.5)
+
+    // 9B: Out of range < 0 (e.g. -0.5) -> Rejected to degraded MONITOR
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'BENIGN', threatScore: -0.5, action: 'ALLOW' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.92' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+    expect(res.predictedClass).toBe('UNINSPECTED_TRAFFIC')
+    expect(storedPayload.threatScore).toBe(0.5)
+
+    // 9C: NaN -> Rejected to degraded MONITOR (NEVER falls through to ALLOW!)
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'BENIGN', threatScore: NaN, action: 'ALLOW' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.93' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+    expect(res.predictedClass).toBe('UNINSPECTED_TRAFFIC')
+    expect(storedPayload.threatScore).toBe(0.5)
+
+    // 9D: Positive & Negative Infinity -> Rejected to degraded MONITOR
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'DDoS', threatScore: Infinity, action: 'BLOCK' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.94' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'BENIGN', threatScore: -Infinity, action: 'ALLOW' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.95' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+
+    // 9E: Non-numeric string ('invalid_nan') -> Rejected to degraded MONITOR
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'Port Scan', threatScore: 'invalid_nan', action: 'MONITOR' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.96' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+    expect(res.predictedClass).toBe('UNINSPECTED_TRAFFIC')
+    expect(storedPayload.threatScore).toBe(0.5)
+
+    // 9F: Missing / undefined / null -> Rejected to degraded MONITOR
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'BENIGN', threatScore: undefined, action: 'ALLOW' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.97' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'BENIGN', threatScore: null, action: 'ALLOW' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.98' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.status).toBe('DEGRADED')
+
+    // 9G: Valid numeric string ('0.85') -> Preserved as valid number 0.85
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'Port Scan', threatScore: '0.85', action: 'MONITOR' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.99' })
+    expect(res.action).toBe('MONITOR')
+    expect(res.predictedClass).toBe('Port Scan')
+    expect(storedPayload.threatScore).toBe(0.85)
+
+    // 9H: Valid boundary values 0 and 1 -> Preserved
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'BENIGN', threatScore: 0, action: 'ALLOW' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.100' })
+    expect(res.action).toBe('ALLOW')
+    expect(storedPayload.threatScore).toBe(0)
+
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+      result: { predictedClass: 'DDoS', threatScore: 1, action: 'BLOCK' },
+    })
+    res = await aiEngineService.runFullPipeline({ sourceIP: '192.168.1.101' })
+    expect(res.action).toBe('BLOCK')
+    expect(storedPayload.threatScore).toBe(1)
   })
 
   // --------------------------------------------------------------------------
@@ -341,9 +421,9 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   })
 
   // --------------------------------------------------------------------------
-  // Scenario 13: Emergency Audit Fallback File Guarantees
+  // Scenario 13: Emergency Audit Fallback File Guarantees & Bounded Retention
   // --------------------------------------------------------------------------
-  test('13. writeEmergencyAudit synchronously writes and flushes durable audit record', () => {
+  test('13. writeEmergencyAudit synchronously writes durable audit record with bounded retention', () => {
     const testRecord = {
       event: 'UNIT_TEST_EMERGENCY_AUDIT',
       sourceIP: '10.99.99.99',
@@ -360,6 +440,11 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
     const content = fs.readFileSync(auditRes.path, 'utf8')
     expect(content.includes('UNIT_TEST_EMERGENCY_AUDIT')).toBe(true)
     expect(content.includes('super-secret-password-123')).toBe(false)
+
+    // Verify bounded retention: ensure rotated archives do not exceed MAX_ROTATED_FILES (5)
+    const logsDir = path.dirname(auditRes.path)
+    const rotated = fs.readdirSync(logsDir).filter((f) => f.startsWith('emergency_audit.') && f.endsWith('.log'))
+    expect(rotated.length).toBeLessThanOrEqual(5)
   })
 
   // --------------------------------------------------------------------------
