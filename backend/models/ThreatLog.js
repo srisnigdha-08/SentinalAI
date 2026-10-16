@@ -24,19 +24,20 @@ const ThreatLogSchema = new mongoose.Schema(
         'Data Exfiltration',
         'Zero-Day Exploit',
         'Unknown',
+        'UNINSPECTED_TRAFFIC',
       ],
     },
     aiScore: { type: Number, min: 0, max: 1, default: 0 },
     confidence: { type: Number, min: 0, max: 1, default: 0 },
     status: {
       type: String,
-      enum: ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE'],
+      enum: ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED'],
       default: 'DETECTED',
       index: true,
     },
     preBlockStatus: {
       type: String,
-      enum: ['DETECTED', 'MONITORING', 'ESCALATED', null],
+      enum: ['DETECTED', 'MONITORING', 'ESCALATED', 'DEGRADED', null],
       default: null,
     },
     containmentId: {

@@ -56,8 +56,9 @@ const storePrediction = async (data) => {
   }
 
   const pred = await AIPrediction.create(payload)
-  if (!data.generatedThreat && pred.threatScore >= 0.7 && pred.predictedClass !== 'BENIGN') {
-    const severity = pred.threatScore >= 0.9 ? 'CRITICAL' : pred.threatScore >= 0.75 ? 'HIGH' : 'MEDIUM'
+  const isDegraded = data.status === 'DEGRADED' || data.status === 'UNAVAILABLE' || data.predictedClass === 'UNINSPECTED_TRAFFIC'
+  if (!data.generatedThreat && (isDegraded || (pred.threatScore >= 0.7 && pred.predictedClass !== 'BENIGN'))) {
+    const severity = isDegraded ? 'MEDIUM' : pred.threatScore >= 0.9 ? 'CRITICAL' : pred.threatScore >= 0.75 ? 'HIGH' : 'MEDIUM'
 
     // Authoritative Block Threshold & autoBlockEnabled setting
     const aiEngineService = require('./aiEngineService')
@@ -68,8 +69,8 @@ const storePrediction = async (data) => {
     const setting = await SystemSetting.findOne({ key: 'autoBlockEnabled' })
     const autoBlockEnabled = setting ? setting.value === true : false
 
-    const shouldBlock = pred.threatScore >= blockThreshold && autoBlockEnabled
-    const status = shouldBlock ? 'BLOCKED' : 'MONITORING'
+    const shouldBlock = !isDegraded && pred.threatScore >= blockThreshold && autoBlockEnabled
+    const status = isDegraded ? 'DEGRADED' : shouldBlock ? 'BLOCKED' : 'MONITORING'
 
     const threat = await ThreatLog.create({
       severity,
@@ -78,12 +79,13 @@ const storePrediction = async (data) => {
       aiScore: pred.threatScore,
       confidence: pred.threatScore,
       status,
-      preBlockStatus: shouldBlock ? 'MONITORING' : null,
+      preBlockStatus: shouldBlock ? 'MONITORING' : isDegraded ? 'DEGRADED' : null,
       autonomousAction: {
         taken: shouldBlock,
         actionType: shouldBlock ? 'IP_BLOCKED' : null,
         actionTime: shouldBlock ? new Date() : null,
       },
+      notes: isDegraded ? (data.notes || (data.status === 'UNAVAILABLE' ? 'AI engine unavailable - held in MONITOR' : 'Explicit AI engine degraded fallback')) : ''
     })
     pred.generatedThreat = threat._id
     await pred.save()
@@ -109,12 +111,22 @@ const storePrediction = async (data) => {
       const alertService = require('./alertService')
       socketManager.emitNewThreat(threat)
 
-      if (['CRITICAL', 'HIGH'].includes(severity)) {
+      if (isDegraded) {
+        const alert = await alertService.createAlert({
+          title: `System Alert: AI Engine ${data.status || 'DEGRADED'}`,
+          message: `Traffic from ${threat.sourceIP} held in MONITOR due to uninspected/degraded state.`,
+          severity: 'MEDIUM',
+          type: 'SYSTEM_HEALTH',
+          sourceRef: { refModel: 'ThreatLog', refId: threat._id },
+          targetRoles: ['admin', 'analyst'],
+        })
+        socketManager.emitNewAlert(alert)
+      } else if (['CRITICAL', 'HIGH'].includes(severity)) {
         const alert = await alertService.createAlertFromThreat(threat)
         socketManager.emitNewAlert(alert)
       }
     } catch (e) {
-      logger.debug('[AI] Socket/Alert emission error: ' + e.message)
+      logger.warn('[AI] Socket/Alert emission error: ' + e.message)
     }
 
     // Asynchronous Threat Intelligence Enrichment (Phase 2.4B - Option B)

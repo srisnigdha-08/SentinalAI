@@ -19,7 +19,7 @@ const AlertSchema = new mongoose.Schema(
       required: true,
     },
     sourceRef: {
-      refModel: { type: String, enum: ['ThreatLog', 'HoneypotSession', 'User'] },
+      refModel: { type: String, enum: ['ThreatLog', 'HoneypotSession', 'User', 'AIPrediction'] },
       refId: { type: mongoose.Schema.Types.ObjectId },
     },
     targetRoles: { type: [String], default: ['admin', 'analyst'] },

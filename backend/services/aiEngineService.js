@@ -50,12 +50,59 @@ const predictRecord = async (record) => {
   }
 }
 const runFullPipeline = async (record, io = null) => {
-  const r = await predictRecord(record)
-  if (!r?.result) return null
-  const { result } = r
-  const score = result.threatScore || 0
-  const blockThreshold = await getBlockThreshold()
-  const action = score >= blockThreshold ? 'BLOCK' : score >= 0.7 ? 'MONITOR' : 'ALLOW'
+  let r
+  try {
+    r = await module.exports.predictRecord(record)
+  } catch (err) {
+    if (err.statusCode === 422) throw err
+    r = null
+  }
+
+  // Handle degraded or unavailable inference
+  let result
+  let isDegraded = false
+  if (!r || !r.result) {
+    isDegraded = true
+    result = {
+      predictedClass: 'UNINSPECTED_TRAFFIC',
+      threatScore: 0.5,
+      action: 'MONITOR',
+      status: 'UNAVAILABLE',
+      isAnomaly: false,
+      anomalyScore: 0,
+      classProbabilities: { UNINSPECTED_TRAFFIC: 1.0 },
+      modelVersion: 'v2.1-fallback',
+      featureSchemaVersion: 'v2.1_53feat',
+      inferenceTimeMs: 0,
+    }
+  } else {
+    result = r.result
+    if (result.status === 'DEGRADED' || result.predictedClass === 'UNINSPECTED_TRAFFIC') {
+      isDegraded = true
+    }
+  }
+
+  const score = Math.max(0, Math.min(1, Number(result.threatScore || 0)))
+  const blockThreshold = await module.exports.getBlockThreshold()
+
+  // Action Precedence Rule:
+  // 1. Degraded / Unavailable inference must strictly enforce MONITOR
+  // 2. Valid explicit MONITOR recommendation from candidate policy is honored
+  // 3. Score-based threshold fallback:
+  let action = 'ALLOW'
+  if (
+    isDegraded ||
+    result.status === 'DEGRADED' ||
+    result.status === 'UNAVAILABLE' ||
+    result.predictedClass === 'UNINSPECTED_TRAFFIC'
+  ) {
+    action = 'MONITOR'
+  } else if (result.action === 'MONITOR' || result.action === 'BLOCK') {
+    action = result.action
+  } else {
+    action = score >= blockThreshold ? 'BLOCK' : score >= 0.7 ? 'MONITOR' : 'ALLOW'
+  }
+
   logger.info(
     '[AI Pipeline] ' +
       record.sourceIP +
@@ -64,8 +111,10 @@ const runFullPipeline = async (record, io = null) => {
       ' (' +
       Math.round(score * 100) +
       '%) -> ' +
-      action
+      action +
+      (isDegraded ? ' [' + (result.status || 'DEGRADED') + ']' : '')
   )
+
   const aiDbSvc = require('./aiService')
   let pred
   try {
@@ -84,9 +133,26 @@ const runFullPipeline = async (record, io = null) => {
       rawFeatures: record,
       featureVector: result.featureVector,
       featureSchemaVersion: result.featureSchemaVersion,
+      status: result.status,
+      action,
     })
   } catch (err) {
     logger.error('[AI Pipeline] Failed to persist prediction: ' + err.name)
+    // Emergency Audit Disk Fallback (Section 2.E)
+    try {
+      const { writeEmergencyAudit } = require('../utils/emergencyAudit')
+      writeEmergencyAudit({
+        event: 'PERSISTENCE_FAILURE_EMERGENCY_AUDIT',
+        sourceIP: record.sourceIP,
+        threatScore: score,
+        predictedClass: result.predictedClass,
+        action,
+        status: result.status || 'PERSISTENCE_FAILED',
+        error: err.message,
+      })
+    } catch (auditErr) {
+      logger.error('[AI Pipeline] Emergency disk audit failed: ' + auditErr.message)
+    }
     throw err
   }
 

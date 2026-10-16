@@ -47,7 +47,7 @@ const getThreat = async (req, res, next) => {
     next(err)
   }
 }
-const ALLOWED_THREAT_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE']
+const ALLOWED_THREAT_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED']
 const ALLOWED_THREAT_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
 const createThreat = async (req, res, next) => {

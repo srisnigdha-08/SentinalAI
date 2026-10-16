@@ -17,7 +17,7 @@ const ALLOWED_THREAT_SORT_FIELDS = [
 ]
 
 const ALLOWED_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']
-const ALLOWED_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE']
+const ALLOWED_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED']
 
 const findThreats = async ({
   page = 1,
@@ -96,7 +96,9 @@ const createThreat = async (data) => {
   const actionTaken = shouldBlock
 
   let status = 'DETECTED'
-  if (shouldBlock) {
+  if (data.status === 'DEGRADED') {
+    status = 'DEGRADED'
+  } else if (shouldBlock) {
     status = 'BLOCKED'
   } else if (score >= 0.7) {
     status = 'MONITORING'
