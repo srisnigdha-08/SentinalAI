@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #020b18;
+  --bg2: #041120;
+  --bg3: #061828;
+  --panel: #081f35;
+  --panel2: #0a2540;
+  --cyan: #00d4ff;
+  --cyan2: #00aacc;
+  --red: #ff2d55;
+  --green: #00ff88;
+  --amber: #ffaa00;
+  --purple: #8b5cf6;
+  --text: #c8e6f5;
+  --text2: #7ab3cc;
+  --text3: #3a6a88;
+  --border: #0d3352;
+  --border2: #1a4a6e;
+}
+
+html { scroll-behavior: smooth; }
+body { font-family: 'Rajdhani', sans-serif; background: var(--bg); color: var(--text); }
+
+/* Keep chart intrinsic widths inside their grid cells; tables scroll locally. */
+.dashboard-main { padding: 1.5rem; }
+.sentinel-sidebar { width: 220px; min-height: calc(100vh - 56px); }
+.dashboard-grid { display: grid; }
+.dashboard-grid > * { min-width: 0; }
+.dashboard-grid-two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.dashboard-grid-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.dashboard-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sentinel-table-scroll { max-width: 100%; overflow-x: auto; }
+.sentinel-navbar { padding: 0 2rem; gap: 2rem; }
+@media (max-width: 1100px) {
+  .dashboard-grid-two, .dashboard-grid-three { grid-template-columns: minmax(0, 1fr); }
+  .dashboard-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .sentinel-account-email { display: none; }
+  .sentinel-navbar { padding: 0 1rem; gap: 1rem; }
+}
+@media (max-width: 700px) {
+  .dashboard-shell { flex-direction: column; }
+  .sentinel-sidebar { width: 100%; min-height: 0; }
+  .dashboard-main { padding: 1rem; }
+  .dashboard-kpis { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--cyan); }
+
+/* Grid background utility */
+.grid-bg {
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Glassmorphism */
+.glass {
+  background: rgba(8, 31, 53, 0.7);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border);
+}
+
+/* Panel */
+.sentinel-panel {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 2px;
+}
+
+/* Cyber button */
+.btn-cyber {
+  font-family: 'Rajdhani', sans-serif;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  border-radius: 2px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+/* Severity badges */
+.sev-critical { background: rgba(255,45,85,.2); color: #ff2d55; border: 1px solid rgba(255,45,85,.4); }
+.sev-high     { background: rgba(255,100,0,.15); color: #ff6400; border: 1px solid rgba(255,100,0,.3); }
+.sev-medium   { background: rgba(255,170,0,.12); color: #ffaa00; border: 1px solid rgba(255,170,0,.3); }
+.sev-low      { background: rgba(0,212,255,.1);  color: #00d4ff; border: 1px solid rgba(0,212,255,.25); }
+
+/* Pulse animations */
+@keyframes pulseDot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@keyframes ringExpand {
+  0%, 100% { transform: scale(0.95); opacity: 0.05; }
+  50%       { transform: scale(1.05); opacity: 0.12; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes feedSlide {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes gridPulse {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 0.5; }
+}
+@keyframes scanline {
+  0%   { top: -10%; }
+  100% { top: 110%; }
+}
+
+.animate-pulseDot  { animation: pulseDot 1.5s ease-in-out infinite; }
+.animate-ringExpand { animation: ringExpand 3s ease-in-out infinite; }
+.animate-fadeUp    { animation: fadeUp 0.6s ease both; }
+.animate-feedSlide { animation: feedSlide 0.3s ease; }
+.animate-gridPulse { animation: gridPulse 4s ease-in-out infinite; }

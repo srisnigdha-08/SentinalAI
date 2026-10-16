@@ -1,0 +1,186 @@
+const express = require('express')
+const router = express.Router()
+const {
+  getSessions,
+  getSession,
+  createSession,
+  addCommands,
+  closeSession,
+  getHoneypotAnalytics,
+  getNodes,
+  getHoneypotStatus,
+} = require('../controllers/honeypotController')
+const { protect, restrictTo } = require('../middleware/auth')
+const { validateObjectId } = require('../middleware/validate')
+
+router.use(protect)
+
+router.get('/status', getHoneypotStatus)
+
+/**
+ * @openapi
+ * /honeypot/analytics:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Retrieve aggregate analytics and deception metrics for honeypot deployments
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Honeypot analytics retrieved successfully
+ */
+router.get('/analytics', getHoneypotAnalytics)
+
+/**
+ * @openapi
+ * /honeypot/nodes:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: List all active honeypot deployment nodes
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of honeypot nodes
+ */
+router.get('/nodes', getNodes)
+
+/**
+ * @openapi
+ * /honeypot/sessions:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Query honeypot attacker sessions with pagination and filters
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *     responses:
+ *       200:
+ *         description: Paginated honeypot sessions
+ *   post:
+ *     tags:
+ *       - Honeypot
+ *     summary: Create a honeypot session record
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - sessionId
+ *               - sourceIP
+ *             properties:
+ *               sessionId:
+ *                 type: string
+ *               sourceIP:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Honeypot session created
+ */
+router.route('/sessions').get(getSessions).post(restrictTo('admin', 'analyst'), createSession)
+
+/**
+ * @openapi
+ * /honeypot/sessions/{id}:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Get single honeypot session details by ID
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Session details retrieved
+ *       404:
+ *         description: Session not found
+ */
+router.route('/sessions/:id').get(validateObjectId, getSession)
+
+/**
+ * @openapi
+ * /honeypot/sessions/{id}/commands:
+ *   post:
+ *     tags:
+ *       - Honeypot
+ *     summary: Append attacker commands to an active honeypot session
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               commands:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       200:
+ *         description: Commands appended successfully
+ */
+router.post('/sessions/:id/commands', validateObjectId, restrictTo('admin', 'analyst'), addCommands)
+
+/**
+ * @openapi
+ * /honeypot/sessions/{id}/close:
+ *   put:
+ *     tags:
+ *       - Honeypot
+ *     summary: Close an active honeypot session and trigger AI evaluation
+ *     description: Ordinary completed closes are idempotent. Explicit reclassification preserves closure time and existing containment.
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reclassify: { type: boolean, default: false }
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Session closure attempt completed or previously completed record returned
+ *       409:
+ *         description: Analysis is in progress or a failed attempt requires review
+ */
+router.put('/sessions/:id/close', validateObjectId, restrictTo('admin', 'analyst'), closeSession)
+
+module.exports = router

@@ -1,0 +1,113 @@
+{
+  "audit": "GATE-1 Candidate Model Comparison Benchmark",
+  "evaluatedCandidates": [
+    {
+      "modelIdentifier": "rf_v2",
+      "artifact": "ai-engine/models/rf_classifier_cicids_v2.pkl",
+      "architecture": "RandomForestClassifier (100 trees, scikit-learn)",
+      "sizeBytes": 46234119,
+      "status": "Production Active",
+      "benchmark200Samples": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.000,
+        "ddosRecall": 1.000,
+        "ddosFPR": 0.000
+      },
+      "benchmark2000SamplesOffset60k": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.009,
+        "portScanCM": {"TN": 991, "FP": 9, "FN": 0, "TP": 1000},
+        "ddosRecall": 0.995,
+        "ddosFPR": 0.005,
+        "ddosCM": {"TN": 995, "FP": 5, "FN": 5, "TP": 995}
+      },
+      "operationalProperties": {
+        "inferenceLatencyP95Ms": 1.8,
+        "memoryFootprintMb": 92.4,
+        "robustnessToMissingFeatures": "High",
+        "rationale": "Retained as baseline production classifier under strict immutability rules."
+      }
+    },
+    {
+      "modelIdentifier": "xgb_v2",
+      "artifact": "ai-engine/models/xgb_classifier_cicids_v2.pkl",
+      "architecture": "XGBClassifier (Gradient Boosted Trees)",
+      "sizeBytes": 3623754,
+      "status": "Evaluated Candidate",
+      "benchmark200Samples": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.000,
+        "ddosRecall": 1.000,
+        "ddosFPR": 0.000
+      },
+      "benchmark2000SamplesOffset60k": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.003,
+        "portScanCM": {"TN": 997, "FP": 3, "FN": 0, "TP": 1000},
+        "ddosRecall": 0.999,
+        "ddosFPR": 0.003,
+        "ddosCM": {"TN": 997, "FP": 3, "FN": 1, "TP": 999}
+      },
+      "operationalProperties": {
+        "inferenceLatencyP95Ms": 1.2,
+        "memoryFootprintMb": 18.6,
+        "robustnessToMissingFeatures": "High",
+        "rationale": "Achieves superior raw FPR (0.3% vs 0.5%) and compact size (3.6 MB). Recommended candidate for Phase 8 promotion after staging soak tests."
+      }
+    },
+    {
+      "modelIdentifier": "stacking",
+      "artifact": "ai-engine/models/stacking_classifier_cicids.pkl",
+      "architecture": "StackingClassifier (RF + XGB + ExtraTrees + LogisticRegression meta)",
+      "sizeBytes": 44037489,
+      "status": "Evaluated Candidate",
+      "benchmark200Samples": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.000,
+        "ddosRecall": 1.000,
+        "ddosFPR": 0.000
+      },
+      "benchmark2000SamplesOffset60k": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.007,
+        "portScanCM": {"TN": 993, "FP": 7, "FN": 0, "TP": 1000},
+        "ddosRecall": 0.997,
+        "ddosFPR": 0.013,
+        "ddosCM": {"TN": 987, "FP": 13, "FN": 1, "TP": 999}
+      },
+      "operationalProperties": {
+        "inferenceLatencyP95Ms": 4.6,
+        "memoryFootprintMb": 145.0,
+        "robustnessToMissingFeatures": "Medium",
+        "rationale": "High latency and higher DDoS FPR (1.3%) make this model less desirable for production real-time edge filtering."
+      }
+    },
+    {
+      "modelIdentifier": "rf_v1",
+      "artifact": "ai-engine/models/rf_classifier_cicids.pkl",
+      "architecture": "RandomForestClassifier v1 (scikit-learn legacy)",
+      "sizeBytes": 38960311,
+      "status": "Archived Baseline",
+      "benchmark200Samples": {
+        "portScanRecall": 1.000,
+        "portScanFPR": 0.000,
+        "ddosRecall": 1.000,
+        "ddosFPR": 0.000
+      },
+      "benchmark2000SamplesOffset60k": {
+        "portScanRecall": 0.999,
+        "portScanFPR": 0.010,
+        "portScanCM": {"TN": 990, "FP": 10, "FN": 1, "TP": 999},
+        "ddosRecall": 0.995,
+        "ddosFPR": 0.006,
+        "ddosCM": {"TN": 994, "FP": 6, "FN": 5, "TP": 995}
+      },
+      "operationalProperties": {
+        "inferenceLatencyP95Ms": 1.7,
+        "memoryFootprintMb": 85.0,
+        "robustnessToMissingFeatures": "High",
+        "rationale": "Superseded by v2."
+      }
+    }
+  ]
+}

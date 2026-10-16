@@ -1,0 +1,102 @@
+{
+  "audit": "GATE-1 Exact Statistical Confidence Intervals",
+  "methodology": "Wilson Score Interval for Binomial Proportions (95% Confidence, z = 1.95996)",
+  "statisticalRuleOfThree": {
+    "theorem": "When an event occurs 0 times in N trials, the 95% confidence upper bound is approximately 3 / N.",
+    "implicationFor0_1PercentTarget": "To prove an FPR < 0.10% (0.001) with 95% confidence when observing 0 false positives, sample size must be N >= 3,000. At N = 10,000, 0 false positives proves an upper bound of 0.038%."
+  },
+  "intervals": {
+    "monday_pure_benign_10000": {
+      "sampleCount": 10000,
+      "rawClassifierFPR": {
+        "pointEstimate": 0.0045,
+        "ci95Lower": 0.00336,
+        "ci95Upper": 0.00602,
+        "ci95Percent": "[0.34%, 0.60%]"
+      },
+      "compositePredictorFPR": {
+        "pointEstimate": 0.1373,
+        "ci95Lower": 0.13069,
+        "ci95Upper": 0.14418,
+        "ci95Percent": "[13.07%, 14.42%]"
+      },
+      "runtimePolicyActionFPR": {
+        "pointEstimate": 0.0000,
+        "ci95Lower": 0.00000,
+        "ci95Upper": 0.00038,
+        "ci95Percent": "[0.00%, 0.038%]",
+        "meetsTargetSub0_1Percent": true
+      }
+    },
+    "friday_ddos_2000": {
+      "sampleCount": 2000,
+      "benignCount": 1000,
+      "attackCount": 1000,
+      "rawClassifierFPR": {
+        "pointEstimate": 0.0000,
+        "ci95Lower": 0.00000,
+        "ci95Upper": 0.00383,
+        "ci95Percent": "[0.00%, 0.38%]"
+      },
+      "rawClassifierRecall": {
+        "pointEstimate": 0.9990,
+        "ci95Lower": 0.99436,
+        "ci95Upper": 0.99982,
+        "ci95Percent": "[99.44%, 99.98%]"
+      },
+      "compositePredictorFPR": {
+        "pointEstimate": 0.4000,
+        "ci95Lower": 0.37007,
+        "ci95Upper": 0.43069,
+        "ci95Percent": "[37.01%, 43.07%]"
+      },
+      "runtimePolicyActionFPR": {
+        "pointEstimate": 0.0000,
+        "ci95Lower": 0.00000,
+        "ci95Upper": 0.00383,
+        "ci95Percent": "[0.00%, 0.38%]"
+      },
+      "runtimePolicyActionRecall": {
+        "pointEstimate": 0.7660,
+        "ci95Lower": 0.73877,
+        "ci95Upper": 0.79119,
+        "ci95Percent": "[73.88%, 79.12%]"
+      }
+    },
+    "friday_portscan_2000": {
+      "sampleCount": 2000,
+      "benignCount": 1000,
+      "attackCount": 1000,
+      "rawClassifierFPR": {
+        "pointEstimate": 0.0170,
+        "ci95Lower": 0.01064,
+        "ci95Upper": 0.02706,
+        "ci95Percent": "[1.06%, 2.71%]"
+      },
+      "rawClassifierRecall": {
+        "pointEstimate": 0.9850,
+        "ci95Lower": 0.97540,
+        "ci95Upper": 0.99089,
+        "ci95Percent": "[97.54%, 99.09%]"
+      },
+      "compositePredictorFPR": {
+        "pointEstimate": 0.0640,
+        "ci95Lower": 0.05044,
+        "ci95Upper": 0.08090,
+        "ci95Percent": "[5.04%, 8.09%]"
+      },
+      "runtimePolicyActionFPR": {
+        "pointEstimate": 0.0000,
+        "ci95Lower": 0.00000,
+        "ci95Upper": 0.00383,
+        "ci95Percent": "[0.00%, 0.38%]"
+      },
+      "runtimePolicyActionRecall": {
+        "pointEstimate": 0.0740,
+        "ci95Lower": 0.05936,
+        "ci95Upper": 0.09191,
+        "ci95Percent": "[5.94%, 9.19%]"
+      }
+    }
+  }
+}

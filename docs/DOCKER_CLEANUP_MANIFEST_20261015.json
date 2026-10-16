@@ -1,0 +1,164 @@
+{
+    "ReportDate": "2026-10-15 13:30:00",
+    "Status": "COMPLETE_REMOVAL_AND_STORAGE_RECLAIMED",
+    "ExternalBackupVerification": {
+        "PhysicalDevice": "Disk 1 (Mass Storage Device USB, 1 TB MBR, Volume E: NTFS)",
+        "DestinationPath": "E:\\SentinelAI_Backup_20261015\\mongo_preservation_archive_20261015.zip",
+        "SourcePath": "D:\\MongoPreservation_Backup_20261015\\mongo_preservation_archive_20261015.zip",
+        "SizeBytes": 13689659,
+        "SHA256": "0ABD89410FB9962931325659EFC1541AFB8AEEDE912496D75CB7E679A3F706A7",
+        "HashMatch": true,
+        "IntegrityTest": "PASS (208 files, 645,280,789 uncompressed bytes streamed with 0 errors)",
+        "ManifestsCopied": "E:\\SentinelAI_Backup_20261015\\manifests\\"
+    },
+    "DeletedItems": [
+        {
+            "Path": "C:\\Users\\srisn\\AppData\\Local\\Programs\\DockerDesktop",
+            "Type": "Directory",
+            "Bytes": 3439038955,
+            "MiB": 3279.72,
+            "Reason": "Docker Desktop application binaries and Electron assets; obsolete after permanent shift to native development",
+            "Evidence": "Verified installed Docker Desktop application directory; processes confirmed stopped before deletion"
+        },
+        {
+            "Path": "C:\\Users\\srisn\\AppData\\Local\\Docker",
+            "Type": "Directory",
+            "Bytes": 34703939,
+            "MiB": 33.10,
+            "Reason": "Docker Desktop local log files, locks, CLI logs, and WSL engine state",
+            "Evidence": "Text logs and locks only; zero native SentinelAI code or models"
+        },
+        {
+            "Path": "C:\\Users\\srisn\\AppData\\Roaming\\Docker",
+            "Type": "Directory",
+            "Bytes": 674828,
+            "MiB": 0.64,
+            "Reason": "Docker Desktop user settings and analytics",
+            "Evidence": "Contained settings-store.json pointing to protected D:\\ paths; no application data"
+        },
+        {
+            "Path": "C:\\Users\\srisn\\.docker",
+            "Type": "Directory",
+            "Bytes": 43305,
+            "MiB": 0.04,
+            "Reason": "Docker CLI context and daemon configuration",
+            "Evidence": "Stale CLI contexts referencing non-existent named pipes; no native development files"
+        },
+        {
+            "Path": "D:\\DockerBackup\\docker_data_new_install.vhdx",
+            "Type": "File",
+            "Bytes": 1645215744,
+            "MiB": 1568.99,
+            "Reason": "Empty baseline virtual disk from 2026-10-12 fresh install",
+            "Evidence": "1.53 GiB size matches empty Docker engine WSL distro; contains no historical SentinelAI volumes"
+        },
+        {
+            "Path": "D:\\DockerBackup\\docker_data_restore.vhdx",
+            "Type": "File",
+            "Bytes": 34801188864,
+            "MiB": 33188.99,
+            "Reason": "Verified 100% byte-for-byte duplicate of retained D:\\DockerBackup\\docker_data_fresh.vhdx",
+            "Evidence": "Identical size, timestamp, and SHA-256 (EACB295F930C50BD9B7458A54FA0A556D696B51A984647CC97AB90A682AA4734)"
+        },
+        {
+            "Path": "D:\\DockerInspection\\A3\\docker_data_A3_working.vhdx",
+            "Type": "File",
+            "Bytes": 35566649344,
+            "MiB": 33919.00,
+            "Reason": "Historical working copy VHDX; historical MongoDB datasets successfully extracted and independently backed up",
+            "Evidence": "Bit-for-bit baseline SHA-256 (660D98A9...) confirmed unchanged; 100% of data extracted and verified"
+        },
+        {
+            "Path": "D:\\DockerBackup\\docker_data_pre_recovery_2026-10-13.vhdx",
+            "Type": "File",
+            "Bytes": 35566649344,
+            "MiB": 33919.00,
+            "Reason": "Pre-recovery snapshot VHDX; superseded by verified extracted database and multi-device backups",
+            "Evidence": "Exact twin of working copy; application data verified preserved in D:\\MongoPreservation"
+        },
+        {
+            "Path": "D:\\DockerBackup\\docker_data.vhdx",
+            "Type": "File",
+            "Bytes": 34801188864,
+            "MiB": 33188.99,
+            "Reason": "Older historical snapshot (07-10-2026); superseded by verified extracted database",
+            "Evidence": "Historical snapshot; application data fully recovered from latest 13-10-2026 snapshot"
+        },
+        {
+            "Path": "D:\\DockerBackup\\docker_data_fresh.vhdx",
+            "Type": "File",
+            "Bytes": 34801188864,
+            "MiB": 33188.99,
+            "Reason": "Intermediate snapshot (10-10-2026); superseded by verified extracted database",
+            "Evidence": "Intermediate snapshot; application data fully recovered from latest 13-10-2026 snapshot"
+        },
+        {
+            "Path": "D:\\DockerDesktopData\\DockerDesktopWSL\\disk\\docker_data.vhdx",
+            "Type": "File",
+            "Bytes": 35566649344,
+            "MiB": 33919.00,
+            "Reason": "Original Docker Desktop WSL engine virtual disk; Docker Desktop uninstalled",
+            "Evidence": "Original disk; data fully extracted, verified, and backed up across internal and external media"
+        },
+        {
+            "Path": "C:\\RecoveryTools (Disposable Binaries & Environments)",
+            "Type": "Directory Contents",
+            "Bytes": 3155750316,
+            "MiB": 3009.56,
+            "Reason": "Disposable SystemRescue ISO, portable QEMU binaries, temporary installers, overlay, and staging directories",
+            "Evidence": "Extraction completed successfully; orchestration scripts permanently preserved in docs\\recovery_scripts\\"
+        }
+    ],
+    "RecoveredDatasets": [
+        {
+            "Name": "deployment_mongo_data",
+            "ExtractedPath": "D:\\MongoPreservation\\deployment_mongo_data",
+            "BackupPath": "D:\\MongoPreservation_Backup_20261015\\deployment_mongo_data",
+            "ExternalBackupPath": "E:\\SentinelAI_Backup_20261015\\mongo_preservation_archive_20261015.zip",
+            "ManifestFile": "D:\\MongoPreservation\\manifests\\deployment_mongo_data_SOURCE.sha256.txt",
+            "ExpectedFiles": 181,
+            "VerifiedFiles": 181,
+            "FailedHashes": 0,
+            "MissingFiles": 0,
+            "ValidatedDatabaseName": "sentinel-db",
+            "ValidatedCollections": [
+                "campaigns (1 doc)",
+                "users (6 docs)",
+                "systemsettings (1 doc)",
+                "aipredictions (9 docs)",
+                "threatlogs (10 docs)",
+                "honeypotsessions (8 docs)"
+            ]
+        },
+        {
+            "Name": "deepguard-platform_mongo_data",
+            "ExtractedPath": "D:\\MongoPreservation\\deepguard-platform_mongo_data",
+            "BackupPath": "D:\\MongoPreservation_Backup_20261015\\deepguard-platform_mongo_data",
+            "ExternalBackupPath": "E:\\SentinelAI_Backup_20261015\\mongo_preservation_archive_20261015.zip",
+            "ManifestFile": "D:\\MongoPreservation\\manifests\\deepguard-platform_mongo_data_SOURCE.sha256.txt",
+            "ExpectedFiles": 21,
+            "VerifiedFiles": 21,
+            "FailedHashes": 0,
+            "MissingFiles": 0,
+            "ValidatedDatabaseName": "admin, config, local (system only; 0 application collections)"
+        }
+    ],
+    "PreservedAssets": [
+        "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete (Native Source Code, .env, Models, Datasets)",
+        "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete.native-integration\\mongodb-acceptance-20261014 (Native DB, 75 files)",
+        "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\docs\\recovery_scripts (Recovery Orchestration Scripts & Evidence)",
+        "D:\\MongoPreservation (Extracted MongoDB Production Data & Source Manifests)",
+        "D:\\MongoPreservation_Backup_20261015 (Internal Uncompressed & ZIP Backup)",
+        "E:\\SentinelAI_Backup_20261015 (External Physical USB Backup Archive & Manifests)"
+    ],
+    "StorageReclaimedSummary": {
+        "Drive_C_ReclaimedBytes": 6629532585,
+        "Drive_C_ReclaimedGiB": 6.174,
+        "Drive_C_FinalFreeGiB": 5.290,
+        "Drive_D_ReclaimedBytes": 212748730368,
+        "Drive_D_ReclaimedGiB": 198.138,
+        "Drive_D_FinalFreeGiB": 216.168,
+        "TotalReclaimedBytes": 219378262953,
+        "TotalReclaimedGiB": 204.312
+    }
+}

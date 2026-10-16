@@ -1,0 +1,137 @@
+#!/usr/bin/env python3
+"""
+SentinelAI Honeypot Profile Switcher
+Switches Cowrie's deception personality between 6 OS profiles:
+  - ubuntu_22    (Ubuntu 22.04 LTS)
+  - debian_11    (Debian GNU/Linux 11)
+  - centos_7     (CentOS Linux 7)
+  - windows_srv  (Windows Server 2019)
+  - aws_ec2      (Amazon Linux 2)
+  - raspberry_pi (Raspbian GNU/Linux 11)
+
+Usage:
+  python switch_profile.py <profile_name>
+  Example: python switch_profile.py windows_srv
+"""
+import sys
+from pathlib import Path
+
+PROFILES = {
+    "ubuntu_22": {
+        "hostname": "ubuntu-prod-srv",
+        "os": "Ubuntu 22.04 LTS",
+        "kernel_version": "5.15.0-91-generic",
+        "kernel_build_string": "#101-Ubuntu SMP Tue Nov 14 13:30:08 UTC 2023",
+        "hardware_platform": "x86_64",
+        "banner": "SSH-2.0-OpenSSH_8.9p1 Ubuntu-3ubuntu0.6",
+    },
+    "debian_11": {
+        "hostname": "debian-prod-01",
+        "os": "Debian GNU/Linux 11",
+        "kernel_version": "5.10.0-27-amd64",
+        "kernel_build_string": "#1 SMP Debian 5.10.205-2 (2023-12-31)",
+        "hardware_platform": "x86_64",
+        "banner": "SSH-2.0-OpenSSH_8.4p1 Debian-5+deb11u3",
+    },
+    "centos_7": {
+        "hostname": "centos-web-gateway",
+        "os": "CentOS Linux 7",
+        "kernel_version": "3.10.0-1160.el7.x86_64",
+        "kernel_build_string": "#1 SMP Mon Oct 19 16:18:59 UTC 2020",
+        "hardware_platform": "x86_64",
+        "banner": "SSH-2.0-OpenSSH_7.4",
+    },
+    "windows_srv": {
+        "hostname": "WIN-SRV19-DC01",
+        "os": "Windows Server 2019",
+        "kernel_version": "10.0.17763",
+        "kernel_build_string": "Microsoft Windows Server 2019 Datacenter",
+        "hardware_platform": "x86_64",
+        "banner": "SSH-2.0-OpenSSH_for_Windows_8.1",
+    },
+    "aws_ec2": {
+        "hostname": "ip-10-0-1-42.ec2.internal",
+        "os": "Amazon Linux 2",
+        "kernel_version": "5.10.198-187.amzn2.x86_64",
+        "kernel_build_string": "#1 SMP Wed Nov 8 23:44:48 UTC 2023",
+        "hardware_platform": "x86_64",
+        "banner": "SSH-2.0-OpenSSH_7.4",
+    },
+    "raspberry_pi": {
+        "hostname": "raspberrypi",
+        "os": "Raspbian GNU/Linux 11",
+        "kernel_version": "5.15.84-v8+",
+        "kernel_build_string": "#1613 SMP PREEMPT Thu Jan 5 12:03:08 GMT 2023",
+        "hardware_platform": "aarch64",
+        "banner": "SSH-2.0-OpenSSH_8.4p1 Raspbian",
+    },
+}
+
+CFG_PATH = Path(__file__).parent / "cowrie" / "cowrie.cfg"
+
+def generate_config(profile_key):
+    if profile_key not in PROFILES:
+        print(f"Error: Unknown profile '{profile_key}'. Available options:")
+        for k, v in PROFILES.items():
+            print(f"  - {k:<14} ({v['os']} | {v['banner']})")
+        sys.exit(1)
+
+    p = PROFILES[profile_key]
+    cfg_content = f"""[honeypot]
+hostname             = {p['hostname']}
+log_path             = var/log/cowrie
+listen_endpoints     = tcp:2222:interface=0.0.0.0
+kernel_version       = {p['kernel_version']}
+kernel_build_string  = {p['kernel_build_string']}
+hardware_platform    = {p['hardware_platform']}
+max_sessions         = 50
+interactive_timeout  = 180
+auth_class           = UserDB
+auth_class_parameters= 1,3
+download_path        = ${{honeypot:state_path}}/downloads
+
+[ssh]
+version = {p['banner']}
+
+[output_jsonlog]
+enabled = true
+logfile = ${{honeypot:log_path}}/cowrie.json
+
+[output_textlog]
+enabled = true
+logfile = ${{honeypot:log_path}}/cowrie.log
+
+[output_pcap]
+enabled = true
+logfile = ${{honeypot:log_path}}/pcap/cowrie.pcap
+
+[userdb]
+root = *
+guest = guest
+
+[logging]
+log_level = info
+
+[output_sentinel_blocker]
+enabled = true
+"""
+    CFG_PATH.write_text(cfg_content, encoding="utf-8")
+    print(f"[*] Updated {CFG_PATH}")
+    print(f"[+] Active Profile: {profile_key.upper()}")
+    print(f"    - OS:       {p['os']}")
+    print(f"    - Hostname: {p['hostname']}")
+    print(f"    - Kernel:   {p['kernel_version']}")
+    print(f"    - Banner:   {p['banner']}")
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python switch_profile.py <profile_name>")
+        print("\nAvailable 6 OS Honeypot Profiles:")
+        for k, v in PROFILES.items():
+            print(f"  {k:<14} -> {v['os']} (Banner: {v['banner']})")
+        sys.exit(0)
+
+    target_profile = sys.argv[1].lower()
+    generate_config(target_profile)
+
+    print("Restart your independently managed Cowrie service to apply this profile.")

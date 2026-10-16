@@ -1,0 +1,47 @@
+{
+  "audit": "GATE-1 Artifact Hashes and Integrity Manifest",
+  "auditDate": "2026-10-16T06:45:00Z",
+  "hashAlgorithm": "SHA-256",
+  "artifacts": [
+    {
+      "logicalName": "Baseline Q-Table (Protected Immutable)",
+      "path": "ai-engine/models/q_table.json",
+      "sizeBytes": 2338,
+      "sha256": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "integrityStatus": "VERIFIED_MATCH",
+      "role": "Reference baseline for RL containment decisions. Must never be mutated by runtime processes."
+    },
+    {
+      "logicalName": "Runtime Q-Table (Active RL Agent)",
+      "path": "ai-engine/runtime/q_table.json",
+      "sizeBytes": 2494,
+      "sha256": "7376FBC76B58A6F1060CEA36C39C50280DDF716A20F430025CDCD54AB772283C",
+      "integrityStatus": "VERIFIED_RUNTIME",
+      "role": "Runtime copy used by live AI Engine to record empirical Q-learning rewards."
+    },
+    {
+      "logicalName": "Production Classifier Model",
+      "path": "ai-engine/models/rf_classifier_cicids_v2.pkl",
+      "sizeBytes": 46234119,
+      "sha256": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "integrityStatus": "VERIFIED_MATCH",
+      "role": "Active supervised multi-class Random Forest estimator (53 features, 100 trees)."
+    },
+    {
+      "logicalName": "Production Anomaly Detector",
+      "path": "ai-engine/models/isolation_forest_cicids.pkl",
+      "sizeBytes": 1429757,
+      "sha256": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "integrityStatus": "VERIFIED_MATCH",
+      "role": "Unsupervised Isolation Forest estimator for detecting out-of-distribution traffic patterns."
+    },
+    {
+      "logicalName": "Candidate XGBoost Classifier",
+      "path": "ai-engine/models/xgb_classifier_cicids_v2.pkl",
+      "sizeBytes": 3623754,
+      "sha256": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "integrityStatus": "VERIFIED_MATCH",
+      "role": "High-efficiency gradient boosted candidate classifier for low-latency edge deployment."
+    }
+  ]
+}

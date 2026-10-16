@@ -1,0 +1,73 @@
+const sessions = require('../services/authSessionService')
+const { sendError } = require('../utils/apiResponse')
+const ALLOWED_LIFECYCLE_PATHS = new Set([
+  '/api/auth/update-password',
+  '/api/auth/me',
+  '/api/auth/logout',
+  '/api/auth/logout-all',
+  '/auth/update-password',
+  '/auth/me',
+  '/auth/logout',
+  '/auth/logout-all',
+])
+
+const isAllowedLifecyclePath = (req) => {
+  const cleanUrl = (req.originalUrl || '').split('?')[0]
+  if (ALLOWED_LIFECYCLE_PATHS.has(cleanUrl)) return true
+  const cleanPath = (req.path || '').split('?')[0]
+  const cleanBase = (req.baseUrl || '').split('?')[0]
+  if (
+    (!cleanBase || cleanBase === '/api/auth' || cleanBase === '/auth') &&
+    ['/update-password', '/me', '/logout', '/logout-all'].includes(cleanPath)
+  ) {
+    return true
+  }
+  return false
+}
+
+const protect = async (req, res, next) => {
+  try {
+    const header = req.headers.authorization
+    if (!header?.startsWith('Bearer ')) return sendError(res, 'No token', 401)
+    const state = await sessions.authorize(header.slice(7))
+    req.user = state.user
+    req.authSession = state.session
+
+    if (req.user?.mustChangePassword && !isAllowedLifecyclePath(req)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Password change required before accessing platform features',
+        code: 'PASSWORD_CHANGE_REQUIRED',
+        timestamp: new Date().toISOString(),
+      })
+    }
+
+    // Phase 6B: Record meaningful authenticated activity (throttled)
+    sessions.recordActivity(state.session._id)
+
+    next()
+  } catch (error) {
+    if (error.statusCode === 401 || error.name === 'AuthError') {
+      try {
+        require('./authCookies').clearCookies(res)
+      } catch {}
+    }
+    sendError(res, error.message, error.statusCode || 503)
+  }
+}
+const restrictTo =
+  (...roles) =>
+  (req, res, next) => {
+    if (!roles.includes(req.user.role)) return sendError(res, 'Access denied', 403)
+    next()
+  }
+const optionalAuth = async (req, res, next) => {
+  try {
+    if (req.headers.authorization?.startsWith('Bearer '))
+      req.user = (await sessions.authorize(req.headers.authorization.slice(7))).user
+  } catch (error) {
+    if (error.statusCode === 503) return sendError(res, 'Authentication service unavailable', 503)
+  }
+  next()
+}
+module.exports = { protect, restrictTo, optionalAuth }

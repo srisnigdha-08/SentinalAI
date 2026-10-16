@@ -1,0 +1,59 @@
+{
+  "audit": "GATE-1 Baseline Metrics Archive",
+  "sourceDocuments": [
+    "docs/final-closure/final-evidence-based-acceptance-report.md",
+    "docs/final-closure/ai-model-evaluation-and-safety-governance.md",
+    "Phase 7 Audit Reports"
+  ],
+  "historicalReportedMetrics": {
+    "phase7_portscan_slice": {
+      "sampleCount": 200,
+      "benignSamples": 100,
+      "attackSamples": 100,
+      "offset": 60000,
+      "recall": 1.000,
+      "fpr": 0.000,
+      "confusionMatrix": {
+        "trueNegative": 100,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "truePositive": 100
+      }
+    },
+    "phase7_ddos_slice_raw_rf": {
+      "sampleCount": 200,
+      "benignSamples": 100,
+      "attackSamples": 100,
+      "offset": 60000,
+      "recall": 1.000,
+      "fpr": 0.000,
+      "confusionMatrix": {
+        "trueNegative": 100,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "truePositive": 100
+      }
+    },
+    "reported_ddos_composite_anomaly": {
+      "sampleCount": 300,
+      "benignSamples": 100,
+      "attackSamples": 200,
+      "reportedFPR": 0.333,
+      "rootCause": "Isolation Forest anomaly override labeled as attack by is_pos() in evaluate_model.py"
+    },
+    "phase7_scaled_hypothetical": {
+      "sampleCount": 2000,
+      "benignSamples": 1000,
+      "attackSamples": 1000,
+      "note": "Reported as scaled matrix derived by multiplying 200-sample slice by 10x",
+      "recall": 1.000,
+      "fpr": 0.000,
+      "confusionMatrix": {
+        "trueNegative": 1000,
+        "falsePositive": 0,
+        "falseNegative": 0,
+        "truePositive": 1000
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+<service>
+  <!-- SentinelAI WinSW Windows Service Wrapper Template -->
+  <!-- NOTICE: Do NOT register as a persistent Windows Service on the development workstation. -->
+  <!-- Use strictly on a dedicated Windows Server / VM environment. -->
+  <id>SentinelAI-Backend</id>
+  <name>SentinelAI Backend Service</name>
+  <description>Native Windows Backend API and Real-Time Telemetry Engine for SentinelAI</description>
+  <executable>node.exe</executable>
+  <arguments>server.js</arguments>
+  <workingdirectory>%BASE%\backend</workingdirectory>
+
+  <!-- Logging Configuration: Rolled by size to prevent disk exhaustion -->
+  <logpath>%BASE%\logs\service</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+
+  <!-- Security: Secrets must NOT be hardcoded in XML. WinSW inherits System/Service Account environment -->
+  <!-- or references an encrypted file via Protected Storage. -->
+  <env name="NODE_ENV" value="production" />
+  <env name="HOST" value="127.0.0.1" />
+  <env name="PORT" value="5000" />
+
+  <!-- Shutdown Coordination: WinSW delivers CTRL_C_EVENT to the process group. -->
+  <!-- RUNTIME VERIFICATION STATUS: NOT RUNTIME VERIFIED ON HOST (SESSION 0 CONSTRAINT) -->
+  <!-- TECHNICAL FINDING: On Windows, POSIX signals do not exist. In Session 0 (Windows Services), -->
+  <!-- child processes lack an interactive console attached to CONIN$. If Win32 GenerateConsoleCtrlEvent -->
+  <!-- fails or times out, WinSW falls back to TerminateProcess(), which halts Node.js immediately -->
+  <!-- without invoking GracefulShutdownManager hooks. -->
+  <!-- Dedicated VM testing with a named pipe or IPC shutdown trigger is recommended before production. -->
+  <stoptimeout>15 sec</stoptimeout>
+  <stopparentprocessfirst>true</stopparentprocessfirst>
+  <beFirm>true</beFirm>
+</service>

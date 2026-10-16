@@ -1,0 +1,116 @@
+{
+  "audit": "GATE-1 Verified Reproduction Metrics",
+  "pipelineVersion": "2.1",
+  "modelEvaluated": "rf_classifier_cicids_v2.pkl",
+  "anomalyDetector": "isolation_forest_cicids.pkl",
+  "evaluationRuns": {
+    "monday_pure_benign_10k": {
+      "dataset": "Monday-WorkingHours.pcap_ISCX.csv",
+      "nature": "Strictly held-out, zero training overlap, 100% benign baseline",
+      "sampleCount": 10000,
+      "rawClassifier": {
+        "confusionMatrix": {"TN": 9955, "FP": 45, "FN": 0, "TP": 0},
+        "fpr": 0.0045,
+        "fprPercent": "0.45%",
+        "predictionsBreakdown": {
+          "BENIGN": 9955,
+          "Malware Beacon": 34,
+          "DDoS": 10,
+          "Credential Stuffing": 1
+        }
+      },
+      "compositePredictor": {
+        "confusionMatrix": {"TN": 8627, "FP": 1373, "FN": 0, "TP": 0},
+        "fpr": 0.1373,
+        "fprPercent": "13.73%",
+        "anomaliesFlagged": 1328,
+        "predictionsBreakdown": {
+          "BENIGN": 8627,
+          "Unknown": 1328,
+          "Malware Beacon": 34,
+          "DDoS": 10,
+          "Credential Stuffing": 1
+        }
+      },
+      "runtimePolicyAction": {
+        "confusionMatrix": {"TN": 10000, "FP": 0, "FN": 0, "TP": 0},
+        "fpr": 0.0000,
+        "fprPercent": "0.00%",
+        "actionsExecuted": {
+          "ALLOW": 10000,
+          "MONITOR": 0,
+          "BLOCK": 0
+        }
+      }
+    },
+    "friday_ddos_capture_2k": {
+      "dataset": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+      "nature": "LOIC DDoS attack capture with ambient network traffic",
+      "sampleCount": 2000,
+      "benignCount": 1000,
+      "attackCount": 1000,
+      "rawClassifier": {
+        "confusionMatrix": {"TN": 1000, "FP": 0, "FN": 1, "TP": 999},
+        "fpr": 0.0000,
+        "fprPercent": "0.00%",
+        "recall": 0.9990,
+        "recallPercent": "99.90%"
+      },
+      "compositePredictor": {
+        "confusionMatrix": {"TN": 600, "FP": 400, "FN": 1, "TP": 999},
+        "fpr": 0.4000,
+        "fprPercent": "40.00%",
+        "recall": 0.9990,
+        "recallPercent": "99.90%",
+        "anomaliesFlagged": 407,
+        "note": "400 benign flows flagged as Unknown and tallied as false positives by legacy evaluate_model.py"
+      },
+      "runtimePolicyAction": {
+        "confusionMatrix": {"TN": 1000, "FP": 0, "FN": 234, "TP": 766},
+        "fpr": 0.0000,
+        "fprPercent": "0.00%",
+        "recall": 0.7660,
+        "recallPercent": "76.60%",
+        "actionsExecuted": {
+          "ALLOW": 1234,
+          "MONITOR": 761,
+          "BLOCK": 5
+        }
+      }
+    },
+    "friday_portscan_capture_2k": {
+      "dataset": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+      "nature": "PortScan reconnaissance capture with ambient network traffic",
+      "sampleCount": 2000,
+      "benignCount": 1000,
+      "attackCount": 1000,
+      "rawClassifier": {
+        "confusionMatrix": {"TN": 983, "FP": 17, "FN": 15, "TP": 985},
+        "fpr": 0.0170,
+        "fprPercent": "1.70%",
+        "recall": 0.9850,
+        "recallPercent": "98.50%"
+      },
+      "compositePredictor": {
+        "confusionMatrix": {"TN": 936, "FP": 64, "FN": 15, "TP": 985},
+        "fpr": 0.0640,
+        "fprPercent": "6.40%",
+        "recall": 0.9850,
+        "recallPercent": "98.50%",
+        "anomaliesFlagged": 47
+      },
+      "runtimePolicyAction": {
+        "confusionMatrix": {"TN": 1000, "FP": 0, "FN": 926, "TP": 74},
+        "fpr": 0.0000,
+        "fprPercent": "0.00%",
+        "recall": 0.0740,
+        "recallPercent": "7.40%",
+        "actionsExecuted": {
+          "ALLOW": 1926,
+          "MONITOR": 74,
+          "BLOCK": 0
+        }
+      }
+    }
+  }
+}

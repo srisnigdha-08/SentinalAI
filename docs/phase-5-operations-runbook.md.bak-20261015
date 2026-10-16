@@ -1,0 +1,233 @@
+# SentinelAI Operations Runbook — Phase 5 Native Windows Runtime
+
+**Document Version:** 1.0  
+**Effective Date:** 2026-10-15  
+**Target Environment:** Windows 11 Native Development & Staging  
+**Primary Project:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
+**Native Integration:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+
+---
+
+## 1. System Architecture & Service Map
+
+The SentinelAI native stack consists of four interdependent microservices running locally over loopback (`127.0.0.1`):
+
+```
+                        +----------------------------+
+                        |  Vite Frontend SPA         |
+                        |  Port: 3000                |
+                        +--------------+-------------+
+                                       |
+                                       | HTTP / WS (5000)
+                                       v
++-----------------------+       +----------------------------+       +-----------------------+
+|  MongoDB Database     | <---> |  Node.js Backend API       | <---> |  Python AI Engine     |
+|  Port: 27017          |       |  Port: 5000                |       |  Port: 8000           |
+|  DB: sentinel-db      |       |  (Express + Socket.IO)     |       |  (FastAPI / Uvicorn)  |
++-----------------------+       +--------------+-------------+       +-----------------------+
+                                               |
+                                               v
+                                +----------------------------+
+                                |  Containment Subsystem     |
+                                |  - Mock Adapter (Active)   |
+                                |  - Reconciler (60s loop)   |
+                                |  - WinFW Adapter (Gated)   |
+                                +----------------------------+
+```
+
+### Service Directory & Listener Reference
+| Service | Local Port | Working Directory | Launch Mechanism | Health Endpoint |
+| :--- | :---: | :--- | :--- | :--- |
+| **MongoDB** | `27017` | `.../mongodb-dev/data` | `mongod.exe --dbpath ...` | Socket connect / `adminCommand({ ping: 1 })` |
+| **AI Engine** | `8000` | `.../ai-engine` | `uvicorn inference.main:app` | `GET http://127.0.0.1:8000/health` |
+| **Backend API** | `5000` | `.../backend` | `start-backend.ps1` (`node server.js`) | `GET http://127.0.0.1:5000/health` |
+| **Frontend** | `3000` | `.../frontend` | `npm run dev -- --host 127.0.0.1` | `GET http://127.0.0.1:3000/` |
+
+---
+
+## 2. Process Supervision & Lifecycle Management
+
+### 2.1 Starting Services
+Always start services in topological order: **Database $\rightarrow$ AI Engine $\rightarrow$ Backend $\rightarrow$ Frontend**.
+
+1. **MongoDB (Port 27017):**
+   ```powershell
+   & "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
+     --dbpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data" `
+     --port 27017 --bind_ip 127.0.0.1 `
+     --logpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\mongod.log"
+   ```
+
+2. **AI Engine (Port 8000):**
+   ```powershell
+   Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine"
+   $env:Q_TABLE_PATH = "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\models\q_table.json"
+   .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
+   ```
+
+3. **Backend API (Port 5000):**
+   ```powershell
+   Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete"
+   powershell -ExecutionPolicy Bypass -File "start-backend.ps1"
+   ```
+
+4. **Frontend Dev Server (Port 3000):**
+   ```powershell
+   Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend"
+   npm run dev -- --host 127.0.0.1
+   ```
+
+### 2.2 Health Verification Script
+To verify that all four services are listening and responsive without modifying state:
+```powershell
+@(27017, 8000, 5000, 3000) | ForEach-Object {
+    $p = $_
+    $conn = Get-NetTCPConnection -LocalPort $p -State Listen -ErrorAction SilentlyContinue
+    if ($conn) {
+        $proc = Get-Process -Id $conn.OwningProcess -ErrorAction SilentlyContinue
+        Write-Host "PORT $p : LISTENING (PID $($conn.OwningProcess) - $($proc.ProcessName))" -ForegroundColor Green
+    } else {
+        Write-Host "PORT $p : NOT LISTENING" -ForegroundColor Red
+    }
+}
+```
+
+### 2.3 Controlled Backend Restart Procedure
+If route changes, configuration updates, or dependency upgrades require restarting the backend:
+1. **Identify the exact backend PID:**
+   ```powershell
+   $backendPID = (Get-NetTCPConnection -LocalPort 5000 -State Listen -ErrorAction SilentlyContinue).OwningProcess
+   ```
+2. **Gracefully stop only that process:**
+   ```powershell
+   Stop-Process -Id $backendPID -PassThru
+   ```
+3. **Verify port 5000 is released:**
+   ```powershell
+   while (Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }
+   ```
+4. **Relaunch using `start-backend.ps1`:**
+   ```powershell
+   powershell -ExecutionPolicy Bypass -File "C:\Users\srisn\Desktop\Projects\sentinelai-complete\start-backend.ps1"
+   ```
+5. **Verify health endpoint:**
+   ```powershell
+   Invoke-RestMethod -Uri "http://127.0.0.1:5000/health"
+   ```
+
+> [!WARNING]
+> Never use broad process killing commands like `Stop-Process -Name node` or `taskkill /IM node.exe /F` as this will terminate the Vite frontend dev server and any unrelated node background tooling.
+
+---
+
+## 3. Containment Subsystem Operations
+
+### 3.1 Architecture & Adapters
+The Containment Subsystem (`backend/services/containmentService.js`) enforces isolation and blocking policies across threat actors.
+
+- **`MockContainmentAdapter` (Default / Active):**
+  - Safely logs containment actions in the database and audit trail.
+  - Simulates latency and operating system rule execution without touching host firewall state.
+  - Returns `{ success: true, mode: 'mock' }`.
+- **`WindowsFirewallAdapter` (Safety-Gated):**
+  - Manages Windows Defender Firewall rules via PowerShell `New-NetFirewallRule` / `Remove-NetFirewallRule`.
+  - Prefix: `SentinelAI-Rule-*`.
+  - **Safety Gate:** Strictly controlled by `ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT`. If not set to `'true'`, the adapter factory falls back automatically to `MockContainmentAdapter`.
+
+### 3.2 Automated Reconciliation Service
+The reconciliation service (`backend/services/containmentReconciliationService.js`) handles:
+- **TTL Expiration:** Queries `ContainmentAction` documents where `expiresAt <= now` and status is `ACTIVE`.
+- **Compensating Rollback:** Calls `adapter.removeRule(actionId, target)` and updates document status to `ROLLED_BACK`.
+- **Stale State Recovery:** Identifies actions in `FAILED` or `ROLLBACK_FAILED` and retries rule cleanup up to max retries.
+- **Interval:** Runs every 60,000 ms (1 minute).
+
+### 3.3 Verifying Containment Subsystem Status
+To inspect the live status of the containment subsystem:
+```bash
+curl -H "Authorization: Bearer <ADMIN_OR_ANALYST_TOKEN>" http://127.0.0.1:5000/api/containment/status
+```
+Expected output:
+```json
+{
+  "success": true,
+  "data": {
+    "backend": "mock",
+    "adapterName": "MockContainmentAdapter",
+    "realEnforcementEnabled": false,
+    "activeContainmentCount": 0,
+    "failedContainmentCount": 0
+  }
+}
+```
+
+---
+
+## 4. Invariant Protection & Verification Runbook
+
+SentinelAI enforces strict baseline invariants to prevent accidental data corruption or external host impact:
+
+### 4.1 Database Safety Invariant
+The live development database is `sentinel-db` on port 27017.
+- **Never drop or seed `sentinel-db` during tests.**
+- Integration tests requiring MongoDB **must** run against a temporary, disposable instance on port 27029 with explicit test URIs.
+
+### 4.2 Protected Dataset Preservation
+The following historical and acceptance data directories are write-protected and must never be altered or referenced for tests:
+- `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data`
+- `D:\MongoPreservation`
+- `D:\MongoPreservation_Backup_20261015`
+
+To verify directory invariance:
+```powershell
+Get-Item "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data" | Select-Object FullName, LastWriteTime
+```
+
+### 4.3 Host Firewall Invariance Check
+To verify that no unauthorized host firewall rules have been created by SentinelAI:
+```powershell
+$rules = Get-NetFirewallRule -Name "SentinelAI-Rule-*" -ErrorAction SilentlyContinue
+Write-Host "SentinelAI Firewall Rules Count:" @($rules).Count
+```
+**Acceptance Threshold:** Must strictly equal `0`.
+
+---
+
+## 5. Incident Response & Troubleshooting
+
+### Incident A: Backend Returns HTTP 404 for Containment Endpoints
+- **Symptom:** `GET /api/containment/status` returns `Route not found: GET /api/containment/status`.
+- **Root Cause:** In-memory route drift caused by backend code updates on disk without restarting the running `node server.js` process.
+- **Resolution:** Execute Section 2.3 (Controlled Backend Restart Procedure). Verify route availability immediately after restart.
+
+### Incident B: Port 5000 Collision ("EADDRINUSE")
+- **Symptom:** Backend fails to start with `Error: listen EADDRINUSE: address already in use 127.0.0.1:5000`.
+- **Resolution:**
+  1. Locate the process holding port 5000:
+     ```powershell
+     Get-NetTCPConnection -LocalPort 5000 -State Listen | Select-Object OwningProcess
+     ```
+  2. Terminate that specific PID.
+  3. Re-run `start-backend.ps1`.
+
+### Incident C: Reconciler Reports Adapter Failure
+- **Symptom:** Backend log displays `[ContainmentReconciliation] Adapter removal failed for <id>: <error>`.
+- **Resolution:**
+  1. Inspect the failed containment record in `ContainmentAction` with status `ROLLBACK_FAILED`.
+  2. The reconciler will automatically retry rollback during the next cycle (up to max retries).
+  3. If persistent, verify adapter permissions and confirm whether host rule exists manually:
+     ```powershell
+     Get-NetFirewallRule -Name "SentinelAI-Rule-<id>"
+     ```
+  4. Trigger manual compensation via `POST /api/containment/rollback/<actionId>`.
+
+### Incident D: Admin Cannot Log In or Has Expired Session
+- **Symptom:** `GET /api/containment/status` returns HTTP 401 `{"error": "Invalid or revoked session"}`.
+- **Root Cause:** Sessions expire after 15 minutes of inactivity (access tokens) or are revoked upon password change / logout.
+- **Resolution:** Authenticate via `POST /api/auth/login` with administrative credentials to receive a fresh session and access token.
+
+---
+
+## 6. Maintenance & Runbook Acceptance
+
+This runbook has been verified against the live SentinelAI native Windows stack on 2026-10-15.
+All procedures described herein are safe, non-destructive, and preserve development data.

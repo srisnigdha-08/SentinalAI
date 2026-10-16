@@ -1,0 +1,68 @@
+{
+  "gate": "GATE-1",
+  "auditTimestamp": "2026-10-16T06:42:00Z",
+  "environment": {
+    "os": "Windows 11 Enterprise (10.0.26100)",
+    "python": "3.11.9 (ai-engine/.venv)",
+    "scikit-learn": "1.4.2",
+    "numpy": "1.26.4",
+    "pandas": "2.2.2"
+  },
+  "protectedModels": {
+    "productionClassifier": {
+      "path": "ai-engine/models/rf_classifier_cicids_v2.pkl",
+      "architecture": "RandomForestClassifier",
+      "n_estimators": 100,
+      "n_features": 53,
+      "feature_schema": "v2.1_53feat",
+      "sha256": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "sizeBytes": 46234119
+    },
+    "anomalyDetector": {
+      "path": "ai-engine/models/isolation_forest_cicids.pkl",
+      "architecture": "IsolationForest",
+      "contamination": 0.03,
+      "n_features": 53,
+      "sha256": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "sizeBytes": 1429757
+    },
+    "baselineQTable": {
+      "path": "ai-engine/models/q_table.json",
+      "role": "Immutable Reference Baseline",
+      "sha256": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "sizeBytes": 2338
+    },
+    "runtimeQTable": {
+      "path": "ai-engine/runtime/q_table.json",
+      "role": "Live Runtime Adaptive Agent State",
+      "sha256": "7376FBC76B58A6F1060CEA36C39C50280DDF716A20F430025CDCD54AB772283C",
+      "sizeBytes": 2494
+    }
+  },
+  "trainingScripts": {
+    "v2Trainer": "ai-engine/training/train_cicids_v2.py",
+    "featureExtractor": "ai-engine/utils/features.py",
+    "evaluationScript": "ai-engine/evaluation/evaluate_model.py"
+  },
+  "datasets": {
+    "source": "UNB CICIDS2017 Benchmark",
+    "localDirectory": "ai-engine/datasets/cicids2017/",
+    "evalCaptures": [
+      {
+        "fileName": "Monday-WorkingHours.pcap_ISCX.csv",
+        "description": "Completely benign background traffic capture (529,918 flows). Used as strictly held-out negative control.",
+        "evalSampleSize": 10000
+      },
+      {
+        "fileName": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+        "description": "LOIC DDoS attack capture with ambient background traffic (225,745 flows).",
+        "evalSampleSize": 2000
+      },
+      {
+        "fileName": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+        "description": "PortScan reconnaissance capture with ambient background traffic (286,467 flows).",
+        "evalSampleSize": 2000
+      }
+    ]
+  }
+}

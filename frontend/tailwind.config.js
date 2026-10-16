@@ -1,0 +1,1 @@
+export default{content:['./index.html','./src/**/*.{js,jsx}'],theme:{extend:{fontFamily:{mono:['"Share Tech Mono"','monospace'],head:['Orbitron','sans-serif'],body:['Rajdhani','sans-serif']}}},plugins:[]}

@@ -1,0 +1,6 @@
+{
+  "model_type": "IsolationForest",
+  "version": "v1.4",
+  "trained_at": "2026-08-08T06:46:32.439926",
+  "n_features": 53
+}

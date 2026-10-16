@@ -1,0 +1,157 @@
+{
+  "suite": "SentinelAI GATE-1 Phase 3C: Backend Failure-Safety Regression Suite",
+  "timestamp": "2026-10-16T08:15:51.042Z",
+  "environment": {
+    "nodeVersion": "v24.14.0",
+    "platform": "win32",
+    "workspace": "ai-engine/experiments/gate1_phase3c_backend_safety",
+    "gateStatus": "GATE-1 OPEN",
+    "autonomousContainment": false,
+    "realFirewallEnforcement": false
+  },
+  "totalTests": 11,
+  "currentProductionResults": {
+    "passed": 1,
+    "failedDefects": 7,
+    "tests": [
+      {
+        "testId": "TC-PROD-01",
+        "description": "Current production overwrites explicit degraded MONITOR to ALLOW",
+        "input": {
+          "predictedClass": "UNINSPECTED_TRAFFIC",
+          "threatScore": 0.5,
+          "action": "MONITOR",
+          "status": "DEGRADED"
+        },
+        "observedAction": "ALLOW",
+        "expectedSafeAction": "MONITOR",
+        "defectConfirmed": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-02",
+        "description": "Current production returns null on timeout (fails open with zero log/alert)",
+        "observedOutput": null,
+        "defectConfirmed": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-03",
+        "description": "Current production returns null on ECONNREFUSED (fails open)",
+        "observedOutput": null,
+        "defectConfirmed": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-04",
+        "description": "Current ThreatLog schema status enum rejects DEGRADED",
+        "attemptedStatus": "DEGRADED",
+        "allowedStatuses": [
+          "DETECTED",
+          "MONITORING",
+          "BLOCKED",
+          "ESCALATED",
+          "RESOLVED",
+          "FALSE_POSITIVE"
+        ],
+        "isRejected": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-05",
+        "description": "Current ThreatLog attackType enum rejects UNINSPECTED_TRAFFIC",
+        "attemptedAttackType": "UNINSPECTED_TRAFFIC",
+        "isRejected": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-06",
+        "description": "Current production defaults malformed threatScore to 0.0 and grants ALLOW",
+        "observedScore": 0,
+        "observedAction": "ALLOW",
+        "defectConfirmed": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-07",
+        "description": "Current Alert schema refModel rejects AIPrediction",
+        "attemptedRefModel": "AIPrediction",
+        "isRejected": true,
+        "status": "DEFECT_CONFIRMED"
+      },
+      {
+        "testId": "TC-PROD-08",
+        "description": "Current production correctly gates BLOCK when autoBlockEnabled=false",
+        "observedStatus": "MONITORING",
+        "autoBlockEnabled": false,
+        "safe": true,
+        "status": "PASS_NOMINAL"
+      }
+    ]
+  },
+  "proposedContractResults": {
+    "passed": 5,
+    "failed": 0,
+    "tests": [
+      {
+        "testId": "TC-REM-01",
+        "description": "Contract preserves explicit degraded status and assigns MONITOR",
+        "observed": {
+          "success": true,
+          "action": "MONITOR",
+          "threatScore": 0.5,
+          "status": "DEGRADED",
+          "simulatedBlock": false,
+          "threatStatus": "DEGRADED",
+          "predictionId": "pred-kgix47",
+          "threatId": "threat-xqdade"
+        },
+        "passed": true
+      },
+      {
+        "testId": "TC-REM-02",
+        "description": "Contract converts timeout into controlled UNAVAILABLE with MONITOR and operator alert",
+        "observed": {
+          "success": true,
+          "action": "MONITOR",
+          "threatScore": 0.5,
+          "status": "UNAVAILABLE",
+          "simulatedBlock": false,
+          "threatStatus": "DEGRADED",
+          "predictionId": "pred-h13ews",
+          "threatId": "threat-j8je3g"
+        },
+        "passed": true
+      },
+      {
+        "testId": "TC-REM-03",
+        "description": "Proposed ThreatLog schema permits DEGRADED status and UNINSPECTED_TRAFFIC attackType",
+        "statusAllowed": true,
+        "attackTypeAllowed": true,
+        "passed": true
+      },
+      {
+        "testId": "TC-REM-04",
+        "description": "Emergency audit record written to fallback logger on DB persistence failure",
+        "caughtException": true,
+        "emergencyLogCount": 1,
+        "passed": true
+      },
+      {
+        "testId": "TC-REM-05",
+        "description": "BLOCK action is tagged as simulatedBlock=true and status held at MONITORING when autoBlockEnabled=false",
+        "observed": {
+          "success": true,
+          "action": "BLOCK",
+          "threatScore": 0.96,
+          "status": "HEALTHY",
+          "simulatedBlock": true,
+          "threatStatus": "MONITORING",
+          "predictionId": "pred-z7ch58",
+          "threatId": "threat-pn7t6i"
+        },
+        "passed": true
+      }
+    ]
+  }
+}

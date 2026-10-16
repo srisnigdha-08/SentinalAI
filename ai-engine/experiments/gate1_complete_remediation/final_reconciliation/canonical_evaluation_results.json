@@ -1,0 +1,378 @@
+{
+  "monday_pure_benign_10k": {
+    "dataset_name": "Monday-WorkingHours.pcap_ISCX.csv",
+    "sample_selection": "First 10,000 pure BENIGN flows from capture",
+    "row_range": "rows 0 to 10,000 (after column strip & BENIGN filter)",
+    "ground_truth_counts": {
+      "BENIGN": 10000,
+      "ATTACK": 0
+    },
+    "raw_rf": {
+      "confusion_matrix": {
+        "TN": 9955,
+        "FP": 45,
+        "FN": 0,
+        "TP": 0,
+        "total_negatives": 10000,
+        "total_positives": 0,
+        "total_samples": 10000
+      },
+      "rates": {
+        "FPR": 0.0045,
+        "FNR": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "accuracy": 0.9955
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.0045,
+          "lower": 0.003365,
+          "upper": 0.006016,
+          "formatted": "[0.336%, 0.602%]"
+        },
+        "recall": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.0,
+          "formatted": "[0.000%, 0.000%]"
+        }
+      }
+    },
+    "composite_predictor": {
+      "confusion_matrix": {
+        "TN": 8627,
+        "FP": 1373,
+        "FN": 0,
+        "TP": 0,
+        "total_negatives": 10000,
+        "total_positives": 0,
+        "total_samples": 10000
+      },
+      "rates": {
+        "FPR": 0.1373,
+        "FNR": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "accuracy": 0.8627
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.1373,
+          "lower": 0.130694,
+          "upper": 0.144185,
+          "formatted": "[13.069%, 14.418%]"
+        },
+        "recall": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.0,
+          "formatted": "[0.000%, 0.000%]"
+        }
+      }
+    },
+    "policy_action": {
+      "confusion_matrix": {
+        "TN": 10000,
+        "FP": 0,
+        "FN": 0,
+        "TP": 0,
+        "total_negatives": 10000,
+        "total_positives": 0,
+        "total_samples": 10000
+      },
+      "rates": {
+        "FPR": 0.0,
+        "FNR": 0.0,
+        "precision": 0.0,
+        "recall": 0.0,
+        "f1_score": 0.0,
+        "accuracy": 1.0
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.000384,
+          "formatted": "[0.000%, 0.038%]"
+        },
+        "recall": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.0,
+          "formatted": "[0.000%, 0.000%]"
+        }
+      }
+    },
+    "predictions_breakdown": {
+      "BENIGN": 9955,
+      "Malware Beacon": 34,
+      "DDoS": 10,
+      "Credential Stuffing": 1
+    },
+    "composite_predictions_breakdown": {
+      "BENIGN": 8627,
+      "Unknown": 1328,
+      "Malware Beacon": 34,
+      "DDoS": 10,
+      "Credential Stuffing": 1
+    },
+    "policy_actions_breakdown": {
+      "ALLOW": 10000
+    },
+    "anomalies_flagged_count": 1328
+  },
+  "friday_ddos_2k": {
+    "dataset_name": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+    "sample_selection": "1,000 ambient BENIGN + 1,000 DDoS attack flows at offset 30,000",
+    "row_range": "offset 30,000 in Friday DDoS capture",
+    "ground_truth_counts": {
+      "BENIGN": 1000,
+      "DDoS": 1000
+    },
+    "raw_rf": {
+      "confusion_matrix": {
+        "TN": 1000,
+        "FP": 0,
+        "FN": 1,
+        "TP": 999,
+        "total_negatives": 1000,
+        "total_positives": 1000,
+        "total_samples": 2000
+      },
+      "rates": {
+        "FPR": 0.0,
+        "FNR": 0.001,
+        "precision": 1.0,
+        "recall": 0.999,
+        "f1_score": 0.9995,
+        "accuracy": 0.9995
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.003827,
+          "formatted": "[0.000%, 0.383%]"
+        },
+        "recall": {
+          "point_estimate": 0.999,
+          "lower": 0.994357,
+          "upper": 0.999823,
+          "formatted": "[99.436%, 99.982%]"
+        }
+      }
+    },
+    "composite_predictor": {
+      "confusion_matrix": {
+        "TN": 600,
+        "FP": 400,
+        "FN": 1,
+        "TP": 999,
+        "total_negatives": 1000,
+        "total_positives": 1000,
+        "total_samples": 2000
+      },
+      "rates": {
+        "FPR": 0.4,
+        "FNR": 0.001,
+        "precision": 0.714081,
+        "recall": 0.999,
+        "f1_score": 0.832847,
+        "accuracy": 0.7995
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.4,
+          "lower": 0.370075,
+          "upper": 0.430691,
+          "formatted": "[37.007%, 43.069%]"
+        },
+        "recall": {
+          "point_estimate": 0.999,
+          "lower": 0.994357,
+          "upper": 0.999823,
+          "formatted": "[99.436%, 99.982%]"
+        }
+      }
+    },
+    "policy_action": {
+      "confusion_matrix": {
+        "TN": 1000,
+        "FP": 0,
+        "FN": 234,
+        "TP": 766,
+        "total_negatives": 1000,
+        "total_positives": 1000,
+        "total_samples": 2000
+      },
+      "rates": {
+        "FPR": 0.0,
+        "FNR": 0.234,
+        "precision": 1.0,
+        "recall": 0.766,
+        "f1_score": 0.867497,
+        "accuracy": 0.883
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.003827,
+          "formatted": "[0.000%, 0.383%]"
+        },
+        "recall": {
+          "point_estimate": 0.766,
+          "lower": 0.738772,
+          "upper": 0.791192,
+          "formatted": "[73.877%, 79.119%]"
+        }
+      }
+    },
+    "predictions_breakdown": {
+      "BENIGN": 1001,
+      "DDoS": 999
+    },
+    "composite_predictions_breakdown": {
+      "DDoS": 999,
+      "BENIGN": 601,
+      "Unknown": 400
+    },
+    "policy_actions_breakdown": {
+      "ALLOW": 1234,
+      "MONITOR": 761,
+      "BLOCK": 5
+    },
+    "anomalies_flagged_count": 407
+  },
+  "friday_portscan_2k": {
+    "dataset_name": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+    "sample_selection": "1,000 ambient BENIGN + 1,000 PortScan attack flows at offset 30,000",
+    "row_range": "offset 30,000 in Friday PortScan capture",
+    "ground_truth_counts": {
+      "BENIGN": 1000,
+      "PortScan": 1000
+    },
+    "raw_rf": {
+      "confusion_matrix": {
+        "TN": 983,
+        "FP": 17,
+        "FN": 15,
+        "TP": 985,
+        "total_negatives": 1000,
+        "total_positives": 1000,
+        "total_samples": 2000
+      },
+      "rates": {
+        "FPR": 0.017,
+        "FNR": 0.015,
+        "precision": 0.983034,
+        "recall": 0.985,
+        "f1_score": 0.984016,
+        "accuracy": 0.984
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.017,
+          "lower": 0.010641,
+          "upper": 0.027056,
+          "formatted": "[1.064%, 2.706%]"
+        },
+        "recall": {
+          "point_estimate": 0.985,
+          "lower": 0.975399,
+          "upper": 0.990889,
+          "formatted": "[97.540%, 99.089%]"
+        }
+      }
+    },
+    "composite_predictor": {
+      "confusion_matrix": {
+        "TN": 936,
+        "FP": 64,
+        "FN": 15,
+        "TP": 985,
+        "total_negatives": 1000,
+        "total_positives": 1000,
+        "total_samples": 2000
+      },
+      "rates": {
+        "FPR": 0.064,
+        "FNR": 0.015,
+        "precision": 0.93899,
+        "recall": 0.985,
+        "f1_score": 0.961445,
+        "accuracy": 0.9605
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.064,
+          "lower": 0.050436,
+          "upper": 0.080901,
+          "formatted": "[5.044%, 8.090%]"
+        },
+        "recall": {
+          "point_estimate": 0.985,
+          "lower": 0.975399,
+          "upper": 0.990889,
+          "formatted": "[97.540%, 99.089%]"
+        }
+      }
+    },
+    "policy_action": {
+      "confusion_matrix": {
+        "TN": 1000,
+        "FP": 0,
+        "FN": 926,
+        "TP": 74,
+        "total_negatives": 1000,
+        "total_positives": 1000,
+        "total_samples": 2000
+      },
+      "rates": {
+        "FPR": 0.0,
+        "FNR": 0.926,
+        "precision": 1.0,
+        "recall": 0.074,
+        "f1_score": 0.137803,
+        "accuracy": 0.537
+      },
+      "confidence_intervals_95": {
+        "FPR": {
+          "point_estimate": 0.0,
+          "lower": 0.0,
+          "upper": 0.003827,
+          "formatted": "[0.000%, 0.383%]"
+        },
+        "recall": {
+          "point_estimate": 0.074,
+          "lower": 0.059355,
+          "upper": 0.091905,
+          "formatted": "[5.935%, 9.191%]"
+        }
+      }
+    },
+    "predictions_breakdown": {
+      "BENIGN": 998,
+      "Port Scan": 958,
+      "DDoS": 23,
+      "Malware Beacon": 17,
+      "XSS Attempt": 4
+    },
+    "composite_predictions_breakdown": {
+      "Port Scan": 958,
+      "BENIGN": 951,
+      "Unknown": 47,
+      "DDoS": 23,
+      "Malware Beacon": 17,
+      "XSS Attempt": 4
+    },
+    "policy_actions_breakdown": {
+      "ALLOW": 1926,
+      "MONITOR": 74
+    },
+    "anomalies_flagged_count": 47
+  }
+}

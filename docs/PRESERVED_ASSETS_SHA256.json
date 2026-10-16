@@ -1,0 +1,186 @@
+[
+  {
+    "path": "models\\isolation_forest_cicids.pkl",
+    "sha256": "17bd08ffe105a3ea87de85e0943761e7cb012abd70537968e14d0a3394e19da4"
+  },
+  {
+    "path": "models\\isolation_forest_cicids_meta.json",
+    "sha256": "1acb3111b595e1f557932ee6c128610346bddf13d7b0955e9e748918ba0a888d"
+  },
+  {
+    "path": "models\\rf_classifier_cicids_v2.pkl",
+    "sha256": "a7f98d2e59462d99d8c5613a919687cb682a5f72fd00df7286cdcfbf6e50693c"
+  },
+  {
+    "path": "models\\rf_classifier_cicids_v2_meta.json",
+    "sha256": "704e60b91038dc6b099b9753a3c7c1069fb2527df6d4efef35aa84beef4c253b"
+  },
+  {
+    "path": "models\\sgd_classifier_cicids.pkl",
+    "sha256": "6e477db242c247c7b6a13f3bf9ca9cdab62d2350160a921b1122e693b7bfcb53"
+  },
+  {
+    "path": "ai-engine\\models\\isolation_forest_cicids.pkl",
+    "sha256": "17bd08ffe105a3ea87de85e0943761e7cb012abd70537968e14d0a3394e19da4"
+  },
+  {
+    "path": "ai-engine\\models\\isolation_forest_cicids_meta.json",
+    "sha256": "4e380dceb83037f6575fe20e2db56b3a150d94f5730f107f34b79ab313636332"
+  },
+  {
+    "path": "ai-engine\\models\\isolation_forest_v1.4.pkl",
+    "sha256": "569c30de776231add0e44d5f0653a83434ee07ec62f907d91166bbe467378e39"
+  },
+  {
+    "path": "ai-engine\\models\\isolation_forest_v1.4_meta.json",
+    "sha256": "1357b3aad2e5b8c208ae80b85f21ba5d9b6250ed08d36b9a07c6cb1be9a77ef7"
+  },
+  {
+    "path": "ai-engine\\models\\q_table.json",
+    "sha256": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff"
+  },
+  {
+    "path": "ai-engine\\models\\rf_classifier_cicids.pkl",
+    "sha256": "b7beff5602e31ee1dce4a75eeeff7d4a3109171cee7be4b96cbef01c1e21886d"
+  },
+  {
+    "path": "ai-engine\\models\\rf_classifier_cicids_meta.json",
+    "sha256": "4a631936bd08797b6119ebde1a77590fa75e05766e0d5cc3d45e40e8a2c2766e"
+  },
+  {
+    "path": "ai-engine\\models\\rf_classifier_cicids_v2.pkl",
+    "sha256": "ca0efb1fde8f9bdc430c3c511e32cd91822b0f3deeca845aa259bc8dd60023f1"
+  },
+  {
+    "path": "ai-engine\\models\\rf_classifier_cicids_v2_meta.json",
+    "sha256": "033bb94471f80101240518eea28af45978e0c53c2c0fd96cf625064e6f6385cf"
+  },
+  {
+    "path": "ai-engine\\models\\rf_classifier_v2.1.pkl",
+    "sha256": "de57c85d53e19128365f015d60e6922ec0fc094941b72ee23e6b4639bbbaf915"
+  },
+  {
+    "path": "ai-engine\\models\\rf_classifier_v2.1_meta.json",
+    "sha256": "8b142278b931a92c86e2f1e6e2c6b30c813d4629b63eff2895f19313057f73b8"
+  },
+  {
+    "path": "ai-engine\\models\\stacking_classifier_cicids.pkl",
+    "sha256": "b82fdd26dad9c3341885f8f6f051c0bb0311e01e86072520d0614d9f9bbb94db"
+  },
+  {
+    "path": "ai-engine\\models\\stacking_classifier_cicids_meta.json",
+    "sha256": "3fd208354fbfda6780f1a65cbd5a3dd52a4cedb2ca1c1efeb86a6933439a2cf2"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier.pkl",
+    "sha256": "5190065e138e89ed4ff890d5185eb572a20114e6ba5129b297d8a24c8e8f95f9"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_cicids.pkl",
+    "sha256": "a5d630b471b0385bd270e579d44adfeb628b1569284e5c821a282bda0a7d210d"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_cicids.pkl.bak",
+    "sha256": "727ff477dc9febbf8553b7f6fe00b644a53ba521297aaccf66e38e1d2dc17c47"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_cicids_meta.json",
+    "sha256": "e9d863138abf2a39d39c5d862a4e03993178c3ce5577659d20223ab32ecc5c0e"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_cicids_meta.json.bak",
+    "sha256": "4f1d11d6576c579f993ff1006b6488f42c5bc8e29926286dcfa3a9854696a51b"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_cicids_v2.pkl",
+    "sha256": "a5d630b471b0385bd270e579d44adfeb628b1569284e5c821a282bda0a7d210d"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_cicids_v2_meta.json",
+    "sha256": "65ff1c24b1565c22d00c1ef162d44becad9e7c480bbe29138650b2ae3f635e14"
+  },
+  {
+    "path": "ai-engine\\models\\xgb_classifier_meta.json",
+    "sha256": "dc703dc387d4aca77d13bf837a5ff49f958b071f8a98292a3a7facbfc1f52a04"
+  },
+  {
+    "path": "ai-engine\\datasets\\synthetic.csv",
+    "sha256": "87e86d9b20ccf68b81a075c8efd17beeaf407a2dd9bfd34e43925d555b9c176f"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+    "sha256": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+    "sha256": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Friday-WorkingHours-Morning.pcap_ISCX.csv",
+    "sha256": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Monday-WorkingHours.pcap_ISCX.csv",
+    "sha256": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+    "sha256": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv",
+    "sha256": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Tuesday-WorkingHours.pcap_ISCX.csv",
+    "sha256": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851"
+  },
+  {
+    "path": "ai-engine\\datasets\\cicids2017\\Wednesday-workingHours.pcap_ISCX.csv",
+    "sha256": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a"
+  },
+  {
+    "path": "ai-engine\\datasets\\honeypot_derived\\flows.csv",
+    "sha256": "c11099480083f925cc252a1c052c1b2fabea9304935da6d8346d1b9ebdf5c66c"
+  },
+  {
+    "path": "backend\\logs\\errors.log",
+    "sha256": "5b21786fe681e7b0a8b393dd84017fac87263691a58e4aa326fbeacbc0cf8aaa"
+  },
+  {
+    "path": "backend\\logs\\sentinel.log",
+    "sha256": "a365591b904145c55ef92bd70c1136f410c7bf9defd4a6be4689ccb2198adb3c"
+  },
+  {
+    "path": "backend\\logs\\sentinel1.log",
+    "sha256": "4b926b9fcca2ff195f50c9eaac0a2020c6274271b3ee3d3ca98781c432f8f9d7"
+  },
+  {
+    "path": "backend\\.env",
+    "sha256": "215f896e7161892d7922a5869b1daf6064a366093d95244042473bcfff187051"
+  },
+  {
+    "path": "backend\\.env.example",
+    "sha256": "d7e956974c5861ec5d3b64c9deb8602f9cf42b55e30eb14a324b10548b5b8a7b"
+  },
+  {
+    "path": "deployment\\.env",
+    "sha256": "fcf9f123142e5213c4afea30ab46eafedbc11cf249fc686272fc35027f46dade"
+  },
+  {
+    "path": "deployment\\.env.production",
+    "sha256": "98ab1578eff45d8051092d5d1607344a9c6a59a5019646c8e9773e76fa57bcc3"
+  },
+  {
+    "path": "deployment\\.env.example",
+    "sha256": "714b7c89dcae8bf38113bcf928fb65937e7c3a4c82df1cacc2cec2c7d38b8405"
+  },
+  {
+    "path": "honeypot\\cowrie\\cowrie.cfg",
+    "sha256": "246a410adde14141fc03fca13235d164dfeb7f3fbc80bf1e0a729751b6b4ca65"
+  },
+  {
+    "path": "honeypot\\cowrie\\userdb.txt",
+    "sha256": "dbdc371274c6790313c8581d38e69d77ce4a40ec138ef58bf4a3dc71afaee96c"
+  }
+]

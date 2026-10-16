@@ -1,0 +1,57 @@
+{
+  "verificationMetadata": {
+    "auditPhase": "SentinelAI GATE-1 Phase 3C: Backend Safety & Regression Verification",
+    "timestampPreTest": "2026-10-16T08:09:48Z",
+    "timestampPostTest": "2026-10-16T08:17:28Z",
+    "algorithm": "SHA-256",
+    "overallStatus": "VERIFIED_IDENTICAL_ZERO_DRIFT",
+    "invariantsRespected": {
+      "zeroModelOverwrites": true,
+      "zeroQTableModifications": true,
+      "zeroDatabaseWrites": true,
+      "zeroFirewallRuleChanges": true
+    }
+  },
+  "protectedAssets": [
+    {
+      "assetName": "Baseline Q-Table",
+      "path": "ai-engine/models/q_table.json",
+      "notes": "Stored as JSON format in workspace; previously referred to as .npy in historical notes.",
+      "preTestHash": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "postTestHash": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "status": "MATCH_UNCHANGED"
+    },
+    {
+      "assetName": "Runtime Q-Table",
+      "path": "ai-engine/runtime/q_table.json",
+      "notes": "Stored as JSON format in workspace; active runtime reinforcement table.",
+      "preTestHash": "55C37D38B3006AC53FD3D741AC186C265C47E2B528560EEF4209BCACF4A35B27",
+      "postTestHash": "55C37D38B3006AC53FD3D741AC186C265C47E2B528560EEF4209BCACF4A35B27",
+      "status": "MATCH_UNCHANGED"
+    },
+    {
+      "assetName": "Active Random Forest Classifier",
+      "path": "ai-engine/models/rf_classifier_cicids_v2.pkl",
+      "notes": "Production supervised Random Forest model artifact (53 features).",
+      "preTestHash": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "postTestHash": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "status": "MATCH_UNCHANGED"
+    },
+    {
+      "assetName": "Active Isolation Forest",
+      "path": "ai-engine/models/isolation_forest_cicids.pkl",
+      "notes": "Production unsupervised anomaly detector artifact.",
+      "preTestHash": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "postTestHash": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "status": "MATCH_UNCHANGED"
+    },
+    {
+      "assetName": "Candidate XGBoost Classifier",
+      "path": "ai-engine/models/xgb_classifier_cicids_v2.pkl",
+      "notes": "Candidate gradient boosting classifier artifact (pickle serialized).",
+      "preTestHash": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "postTestHash": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "status": "MATCH_UNCHANGED"
+    }
+  ]
+}

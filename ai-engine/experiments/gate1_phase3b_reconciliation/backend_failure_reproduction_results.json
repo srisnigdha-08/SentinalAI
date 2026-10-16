@@ -1,0 +1,118 @@
+{
+  "testSuite": "Isolated Backend Contract & Failure Mode Tests",
+  "timestamp": "2026-10-16T07:58:37.411Z",
+  "totalTests": 10,
+  "passedCount": 10,
+  "defectCasesReproduced": 2,
+  "results": [
+    {
+      "caseNumber": 1,
+      "name": "Valid inference result with action=MONITOR",
+      "input": {
+        "threatScore": 0.85,
+        "action": "MONITOR"
+      },
+      "observedBackendAction": "MONITOR",
+      "observedThreatStatus": "MONITORING",
+      "passed": true,
+      "behavior": "Backend correctly assigned MONITOR and MONITORING when score >= 0.70.",
+      "verifiedSourcePath": "backend/services/aiEngineService.js:58 and threatService.js:101"
+    },
+    {
+      "caseNumber": 2,
+      "name": "Valid inference result with action=BLOCK",
+      "input": {
+        "threatScore": 0.95,
+        "action": "BLOCK"
+      },
+      "observedBackendAction": "BLOCK",
+      "observedGatedStatus": "MONITORING",
+      "observedActiveStatus": "BLOCKED",
+      "passed": true,
+      "behavior": "Action is BLOCK; when autoBlockEnabled=false, threat status is held at MONITORING.",
+      "verifiedSourcePath": "backend/services/threatService.js:95-103"
+    },
+    {
+      "caseNumber": 3,
+      "name": "Model unavailable degraded fallback action overwrite",
+      "input": {
+        "threatScore": 0.5,
+        "action": "MONITOR",
+        "status": "DEGRADED"
+      },
+      "observedBackendAction": "ALLOW",
+      "observedThreatStatus": "DETECTED",
+      "defectReproduced": true,
+      "passed": true,
+      "defectAnalysis": "CONFIRMED DEFECT: Backend line 58 discards Python action=MONITOR and recomputes ALLOW because score 0.50 < 0.70.",
+      "verifiedSourcePath": "backend/services/aiEngineService.js:58"
+    },
+    {
+      "caseNumber": 4,
+      "name": "HTTP Timeout handling",
+      "injectedError": "timeout of 10000ms exceeded",
+      "observedPipelineReturn": null,
+      "passed": true,
+      "behavior": "CONFIRMED DEFECT: When AI Engine times out, runFullPipeline silently returns null. No alert, no log, traffic passes fail-open.",
+      "verifiedSourcePath": "backend/services/aiEngineService.js:48-54"
+    },
+    {
+      "caseNumber": 5,
+      "name": "Null inference response",
+      "observedPipelineReturn": null,
+      "passed": true,
+      "behavior": "Null inference response returns null from runFullPipeline without creating database records.",
+      "verifiedSourcePath": "backend/services/aiEngineService.js:54"
+    },
+    {
+      "caseNumber": 6,
+      "name": "Missing or malformed score fallback",
+      "input": {
+        "threatScore": null
+      },
+      "observedScore": 0,
+      "observedAction": "ALLOW",
+      "passed": true,
+      "behavior": "Missing score falls back to 0.0, silently granting action=ALLOW.",
+      "verifiedSourcePath": "backend/services/aiEngineService.js:56-58"
+    },
+    {
+      "caseNumber": 7,
+      "name": "DEGRADED status demotion in threatService.js",
+      "inputScore": 0.5,
+      "observedStatus": "DETECTED",
+      "passed": true,
+      "behavior": "CONFIRMED DEFECT: threatService.js line 101 demotes score 0.50 to DETECTED, hiding DEGRADED indicator from operator.",
+      "verifiedSourcePath": "backend/services/threatService.js:98-103"
+    },
+    {
+      "caseNumber": 8,
+      "name": "ThreatLog Schema Rejection on status=DEGRADED",
+      "attemptedValue": "DEGRADED",
+      "rejected": true,
+      "errorMessage": "ValidationError: `DEGRADED` is not a valid enum value for path `status`.",
+      "passed": true,
+      "behavior": "CONFIRMED DEFECT: ThreatLog.js enum rejects status=DEGRADED with ValidationError.",
+      "verifiedSourcePath": "backend/models/ThreatLog.js:15"
+    },
+    {
+      "caseNumber": 9,
+      "name": "Audit persistence failure propagation",
+      "persistenceFailed": true,
+      "thrownError": "MongoNetworkError: connection timed out",
+      "passed": true,
+      "behavior": "When database persistence fails, runFullPipeline rethrows error rather than continuing silently.",
+      "verifiedSourcePath": "backend/services/aiEngineService.js:88-91"
+    },
+    {
+      "caseNumber": 10,
+      "name": "Verification that failure is never converted to BENIGN",
+      "predictedClass": "UNINSPECTED_TRAFFIC",
+      "threatScore": 0.5,
+      "isMarkedBenign": false,
+      "passed": true,
+      "behavior": "Candidate policy ensures uninspected traffic maintains predictedClass=UNINSPECTED_TRAFFIC and threatScore=0.50.",
+      "verifiedSourcePath": "candidate_policy.py:handle_inference_failure"
+    }
+  ]
+}

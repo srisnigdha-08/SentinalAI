@@ -1,0 +1,45 @@
+import os, sys
+from pathlib import Path
+
+# Add parent directory of inference to sys.path (so it can import from rl_engine)
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from rl_engine.deception_scorer import SessionScorer
+
+_scorer = None
+
+def get_scorer():
+    global _scorer
+    if _scorer is None:
+        model_dir = os.getenv("MODEL_DIR", str(Path(__file__).parent.parent / "models"))
+        default_q_table = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
+        q_table_path = os.getenv("Q_TABLE_PATH", default_q_table)
+        # Initialize separate writable state from the shipped learning artifact.
+        # Existing runtime state and the original model file are never overwritten.
+        target = Path(q_table_path).resolve()
+        models_dir = Path(model_dir).resolve()
+        seed = (models_dir / "q_table.json").resolve()
+        target_norm = os.path.normcase(str(target))
+        seed_norm = os.path.normcase(str(seed))
+        models_dir_norm = os.path.normcase(str(models_dir))
+
+        if target_norm == seed_norm or target_norm.startswith(models_dir_norm + os.sep) or target == seed:
+            q_table_path = default_q_table
+            target = Path(q_table_path).resolve()
+        if not target.exists() and seed.is_file():
+            target.parent.mkdir(parents=True, exist_ok=True)
+            try:
+                with target.open("xb") as output:
+                    output.write(seed.read_bytes())
+            except FileExistsError:
+                pass
+        _scorer = SessionScorer(q_table_path=q_table_path)
+    return _scorer
+
+
+def save_scorer():
+    """Flush only an initialized learner; prediction-only runs never mutate artifacts."""
+    if _scorer is not None:
+        _scorer.learner.save()
+        return True
+    return False

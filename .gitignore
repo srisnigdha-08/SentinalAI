@@ -1,0 +1,46 @@
+# Dependency folders
+node_modules/
+.venv/
+env/
+venv/
+ENV/
+
+# Python caching
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Local configuration & secrets
+.env
+.env.*
+!.env.example
+!.env.test
+
+# Logs and runtime artifacts
+*.log
+logs/
+errors.log
+sentinel.log
+
+# Build and dist outputs
+dist/
+build/
+.parcel-cache/
+.eslintcache
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Native test and learning state
+.test-runtime/
+runtime/
+.native-integration/
+
+# Datasets and large PCAP captures
+datasets/
+ai-engine/datasets/
+*.csv
+*.pcap
+*.pcap_ISCX.csv

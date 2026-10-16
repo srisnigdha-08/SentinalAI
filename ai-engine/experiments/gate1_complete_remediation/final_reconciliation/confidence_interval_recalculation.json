@@ -1,0 +1,77 @@
+{
+  "methodology": "Wilson Score Interval without continuity correction (z = 1.959964)",
+  "recalculations": {
+    "monday_raw_rf_FPR": {
+      "numerator_FP": 45,
+      "denominator_NEG": 10000,
+      "point_estimate": 0.0045,
+      "ci_lower": 0.0033649712915917685,
+      "ci_upper": 0.006015571093748737,
+      "event_measured": "Raw Random Forest classifies a benign flow as an attack class"
+    },
+    "monday_composite_FPR": {
+      "numerator_FP": 1373,
+      "denominator_NEG": 10000,
+      "point_estimate": 0.1373,
+      "ci_lower": 0.13069364729017033,
+      "ci_upper": 0.14418490512791848,
+      "event_measured": "Composite predictor outputs non-BENIGN (1,328 Unknown + 45 Attack) on benign flow"
+    },
+    "monday_policy_FPR": {
+      "numerator_FP": 0,
+      "denominator_NEG": 10000,
+      "point_estimate": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.00038399837067659573,
+      "event_measured": "Policy engine assigns MONITOR or BLOCK to a benign flow"
+    },
+    "friday_ddos_raw_rf_FPR": {
+      "numerator_FP": 0,
+      "denominator_NEG": 1000,
+      "point_estimate": 0.0,
+      "ci_lower": 2.1601063852437764e-19,
+      "ci_upper": 0.003826758485555124,
+      "event_measured": "Raw RF classifies ambient Friday benign flow as DDoS or other attack"
+    },
+    "friday_ddos_raw_rf_recall": {
+      "numerator_TP": 999,
+      "denominator_POS": 1000,
+      "point_estimate": 0.999,
+      "ci_lower": 0.9943574414020421,
+      "ci_upper": 0.9998234536293739,
+      "event_measured": "Raw RF classifies a DDoS attack flow as DDoS (or any attack)"
+    },
+    "friday_ddos_policy_recall": {
+      "numerator_TP": 766,
+      "denominator_POS": 1000,
+      "point_estimate": 0.766,
+      "ci_lower": 0.7387721670475355,
+      "ci_upper": 0.7911919974381493,
+      "event_measured": "Policy engine assigns MONITOR or BLOCK to a DDoS flow"
+    },
+    "friday_portscan_raw_rf_FPR": {
+      "numerator_FP": 17,
+      "denominator_NEG": 1000,
+      "point_estimate": 0.017,
+      "ci_lower": 0.010640689856816326,
+      "ci_upper": 0.027055958840229925,
+      "event_measured": "Raw RF classifies ambient Friday benign flow as PortScan or other attack"
+    },
+    "friday_portscan_raw_rf_recall": {
+      "numerator_TP": 985,
+      "denominator_POS": 1000,
+      "point_estimate": 0.985,
+      "ci_lower": 0.9753990230730932,
+      "ci_upper": 0.9908890211959183,
+      "event_measured": "Raw RF classifies a PortScan attack flow as PortScan (or any attack)"
+    },
+    "friday_portscan_policy_recall": {
+      "numerator_TP": 74,
+      "denominator_POS": 1000,
+      "point_estimate": 0.074,
+      "ci_lower": 0.05935499258410698,
+      "ci_upper": 0.09190540564558597,
+      "event_measured": "Policy engine assigns MONITOR or BLOCK to a PortScan flow"
+    }
+  }
+}
