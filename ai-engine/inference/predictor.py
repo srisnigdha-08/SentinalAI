@@ -180,8 +180,41 @@ class SentinelPredictor:
             log.info(f"Classifier loaded from {clf_path}")
             print(f"[STARTUP] Loaded classification model: {clf_path.name}")
             self.init_explainer()
+            self._init_shadow_detectors()
         except Exception as e:
             log.error(f"Load error: {e}")
+
+    def _init_shadow_detectors(self):
+        self.enable_shadow_b2 = os.getenv("ENABLE_SHADOW_B2", "false").lower() in ("true", "1", "yes")
+        self.shadow_b2 = None
+        if self.enable_shadow_b2:
+            try:
+                from modular.volumetric_flood import VolumetricFloodDetector
+                self.shadow_b2 = VolumetricFloodDetector(
+                    detector_id="shadow_b2_volumetric",
+                    target_burst_pps_limit=1500.0,
+                    target_surge_pps_limit=800.0,
+                    target_unique_sources_limit=20
+                )
+                log.info("Initialized B2 VolumetricFloodDetector in shadow mode")
+            except Exception as e:
+                log.warning(f"Could not initialize shadow B2 detector: {e}")
+
+        self.enable_shadow_e2 = os.getenv("ENABLE_SHADOW_E2", "false").lower() in ("true", "1", "yes")
+        self.shadow_e2 = None
+        if self.enable_shadow_e2:
+            try:
+                from modular.auth_event_adapter import AuthEventDetector
+                self.shadow_e2 = AuthEventDetector(
+                    detector_id="shadow_e2_auth",
+                    warning_failures_5m=3,
+                    critical_failures_1m=5,
+                    critical_failures_5m=10,
+                    credential_stuffing_users_threshold=4
+                )
+                log.info("Initialized E2 AuthEventDetector in shadow mode")
+            except Exception as e:
+                log.warning(f"Could not initialize shadow E2 detector: {e}")
 
     def init_explainer(self):
         if not self._loaded:
@@ -297,9 +330,23 @@ class SentinelPredictor:
         if explain:
             explanation = self.get_explanation(record)
             
+        # Shadow evaluation of B2 Volumetric Flood Detector (zero mutation of primary action/score)
+        shadow_b2_eval = None
+        if getattr(self, "shadow_b2", None) is not None:
+            try:
+                shadow_res = self.shadow_b2.evaluate(record)
+                shadow_b2_eval = {
+                    "decision": shadow_res.decision.value,
+                    "status": shadow_res.status.value,
+                    "rule": shadow_res.evidence.trigger_rule if shadow_res.evidence else None,
+                    "confidence": shadow_res.confidence
+                }
+            except Exception as exc:
+                log.debug(f"Shadow B2 evaluation failed safe: {exc}")
+
         ms = round((time.perf_counter()-t0)*1000, 2)
         action = "BLOCK" if score>=BLOCK_THRESHOLD else "MONITOR" if score>=MONITOR_THRESHOLD else "ALLOW"
-        return {
+        ret = {
             "predictedClass":cname,
             "threatScore":score,
             "severity":score_to_severity(score),
@@ -315,6 +362,9 @@ class SentinelPredictor:
             "featureVector": raw_vector,
             "featureSchemaVersion": FEATURE_SCHEMA_VERSION
         }
+        if shadow_b2_eval is not None:
+            ret["shadowB2"] = shadow_b2_eval
+        return ret
 
     def predict_from_honeypot(self, session: dict) -> dict:
         t0 = time.perf_counter()
@@ -341,9 +391,32 @@ class SentinelPredictor:
         if_sig = self.calculate_if_anomaly_signal(if_score)
         base = 0.7 * rf_s + 0.3 * if_sig
         score = round(min(base + n*0.02, 0.99), 4)
+
+        # Shadow evaluation of E2 Structured Auth Event Adapter (zero mutation of primary action/score)
+        shadow_e2_eval = None
+        if getattr(self, "shadow_e2", None) is not None:
+            try:
+                auth_payload = {
+                    "event_type": "AUTH_SUCCESS" if session.get("loginSucceeded") else "AUTH_FAILURE",
+                    "src_ip": session.get("sourceIP", "0.0.0.0"),
+                    "service": "ssh",
+                    "timestamp": time.time(),
+                    "raw_message": f"Honeypot session {session.get('sessionId')}: login {'succeeded' if session.get('loginSucceeded') else 'failed'} from {session.get('sourceIP')}"
+                }
+                shadow_res = self.shadow_e2.evaluate(auth_payload)
+                shadow_e2_eval = {
+                    "decision": shadow_res.decision.value,
+                    "status": shadow_res.status.value,
+                    "rule": shadow_res.evidence.trigger_rule if shadow_res.evidence else None,
+                    "confidence": shadow_res.confidence
+                }
+            except Exception as exc:
+                log.debug(f"Shadow E2 evaluation failed safe: {exc}")
         
         res = self._build(cname,score,max_p,is_anomaly,if_score,(time.perf_counter()-t0)*1000)
         res["ipReputationScore"] = rep_score
+        if shadow_e2_eval is not None:
+            res["shadowE2"] = shadow_e2_eval
         return res
 
     def _build(self,cls,score,confidence,anomaly,if_score,ms):

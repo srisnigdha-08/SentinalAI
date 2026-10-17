@@ -33,6 +33,18 @@ from modular.orchestrator import (
 from modular.volumetric_flood import VolumetricFloodDetector
 from modular.auth_abuse import AuthAbuseDetector
 from modular.layer7_waf import Layer7WAFDetector
+from modular.auth_event_adapter import (
+    AuthEventDetector,
+    AuthEvent,
+    AuthEventType,
+    parse_auth_event,
+)
+from modular.host_telemetry_adapter import (
+    HostTelemetryDetector,
+    HostTelemetryEvent,
+    HostEventType,
+    parse_host_telemetry,
+)
 
 __all__ = [
     "DetectorStatus",
@@ -57,4 +69,12 @@ __all__ = [
     "VolumetricFloodDetector",
     "AuthAbuseDetector",
     "Layer7WAFDetector",
+    "AuthEventDetector",
+    "AuthEvent",
+    "AuthEventType",
+    "parse_auth_event",
+    "HostTelemetryDetector",
+    "HostTelemetryEvent",
+    "HostEventType",
+    "parse_host_telemetry",
 ]

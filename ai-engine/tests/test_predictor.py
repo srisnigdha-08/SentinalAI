@@ -297,3 +297,128 @@ class TestIsolationForestScoring:
         new_contrib = 0.3 * new_sig
         assert new_contrib == 0.0
 
+
+class TestShadowDetectorIntegration:
+    """
+    Verifies that B2 (Volumetric Flood) and E2 (Auth Event Adapter) can run in shadow mode
+    inside SentinelPredictor without mutating primary predictions, scores, or actions.
+    """
+
+    @pytest.fixture
+    def mock_predictor(self, tmp_path):
+        model_dir = tmp_path / "models"
+        model_dir.mkdir()
+        (model_dir / "rf_classifier_cicids_v2.pkl").write_bytes(b"")
+        (model_dir / "rf_classifier_cicids_v2_meta.json").write_text(
+            json.dumps({"version": "test-v2", "metrics": {}})
+        )
+        (model_dir / "isolation_forest_cicids.pkl").write_bytes(b"")
+        (model_dir / "isolation_forest_cicids_meta.json").write_text(
+            json.dumps({"version": "if-test", "metrics": {}})
+        )
+
+        mock_rf = MagicMock()
+        mock_rf.predict.return_value = [0]
+        mock_rf.predict_proba.return_value = [[0.95] + [0.005] * 10]
+
+        mock_ifo = MagicMock()
+        mock_ifo.named_steps = {
+            "scaler": MagicMock(transform=lambda x: x),
+            "if": MagicMock(score_samples=lambda x: [-0.40])
+        }
+
+        with patch("joblib.load", side_effect=[mock_rf, mock_ifo]), \
+             patch("inference.predictor.SentinelPredictor.init_explainer"):
+            from inference.predictor import SentinelPredictor
+            pred = SentinelPredictor(model_dir=model_dir)
+            yield pred
+
+    def test_shadow_mode_disabled_by_default(self, mock_predictor):
+        assert mock_predictor.shadow_b2 is None
+        assert mock_predictor.shadow_e2 is None
+
+        rec = {"src_ip": "10.0.0.1", "flow_duration": 1000.0, "total_fwd_packets": 5}
+        res = mock_predictor.predict(rec)
+        assert "shadowB2" not in res
+        assert "shadowE2" not in res
+        assert res["predictedClass"] == "BENIGN"
+        assert res["action"] == "ALLOW"
+
+    def test_shadow_b2_enabled_preserves_primary_output(self, tmp_path):
+        model_dir = tmp_path / "models"
+        model_dir.mkdir()
+        (model_dir / "rf_classifier_cicids_v2.pkl").write_bytes(b"")
+        (model_dir / "rf_classifier_cicids_v2_meta.json").write_text(
+            json.dumps({"version": "test-v2", "metrics": {}})
+        )
+        (model_dir / "isolation_forest_cicids.pkl").write_bytes(b"")
+        (model_dir / "isolation_forest_cicids_meta.json").write_text(
+            json.dumps({"version": "if-test", "metrics": {}})
+        )
+
+        mock_rf = MagicMock()
+        mock_rf.predict.return_value = [0]
+        mock_rf.predict_proba.return_value = [[0.95] + [0.005] * 10]
+
+        mock_ifo = MagicMock()
+        mock_ifo.named_steps = {
+            "scaler": MagicMock(transform=lambda x: x),
+            "if": MagicMock(score_samples=lambda x: [-0.40])
+        }
+
+        with patch.dict(os.environ, {"ENABLE_SHADOW_B2": "true"}), \
+             patch("joblib.load", side_effect=[mock_rf, mock_ifo]), \
+             patch("inference.predictor.SentinelPredictor.init_explainer"):
+            from inference.predictor import SentinelPredictor
+            pred = SentinelPredictor(model_dir=model_dir)
+            assert pred.shadow_b2 is not None
+
+            rec = {"src_ip": "10.0.0.1", "flow_duration": 1000.0, "total_fwd_packets": 5}
+            res = pred.predict(rec)
+            assert "shadowB2" in res
+            assert res["shadowB2"]["status"] == "HEALTHY"
+            # Primary verdict is completely unchanged
+            assert res["predictedClass"] == "BENIGN"
+            assert res["action"] == "ALLOW"
+
+    def test_shadow_e2_enabled_preserves_honeypot_primary_output(self, tmp_path):
+        model_dir = tmp_path / "models"
+        model_dir.mkdir()
+        (model_dir / "rf_classifier_cicids_v2.pkl").write_bytes(b"")
+        (model_dir / "rf_classifier_cicids_v2_meta.json").write_text(
+            json.dumps({"version": "test-v2", "metrics": {}})
+        )
+        (model_dir / "isolation_forest_cicids.pkl").write_bytes(b"")
+        (model_dir / "isolation_forest_cicids_meta.json").write_text(
+            json.dumps({"version": "if-test", "metrics": {}})
+        )
+
+        mock_rf = MagicMock()
+        mock_rf.predict.return_value = [0]
+        mock_rf.predict_proba.return_value = [[0.90] + [0.01] * 10]
+
+        mock_ifo = MagicMock()
+        mock_ifo.named_steps = {
+            "scaler": MagicMock(transform=lambda x: x),
+            "if": MagicMock(score_samples=lambda x: [-0.40])
+        }
+
+        with patch.dict(os.environ, {"ENABLE_SHADOW_E2": "true"}), \
+             patch("joblib.load", side_effect=[mock_rf, mock_ifo]), \
+             patch("inference.predictor.SentinelPredictor.init_explainer"):
+            from inference.predictor import SentinelPredictor
+            pred = SentinelPredictor(model_dir=model_dir)
+            assert pred.shadow_e2 is not None
+
+            session = {
+                "sessionId": "sesh-123",
+                "sourceIP": "192.168.1.50",
+                "loginSucceeded": False,
+                "commands": []
+            }
+            res = pred.predict_from_honeypot(session)
+            assert "shadowE2" in res
+            assert res["shadowE2"]["status"] == "HEALTHY"
+            assert res["predictedClass"] == "BENIGN"
+
+

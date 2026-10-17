@@ -1,0 +1,206 @@
+{
+  "holdout_infiltration.parquet": {
+    "config_a_prod": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_b_rf_alone": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_c_candidate": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_d_combined": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    }
+  },
+  "holdout_web_attacks.parquet": {
+    "config_a_prod": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 566,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_b_rf_alone": {
+      "tp": 0,
+      "fp": 1,
+      "tn": 999,
+      "fn": 566,
+      "block_tp": 0,
+      "block_fp": 1
+    },
+    "config_c_candidate": {
+      "tp": 8,
+      "fp": 1,
+      "tn": 999,
+      "fn": 558,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_d_combined": {
+      "tp": 8,
+      "fp": 1,
+      "tn": 999,
+      "fn": 558,
+      "block_tp": 0,
+      "block_fp": 0
+    }
+  },
+  "holdout_bruteforce_ssh_ftp.parquet": {
+    "config_a_prod": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_b_rf_alone": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_c_candidate": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_d_combined": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    }
+  },
+  "holdout_botnet.parquet": {
+    "config_a_prod": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_b_rf_alone": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_c_candidate": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_d_combined": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    }
+  },
+  "holdout_ddos.parquet": {
+    "config_a_prod": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_b_rf_alone": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_c_candidate": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_d_combined": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 1000,
+      "fn": 2000,
+      "block_tp": 0,
+      "block_fp": 0
+    }
+  },
+  "holdout_benign_30k.parquet": {
+    "config_a_prod": {
+      "tp": 0,
+      "fp": 0,
+      "tn": 30000,
+      "fn": 0,
+      "block_tp": 0,
+      "block_fp": 0
+    },
+    "config_b_rf_alone": {
+      "tp": 0,
+      "fp": 6,
+      "tn": 29994,
+      "fn": 0,
+      "block_tp": 0,
+      "block_fp": 6
+    },
+    "config_c_candidate": {
+      "tp": 0,
+      "fp": 6,
+      "tn": 29994,
+      "fn": 0,
+      "block_tp": 0,
+      "block_fp": 3
+    },
+    "config_d_combined": {
+      "tp": 0,
+      "fp": 6,
+      "tn": 29994,
+      "fn": 0,
+      "block_tp": 0,
+      "block_fp": 3
+    }
+  }
+}

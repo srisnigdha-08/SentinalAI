@@ -1,0 +1,300 @@
+{
+  "holdout_infiltration.parquet": {
+    "description": "Infiltration (Lateral Movement)",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "recall": 0.0015,
+      "block_recall": 0.001,
+      "fpr": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.003827
+      ],
+      "confusion_matrix": {
+        "tp": 3,
+        "fn": 1997,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 2,
+        "block_fp": 0
+      }
+    },
+    "tier3_combined": {
+      "recall": 0.0015,
+      "block_recall": 0.001,
+      "fpr": 0.0,
+      "confusion_matrix": {
+        "tp": 3,
+        "fn": 1997,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 2,
+        "block_fp": 0
+      }
+    },
+    "per_subtype_breakdown": {
+      "Lateral Movement": {
+        "total": 2000,
+        "tier1_det": 3,
+        "tier3_det": 3
+      },
+      "BENIGN": {
+        "total": 1000,
+        "tier1_det": 0,
+        "tier3_det": 0
+      }
+    }
+  },
+  "holdout_web_attacks.parquet": {
+    "description": "Web Attacks (SQLi, XSS, BruteForce)",
+    "total_records": 1566,
+    "total_attacks": 566,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "recall": 0.0035,
+      "block_recall": 0.0035,
+      "fpr": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.003827
+      ],
+      "confusion_matrix": {
+        "tp": 2,
+        "fn": 564,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 2,
+        "block_fp": 0
+      }
+    },
+    "tier3_combined": {
+      "recall": 1.0,
+      "block_recall": 0.364,
+      "fpr": 0.0,
+      "confusion_matrix": {
+        "tp": 566,
+        "fn": 0,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 206,
+        "block_fp": 0
+      }
+    },
+    "per_subtype_breakdown": {
+      "Credential Stuffing": {
+        "total": 362,
+        "tier1_det": 2,
+        "tier3_det": 362
+      },
+      "XSS Attempt": {
+        "total": 151,
+        "tier1_det": 0,
+        "tier3_det": 151
+      },
+      "SQL Injection": {
+        "total": 53,
+        "tier1_det": 0,
+        "tier3_det": 53
+      },
+      "BENIGN": {
+        "total": 1000,
+        "tier1_det": 0,
+        "tier3_det": 0
+      }
+    }
+  },
+  "holdout_bruteforce_ssh_ftp.parquet": {
+    "description": "SSH & FTP Brute Force",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "recall": 0.712,
+      "block_recall": 0.2865,
+      "fpr": 0.001,
+      "fpr_wilson_ci": [
+        0.000177,
+        0.005643
+      ],
+      "confusion_matrix": {
+        "tp": 1424,
+        "fn": 576,
+        "fp": 1,
+        "tn": 999,
+        "block_tp": 573,
+        "block_fp": 1
+      }
+    },
+    "tier3_combined": {
+      "recall": 0.712,
+      "block_recall": 0.2865,
+      "fpr": 0.001,
+      "confusion_matrix": {
+        "tp": 1424,
+        "fn": 576,
+        "fp": 1,
+        "tn": 999,
+        "block_tp": 573,
+        "block_fp": 1
+      }
+    },
+    "per_subtype_breakdown": {
+      "SSH Brute Force": {
+        "total": 1000,
+        "tier1_det": 509,
+        "tier3_det": 509
+      },
+      "Credential Stuffing": {
+        "total": 1000,
+        "tier1_det": 915,
+        "tier3_det": 915
+      },
+      "BENIGN": {
+        "total": 1000,
+        "tier1_det": 1,
+        "tier3_det": 1
+      }
+    }
+  },
+  "holdout_botnet.parquet": {
+    "description": "Botnet (Malware Beacon)",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "recall": 0.6085,
+      "block_recall": 0.3385,
+      "fpr": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.003827
+      ],
+      "confusion_matrix": {
+        "tp": 1217,
+        "fn": 783,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 677,
+        "block_fp": 0
+      }
+    },
+    "tier3_combined": {
+      "recall": 0.6085,
+      "block_recall": 0.3385,
+      "fpr": 0.0,
+      "confusion_matrix": {
+        "tp": 1217,
+        "fn": 783,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 677,
+        "block_fp": 0
+      }
+    },
+    "per_subtype_breakdown": {
+      "Malware Beacon": {
+        "total": 2000,
+        "tier1_det": 1217,
+        "tier3_det": 1217
+      },
+      "BENIGN": {
+        "total": 1000,
+        "tier1_det": 0,
+        "tier3_det": 0
+      }
+    }
+  },
+  "holdout_ddos.parquet": {
+    "description": "DDoS / DoS",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "recall": 0.0,
+      "block_recall": 0.0,
+      "fpr": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.003827
+      ],
+      "confusion_matrix": {
+        "tp": 0,
+        "fn": 2000,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      }
+    },
+    "tier3_combined": {
+      "recall": 0.0,
+      "block_recall": 0.0,
+      "fpr": 0.0,
+      "confusion_matrix": {
+        "tp": 0,
+        "fn": 2000,
+        "fp": 0,
+        "tn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      }
+    },
+    "per_subtype_breakdown": {
+      "DDoS": {
+        "total": 2000,
+        "tier1_det": 0,
+        "tier3_det": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "tier1_det": 0,
+        "tier3_det": 0
+      }
+    }
+  },
+  "holdout_benign_30k.parquet": {
+    "description": "Large-Scale Benign Holdout (N=30,000)",
+    "total_records": 30000,
+    "total_attacks": 0,
+    "total_benign": 30000,
+    "tier1_transport": {
+      "recall": 0.0,
+      "block_recall": 0.0,
+      "fpr": 0.000333,
+      "fpr_wilson_ci": [
+        0.000181,
+        0.000614
+      ],
+      "confusion_matrix": {
+        "tp": 0,
+        "fn": 0,
+        "fp": 10,
+        "tn": 29990,
+        "block_tp": 0,
+        "block_fp": 5
+      }
+    },
+    "tier3_combined": {
+      "recall": 0.0,
+      "block_recall": 0.0,
+      "fpr": 0.000333,
+      "confusion_matrix": {
+        "tp": 0,
+        "fn": 0,
+        "fp": 10,
+        "tn": 29990,
+        "block_tp": 0,
+        "block_fp": 5
+      }
+    },
+    "per_subtype_breakdown": {
+      "BENIGN": {
+        "total": 30000,
+        "tier1_det": 10,
+        "tier3_det": 10
+      }
+    }
+  }
+}

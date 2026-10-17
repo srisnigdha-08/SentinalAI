@@ -1,0 +1,26 @@
+[
+  {
+    "title": "ThreatLog accepts DEGRADED status and UNINSPECTED_TRAFFIC attackType",
+    "status": "VERIFIED"
+  },
+  {
+    "title": "ThreatLog rejects invalid status enum value",
+    "status": "VERIFIED"
+  },
+  {
+    "title": "ThreatLog rejects invalid attackType enum value",
+    "status": "VERIFIED"
+  },
+  {
+    "title": "Alert accepts AIPrediction refModel in sourceRef",
+    "status": "VERIFIED"
+  },
+  {
+    "title": "Alert rejects invalid refModel in sourceRef",
+    "status": "VERIFIED"
+  },
+  {
+    "title": "threatService.findThreats parses status=DEGRADED without error",
+    "status": "VERIFIED"
+  }
+]

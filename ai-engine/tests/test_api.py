@@ -171,3 +171,17 @@ def test_learn_update_valid_key_invalid_payload(client):
     }
     response = client.post("/learn/update", json=payload, headers={"X-API-Key": "test-sentinel-secret-key-12345"})
     assert response.status_code == 404
+
+# ── Shadow Auth Telemetry Endpoint ────────────────────────────────────────────
+
+def test_predict_auth_shadow_no_key(client):
+    response = client.post("/predict/auth/shadow", json={"event_type": "AUTH_FAILURE"})
+    assert response.status_code == 401
+
+def test_predict_auth_shadow_disabled_by_default(client):
+    payload = {"event_type": "AUTH_FAILURE", "src_ip": "192.168.1.100"}
+    response = client.post("/predict/auth/shadow", json=payload, headers={"X-API-Key": "test-sentinel-secret-key-12345"})
+    assert response.status_code == 200
+    data = response.json()
+    assert data["success"] is True
+    assert data["shadow_enabled"] is False

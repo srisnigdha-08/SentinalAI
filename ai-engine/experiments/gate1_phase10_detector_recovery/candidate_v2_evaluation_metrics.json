@@ -1,0 +1,45 @@
+{
+  "benign_fpr": {
+    "total": 30000,
+    "fp": 16,
+    "fpr": 0.000533,
+    "status": "PASS"
+  },
+  "attacks": {
+    "DDoS HOIC & LOIC-UDP": {
+      "total": 2000,
+      "tp": 199,
+      "recall": 0.0995,
+      "target": 0.8,
+      "status": "FAIL"
+    },
+    "Infiltration": {
+      "total": 2000,
+      "tp": 9,
+      "recall": 0.0045,
+      "target": 0.7,
+      "status": "FAIL"
+    },
+    "SSH Brute Force": {
+      "total": 1000,
+      "tp": 508,
+      "recall": 0.508,
+      "target": 0.8,
+      "status": "FAIL"
+    },
+    "Botnet Ares": {
+      "total": 2000,
+      "tp": 857,
+      "recall": 0.4285,
+      "target": 0.75,
+      "status": "FAIL"
+    },
+    "Web Attacks": {
+      "total": 566,
+      "tp": 2,
+      "recall": 0.0035,
+      "target": 0.8,
+      "status": "FAIL"
+    }
+  }
+}

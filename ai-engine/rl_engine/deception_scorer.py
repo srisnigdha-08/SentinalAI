@@ -64,7 +64,8 @@ class DeceptionQLearner:
         # or any file inside the protected models/ directory
         if target_norm == baseline_norm or target_norm.startswith(models_dir_norm + os.sep) or target == models_baseline:
             log.warning("Write targeting protected models directory (%s) blocked! Redirecting to runtime/q_table.json", target)
-            approved_runtime = (Path(__file__).parent.parent / "runtime" / "q_table.json").resolve()
+            fallback = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
+            approved_runtime = Path(os.getenv("DEFAULT_RUNTIME_Q_TABLE_PATH", fallback)).resolve()
             self.q_table_path = str(approved_runtime)
             target = approved_runtime
 

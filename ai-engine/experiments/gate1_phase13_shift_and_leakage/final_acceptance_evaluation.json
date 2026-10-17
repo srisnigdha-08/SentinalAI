@@ -1,0 +1,206 @@
+{
+  "evaluation_phase": "Phase 13",
+  "timestamp": "2026-10-17T22:03:47Z",
+  "dataset": {
+    "file": "final_test_v2.parquet",
+    "sha256": "BDF958607C8A12B8F975045FA439DFD9C627FA6601C21E7DF2A957163F3CC083",
+    "total_samples": 37552,
+    "touch_count": 1
+  },
+  "gate1_master_verdict": "FAIL - GATE-1 REMAINS OPEN",
+  "candidate_v3_results": {
+    "model_name": "Candidate V3 Calibrated",
+    "dataset": "final_test_v2.parquet",
+    "benign": {
+      "total": 25000,
+      "false_positives": 28,
+      "fpr": 0.00112,
+      "wilson_ci_95": [
+        0.000775,
+        0.001618
+      ],
+      "target": 0.001,
+      "status": "FAIL"
+    },
+    "attacks": {
+      "SSH Brute Force": {
+        "target_class": 1,
+        "total": 2500,
+        "true_positives": 2500,
+        "recall": 1.0,
+        "wilson_ci_95": [
+          0.998466,
+          1.0
+        ],
+        "target": 0.8,
+        "status": "PASS"
+      },
+      "DDoS": {
+        "target_class": 4,
+        "total": 2500,
+        "true_positives": 2142,
+        "recall": 0.8568,
+        "wilson_ci_95": [
+          0.842522,
+          0.869984
+        ],
+        "target": 0.8,
+        "status": "PASS"
+      },
+      "XSS Attempt": {
+        "target_class": 6,
+        "total": 52,
+        "true_positives": 43,
+        "recall": 0.8269,
+        "wilson_ci_95": [
+          0.702692,
+          0.906175
+        ],
+        "target": 0.8,
+        "status": "INCONCLUSIVE"
+      },
+      "Malware Beacon": {
+        "target_class": 7,
+        "total": 2500,
+        "true_positives": 2368,
+        "recall": 0.9472,
+        "wilson_ci_95": [
+          0.937728,
+          0.9553
+        ],
+        "target": 0.75,
+        "status": "PASS"
+      },
+      "Credential Stuffing": {
+        "target_class": 8,
+        "total": 2500,
+        "true_positives": 2500,
+        "recall": 1.0,
+        "wilson_ci_95": [
+          0.998466,
+          1.0
+        ],
+        "target": 0.8,
+        "status": "PASS"
+      },
+      "Lateral Movement": {
+        "target_class": 9,
+        "total": 2500,
+        "true_positives": 1,
+        "recall": 0.0004,
+        "wilson_ci_95": [
+          7.1e-05,
+          0.002262
+        ],
+        "target": 0.7,
+        "status": "FAIL"
+      }
+    }
+  },
+  "candidate_v2_results": {
+    "model_name": "Candidate V2 Raw P>=0.70",
+    "dataset": "final_test_v2.parquet",
+    "benign": {
+      "total": 25000,
+      "false_positives": 30,
+      "fpr": 0.0012,
+      "wilson_ci_95": [
+        0.000841,
+        0.001713
+      ],
+      "target": 0.001,
+      "status": "FAIL"
+    },
+    "attacks": {
+      "SSH Brute Force": {
+        "target_class": 1,
+        "total": 2500,
+        "true_positives": 2067,
+        "recall": 0.8268,
+        "wilson_ci_95": [
+          0.811468,
+          0.841129
+        ],
+        "target": 0.8,
+        "status": "PASS"
+      },
+      "DDoS": {
+        "target_class": 4,
+        "total": 2500,
+        "true_positives": 1272,
+        "recall": 0.5088,
+        "wilson_ci_95": [
+          0.489205,
+          0.528368
+        ],
+        "target": 0.8,
+        "status": "FAIL"
+      },
+      "XSS Attempt": {
+        "target_class": 6,
+        "total": 52,
+        "true_positives": 0,
+        "recall": 0.0,
+        "wilson_ci_95": [
+          0.0,
+          0.068792
+        ],
+        "target": 0.8,
+        "status": "FAIL"
+      },
+      "Malware Beacon": {
+        "target_class": 7,
+        "total": 2500,
+        "true_positives": 1102,
+        "recall": 0.4408,
+        "wilson_ci_95": [
+          0.421444,
+          0.460338
+        ],
+        "target": 0.75,
+        "status": "FAIL"
+      },
+      "Credential Stuffing": {
+        "target_class": 8,
+        "total": 2500,
+        "true_positives": 1243,
+        "recall": 0.4972,
+        "wilson_ci_95": [
+          0.47762,
+          0.516789
+        ],
+        "target": 0.8,
+        "status": "FAIL"
+      },
+      "Lateral Movement": {
+        "target_class": 9,
+        "total": 2500,
+        "true_positives": 0,
+        "recall": 0.0,
+        "wilson_ci_95": [
+          0.0,
+          0.001534
+        ],
+        "target": 0.7,
+        "status": "FAIL"
+      }
+    }
+  },
+  "operating_thresholds": {
+    "1": 0.5,
+    "2": 0.7,
+    "4": 0.97,
+    "6": 0.5,
+    "7": 0.97,
+    "8": 0.7,
+    "9": 0.85
+  },
+  "root_cause_summary": {
+    "ssh_brute_force": "PASS: Strong distinctive protocol & timing features",
+    "credential_stuffing": "PASS: Distinctive packet distribution & length",
+    "botnet_ares": "PASS with V3 calibration (high recall at controlled FPR)",
+    "ddos_hoic": "PASS / marginal with V3 calibration (packet rate/length invariants)",
+    "infiltration_lateral_movement": "FAIL: Inherent CSE-2018 dataset defect; transport flow features overlap with benign desktop traffic; requires endpoint EDR / telemetry",
+    "web_attacks_sqli_xss": "FAIL: Transport features do not inspect HTTP payloads; requires Layer 7 WAF inspection"
+  }
+}

@@ -1,0 +1,58 @@
+{
+  "audit_phase": "SentinelAI GATE-1 Phase 3E: Independent Verification of Phase 3D",
+  "verification_timestamp": "2026-10-16T14:47:18+05:30",
+  "hash_algorithm": "SHA-256",
+  "overall_verification_status": "VERIFIED_IDENTICAL",
+  "cryptographic_drift_detected": false,
+  "database_isolation_enforced": true,
+  "firewall_rules_modified": false,
+  "autonomous_containment_active": false,
+  "protected_assets": [
+    {
+      "asset_name": "Baseline Q-Table",
+      "file_path": "ai-engine/models/q_table.json",
+      "phase3d_recorded_hash": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "phase3e_pre_test_hash": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "phase3e_post_test_hash": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "status": "Verified (0 bytes drift)"
+    },
+    {
+      "asset_name": "Runtime Q-Table",
+      "file_path": "ai-engine/runtime/q_table.json",
+      "phase3d_recorded_hash": "55C37D38B3006AC53FD3D741AC186C265C47E2B528560EEF4209BCACF4A35B27",
+      "phase3e_pre_test_hash": "55C37D38B3006AC53FD3D741AC186C265C47E2B528560EEF4209BCACF4A35B27",
+      "phase3e_post_test_hash": "55C37D38B3006AC53FD3D741AC186C265C47E2B528560EEF4209BCACF4A35B27",
+      "status": "Verified (0 bytes drift)"
+    },
+    {
+      "asset_name": "Active Random Forest Classifier",
+      "file_path": "ai-engine/models/rf_classifier_cicids_v2.pkl",
+      "phase3d_recorded_hash": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "phase3e_pre_test_hash": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "phase3e_post_test_hash": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "status": "Verified (0 bytes drift)"
+    },
+    {
+      "asset_name": "Active Isolation Forest Model",
+      "file_path": "ai-engine/models/isolation_forest_cicids.pkl",
+      "phase3d_recorded_hash": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "phase3e_pre_test_hash": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "phase3e_post_test_hash": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "status": "Verified (0 bytes drift)"
+    },
+    {
+      "asset_name": "Candidate XGBoost Classifier",
+      "file_path": "ai-engine/models/xgb_classifier_cicids_v2.pkl",
+      "phase3d_recorded_hash": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "phase3e_pre_test_hash": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "phase3e_post_test_hash": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "status": "Verified (0 bytes drift)"
+    }
+  ],
+  "runtime_invariants": {
+    "AUTONOMOUS_CONTAINMENT": false,
+    "ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT": false,
+    "GATE_1_RELEASE_STATUS": "OPEN",
+    "LIVE_DATABASE_WRITES": "BLOCKED_BY_GUARD"
+  }
+}

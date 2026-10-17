@@ -1,0 +1,334 @@
+{
+  "holdout_benign_30k.parquet": {
+    "description": "Large-Scale Benign Holdout (N=30,000)",
+    "file_sha256": "62FB5DDEBD915F38289EA7814E073A3C1F1A06D6FCF91F57E779D83E075480B6",
+    "total_records": 30000,
+    "total_attacks": 0,
+    "total_benign": 30000,
+    "tier1_transport": {
+      "tp": 0,
+      "fn": 0,
+      "fp": 10,
+      "tn": 29990,
+      "block_tp": 0,
+      "block_fp": 5,
+      "recall_fraction": "0/0",
+      "recall_percent": 0.0,
+      "recall_wilson_ci": [
+        0.0,
+        0.0
+      ],
+      "fpr_fraction": "10/30000",
+      "fpr_percent": 0.0333,
+      "fpr_wilson_ci": [
+        0.0181,
+        0.0614
+      ]
+    },
+    "tier3_combined": {
+      "tp": 0,
+      "fn": 0,
+      "fp": 10,
+      "tn": 29990,
+      "block_tp": 0,
+      "recall_fraction": "0/0",
+      "recall_percent": 0.0
+    },
+    "subtypes": {
+      "BENIGN": {
+        "total": 30000,
+        "t1_det": 10,
+        "t1_blk": 5,
+        "t3_det": 10,
+        "t3_blk": 5
+      }
+    },
+    "auditor_verdict": "CONFIRMED_INDEPENDENTLY_REPRODUCED"
+  },
+  "holdout_bruteforce_ssh_ftp.parquet": {
+    "description": "SSH & FTP Brute Force (N=2,000 attacks)",
+    "file_sha256": "EDF54D185F755A67C684FB6DCFA4FFC75FF8C6986348636FF4440314EC227DC7",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "tp": 1424,
+      "fn": 576,
+      "fp": 1,
+      "tn": 999,
+      "block_tp": 573,
+      "block_fp": 1,
+      "recall_fraction": "1424/2000",
+      "recall_percent": 71.2,
+      "recall_wilson_ci": [
+        69.1763,
+        73.1425
+      ],
+      "fpr_fraction": "1/1000",
+      "fpr_percent": 0.1,
+      "fpr_wilson_ci": [
+        0.0177,
+        0.5643
+      ]
+    },
+    "tier3_combined": {
+      "tp": 1424,
+      "fn": 576,
+      "fp": 1,
+      "tn": 999,
+      "block_tp": 573,
+      "recall_fraction": "1424/2000",
+      "recall_percent": 71.2
+    },
+    "subtypes": {
+      "SSH Brute Force": {
+        "total": 1000,
+        "t1_det": 509,
+        "t1_blk": 508,
+        "t3_det": 509,
+        "t3_blk": 508
+      },
+      "Credential Stuffing": {
+        "total": 1000,
+        "t1_det": 915,
+        "t1_blk": 65,
+        "t3_det": 915,
+        "t3_blk": 65
+      },
+      "BENIGN": {
+        "total": 1000,
+        "t1_det": 1,
+        "t1_blk": 1,
+        "t3_det": 1,
+        "t3_blk": 1
+      }
+    },
+    "auditor_verdict": "CONFIRMED_INDEPENDENTLY_REPRODUCED"
+  },
+  "holdout_botnet.parquet": {
+    "description": "Botnet (Malware Beacon) (N=2,000 attacks)",
+    "file_sha256": "00FD4FA72736552FC95C976B4DBE6E5077B0B85E11BAE6A0E806BE53623CAFEA",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "tp": 1217,
+      "fn": 783,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 677,
+      "block_fp": 0,
+      "recall_fraction": "1217/2000",
+      "recall_percent": 60.85,
+      "recall_wilson_ci": [
+        58.6921,
+        62.9663
+      ],
+      "fpr_fraction": "0/1000",
+      "fpr_percent": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.3827
+      ]
+    },
+    "tier3_combined": {
+      "tp": 1217,
+      "fn": 783,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 677,
+      "recall_fraction": "1217/2000",
+      "recall_percent": 60.85
+    },
+    "subtypes": {
+      "Malware Beacon": {
+        "total": 2000,
+        "t1_det": 1217,
+        "t1_blk": 677,
+        "t3_det": 1217,
+        "t3_blk": 677
+      },
+      "BENIGN": {
+        "total": 1000,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 0,
+        "t3_blk": 0
+      }
+    },
+    "auditor_verdict": "CONFIRMED_INDEPENDENTLY_REPRODUCED"
+  },
+  "holdout_web_attacks.parquet": {
+    "description": "Web Attacks (SQLi, XSS, BF) (N=566 attacks)",
+    "file_sha256": "41ABF2CF1516F30627EED35E1F136EC545D9A0D89A1CE9661EF7FFF4DBC86354",
+    "total_records": 1566,
+    "total_attacks": 566,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "tp": 2,
+      "fn": 564,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 2,
+      "block_fp": 0,
+      "recall_fraction": "2/566",
+      "recall_percent": 0.3534,
+      "recall_wilson_ci": [
+        0.097,
+        1.2791
+      ],
+      "fpr_fraction": "0/1000",
+      "fpr_percent": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.3827
+      ]
+    },
+    "tier3_combined": {
+      "tp": 566,
+      "fn": 0,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 206,
+      "recall_fraction": "566/566",
+      "recall_percent": 100.0
+    },
+    "subtypes": {
+      "Credential Stuffing": {
+        "total": 362,
+        "t1_det": 2,
+        "t1_blk": 2,
+        "t3_det": 362,
+        "t3_blk": 2
+      },
+      "XSS Attempt": {
+        "total": 151,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 151,
+        "t3_blk": 151
+      },
+      "SQL Injection": {
+        "total": 53,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 53,
+        "t3_blk": 53
+      },
+      "BENIGN": {
+        "total": 1000,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 0,
+        "t3_blk": 0
+      }
+    },
+    "auditor_verdict": "CONFIRMED_INDEPENDENTLY_REPRODUCED"
+  },
+  "holdout_infiltration.parquet": {
+    "description": "Infiltration (Lateral Movement) (N=2,000 attacks)",
+    "file_sha256": "094AD11F984580E08D4DC743050BCC1C25CCC49B03122D7B69D23D0A0B480F30",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "tp": 3,
+      "fn": 1997,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 2,
+      "block_fp": 0,
+      "recall_fraction": "3/2000",
+      "recall_percent": 0.15,
+      "recall_wilson_ci": [
+        0.051,
+        0.4401
+      ],
+      "fpr_fraction": "0/1000",
+      "fpr_percent": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.3827
+      ]
+    },
+    "tier3_combined": {
+      "tp": 3,
+      "fn": 1997,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 2,
+      "recall_fraction": "3/2000",
+      "recall_percent": 0.15
+    },
+    "subtypes": {
+      "Lateral Movement": {
+        "total": 2000,
+        "t1_det": 3,
+        "t1_blk": 2,
+        "t3_det": 3,
+        "t3_blk": 2
+      },
+      "BENIGN": {
+        "total": 1000,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 0,
+        "t3_blk": 0
+      }
+    },
+    "auditor_verdict": "CONFIRMED_INDEPENDENTLY_REPRODUCED"
+  },
+  "holdout_ddos.parquet": {
+    "description": "DDoS / DoS (N=2,000 attacks)",
+    "file_sha256": "C9F638F28D93108A56AEF4E69F1CD467A93D6E97AE531FB5D7CB2756D2A84C47",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "tier1_transport": {
+      "tp": 0,
+      "fn": 2000,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 0,
+      "block_fp": 0,
+      "recall_fraction": "0/2000",
+      "recall_percent": 0.0,
+      "recall_wilson_ci": [
+        0.0,
+        0.1917
+      ],
+      "fpr_fraction": "0/1000",
+      "fpr_percent": 0.0,
+      "fpr_wilson_ci": [
+        0.0,
+        0.3827
+      ]
+    },
+    "tier3_combined": {
+      "tp": 0,
+      "fn": 2000,
+      "fp": 0,
+      "tn": 1000,
+      "block_tp": 0,
+      "recall_fraction": "0/2000",
+      "recall_percent": 0.0
+    },
+    "subtypes": {
+      "DDoS": {
+        "total": 2000,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 0,
+        "t3_blk": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "t1_det": 0,
+        "t1_blk": 0,
+        "t3_det": 0,
+        "t3_blk": 0
+      }
+    },
+    "auditor_verdict": "CONFIRMED_INDEPENDENTLY_REPRODUCED"
+  }
+}

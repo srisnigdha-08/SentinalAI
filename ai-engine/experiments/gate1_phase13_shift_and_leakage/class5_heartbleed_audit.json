@@ -1,0 +1,16 @@
+{
+  "cve": "CVE-2014-0160",
+  "official_vulnerability_type": "Information Disclosure (Buffer Over-read in OpenSSL TLS Heartbeat Extension)",
+  "sentinel_class_name": "RCE Attempt (Class 5)",
+  "naming_mismatch_analysis": "Semantic mismatch: Heartbleed is CVE-2014-0160, a memory disclosure flaw allowing an attacker to read up to 64KB of server heap memory per heartbeat, leaking private keys and credentials. It does NOT permit arbitrary code execution (RCE). Classifying Heartbleed as 'RCE Attempt' is a domain taxonomy defect inherited from legacy prototype label mappings.",
+  "occurrences": [
+    {
+      "corpus": "CICIDS2017",
+      "file": "Wednesday-workingHours.pcap_ISCX.csv",
+      "raw_label": "Heartbleed",
+      "count": 11
+    }
+  ],
+  "total_count_across_all_corpora": 11,
+  "learnability_assessment": "Total count across both full corpora is 11 flows (all in CICIDS2017 Wednesday-workingHours.pcap_ISCX.csv, 0 in CSE-CIC-IDS2018). With N = 11, an 80/20 train/test split provides at most 8 training examples and 3 test examples. A statistical classifier cannot reliably generalize or be rigorously benchmarked on 3 test samples (a single false negative swings recall from 100% to 66.7%). Recommendation for GATE-1: Document Class 5 as unlearnable via statistical tabular ML due to extreme dataset sparsity (N=11); Heartbleed detection in production must be handled via Layer 7 signature inspection (TLS Heartbeat length > payload length) or snort/suricata rules, rather than statistical tabular flow classifiers."
+}

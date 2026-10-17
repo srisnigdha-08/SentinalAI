@@ -1,0 +1,145 @@
+{
+  "disposable_model_hash": "EA6FB47A1F74717AA29878646179D7230AE801C62296D874BE1E7166AE000987",
+  "disposable_eval_results": {
+    "benign_fpr": {
+      "sample_size": 30000,
+      "fp_count": 340,
+      "fpr": 0.011333,
+      "wilson_ci": [
+        0.010197,
+        0.012595
+      ],
+      "pass_gate1": false
+    },
+    "holdout_bruteforce_ssh_ftp.parquet": {
+      "description": "SSH & FTP Brute Force",
+      "total_attacks": 2000,
+      "tp": 1084,
+      "fn": 916,
+      "recall": 0.542,
+      "wilson_ci": [
+        0.520105,
+        0.563734
+      ],
+      "subtypes": {
+        "SSH-Bruteforce": {
+          "total": 1000,
+          "detected": 86
+        },
+        "FTP-BruteForce": {
+          "total": 1000,
+          "detected": 998
+        }
+      }
+    },
+    "holdout_botnet.parquet": {
+      "description": "Botnet (Malware Beacon)",
+      "total_attacks": 2000,
+      "tp": 782,
+      "fn": 1218,
+      "recall": 0.391,
+      "wilson_ci": [
+        0.369842,
+        0.412575
+      ],
+      "subtypes": {
+        "Bot": {
+          "total": 2000,
+          "detected": 782
+        }
+      }
+    },
+    "holdout_ddos.parquet": {
+      "description": "DDoS / DoS (HOIC & LOIC-UDP)",
+      "total_attacks": 2000,
+      "tp": 181,
+      "fn": 1819,
+      "recall": 0.0905,
+      "wilson_ci": [
+        0.078699,
+        0.103871
+      ],
+      "subtypes": {
+        "DDOS attack-HOIC": {
+          "total": 1996,
+          "detected": 177
+        },
+        "DDOS attack-LOIC-UDP": {
+          "total": 4,
+          "detected": 4
+        }
+      }
+    },
+    "holdout_infiltration.parquet": {
+      "description": "Infiltration",
+      "total_attacks": 2000,
+      "tp": 111,
+      "fn": 1889,
+      "recall": 0.0555,
+      "wilson_ci": [
+        0.046291,
+        0.066413
+      ],
+      "subtypes": {
+        "Infilteration": {
+          "total": 2000,
+          "detected": 111
+        }
+      }
+    },
+    "holdout_web_attacks.parquet": {
+      "description": "Web Attacks (Transport ML)",
+      "total_attacks": 566,
+      "tp": 2,
+      "fn": 564,
+      "recall": 0.0035,
+      "wilson_ci": [
+        0.00097,
+        0.012791
+      ],
+      "subtypes": {
+        "Brute Force -Web": {
+          "total": 362,
+          "detected": 2
+        },
+        "Brute Force -XSS": {
+          "total": 151,
+          "detected": 0
+        },
+        "SQL Injection": {
+          "total": 53,
+          "detected": 0
+        }
+      }
+    }
+  },
+  "modular_offline_harness": {
+    "ssh_surge_test": {
+      "final_decision": "SIMULATED_BLOCK",
+      "decision_sequence": [
+        "MONITOR",
+        "MONITOR",
+        "MONITOR",
+        "MONITOR",
+        "MONITOR",
+        "SIMULATED_BLOCK",
+        "SIMULATED_BLOCK",
+        "SIMULATED_BLOCK",
+        "SIMULATED_BLOCK",
+        "SIMULATED_BLOCK"
+      ]
+    },
+    "hoic_surge_test": {
+      "overall_decision": "SIMULATED_BLOCK",
+      "vol_decision": "SIMULATED_BLOCK",
+      "vol_confidence": 0.9,
+      "simulated_block": true
+    },
+    "waf_exploit_test": {
+      "overall_decision": "SIMULATED_BLOCK",
+      "waf_decision": "SIMULATED_BLOCK",
+      "waf_confidence": 0.95,
+      "simulated_block": true
+    }
+  }
+}

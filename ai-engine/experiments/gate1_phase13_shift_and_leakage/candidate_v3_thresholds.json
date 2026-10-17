@@ -1,0 +1,126 @@
+{
+  "model": "candidate_rf_multicorpus_v3.pkl",
+  "model_sha256": "D8A18CCF6CAE5A246B60189F2BCFB46EFD1EBBDDFA41C2CDD1D17C5D6B7FB77B",
+  "feature_count": 49,
+  "features": [
+    "flow_duration",
+    "total_fwd_packets",
+    "total_bwd_packets",
+    "total_len_fwd_packets",
+    "total_len_bwd_packets",
+    "fwd_packet_len_max",
+    "fwd_packet_len_min",
+    "fwd_packet_len_mean",
+    "fwd_packet_len_std",
+    "bwd_packet_len_max",
+    "bwd_packet_len_min",
+    "bwd_packet_len_mean",
+    "bwd_packet_len_std",
+    "flow_bytes_per_sec",
+    "flow_packets_per_sec",
+    "flow_iat_mean",
+    "flow_iat_std",
+    "flow_iat_max",
+    "flow_iat_min",
+    "fwd_iat_total",
+    "fwd_iat_mean",
+    "fwd_iat_std",
+    "fwd_iat_max",
+    "fwd_iat_min",
+    "bwd_iat_total",
+    "bwd_iat_mean",
+    "bwd_iat_std",
+    "bwd_iat_max",
+    "bwd_iat_min",
+    "fwd_psh_flags",
+    "bwd_psh_flags",
+    "fwd_urg_flags",
+    "bwd_urg_flags",
+    "fin_flag_count",
+    "syn_flag_count",
+    "rst_flag_count",
+    "psh_flag_count",
+    "ack_flag_count",
+    "urg_flag_count",
+    "fwd_header_len",
+    "bwd_header_len",
+    "fwd_avg_bytes_per_bulk",
+    "bwd_avg_bytes_per_bulk",
+    "active_mean",
+    "active_std",
+    "idle_mean",
+    "idle_std",
+    "down_up_ratio",
+    "payload_entropy"
+  ],
+  "system_decision_rule": "Candidate attack classes clearing calibrated thresholds compete; highest margin wins; default BENIGN",
+  "operating_thresholds": {
+    "1": 0.5,
+    "2": 0.7,
+    "4": 0.97,
+    "6": 0.5,
+    "7": 0.97,
+    "8": 0.7,
+    "9": 0.85
+  },
+  "validation_performance": {
+    "BENIGN": {
+      "total": 25000,
+      "false_positives": 24,
+      "fpr": 0.00096,
+      "status": "PASS"
+    },
+    "attacks": {
+      "SSH Brute Force": {
+        "target_class": 1,
+        "threshold": 0.5,
+        "total": 2500,
+        "detected": 2499,
+        "recall": 0.9996
+      },
+      "SQL Injection": {
+        "target_class": 2,
+        "threshold": 0.7,
+        "total": 30,
+        "detected": 6,
+        "recall": 0.2
+      },
+      "DDoS": {
+        "target_class": 4,
+        "threshold": 0.97,
+        "total": 2500,
+        "detected": 2105,
+        "recall": 0.842
+      },
+      "XSS Attempt": {
+        "target_class": 6,
+        "threshold": 0.5,
+        "total": 67,
+        "detected": 34,
+        "recall": 0.5075
+      },
+      "Malware Beacon": {
+        "target_class": 7,
+        "threshold": 0.97,
+        "total": 2500,
+        "detected": 2290,
+        "recall": 0.916
+      },
+      "Credential Stuffing": {
+        "target_class": 8,
+        "threshold": 0.7,
+        "total": 2500,
+        "detected": 2315,
+        "recall": 0.926
+      },
+      "Lateral Movement": {
+        "target_class": 9,
+        "threshold": 0.85,
+        "total": 2500,
+        "detected": 24,
+        "recall": 0.0096
+      }
+    }
+  },
+  "frozen_at": "Phase 13 Task 6"
+}

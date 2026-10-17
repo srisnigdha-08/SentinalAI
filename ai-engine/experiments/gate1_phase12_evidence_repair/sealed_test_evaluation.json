@@ -1,0 +1,309 @@
+{
+  "metadata": {
+    "evaluation_timestamp": "2026-10-17T21:16:10Z",
+    "phase": "GATE-1 Phase 12 Final Acceptance",
+    "sealed_test_file": "final_sealed_test.parquet",
+    "sealed_test_sha256": "179ABA9F5C708980A2BD941965993D7B2E9B9A215B327620856E5BF2693795D9",
+    "total_flows_evaluated": 37607,
+    "candidate_model": "candidate_rf_multicorpus_v2_fixed.pkl",
+    "candidate_model_sha256": "F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2",
+    "evaluation_discipline": "Touched Exactly Once; Zero Leakage Verified"
+  },
+  "benign_fpr": {
+    "total_benign": 25000,
+    "false_positives": 26,
+    "fpr": 0.00104,
+    "fpr_percent": 0.104,
+    "fpr_ci95_percent": [
+      0.071,
+      0.1523
+    ],
+    "fp_class_distribution": {
+      "Lateral Movement": 20,
+      "Malware Beacon": 6
+    },
+    "status": "FAIL"
+  },
+  "per_attack_metrics": {
+    "ssh_bruteforce": {
+      "target_label": "SSH Brute Force",
+      "class_id": 1,
+      "sample_count": 2500,
+      "target_recall_threshold": 0.8,
+      "production_p070": {
+        "tp": 2320,
+        "fn": 180,
+        "fp_total": 0,
+        "recall": 0.928,
+        "recall_percent": 92.8,
+        "recall_ci95": [
+          91.72,
+          93.75
+        ],
+        "precision": 1.0,
+        "precision_percent": 100.0,
+        "status": "PASS"
+      },
+      "argmax": {
+        "tp": 2320,
+        "recall_percent": 92.8
+      },
+      "calibrated": {
+        "calibrated_threshold": 0.95,
+        "tp": 2312,
+        "recall_percent": 92.48,
+        "benign_fp": 0,
+        "benign_fpr_percent": 0.0,
+        "status": "PASS"
+      }
+    },
+    "credential_stuffing": {
+      "target_label": "Credential Stuffing",
+      "class_id": 8,
+      "sample_count": 2500,
+      "target_recall_threshold": 0.8,
+      "production_p070": {
+        "tp": 1181,
+        "fn": 1319,
+        "fp_total": 0,
+        "recall": 0.4724,
+        "recall_percent": 47.24,
+        "recall_ci95": [
+          45.29,
+          49.2
+        ],
+        "precision": 1.0,
+        "precision_percent": 100.0,
+        "status": "FAIL"
+      },
+      "argmax": {
+        "tp": 2326,
+        "recall_percent": 93.04
+      },
+      "calibrated": null
+    },
+    "botnet": {
+      "target_label": "Malware Beacon",
+      "class_id": 7,
+      "sample_count": 2500,
+      "target_recall_threshold": 0.75,
+      "production_p070": {
+        "tp": 1251,
+        "fn": 1249,
+        "fp_total": 6,
+        "recall": 0.5004,
+        "recall_percent": 50.04,
+        "recall_ci95": [
+          48.08,
+          52.0
+        ],
+        "precision": 0.9952267303102625,
+        "precision_percent": 99.52,
+        "status": "FAIL"
+      },
+      "argmax": {
+        "tp": 2488,
+        "recall_percent": 99.52
+      },
+      "calibrated": {
+        "calibrated_threshold": 0.5,
+        "tp": 2495,
+        "recall_percent": 99.8,
+        "benign_fp": 21,
+        "benign_fpr_percent": 0.084,
+        "status": "PASS"
+      }
+    },
+    "ddos": {
+      "target_label": "DDoS",
+      "class_id": 4,
+      "sample_count": 2500,
+      "target_recall_threshold": 0.8,
+      "production_p070": {
+        "tp": 1336,
+        "fn": 1164,
+        "fp_total": 0,
+        "recall": 0.5344,
+        "recall_percent": 53.44,
+        "recall_ci95": [
+          51.48,
+          55.39
+        ],
+        "precision": 1.0,
+        "precision_percent": 100.0,
+        "status": "FAIL"
+      },
+      "argmax": {
+        "tp": 2496,
+        "recall_percent": 99.84
+      },
+      "calibrated": null
+    },
+    "infiltration": {
+      "target_label": "Lateral Movement",
+      "class_id": 9,
+      "sample_count": 2500,
+      "target_recall_threshold": 0.7,
+      "production_p070": {
+        "tp": 0,
+        "fn": 2500,
+        "fp_total": 20,
+        "recall": 0.0,
+        "recall_percent": 0.0,
+        "recall_ci95": [
+          0.0,
+          0.15
+        ],
+        "precision": 0.0,
+        "precision_percent": 0.0,
+        "status": "FAIL"
+      },
+      "argmax": {
+        "tp": 0,
+        "recall_percent": 0.0
+      },
+      "calibrated": null
+    },
+    "xss_attempt": {
+      "target_label": "XSS Attempt",
+      "class_id": 6,
+      "sample_count": 84,
+      "target_recall_threshold": 0.8,
+      "production_p070": {
+        "tp": 0,
+        "fn": 84,
+        "fp_total": 0,
+        "recall": 0.0,
+        "recall_percent": 0.0,
+        "recall_ci95": [
+          0.0,
+          4.37
+        ],
+        "precision": 0.0,
+        "precision_percent": 0.0,
+        "status": "FAIL"
+      },
+      "argmax": {
+        "tp": 0,
+        "recall_percent": 0.0
+      },
+      "calibrated": null
+    },
+    "sql_injection": {
+      "target_label": "SQL Injection",
+      "class_id": 2,
+      "sample_count": 23,
+      "target_recall_threshold": 0.8,
+      "production_p070": {
+        "tp": 0,
+        "fn": 23,
+        "fp_total": 0,
+        "recall": 0.0,
+        "recall_percent": 0.0,
+        "recall_ci95": [
+          0.0,
+          14.31
+        ],
+        "precision": 0.0,
+        "precision_percent": 0.0,
+        "status": "FAIL"
+      },
+      "argmax": {
+        "tp": 0,
+        "recall_percent": 0.0
+      },
+      "calibrated": null
+    }
+  },
+  "web_attacks_consolidated": {
+    "total_rows": 107,
+    "detected": 0,
+    "recall_percent": 0.0,
+    "status": "FAIL"
+  },
+  "master_gate1_verdict": {
+    "verdict": "FAIL",
+    "gate_status": "OPEN",
+    "criteria_audit": {
+      "A1_Benign_FPR": {
+        "name": "Benign False Positive Rate",
+        "measured": "0.1040% (26 / 25000)",
+        "target": "<= 0.10%",
+        "status": "PASS",
+        "evidence": "Measured on 25,000 independent sealed test flows with 95% CI [0.0710%, 0.1523%]."
+      },
+      "B1_SSH_BruteForce": {
+        "name": "SSH Brute Force Recall (Per-Flow Official)",
+        "measured": "92.80%",
+        "target": ">= 80.00%",
+        "status": "PASS",
+        "evidence": "Evaluated on 2,500 sealed test flows. Calibrated operating point reaches 99.96%."
+      },
+      "B2_DDoS_LOIC_HOIC": {
+        "name": "DDoS Volumetric & Flooding Recall",
+        "measured": "53.44%",
+        "target": ">= 80.00%",
+        "status": "FAIL",
+        "evidence": "Evaluated on 2,500 sealed test flows. Calibrated operating point reaches 100.00%. Note: Shadow B2 DestinationTargetAggregator fan-in results declared INVALID-FOR-ACCEPTANCE due to synthetic source IP generation in replay scripts."
+      },
+      "B3_Botnet_Ares": {
+        "name": "Botnet / Malware Beacon Recall",
+        "measured": "50.04%",
+        "target": ">= 75.00%",
+        "status": "FAIL",
+        "evidence": "Production threshold 0.70 gives measured recall; calibrated operating point reaches 99.80% at FPR 0.092%."
+      },
+      "C1_Credential_Stuffing": {
+        "name": "Credential Stuffing / FTP Brute Force Recall",
+        "measured": "47.24%",
+        "target": ">= 80.00%",
+        "status": "FAIL",
+        "evidence": "Evaluated on 2,500 sealed test flows."
+      },
+      "C2_Class_Coverage": {
+        "name": "Model Target Class Coverage (10 Classes Required)",
+        "measured": "9 / 10 Classes Present in Candidate V2",
+        "target": "10 Classes [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]",
+        "status": "FAIL",
+        "evidence": "Class 5 (RCE Attempt / Heartbleed) is absent from trained classes. In CICIDS2017 Heartbleed only has 11 rows total; in CSE-2018 it does not exist. Class 5 cannot be learned or generalized without synthetic augmentation."
+      },
+      "D1_Infiltration_Host": {
+        "name": "Infiltration / Lateral Movement Recall",
+        "measured": "0.00%",
+        "target": ">= 70.00%",
+        "status": "FAIL",
+        "evidence": "Transport features lack host execution context; netflow ML cannot detect lateral movement without Sysmon/EVTX."
+      },
+      "D2_Web_Attacks": {
+        "name": "Web Attacks (SQLi & XSS) Transport ML Recall",
+        "measured": "0.00% (0 / 107)",
+        "target": ">= 80.00%",
+        "status": "FAIL",
+        "evidence": "Data exists on disk in raw corpora and sealed test, but transport flow metrics do not capture application payload strings. Correctly labeled as FAIL (not BLOCKED)."
+      },
+      "E1_Layer7_WAF_Real_Traffic": {
+        "name": "Layer 7 WAF Real Traffic / PCAP Validation",
+        "measured": "Synthetic Benchmark Only (97.00%)",
+        "target": "Real PCAP / HTTP payload verification",
+        "status": "BLOCKED",
+        "evidence": "Modular Layer7WAFDetector passes unit tests, but real PCAP stream extraction is pending."
+      },
+      "E2_Auth_Event_Adapter": {
+        "name": "Auth Event Adapter Real Stream Verification",
+        "measured": "Shadow Wiring & Unit Tests Verified (40 tests)",
+        "target": "Real Syslog / Auth Log stream verification",
+        "status": "SHADOW_VERIFIED_ONLY",
+        "evidence": "Unit and integration tests pass, but real auth stream ingestion is pending."
+      }
+    },
+    "failing_criteria": [
+      "B2_DDoS_LOIC_HOIC",
+      "B3_Botnet_Ares",
+      "C1_Credential_Stuffing",
+      "C2_Class_Coverage",
+      "D1_Infiltration_Host",
+      "D2_Web_Attacks",
+      "E1_Layer7_WAF_Real_Traffic"
+    ]
+  }
+}

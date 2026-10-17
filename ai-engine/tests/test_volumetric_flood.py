@@ -255,3 +255,225 @@ class TestVolumetricFloodDetector:
         assert res_flood.simulated_block is True
         assert res_flood.max_threat_confidence >= 0.85
         orchestrator.shutdown()
+
+
+class TestDestinationTargetAggregator:
+    def test_destination_buffer_unique_sources_and_rates(self):
+        from modular.volumetric_flood import DestinationTargetBuffer
+        buf = DestinationTargetBuffer(max_history_seconds=60.0)
+        # 5 distinct sources arriving at ts=10.0
+        for i in range(5):
+            buf.add_sample(ts=10.0, packets=10.0, bytes_count=1000.0, src_ip=f"10.0.0.{i}")
+        metrics = buf.calculate_metrics(10.0)
+        assert metrics["burst_pps"] == 50.0
+        assert metrics["unique_sources_10s"] == 5
+        assert metrics["unique_sources_60s"] == 5
+
+    def test_destination_buffer_jitter_out_of_order(self):
+        from modular.volumetric_flood import DestinationTargetBuffer
+        buf = DestinationTargetBuffer(max_history_seconds=60.0)
+        buf.add_sample(ts=15.0, packets=10.0, bytes_count=500.0, src_ip="10.0.0.1")
+        # Jitter: earlier timestamp arrives later
+        buf.add_sample(ts=12.0, packets=10.0, bytes_count=500.0, src_ip="10.0.0.2")
+        # Buffer remains sorted
+        assert buf.samples[0][0] == 12.0
+        assert buf.samples[1][0] == 15.0
+
+    def test_distributed_ddos_multi_source_triggers_simulated_block(self):
+        # Sensitive target limits: target_burst_pps=500, target_surge_pps=100, target_unique_sources=10
+        det = VolumetricFloodDetector(
+            burst_pps_limit=2000.0,
+            surge_pps_limit=1000.0,
+            target_burst_pps_limit=500.0,
+            target_surge_pps_limit=100.0,
+            target_unique_sources_limit=10,
+            max_destinations=100
+        )
+        # 15 distinct sources each sending low rate (e.g. 100 packets, duration 0.1s)
+        # Per source rate is 100 pps, below per-source burst_pps_limit of 2000.0
+        # But aggregate hitting 192.168.1.100:80 is 1500 packets in 1 second!
+        res = None
+        for i in range(15):
+            flow = {
+                "src_ip": f"172.16.0.{i}",
+                "dst_ip": "192.168.1.100",
+                "dst_port": 80,
+                "packets": 100,
+                "bytes": 50000,
+                "timestamp": 100.0 + (i * 0.05)
+            }
+            res = det.evaluate(flow)
+
+        assert res.decision == PolicyDecision.SIMULATED_BLOCK
+        assert res.severity == SeverityLevel.CRITICAL
+        assert res.evidence.trigger_rule == "DISTRIBUTED_VOLUMETRIC_FLOOD_ATTACK_DETECTED"
+        assert res.evidence.extracted_features["destination_aggregation"]["unique_sources_10s"] >= 10
+        assert res.evidence.extracted_features["destination_aggregation"]["target"] == "192.168.1.100:80"
+
+    def test_benign_multi_user_browsing_within_limits_produces_allow(self):
+        det = VolumetricFloodDetector(
+            target_surge_pps_limit=2000.0,
+            target_unique_sources_limit=10
+        )
+        # 15 distinct sources each sending 1 packet to web server (total 15 pkts)
+        res = None
+        for i in range(15):
+            flow = {
+                "src_ip": f"198.51.100.{i}",
+                "dst_ip": "192.168.1.100",
+                "dst_port": 443,
+                "packets": 1,
+                "bytes": 100,
+                "timestamp": 200.0 + (i * 0.1)
+            }
+            res = det.evaluate(flow)
+
+        assert res.decision == PolicyDecision.ALLOW
+        assert res.severity == SeverityLevel.INFORMATIONAL
+
+    def test_destination_table_lru_eviction(self):
+        det = VolumetricFloodDetector(max_destinations=10)
+        # Add traffic to 20 distinct destination targets
+        for i in range(20):
+            flow = {
+                "src_ip": "10.0.0.1",
+                "dst_ip": f"192.168.2.{i}",
+                "dst_port": 80,
+                "packets": 5,
+                "bytes": 500,
+                "timestamp": 500.0 + i
+            }
+            det.evaluate(flow)
+
+        with det._lock:
+            assert len(det._destination_table) <= 10
+            # Oldest targets (0 to 9) should have been evicted
+            assert "192.168.2.0:80" not in det._destination_table
+            assert "192.168.2.19:80" in det._destination_table
+
+    def test_destination_key_missing_or_partial(self):
+        det = VolumetricFloodDetector(max_destinations=10)
+        # 1. Flow without dst_ip: destination aggregation skipped, normal source evaluation
+        flow_no_dst = {
+            "src_ip": "10.0.0.5",
+            "packets": 10,
+            "bytes": 1000,
+            "timestamp": 100.0
+        }
+        res1 = det.evaluate(flow_no_dst)
+        assert res1.status == DetectorStatus.HEALTHY
+        assert "destination_aggregation" not in res1.evidence.extracted_features
+
+        # 2. Flow with dst_ip but no dst_port: uses dst_ip as target key
+        flow_no_port = {
+            "src_ip": "10.0.0.5",
+            "dst_ip": "192.168.10.1",
+            "packets": 10,
+            "bytes": 1000,
+            "timestamp": 101.0
+        }
+        res2 = det.evaluate(flow_no_port)
+        assert res2.status == DetectorStatus.HEALTHY
+        assert res2.evidence.extracted_features["destination_aggregation"]["target"] == "192.168.10.1"
+
+        # 3. Flow with out-of-range port: ignores port, uses dst_ip
+        flow_bad_port = {
+            "src_ip": "10.0.0.5",
+            "dst_ip": "192.168.10.2",
+            "dst_port": 99999,
+            "packets": 10,
+            "bytes": 1000,
+            "timestamp": 102.0
+        }
+        res3 = det.evaluate(flow_bad_port)
+        assert res3.status == DetectorStatus.HEALTHY
+        assert res3.evidence.extracted_features["destination_aggregation"]["target"] == "192.168.10.2"
+
+    def test_late_event_arriving_after_horizon_is_pruned_without_skewing_rates(self):
+        """Validates that events arriving >60s prior to buffer horizon are pruned immediately."""
+        buf = VolumetricWindowBuffer(max_history_seconds=60.0)
+        # Baseline traffic at ts = 100.0
+        buf.add_sample(ts=100.0, packets=10.0, bytes_count=1000.0)
+        assert len(buf.samples) == 1
+
+        # Late-arriving ancient sample from ts = 20.0 (80s in past relative to 100.0)
+        # Even with massive packet count, it should be pruned immediately
+        buf.add_sample(ts=20.0, packets=500_000.0, bytes_count=100_000_000.0)
+        assert len(buf.samples) == 1
+        assert buf.samples[0][0] == 100.0
+
+        rates = buf.calculate_rates(100.0)
+        assert rates["burst_pps"] == 10.0
+        assert rates["sustained_pps"] == 10.0 / 60.0
+
+    def test_destination_capacity_saturation_bound(self):
+        """Validates that destination table is strictly bounded under extreme saturation."""
+        det = VolumetricFloodDetector(max_destinations=2000)
+        # Ingest traffic to 2500 unique destinations
+        for i in range(2500):
+            det.evaluate({
+                "src_ip": "10.0.0.1",
+                "dst_ip": f"172.16.{i // 256}.{i % 256}",
+                "dst_port": 80,
+                "packets": 1,
+                "bytes": 64,
+                "timestamp": 1000.0 + (i * 0.01)
+            })
+
+        with det._lock:
+            assert len(det._destination_table) <= 2000
+            assert det.health_check() == DetectorStatus.HEALTHY
+
+    def test_result_semantics_and_mitigation_watermarks(self):
+        """Validates that policy decisions strictly align with simulated mitigation watermarks."""
+        detector = VolumetricFloodDetector(
+            detector_id="volumetric_flood_test",
+            version="1.0.0-test",
+            burst_pps_limit=100.0,
+            surge_pps_limit=50.0,
+            sustained_pps_limit=20.0,
+            burst_bps_limit=100_000.0,
+            instantaneous_pps_limit=200.0,
+            instantaneous_bps_limit=200_000.0
+        )
+        # 1. ALLOW -> NONE
+        res_allow = detector.evaluate({
+            "src_ip": "192.168.1.5",
+            "packets": 1,
+            "bytes": 64,
+            "flow_duration": 1.0,
+            "timestamp": 500.0
+        })
+        assert res_allow.decision == PolicyDecision.ALLOW
+        assert res_allow.mitigation_recommendation.action == MitigationAction.NONE
+        assert res_allow.mitigation_recommendation.simulated is True
+
+        # 2. DETECTED -> SIMULATED_RATE_LIMIT
+        res_surge = detector.evaluate({
+            "src_ip": "192.168.1.6",
+            "packets": 120,  # burst limit is 100
+            "bytes": 5000,
+            "flow_duration": 1.0,
+            "flow_packets_s": 120.0,
+            "timestamp": 501.0
+        })
+        assert res_surge.decision == PolicyDecision.DETECTED
+        assert res_surge.mitigation_recommendation.action == MitigationAction.SIMULATED_RATE_LIMIT
+        assert res_surge.mitigation_recommendation.simulated is True
+        assert "[SIMULATED RATE LIMIT" in res_surge.mitigation_recommendation.watermark
+
+        # 3. SIMULATED_BLOCK -> SIMULATED_BLOCK
+        res_block = detector.evaluate({
+            "src_ip": "192.168.1.7",
+            "packets": 500,  # 5x burst limit
+            "bytes": 500000,
+            "flow_duration": 1.0,
+            "flow_packets_s": 500.0,
+            "timestamp": 502.0
+        })
+        assert res_block.decision == PolicyDecision.SIMULATED_BLOCK
+        assert res_block.mitigation_recommendation.action == MitigationAction.SIMULATED_BLOCK
+        assert res_block.mitigation_recommendation.simulated is True
+        assert "[SIMULATED BLOCK" in res_block.mitigation_recommendation.watermark
+
+

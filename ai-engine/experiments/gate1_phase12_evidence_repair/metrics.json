@@ -1,0 +1,289 @@
+{
+  "metadata": {
+    "generated_at": "2026-10-17T20:48:10.111499Z",
+    "phase": "GATE-1 Phase 12: Evidence Repair",
+    "evaluator_script": "ai-engine\\experiments\\gate1_phase12_evidence_repair\\reproduce_all_metrics.py",
+    "diagnostic_holdouts_status": "BURNED (Retained for historical reconciliation only)",
+    "v1_model": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\candidate_rf_multicorpus_v1.pkl",
+      "sha256": "71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020",
+      "classes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        7,
+        8
+      ]
+    },
+    "v2_model": {
+      "path": "ai-engine\\experiments\\gate1_phase10_detector_recovery\\candidate_rf_multicorpus_v2_fixed.pkl",
+      "sha256": "F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2",
+      "classes": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        6,
+        7,
+        8,
+        9
+      ]
+    }
+  },
+  "discrepancies_reconciled": {
+    "ssh_counts": {
+      "total_evaluated": 1000,
+      "v1_detected_p070": 509,
+      "v1_missed_p070": 491,
+      "v2_detected_p070": 508,
+      "v2_missed_p070": 492,
+      "v2_detected_p050": 509,
+      "v2_missed_p050": 491,
+      "exact_cause_508_vs_509": "On V1, all 509 handshake flows have P(SSH) >= 0.70 (detected=509, missed=491). On V2, exactly 1 handshake flow has P(SSH) = 0.692 (< 0.70), so at threshold 0.70, detected=508 and missed=492. At threshold 0.50, V2 detects 509 and misses 491. Total rows evaluate to exactly 1,000 in both cases.",
+      "misses_feature_profile": {
+        "v2_misses_p070_count": 492,
+        "duration_median_us": 6.0,
+        "duration_mean_us": 228.85365295410156,
+        "fwd_bytes_median": 0.0,
+        "fwd_bytes_mean": 3.9837398529052734,
+        "bwd_bytes_mean": 5.416666507720947,
+        "total_bytes_mean": 9.400406837463379,
+        "exact_cause_0b_vs_9_4b": "491 of the 492 misses are pure TCP RST/FIN teardowns with median duration 6.0 us and 0 payload bytes. A tiny handful of aborted handshakes have small headers (3.98 fwd + 5.42 bwd = 9.40 bytes) and higher duration that pull the arithmetic mean up to 228.85 us. The representative/median profile is 0 bytes and 6.9 us, while 9.4 bytes and 228 us is the arithmetic mean."
+      }
+    },
+    "botnet_recall": {
+      "v1_argmax_recall": 0.686,
+      "v1_p050_recall": 0.6855,
+      "v1_p070_recall": 0.6085,
+      "v2_argmax_recall": 0.742,
+      "v2_p050_recall": 0.7415,
+      "v2_p070_recall": 0.4285,
+      "exact_cause_botnet_percentages": "On V1: Argmax recall is 1372/2000 = 68.60%, while threshold P >= 0.50 gives 1371/2000 = 68.55%. On V2: Argmax recall is 1484/2000 = 74.20%, while threshold P >= 0.50 gives 1483/2000 = 74.15%. At production threshold P >= 0.70, V1 recall is 60.85% and V2 recall is 42.85%. Past report variations arose from mixing argmax classifications with strict binary thresholds."
+    },
+    "test_suite_counts": {
+      "backend_jest": {
+        "total": 525,
+        "passed": 512,
+        "skipped": 13,
+        "failed": 0
+      },
+      "ai_engine_pytest": {
+        "total": 285,
+        "passed": 285,
+        "failed": 0,
+        "progression": "279 -> 282 -> 285",
+        "exact_file_breakdown": {
+          "test_abuseipdb_decoupling.py": 7,
+          "test_api.py": 19,
+          "test_auth_and_waf_detectors.py": 40,
+          "test_cowrie_output_contract.py": 4,
+          "test_cowrie_parser.py": 3,
+          "test_cowrie_parser_contract.py": 8,
+          "test_data_pipeline_integrity.py": 5,
+          "test_feature_capture.py": 7,
+          "test_features.py": 18,
+          "test_gate1_ml_remediation.py": 10,
+          "test_model_evaluation.py": 15,
+          "test_modular_scaffold.py": 43,
+          "test_periodicity_tracker.py": 11,
+          "test_predictor.py": 23,
+          "test_q_table_safety.py": 4,
+          "test_readiness.py": 22,
+          "test_replay_isolation.py": 14,
+          "test_validation_privacy.py": 9,
+          "test_volumetric_flood.py": 24
+        },
+        "delta_explanation": "Baseline was 279. Phase 11 added 3 tests in test_predictor.py (TestShadowDetectorIntegration: test_shadow_mode_disabled_by_default, test_shadow_b2_enabled_preserves_primary_output, test_shadow_e2_enabled_preserves_honeypot_primary_output) bringing total to 282. Subsequent robustification of DestinationTargetAggregator in test_volumetric_flood.py added 3 regression tests (test_late_event_arriving_after_horizon_is_pruned_without_skewing_rates, test_destination_capacity_saturation_bound, test_result_semantics_and_mitigation_watermarks), bringing the final verified total to 285."
+      }
+    },
+    "benign_fp_increase": {
+      "v1_fp_count": 10,
+      "v1_fpr": 0.0003333333333333333,
+      "v1_classes": {
+        "DDoS": 4,
+        "Malware Beacon": 6
+      },
+      "v2_fp_count": 16,
+      "v2_fpr": 0.0005333333333333334,
+      "v2_classes": {
+        "Lateral Movement": 10,
+        "Malware Beacon": 6
+      },
+      "exact_cause": "On V1, 10 false positives occurred: 6 Malware Beacon, 4 DDoS (FPR = 0.0333%). On V2, 16 false positives occurred: 6 Malware Beacon, 10 Lateral Movement (FPR = 0.0533%). The entire net increase of +6 FPs is due to Class 9 (Lateral Movement), which was absent in V1 and added to training in V2. Both FPRs remain well below the 0.10% threshold."
+    }
+  },
+  "diagnostic_holdout_evaluations": {
+    "candidate_v1": {
+      "benign_evaluation": {
+        "total_rows": 30000,
+        "fp_at_p070": 10,
+        "fpr_at_p070": 0.0003333333333333333,
+        "fp_at_p050": 21,
+        "fpr_at_p050": 0.0007,
+        "fp_at_argmax": 22,
+        "fpr_at_argmax": 0.0007333333333333333,
+        "fp_breakdown_p070": {
+          "DDoS": 4,
+          "Malware Beacon": 6
+        }
+      },
+      "attacks": {
+        "ssh_bruteforce": {
+          "target_label": "SSH Brute Force",
+          "target_class_id": 1,
+          "class_in_model": true,
+          "total_rows": 1000,
+          "detected_at_p070": 509,
+          "recall_at_p070": 0.509,
+          "detected_at_p050": 509,
+          "recall_at_p050": 0.509,
+          "detected_at_argmax": 509,
+          "recall_at_argmax": 0.509
+        },
+        "credential_stuffing": {
+          "target_label": "Credential Stuffing",
+          "target_class_id": 8,
+          "class_in_model": true,
+          "total_rows": 1000,
+          "detected_at_p070": 915,
+          "recall_at_p070": 0.915,
+          "detected_at_p050": 1000,
+          "recall_at_p050": 1.0,
+          "detected_at_argmax": 1000,
+          "recall_at_argmax": 1.0
+        },
+        "botnet": {
+          "target_label": "Malware Beacon",
+          "target_class_id": 7,
+          "class_in_model": true,
+          "total_rows": 2000,
+          "detected_at_p070": 1217,
+          "recall_at_p070": 0.6085,
+          "detected_at_p050": 1371,
+          "recall_at_p050": 0.6855,
+          "detected_at_argmax": 1372,
+          "recall_at_argmax": 0.686
+        },
+        "ddos": {
+          "target_label": "DDoS",
+          "target_class_id": 4,
+          "class_in_model": true,
+          "total_rows": 2000,
+          "detected_at_p070": 0,
+          "recall_at_p070": 0.0,
+          "detected_at_p050": 0,
+          "recall_at_p050": 0.0,
+          "detected_at_argmax": 0,
+          "recall_at_argmax": 0.0
+        },
+        "infiltration": {
+          "target_label": "Lateral Movement",
+          "target_class_id": 9,
+          "class_in_model": false,
+          "total_rows": 2000,
+          "detected_at_p070": 0,
+          "recall_at_p070": 0.0,
+          "detected_at_p050": 0,
+          "recall_at_p050": 0.0,
+          "detected_at_argmax": 0,
+          "recall_at_argmax": 0.0
+        },
+        "web_attacks": {
+          "total_rows": 566,
+          "detected_at_p070": 0,
+          "recall_at_p070": 0.0,
+          "detected_at_argmax": 0,
+          "recall_at_argmax": 0.0
+        }
+      }
+    },
+    "candidate_v2": {
+      "benign_evaluation": {
+        "total_rows": 30000,
+        "fp_at_p070": 16,
+        "fpr_at_p070": 0.0005333333333333334,
+        "fp_at_p050": 153,
+        "fpr_at_p050": 0.0051,
+        "fp_at_argmax": 157,
+        "fpr_at_argmax": 0.005233333333333334,
+        "fp_breakdown_p070": {
+          "Lateral Movement": 10,
+          "Malware Beacon": 6
+        }
+      },
+      "attacks": {
+        "ssh_bruteforce": {
+          "target_label": "SSH Brute Force",
+          "target_class_id": 1,
+          "class_in_model": true,
+          "total_rows": 1000,
+          "detected_at_p070": 508,
+          "recall_at_p070": 0.508,
+          "detected_at_p050": 509,
+          "recall_at_p050": 0.509,
+          "detected_at_argmax": 509,
+          "recall_at_argmax": 0.509
+        },
+        "credential_stuffing": {
+          "target_label": "Credential Stuffing",
+          "target_class_id": 8,
+          "class_in_model": true,
+          "total_rows": 1000,
+          "detected_at_p070": 911,
+          "recall_at_p070": 0.911,
+          "detected_at_p050": 1000,
+          "recall_at_p050": 1.0,
+          "detected_at_argmax": 1000,
+          "recall_at_argmax": 1.0
+        },
+        "botnet": {
+          "target_label": "Malware Beacon",
+          "target_class_id": 7,
+          "class_in_model": true,
+          "total_rows": 2000,
+          "detected_at_p070": 857,
+          "recall_at_p070": 0.4285,
+          "detected_at_p050": 1483,
+          "recall_at_p050": 0.7415,
+          "detected_at_argmax": 1484,
+          "recall_at_argmax": 0.742
+        },
+        "ddos": {
+          "target_label": "DDoS",
+          "target_class_id": 4,
+          "class_in_model": true,
+          "total_rows": 2000,
+          "detected_at_p070": 199,
+          "recall_at_p070": 0.0995,
+          "detected_at_p050": 548,
+          "recall_at_p050": 0.274,
+          "detected_at_argmax": 550,
+          "recall_at_argmax": 0.275
+        },
+        "infiltration": {
+          "target_label": "Lateral Movement",
+          "target_class_id": 9,
+          "class_in_model": true,
+          "total_rows": 2000,
+          "detected_at_p070": 7,
+          "recall_at_p070": 0.0035,
+          "detected_at_p050": 52,
+          "recall_at_p050": 0.026,
+          "detected_at_argmax": 53,
+          "recall_at_argmax": 0.0265
+        },
+        "web_attacks": {
+          "total_rows": 566,
+          "detected_at_p070": 0,
+          "recall_at_p070": 0.0,
+          "detected_at_argmax": 0,
+          "recall_at_argmax": 0.0
+        }
+      }
+    }
+  }
+}

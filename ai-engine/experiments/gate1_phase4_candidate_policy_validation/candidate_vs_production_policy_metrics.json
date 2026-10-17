@@ -1,0 +1,1066 @@
+{
+  "PortScan": {
+    "slice_metadata": {
+      "key": "PortScan",
+      "file": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "provenance": "Friday Afternoon PCAP; offset=30,000; 10,000 in training (6.29%)",
+      "canonical_label": "Port Scan"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 1000
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 2000,
+          "MONITOR": 0,
+          "BLOCK": 0
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 1000
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 1000,
+          "FP": 22,
+          "TN": 978,
+          "FN": 0
+        },
+        "recall": 1.0,
+        "recall_ci_95": [
+          0.99617,
+          1.0
+        ],
+        "fpr": 0.022,
+        "fpr_ci_95": [
+          0.01457,
+          0.03309
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 1000,
+          "FP": 13,
+          "TN": 987,
+          "FN": 0
+        },
+        "recall": 1.0,
+        "recall_ci_95": [
+          0.99617,
+          1.0
+        ],
+        "fpr": 0.013,
+        "fpr_ci_95": [
+          0.00761,
+          0.02211
+        ],
+        "action_counts": {
+          "ALLOW": 987,
+          "MONITOR": 7,
+          "BLOCK": 1006
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 998,
+          "FP": 8,
+          "TN": 992,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.008,
+        "fpr_ci_95": [
+          0.00406,
+          0.01571
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 1000,
+          "FP": 22,
+          "TN": 978,
+          "FN": 0
+        },
+        "recall": 1.0,
+        "recall_ci_95": [
+          0.99617,
+          1.0
+        ],
+        "fpr": 0.022,
+        "fpr_ci_95": [
+          0.01457,
+          0.03309
+        ]
+      }
+    }
+  },
+  "DDoS": {
+    "slice_metadata": {
+      "key": "DDoS",
+      "file": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "provenance": "Friday Afternoon PCAP; offset=30,000; 10,000 in training (7.81%)",
+      "canonical_label": "DDoS"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 720,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 280
+        },
+        "recall": 0.72,
+        "recall_ci_95": [
+          0.69137,
+          0.74695
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1280,
+          "MONITOR": 682,
+          "BLOCK": 38
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 38,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 962
+        },
+        "recall": 0.038,
+        "recall_ci_95": [
+          0.02781,
+          0.05173
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 998,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 998,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1002,
+          "MONITOR": 0,
+          "BLOCK": 998
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 998,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 998,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      }
+    }
+  },
+  "SSH_Patator": {
+    "slice_metadata": {
+      "key": "SSH_Patator",
+      "file": "Tuesday-WorkingHours.pcap_ISCX.csv",
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "provenance": "Tuesday PCAP; 100% of available SSH-Patator in training (In-sample Leakage)",
+      "canonical_label": "SSH Brute Force"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 461,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 539
+        },
+        "recall": 0.461,
+        "recall_ci_95": [
+          0.43031,
+          0.49199
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1539,
+          "MONITOR": 461,
+          "BLOCK": 0
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 1000
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 994,
+          "FP": 4,
+          "TN": 996,
+          "FN": 6
+        },
+        "recall": 0.994,
+        "recall_ci_95": [
+          0.98697,
+          0.99725
+        ],
+        "fpr": 0.004,
+        "fpr_ci_95": [
+          0.00156,
+          0.01024
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 989,
+          "FP": 1,
+          "TN": 999,
+          "FN": 11
+        },
+        "recall": 0.989,
+        "recall_ci_95": [
+          0.98041,
+          0.99385
+        ],
+        "fpr": 0.001,
+        "fpr_ci_95": [
+          0.00018,
+          0.00564
+        ],
+        "action_counts": {
+          "ALLOW": 1010,
+          "MONITOR": 31,
+          "BLOCK": 959
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 959,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 41
+        },
+        "recall": 0.959,
+        "recall_ci_95": [
+          0.94485,
+          0.96964
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 994,
+          "FP": 4,
+          "TN": 996,
+          "FN": 6
+        },
+        "recall": 0.994,
+        "recall_ci_95": [
+          0.98697,
+          0.99725
+        ],
+        "fpr": 0.004,
+        "fpr_ci_95": [
+          0.00156,
+          0.01024
+        ]
+      }
+    }
+  },
+  "Web_Attacks": {
+    "slice_metadata": {
+      "key": "Web_Attacks",
+      "file": "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv",
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "provenance": "Thursday Morning PCAP; 100% of Web Attacks in training (In-sample Leakage)",
+      "canonical_label": "Web Attack (Multi-vector)"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 75,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 925
+        },
+        "recall": 0.075,
+        "recall_ci_95": [
+          0.06025,
+          0.093
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1925,
+          "MONITOR": 75,
+          "BLOCK": 0
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 1000
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 998,
+          "FP": 21,
+          "TN": 979,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.021,
+        "fpr_ci_95": [
+          0.01378,
+          0.03189
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 609,
+          "FP": 12,
+          "TN": 988,
+          "FN": 391
+        },
+        "recall": 0.609,
+        "recall_ci_95": [
+          0.57839,
+          0.63877
+        ],
+        "fpr": 0.012,
+        "fpr_ci_95": [
+          0.00688,
+          0.02086
+        ],
+        "action_counts": {
+          "ALLOW": 1379,
+          "MONITOR": 465,
+          "BLOCK": 156
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 156,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 844
+        },
+        "recall": 0.156,
+        "recall_ci_95": [
+          0.13483,
+          0.1798
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 998,
+          "FP": 21,
+          "TN": 979,
+          "FN": 2
+        },
+        "recall": 0.998,
+        "recall_ci_95": [
+          0.99274,
+          0.99945
+        ],
+        "fpr": 0.021,
+        "fpr_ci_95": [
+          0.01378,
+          0.03189
+        ]
+      }
+    }
+  },
+  "Infiltration": {
+    "slice_metadata": {
+      "key": "Infiltration",
+      "file": "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+      "total_flows": 1036,
+      "attack_flows": 36,
+      "benign_flows": 1000,
+      "provenance": "Thursday Afternoon PCAP; 36 total flows (100% in training; Insufficient Data)",
+      "canonical_label": "Infiltration"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 27,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 9
+        },
+        "recall": 0.75,
+        "recall_ci_95": [
+          0.5893,
+          0.8625
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1009,
+          "MONITOR": 20,
+          "BLOCK": 7
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 7,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 29
+        },
+        "recall": 0.19444,
+        "recall_ci_95": [
+          0.09753,
+          0.35028
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 35,
+          "FP": 16,
+          "TN": 984,
+          "FN": 1
+        },
+        "recall": 0.97222,
+        "recall_ci_95": [
+          0.8583,
+          0.99508
+        ],
+        "fpr": 0.016,
+        "fpr_ci_95": [
+          0.00987,
+          0.02583
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 31,
+          "FP": 10,
+          "TN": 990,
+          "FN": 5
+        },
+        "recall": 0.86111,
+        "recall_ci_95": [
+          0.71341,
+          0.93918
+        ],
+        "fpr": 0.01,
+        "fpr_ci_95": [
+          0.00544,
+          0.01831
+        ],
+        "action_counts": {
+          "ALLOW": 995,
+          "MONITOR": 21,
+          "BLOCK": 20
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 20,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 16
+        },
+        "recall": 0.55556,
+        "recall_ci_95": [
+          0.39581,
+          0.70459
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 35,
+          "FP": 16,
+          "TN": 984,
+          "FN": 1
+        },
+        "recall": 0.97222,
+        "recall_ci_95": [
+          0.8583,
+          0.99508
+        ],
+        "fpr": 0.016,
+        "fpr_ci_95": [
+          0.00987,
+          0.02583
+        ]
+      }
+    }
+  },
+  "Botnet": {
+    "slice_metadata": {
+      "key": "Botnet",
+      "file": "Friday-WorkingHours-Morning.pcap_ISCX.csv",
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "provenance": "Friday Morning PCAP; 100% in training (In-sample Leakage)",
+      "canonical_label": "Malware Beacon"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 456,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 544
+        },
+        "recall": 0.456,
+        "recall_ci_95": [
+          0.42536,
+          0.48698
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1544,
+          "MONITOR": 456,
+          "BLOCK": 0
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 1000
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 991,
+          "FP": 27,
+          "TN": 973,
+          "FN": 9
+        },
+        "recall": 0.991,
+        "recall_ci_95": [
+          0.98298,
+          0.99526
+        ],
+        "fpr": 0.027,
+        "fpr_ci_95": [
+          0.01862,
+          0.039
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 985,
+          "FP": 12,
+          "TN": 988,
+          "FN": 15
+        },
+        "recall": 0.985,
+        "recall_ci_95": [
+          0.9754,
+          0.99089
+        ],
+        "fpr": 0.012,
+        "fpr_ci_95": [
+          0.00688,
+          0.02086
+        ],
+        "action_counts": {
+          "ALLOW": 1003,
+          "MONITOR": 57,
+          "BLOCK": 940
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 940,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 60
+        },
+        "recall": 0.94,
+        "recall_ci_95": [
+          0.92353,
+          0.9531
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 991,
+          "FP": 27,
+          "TN": 973,
+          "FN": 9
+        },
+        "recall": 0.991,
+        "recall_ci_95": [
+          0.98298,
+          0.99526
+        ],
+        "fpr": 0.027,
+        "fpr_ci_95": [
+          0.01862,
+          0.039
+        ]
+      }
+    }
+  },
+  "DoS_Hulk": {
+    "slice_metadata": {
+      "key": "DoS_Hulk",
+      "file": "Wednesday-workingHours.pcap_ISCX.csv",
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "provenance": "Wednesday PCAP; offset=30,000; Partial training overlap risk",
+      "canonical_label": "DDoS"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 659,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 341
+        },
+        "recall": 0.659,
+        "recall_ci_95": [
+          0.62906,
+          0.68772
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1341,
+          "MONITOR": 534,
+          "BLOCK": 125
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 125,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 875
+        },
+        "recall": 0.125,
+        "recall_ci_95": [
+          0.10593,
+          0.14694
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 975,
+          "FP": 1,
+          "TN": 999,
+          "FN": 25
+        },
+        "recall": 0.975,
+        "recall_ci_95": [
+          0.96335,
+          0.98301
+        ],
+        "fpr": 0.001,
+        "fpr_ci_95": [
+          0.00018,
+          0.00564
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 967,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 33
+        },
+        "recall": 0.967,
+        "recall_ci_95": [
+          0.95402,
+          0.97641
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ],
+        "action_counts": {
+          "ALLOW": 1033,
+          "MONITOR": 46,
+          "BLOCK": 921
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 921,
+          "FP": 0,
+          "TN": 1000,
+          "FN": 79
+        },
+        "recall": 0.921,
+        "recall_ci_95": [
+          0.90263,
+          0.93615
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00383
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 975,
+          "FP": 1,
+          "TN": 999,
+          "FN": 25
+        },
+        "recall": 0.975,
+        "recall_ci_95": [
+          0.96335,
+          0.98301
+        ],
+        "fpr": 0.001,
+        "fpr_ci_95": [
+          0.00018,
+          0.00564
+        ]
+      }
+    }
+  },
+  "Monday_Benign": {
+    "slice_metadata": {
+      "key": "Monday_Benign",
+      "file": "Monday-WorkingHours.pcap_ISCX.csv",
+      "total_flows": 10000,
+      "attack_flows": 0,
+      "benign_flows": 10000,
+      "provenance": "Monday Pure Benign Benchmark; 15,000 sampled in training (2.83% overlap risk)",
+      "canonical_label": "BENIGN"
+    },
+    "production_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 10000,
+          "FN": 0
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00038
+        ],
+        "action_counts": {
+          "ALLOW": 10000,
+          "MONITOR": 0,
+          "BLOCK": 0
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 10000,
+          "FN": 0
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00038
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 0,
+          "FP": 47,
+          "TN": 9953,
+          "FN": 0
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0047,
+        "fpr_ci_95": [
+          0.00354,
+          0.00624
+        ]
+      }
+    },
+    "candidate_policy": {
+      "policy_containment": {
+        "confusion": {
+          "TP": 0,
+          "FP": 7,
+          "TN": 9993,
+          "FN": 0
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0007,
+        "fpr_ci_95": [
+          0.00034,
+          0.00144
+        ],
+        "action_counts": {
+          "ALLOW": 9993,
+          "MONITOR": 7,
+          "BLOCK": 0
+        }
+      },
+      "simulated_block": {
+        "confusion": {
+          "TP": 0,
+          "FP": 0,
+          "TN": 10000,
+          "FN": 0
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.00038
+        ]
+      },
+      "raw_supervised_classifier": {
+        "confusion": {
+          "TP": 0,
+          "FP": 47,
+          "TN": 9953,
+          "FN": 0
+        },
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0047,
+        "fpr_ci_95": [
+          0.00354,
+          0.00624
+        ]
+      }
+    }
+  }
+}

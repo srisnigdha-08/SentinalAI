@@ -1,0 +1,28 @@
+{
+  "filename": "final_test_v2.parquet",
+  "filepath": "ai-engine\\experiments\\gate1_phase13_shift_and_leakage\\final_test_v2.parquet",
+  "sha256": "BDF958607C8A12B8F975045FA439DFD9C627FA6601C21E7DF2A957163F3CC083",
+  "file_size_bytes": 4246486,
+  "total_rows": 37552,
+  "class_distribution": {
+    "BENIGN": 25000,
+    "Credential Stuffing": 2500,
+    "Lateral Movement": 2500,
+    "Malware Beacon": 2500,
+    "SSH Brute Force": 2500,
+    "DDoS": 2500,
+    "XSS Attempt": 52
+  },
+  "target_class_distribution": {
+    "0": 25000,
+    "8": 2500,
+    "9": 2500,
+    "7": 2500,
+    "1": 2500,
+    "4": 2500,
+    "6": 52
+  },
+  "leakage_guarantee": "Strictly disjoint against holdouts, Train V2, Validation split, and Sealed Test v1 via MD5 row hash set of 53 features",
+  "frozen_at": "Phase 13 Task 5",
+  "evaluation_status": "SEALED - UNTOUCHED (DO NOT EVALUATE UNTIL TASK 7)"
+}

@@ -1,0 +1,315 @@
+{
+  "provenance_summary": {
+    "BENIGN": {
+      "target_class": 0,
+      "train_count": 120000,
+      "train_hour_mean": 5.07,
+      "train_hour_std": 4.51,
+      "val_count": 25000,
+      "val_hour_mean": 9.85,
+      "val_hour_std": 2.07,
+      "test_count": 25000,
+      "test_hour_mean": 9.55,
+      "test_hour_std": 3.23
+    },
+    "SSH Brute Force": {
+      "target_class": 1,
+      "train_count": 15897,
+      "train_hour_mean": 1.33,
+      "train_hour_std": 1.02,
+      "val_count": 2500,
+      "val_hour_mean": 2.21,
+      "val_hour_std": 0.01,
+      "test_count": 2500,
+      "test_hour_mean": 2.24,
+      "test_hour_std": 0.06
+    },
+    "DDoS": {
+      "target_class": 4,
+      "train_count": 52000,
+      "train_hour_mean": 2.75,
+      "train_hour_std": 3.87,
+      "val_count": 2500,
+      "val_hour_mean": 2.19,
+      "val_hour_std": 0.0,
+      "test_count": 2500,
+      "test_hour_mean": 2.19,
+      "test_hour_std": 0.0
+    },
+    "Malware Beacon": {
+      "target_class": 7,
+      "train_count": 11966,
+      "train_hour_mean": 9.27,
+      "train_hour_std": 4.12,
+      "val_count": 2500,
+      "val_hour_mean": 11.74,
+      "val_hour_std": 0.17,
+      "test_count": 2500,
+      "test_hour_mean": 12.42,
+      "test_hour_std": 0.21
+    },
+    "Credential Stuffing": {
+      "target_class": 8,
+      "train_count": 19438,
+      "train_hour_mean": 5.45,
+      "train_hour_std": 5.3,
+      "val_count": 2315,
+      "val_hour_mean": 10.7,
+      "val_hour_std": 0.03,
+      "test_count": 2326,
+      "test_hour_mean": 10.82,
+      "test_hour_std": 0.03
+    },
+    "Lateral Movement": {
+      "target_class": 9,
+      "train_count": 4000,
+      "train_hour_mean": 2.1,
+      "train_hour_std": 0.06,
+      "val_count": 2500,
+      "val_hour_mean": 2.25,
+      "val_hour_std": 0.04,
+      "test_count": 2500,
+      "test_hour_mean": 2.37,
+      "test_hour_std": 0.02
+    }
+  },
+  "adversarial_validation": {
+    "BENIGN": {
+      "target_class": 0,
+      "auc_with_time": 0.7647,
+      "top_features_with_time": [
+        {
+          "feature": "time_of_day_cos",
+          "importance": 0.2635
+        },
+        {
+          "feature": "time_of_day_sin",
+          "importance": 0.1762
+        },
+        {
+          "feature": "fwd_iat_min",
+          "importance": 0.0366
+        }
+      ],
+      "auc_without_time": 0.5841,
+      "top_features_without_time": [
+        {
+          "feature": "flow_iat_mean",
+          "importance": 0.0666
+        },
+        {
+          "feature": "payload_entropy",
+          "importance": 0.066
+        },
+        {
+          "feature": "flow_iat_min",
+          "importance": 0.0659
+        }
+      ],
+      "delta_auc_when_dropping_time": -0.1806
+    },
+    "SSH Brute Force": {
+      "target_class": 1,
+      "auc_with_time": 1.0,
+      "top_features_with_time": [
+        {
+          "feature": "time_of_day_sin",
+          "importance": 0.4832
+        },
+        {
+          "feature": "time_of_day_cos",
+          "importance": 0.401
+        },
+        {
+          "feature": "bwd_iat_mean",
+          "importance": 0.0097
+        }
+      ],
+      "auc_without_time": 0.5895,
+      "top_features_without_time": [
+        {
+          "feature": "fwd_iat_total",
+          "importance": 0.0774
+        },
+        {
+          "feature": "bwd_iat_total",
+          "importance": 0.0705
+        },
+        {
+          "feature": "bwd_iat_std",
+          "importance": 0.067
+        }
+      ],
+      "delta_auc_when_dropping_time": -0.4105
+    },
+    "DDoS": {
+      "target_class": 4,
+      "auc_with_time": 0.9942,
+      "top_features_with_time": [
+        {
+          "feature": "time_of_day_cos",
+          "importance": 0.4832
+        },
+        {
+          "feature": "time_of_day_sin",
+          "importance": 0.3908
+        },
+        {
+          "feature": "fwd_iat_min",
+          "importance": 0.0245
+        }
+      ],
+      "auc_without_time": 0.7466,
+      "top_features_without_time": [
+        {
+          "feature": "fwd_iat_min",
+          "importance": 0.1689
+        },
+        {
+          "feature": "fwd_packet_len_mean",
+          "importance": 0.0838
+        },
+        {
+          "feature": "total_len_fwd_packets",
+          "importance": 0.0715
+        }
+      ],
+      "delta_auc_when_dropping_time": -0.2476
+    },
+    "Malware Beacon": {
+      "target_class": 7,
+      "auc_with_time": 1.0,
+      "top_features_with_time": [
+        {
+          "feature": "time_of_day_sin",
+          "importance": 0.6944
+        },
+        {
+          "feature": "time_of_day_cos",
+          "importance": 0.2003
+        },
+        {
+          "feature": "fwd_iat_mean",
+          "importance": 0.0101
+        }
+      ],
+      "auc_without_time": 0.5658,
+      "top_features_without_time": [
+        {
+          "feature": "flow_iat_max",
+          "importance": 0.0831
+        },
+        {
+          "feature": "fwd_iat_total",
+          "importance": 0.0719
+        },
+        {
+          "feature": "flow_packets_per_sec",
+          "importance": 0.0702
+        }
+      ],
+      "delta_auc_when_dropping_time": -0.4342
+    },
+    "Credential Stuffing": {
+      "target_class": 8,
+      "auc_with_time": 1.0,
+      "top_features_with_time": [
+        {
+          "feature": "time_of_day_sin",
+          "importance": 0.5225
+        },
+        {
+          "feature": "time_of_day_cos",
+          "importance": 0.4681
+        },
+        {
+          "feature": "flow_iat_max",
+          "importance": 0.0024
+        }
+      ],
+      "auc_without_time": 0.4842,
+      "top_features_without_time": [
+        {
+          "feature": "flow_iat_max",
+          "importance": 0.2133
+        },
+        {
+          "feature": "flow_iat_min",
+          "importance": 0.2097
+        },
+        {
+          "feature": "flow_duration",
+          "importance": 0.2087
+        }
+      ],
+      "delta_auc_when_dropping_time": -0.5158
+    },
+    "Lateral Movement": {
+      "target_class": 9,
+      "auc_with_time": 1.0,
+      "top_features_with_time": [
+        {
+          "feature": "time_of_day_cos",
+          "importance": 0.4966
+        },
+        {
+          "feature": "time_of_day_sin",
+          "importance": 0.4188
+        },
+        {
+          "feature": "fwd_iat_min",
+          "importance": 0.0046
+        }
+      ],
+      "auc_without_time": 0.6336,
+      "top_features_without_time": [
+        {
+          "feature": "flow_packets_per_sec",
+          "importance": 0.0547
+        },
+        {
+          "feature": "flow_iat_mean",
+          "importance": 0.0492
+        },
+        {
+          "feature": "flow_bytes_per_sec",
+          "importance": 0.0463
+        }
+      ],
+      "delta_auc_when_dropping_time": -0.3664
+    }
+  },
+  "v2_validation_vs_sealed_test": {
+    "BENIGN": {
+      "val_fpr": 0.0008,
+      "test_fpr": 0.00104,
+      "gap": 0.024
+    },
+    "SSH Brute Force": {
+      "val_recall": 0.9996,
+      "test_recall": 0.928,
+      "gap": -7.16
+    },
+    "DDoS": {
+      "val_recall": 0.9888,
+      "test_recall": 0.5344,
+      "gap": -45.44
+    },
+    "Malware Beacon": {
+      "val_recall": 0.5472,
+      "test_recall": 0.5004,
+      "gap": -4.68
+    },
+    "Credential Stuffing": {
+      "val_recall": 0.6125,
+      "test_recall": 0.5077,
+      "gap": -10.48
+    },
+    "Lateral Movement": {
+      "val_recall": 0.0,
+      "test_recall": 0.0,
+      "gap": 0.0
+    }
+  },
+  "diagnosis_conclusion": "The large recall collapse on Botnet (99.8% in-sample calibrated val -> 50.04% sealed test) and DDoS (100% in-sample val -> 53.44% sealed test) was caused by a combination of: (1) In-sample calibration optimism in Phase 12 where calibrators were fit and tested on the exact same validation partition; (2) Temporal leakage and chunk-order shift where time_of_day_cos and time_of_day_sin (ranks 3 and 4 in V2) separated early-chunk validation flows from late-chunk test flows with high adversarial AUC; (3) Over-confident default operating thresholds (P >= 0.70) without cross-fitted calibration on untouched test distributions."
+}

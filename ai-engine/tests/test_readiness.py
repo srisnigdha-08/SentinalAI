@@ -93,14 +93,18 @@ def test_q_table_path_pointing_to_seed_redirects_to_runtime(tmp_path, monkeypatc
     # Intentionally point Q_TABLE_PATH directly at the baseline seed artifact
     monkeypatch.setenv('MODEL_DIR', str(models))
     monkeypatch.setenv('Q_TABLE_PATH', str(seed))
+    monkeypatch.setenv('DEFAULT_RUNTIME_Q_TABLE_PATH', str(default_runtime_target))
+    monkeypatch.setattr(deception, 'DEFAULT_RUNTIME_Q_TABLE_PATH', str(default_runtime_target))
     monkeypatch.setattr(deception, '_scorer', None)
 
     scorer = deception.get_scorer()
-    # Scorer path must have been redirected away from seed to default runtime path
+    # Scorer path must have been redirected away from seed to default runtime path in tmp_path
     assert Path(scorer.learner.q_table_path).resolve() != seed.resolve()
+    assert Path(scorer.learner.q_table_path).resolve() == default_runtime_target.resolve()
     scorer.learner.episode_count = 99
     deception.save_scorer()
 
     # Seed baseline must remain completely unmodified
     assert seed.read_bytes() == original
+    assert default_runtime_target.exists()
 

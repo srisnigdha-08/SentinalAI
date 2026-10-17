@@ -1,0 +1,74 @@
+On branch feature/gate1-phase9c-modular-scaffold
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   ai-engine/inference/deception.py
+	modified:   ai-engine/inference/main.py
+	modified:   ai-engine/inference/predictor.py
+	modified:   ai-engine/modular/__init__.py
+	modified:   ai-engine/modular/volumetric_flood.py
+	modified:   ai-engine/rl_engine/deception_scorer.py
+	modified:   ai-engine/tests/test_api.py
+	modified:   ai-engine/tests/test_auth_and_waf_detectors.py
+	modified:   ai-engine/tests/test_gate1_ml_remediation.py
+	modified:   ai-engine/tests/test_predictor.py
+	modified:   ai-engine/tests/test_q_table_safety.py
+	modified:   ai-engine/tests/test_readiness.py
+	modified:   ai-engine/tests/test_volumetric_flood.py
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	GATE1_CONTRACT.md
+	HANDOFF.md
+	ai-engine/experiments/gate1_phase01_qtable_remediation_20261018-0339/
+	ai-engine/experiments/gate1_phase10_detector_recovery/
+	ai-engine/experiments/gate1_phase11_acceptance_fix/
+	ai-engine/experiments/gate1_phase12_evidence_repair/
+	ai-engine/experiments/gate1_phase13_shift_and_leakage/
+	ai-engine/experiments/gate1_phase14_reference_audit_20261018-0358/
+	ai-engine/experiments/gate1_phase3d_backend_patch/
+	ai-engine/experiments/gate1_phase3e_independent_verification/
+	ai-engine/experiments/gate1_phase4_candidate_policy_validation/
+	ai-engine/experiments/gate1_phase5_independent_validation/
+	ai-engine/experiments/gate1_phase6_independent_validation/
+	ai-engine/experiments/gate1_phase7_cse2018_validation/
+	ai-engine/experiments/gate1_phase7_independent_audit_20261016/
+	ai-engine/experiments/gate1_phase8_multicorpus_candidates/
+	ai-engine/experiments/gate1_phase9a_phase8_audit/
+	ai-engine/experiments/gate1_phase9b_architecture_design/
+	ai-engine/experiments/gate1_phase9c1_integrity_audit/
+	ai-engine/experiments/gate1_phase9c2_remediation/
+	ai-engine/experiments/gate1_phase9c3_remediation/
+	ai-engine/experiments/gate1_phase9d_preflight_audit/
+	ai-engine/modular/auth_event_adapter.py
+	ai-engine/modular/host_telemetry_adapter.py
+	ai-engine/modular/pcap_validation_procedure.md
+	ai-engine/modular/periodicity_tracker.py
+	ai-engine/tests/conftest.py
+	ai-engine/tests/test_data_pipeline_integrity.py
+	ai-engine/tests/test_periodicity_tracker.py
+	backend/controllers/threatController.js.orig-phase3d
+	backend/models/Alert.js.orig-phase3d
+	backend/models/ThreatLog.js.orig-phase3d
+	backend/services/aiEngineService.js.orig-phase3d
+	backend/services/aiService.js.orig-phase3d
+	backend/services/threatService.js.orig-phase3d
+	verify_protected_hashes.py
+
+no changes added to commit (use "git add" and/or "git commit -a")
+
+bfff31d fix(modular): harden sample ordering under jitter, bound L7 payload length, and reconcile test metrics
+3f9c84d feat(gate1-master): complete GATE-1 master remediation, modular detectors, and final evaluation audit
+1dc7e1a fix(modular): remediate DEF-05 unbounded worker accumulation and enforce bounded in-flight capacity
+7c89c14 feat(modular): deliver common contracts, safety validators, bounded state table, and shadow orchestrator (DEF-01..DEF-04 remediated)
+e9f71a0 fix(backend,frontend): remediate invalid-score fail-open, add bounded audit retention, and enable UI degraded triage
+
+  feature/gate1-phase3d-backend-safety
+  feature/gate1-phase4-candidate-policy
+  feature/gate1-phase5-layer7-prototype
+  feature/gate1-phase6-independent-validation
+  feature/gate1-phase7-cse2018-holdout-validation
+  feature/gate1-phase8-multicorpus-candidates
+* feature/gate1-phase9c-modular-scaffold
+  main
+

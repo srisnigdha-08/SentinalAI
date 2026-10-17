@@ -1,0 +1,106 @@
+{
+  "dataset_metadata": {
+    "dataset_name": "Communications Security Establishment & Canadian Institute for Cybersecurity IDS 2018 (CSE-CIC-IDS2018)",
+    "official_registry_url": "https://registry.opendata.aws/cse-cic-ids2018/",
+    "s3_bucket_base_url": "https://cse-cic-ids2018.s3.amazonaws.com/",
+    "s3_prefix": "Processed Traffic Data for ML Algorithms/",
+    "license": "Creative Commons Attribution 4.0 International (CC BY 4.0)",
+    "originating_organization": "Communications Security Establishment (CSE) & University of New Brunswick (UNB)",
+    "capture_period": "February 14, 2018 – March 2, 2018 (10 Operational Days)",
+    "total_compressed_size_mb": 6568.27,
+    "total_estimated_uncompressed_gb": 18.5,
+    "feature_count_raw": 80,
+    "target_feature_schema": "v2.1_53feat (53 features)",
+    "acquisition_verification_timestamp": "2026-10-16T20:12:35Z"
+  },
+  "storage_capacity_assessment": {
+    "drive_c_available_gb": 3.18,
+    "drive_d_available_gb": 215.78,
+    "drive_c_download_feasible": false,
+    "drive_d_download_feasible": true,
+    "designated_target_directory": "D:\\sentinelai_datasets\\cse_cic_ids2018\\",
+    "preflight_status": "FULL_DRIVE_C_DOWNLOAD_BLOCKED_BY_CAPACITY_LIMIT"
+  },
+  "files": [
+    {
+      "filename": "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 341.63,
+      "primary_attack_vectors": ["FTP-BruteForce", "SSH-Bruteforce"],
+      "sentinel_target_classes": ["Credential Stuffing", "SSH Brute Force"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 358.53,
+      "primary_attack_vectors": ["DoS-GoldenEye", "DoS-Hulk"],
+      "sentinel_target_classes": ["DDoS"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Friday-16-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Friday-16-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 318.26,
+      "primary_attack_vectors": ["DoS-Slowloris", "DoS-SlowHTTPTest"],
+      "sentinel_target_classes": ["DDoS"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Thuesday-20-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Thuesday-20-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 3867.08,
+      "primary_attack_vectors": ["DDOS attack-LOIC-HTTP", "DDOS attack-LOIC-UDP"],
+      "sentinel_target_classes": ["DDoS"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 313.66,
+      "primary_attack_vectors": ["DDOS attack-LOIC-HTTP", "DDOS attack-HOIC"],
+      "sentinel_target_classes": ["DDoS"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Thursday-22-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 364.91,
+      "primary_attack_vectors": ["Brute Force -Web", "Brute Force -XSS", "SQL Injection"],
+      "sentinel_target_classes": ["Credential Stuffing", "XSS Attempt", "SQL Injection"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 365.11,
+      "primary_attack_vectors": ["Brute Force -Web", "Brute Force -XSS", "SQL Injection"],
+      "sentinel_target_classes": ["Credential Stuffing", "XSS Attempt", "SQL Injection"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 199.56,
+      "primary_attack_vectors": ["Infilteration"],
+      "sentinel_target_classes": ["Lateral Movement"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 102.85,
+      "primary_attack_vectors": ["Infilteration"],
+      "sentinel_target_classes": ["Lateral Movement"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    },
+    {
+      "filename": "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+      "s3_key": "Processed Traffic Data for ML Algorithms/Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+      "size_mb": 336.04,
+      "primary_attack_vectors": ["Bot"],
+      "sentinel_target_classes": ["Malware Beacon"],
+      "http_range_check_status": "VERIFIED_206_PARTIAL_CONTENT"
+    }
+  ]
+}

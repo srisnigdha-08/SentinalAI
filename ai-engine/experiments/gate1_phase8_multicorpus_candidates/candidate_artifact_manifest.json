@@ -1,0 +1,79 @@
+{
+  "phase": "Phase 8: Controlled Multi-Corpus Retraining",
+  "date": "2026-10-16",
+  "status": "GATE-1 OPEN",
+  "candidate_model": {
+    "metadata": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\candidate_rf_multicorpus_v1.pkl",
+      "filename": "candidate_rf_multicorpus_v1.pkl",
+      "size_bytes": 5850914,
+      "sha256": "71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020"
+    },
+    "model_type": "sklearn.pipeline.Pipeline (StandardScaler + RandomForestClassifier)",
+    "hyperparameters": {
+      "n_estimators": 100,
+      "max_depth": 12,
+      "min_samples_leaf": 20,
+      "min_samples_split": 20,
+      "random_state": 42,
+      "n_jobs": -1
+    },
+    "feature_schema": "Candidate Schema F (51 robust features)",
+    "features_pruned": [
+      "init_win_bytes_forward",
+      "init_win_bytes_backward",
+      "raw_dst_port",
+      "raw_src_port"
+    ],
+    "transformations": "log1p on duration, IATs, rates, packet lengths; header normalization",
+    "classes_in_model": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      6,
+      7,
+      8
+    ]
+  },
+  "data_partitions": {
+    "training": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\partition_train_multicorpus.parquet",
+      "filename": "partition_train_multicorpus.parquet",
+      "size_bytes": 16380842,
+      "sha256": "A56023295BE6886FCF97421DF21DDF153057FFCF02B0E2032F66384AAF4CE981"
+    },
+    "validation": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\partition_validation_tuning.parquet",
+      "filename": "partition_validation_tuning.parquet",
+      "size_bytes": 3113638,
+      "sha256": "07CE94824E8A52F5482AD4610677AD5E38871EF1F4949607B3375FF1DDCE6B76"
+    }
+  },
+  "experimental_evaluations": {
+    "feature_ablations": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\feature_ablation_results.json",
+      "filename": "feature_ablation_results.json",
+      "size_bytes": 4074,
+      "sha256": "1F3E1A688290371DC0A58FB4E8CBBF5A7CE0A4EAC666F535E57E7140CC2DE625"
+    },
+    "regularization_comparison": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\regularization_comparison.json",
+      "filename": "regularization_comparison.json",
+      "size_bytes": 2838,
+      "sha256": "D546D33C932C3AB270DEEE325471D5B59C523E6F3561B65D7E3CD57F37964657"
+    },
+    "holdout_confusion_matrices": {
+      "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\per_class_confusion_matrices.json",
+      "filename": "per_class_confusion_matrices.json",
+      "size_bytes": 6454,
+      "sha256": "5F06E4FD5AB9C7A2BCEBA6AB46A265B0F0C3E676FD95C2051CF9BF1FDA0A541B"
+    }
+  },
+  "protected_assets_audit": {
+    "models_modified": 0,
+    "qtables_modified": 0,
+    "firewall_rules_created": 0
+  }
+}

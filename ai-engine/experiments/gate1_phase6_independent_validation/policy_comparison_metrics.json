@@ -1,0 +1,1166 @@
+{
+  "metadata": {
+    "timestamp": "2026-10-16T14:47:10Z",
+    "benchmark_scope": "GATE-1 Phase 6 Controlled Policy Architecture Comparison",
+    "evaluated_corpora": {
+      "http_synthetic_benchmark": {
+        "total_records": 300
+      },
+      "cicids2017_flow_corpus": {
+        "total_flows": 23036
+      }
+    },
+    "configurations": {
+      "config_a_prod": "Existing Production Policy (Coupled RF + IF)",
+      "config_b_cand_flow": "Phase 4 Candidate Flow Policy (Decoupled RF + IF)",
+      "config_c_l7_alone": "Layer 7 WAF Pre-Filter Alone",
+      "config_d_combined": "Combined Layer 7 Pre-Filter + Candidate Flow Policy"
+    },
+    "latency_profiling_ms": {
+      "mean_ms": 63.825,
+      "p50_ms": 57.948,
+      "p95_ms": 95.614,
+      "p99_ms": 135.689
+    }
+  },
+  "http_benchmark_metrics": {
+    "config_a_prod": {
+      "containment_recall": 0.0,
+      "containment_recall_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "simulated_block_recall": 0.0,
+      "simulated_block_recall_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "false_positive_rate": 0.0,
+      "false_positive_rate_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "simulated_block_fpr": 0.0,
+      "simulated_block_fpr_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "confusion": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 150,
+        "fn": 150,
+        "block_tp": 0,
+        "block_fp": 0
+      }
+    },
+    "config_b_cand_flow": {
+      "containment_recall": 0.0,
+      "containment_recall_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "simulated_block_recall": 0.0,
+      "simulated_block_recall_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "false_positive_rate": 0.0,
+      "false_positive_rate_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "simulated_block_fpr": 0.0,
+      "simulated_block_fpr_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "confusion": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 150,
+        "fn": 150,
+        "block_tp": 0,
+        "block_fp": 0
+      }
+    },
+    "config_c_l7_alone": {
+      "containment_recall": 0.95333,
+      "containment_recall_ci_95": [
+        0.90681,
+        0.97721
+      ],
+      "simulated_block_recall": 0.75333,
+      "simulated_block_recall_ci_95": [
+        0.6786,
+        0.81542
+      ],
+      "false_positive_rate": 0.0,
+      "false_positive_rate_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "simulated_block_fpr": 0.0,
+      "simulated_block_fpr_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "confusion": {
+        "tp": 143,
+        "fp": 0,
+        "tn": 150,
+        "fn": 7,
+        "block_tp": 113,
+        "block_fp": 0
+      }
+    },
+    "config_d_combined": {
+      "containment_recall": 0.95333,
+      "containment_recall_ci_95": [
+        0.90681,
+        0.97721
+      ],
+      "simulated_block_recall": 0.75333,
+      "simulated_block_recall_ci_95": [
+        0.6786,
+        0.81542
+      ],
+      "false_positive_rate": 0.0,
+      "false_positive_rate_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "simulated_block_fpr": 0.0,
+      "simulated_block_fpr_ci_95": [
+        0.0,
+        0.02497
+      ],
+      "confusion": {
+        "tp": 143,
+        "fp": 0,
+        "tn": 150,
+        "fn": 7,
+        "block_tp": 113,
+        "block_fp": 0
+      }
+    }
+  },
+  "cicids2017_corpus_metrics": {
+    "PortScan": {
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 1.0,
+          "containment_recall_ci_95": [
+            0.99617,
+            1.0
+          ],
+          "simulated_block_recall": 0.998,
+          "simulated_block_recall_ci_95": [
+            0.99274,
+            0.99945
+          ],
+          "false_positive_rate": 0.013,
+          "false_positive_rate_ci_95": [
+            0.00761,
+            0.02211
+          ],
+          "simulated_block_fpr": 0.008,
+          "simulated_block_fpr_ci_95": [
+            0.00406,
+            0.01571
+          ],
+          "confusion": {
+            "tp": 1000,
+            "fp": 13,
+            "tn": 987,
+            "fn": 0,
+            "block_tp": 998,
+            "block_fp": 8
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 1.0,
+          "containment_recall_ci_95": [
+            0.99617,
+            1.0
+          ],
+          "simulated_block_recall": 0.998,
+          "simulated_block_recall_ci_95": [
+            0.99274,
+            0.99945
+          ],
+          "false_positive_rate": 0.013,
+          "false_positive_rate_ci_95": [
+            0.00761,
+            0.02211
+          ],
+          "simulated_block_fpr": 0.008,
+          "simulated_block_fpr_ci_95": [
+            0.00406,
+            0.01571
+          ],
+          "confusion": {
+            "tp": 1000,
+            "fp": 13,
+            "tn": 987,
+            "fn": 0,
+            "block_tp": 998,
+            "block_fp": 8
+          }
+        }
+      }
+    },
+    "DDoS": {
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.72,
+          "containment_recall_ci_95": [
+            0.69137,
+            0.74695
+          ],
+          "simulated_block_recall": 0.038,
+          "simulated_block_recall_ci_95": [
+            0.02781,
+            0.05173
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 720,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 280,
+            "block_tp": 38,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.998,
+          "containment_recall_ci_95": [
+            0.99274,
+            0.99945
+          ],
+          "simulated_block_recall": 0.998,
+          "simulated_block_recall_ci_95": [
+            0.99274,
+            0.99945
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 998,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 2,
+            "block_tp": 998,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.998,
+          "containment_recall_ci_95": [
+            0.99274,
+            0.99945
+          ],
+          "simulated_block_recall": 0.998,
+          "simulated_block_recall_ci_95": [
+            0.99274,
+            0.99945
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 998,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 2,
+            "block_tp": 998,
+            "block_fp": 0
+          }
+        }
+      }
+    },
+    "SSH_Patator": {
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.461,
+          "containment_recall_ci_95": [
+            0.43031,
+            0.49199
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 461,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 539,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.989,
+          "containment_recall_ci_95": [
+            0.98041,
+            0.99385
+          ],
+          "simulated_block_recall": 0.959,
+          "simulated_block_recall_ci_95": [
+            0.94485,
+            0.96964
+          ],
+          "false_positive_rate": 0.001,
+          "false_positive_rate_ci_95": [
+            0.00018,
+            0.00564
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 989,
+            "fp": 1,
+            "tn": 999,
+            "fn": 11,
+            "block_tp": 959,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.989,
+          "containment_recall_ci_95": [
+            0.98041,
+            0.99385
+          ],
+          "simulated_block_recall": 0.959,
+          "simulated_block_recall_ci_95": [
+            0.94485,
+            0.96964
+          ],
+          "false_positive_rate": 0.001,
+          "false_positive_rate_ci_95": [
+            0.00018,
+            0.00564
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 989,
+            "fp": 1,
+            "tn": 999,
+            "fn": 11,
+            "block_tp": 959,
+            "block_fp": 0
+          }
+        }
+      }
+    },
+    "Web_Attacks": {
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.075,
+          "containment_recall_ci_95": [
+            0.06025,
+            0.093
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 75,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 925,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.609,
+          "containment_recall_ci_95": [
+            0.57839,
+            0.63877
+          ],
+          "simulated_block_recall": 0.156,
+          "simulated_block_recall_ci_95": [
+            0.13483,
+            0.1798
+          ],
+          "false_positive_rate": 0.012,
+          "false_positive_rate_ci_95": [
+            0.00688,
+            0.02086
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 609,
+            "fp": 12,
+            "tn": 988,
+            "fn": 391,
+            "block_tp": 156,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.609,
+          "containment_recall_ci_95": [
+            0.57839,
+            0.63877
+          ],
+          "simulated_block_recall": 0.156,
+          "simulated_block_recall_ci_95": [
+            0.13483,
+            0.1798
+          ],
+          "false_positive_rate": 0.012,
+          "false_positive_rate_ci_95": [
+            0.00688,
+            0.02086
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 609,
+            "fp": 12,
+            "tn": 988,
+            "fn": 391,
+            "block_tp": 156,
+            "block_fp": 0
+          }
+        }
+      }
+    },
+    "Infiltration": {
+      "total_flows": 1036,
+      "attack_flows": 36,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.75,
+          "containment_recall_ci_95": [
+            0.5893,
+            0.8625
+          ],
+          "simulated_block_recall": 0.19444,
+          "simulated_block_recall_ci_95": [
+            0.09753,
+            0.35028
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 27,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 9,
+            "block_tp": 7,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.86111,
+          "containment_recall_ci_95": [
+            0.71341,
+            0.93918
+          ],
+          "simulated_block_recall": 0.55556,
+          "simulated_block_recall_ci_95": [
+            0.39581,
+            0.70459
+          ],
+          "false_positive_rate": 0.01,
+          "false_positive_rate_ci_95": [
+            0.00544,
+            0.01831
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 31,
+            "fp": 10,
+            "tn": 990,
+            "fn": 5,
+            "block_tp": 20,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.09642
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.09642
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 36,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.86111,
+          "containment_recall_ci_95": [
+            0.71341,
+            0.93918
+          ],
+          "simulated_block_recall": 0.55556,
+          "simulated_block_recall_ci_95": [
+            0.39581,
+            0.70459
+          ],
+          "false_positive_rate": 0.01,
+          "false_positive_rate_ci_95": [
+            0.00544,
+            0.01831
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 31,
+            "fp": 10,
+            "tn": 990,
+            "fn": 5,
+            "block_tp": 20,
+            "block_fp": 0
+          }
+        }
+      }
+    },
+    "Botnet": {
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.456,
+          "containment_recall_ci_95": [
+            0.42536,
+            0.48698
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 456,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 544,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.985,
+          "containment_recall_ci_95": [
+            0.9754,
+            0.99089
+          ],
+          "simulated_block_recall": 0.94,
+          "simulated_block_recall_ci_95": [
+            0.92353,
+            0.9531
+          ],
+          "false_positive_rate": 0.012,
+          "false_positive_rate_ci_95": [
+            0.00688,
+            0.02086
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 985,
+            "fp": 12,
+            "tn": 988,
+            "fn": 15,
+            "block_tp": 940,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.985,
+          "containment_recall_ci_95": [
+            0.9754,
+            0.99089
+          ],
+          "simulated_block_recall": 0.94,
+          "simulated_block_recall_ci_95": [
+            0.92353,
+            0.9531
+          ],
+          "false_positive_rate": 0.012,
+          "false_positive_rate_ci_95": [
+            0.00688,
+            0.02086
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 985,
+            "fp": 12,
+            "tn": 988,
+            "fn": 15,
+            "block_tp": 940,
+            "block_fp": 0
+          }
+        }
+      }
+    },
+    "DoS_Hulk": {
+      "total_flows": 2000,
+      "attack_flows": 1000,
+      "benign_flows": 1000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.659,
+          "containment_recall_ci_95": [
+            0.62906,
+            0.68772
+          ],
+          "simulated_block_recall": 0.125,
+          "simulated_block_recall_ci_95": [
+            0.10593,
+            0.14694
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 659,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 341,
+            "block_tp": 125,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.967,
+          "containment_recall_ci_95": [
+            0.95402,
+            0.97641
+          ],
+          "simulated_block_recall": 0.921,
+          "simulated_block_recall_ci_95": [
+            0.90263,
+            0.93615
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 967,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 33,
+            "block_tp": 921,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 1000,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.967,
+          "containment_recall_ci_95": [
+            0.95402,
+            0.97641
+          ],
+          "simulated_block_recall": 0.921,
+          "simulated_block_recall_ci_95": [
+            0.90263,
+            0.93615
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00383
+          ],
+          "confusion": {
+            "tp": 967,
+            "fp": 0,
+            "tn": 1000,
+            "fn": 33,
+            "block_tp": 921,
+            "block_fp": 0
+          }
+        }
+      }
+    },
+    "Monday_Benign": {
+      "total_flows": 10000,
+      "attack_flows": 0,
+      "benign_flows": 10000,
+      "configs": {
+        "config_a_prod": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00038
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00038
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 10000,
+            "fn": 0,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_b_cand_flow": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "false_positive_rate": 0.0007,
+          "false_positive_rate_ci_95": [
+            0.00034,
+            0.00144
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00038
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 7,
+            "tn": 9993,
+            "fn": 0,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_c_l7_alone": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "false_positive_rate": 0.0,
+          "false_positive_rate_ci_95": [
+            0.0,
+            0.00038
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00038
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 0,
+            "tn": 10000,
+            "fn": 0,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        },
+        "config_d_combined": {
+          "containment_recall": 0.0,
+          "containment_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "simulated_block_recall": 0.0,
+          "simulated_block_recall_ci_95": [
+            0.0,
+            0.0
+          ],
+          "false_positive_rate": 0.0007,
+          "false_positive_rate_ci_95": [
+            0.00034,
+            0.00144
+          ],
+          "simulated_block_fpr": 0.0,
+          "simulated_block_fpr_ci_95": [
+            0.0,
+            0.00038
+          ],
+          "confusion": {
+            "tp": 0,
+            "fp": 7,
+            "tn": 9993,
+            "fn": 0,
+            "block_tp": 0,
+            "block_fp": 0
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,72 @@
+{
+  "timestamp": "2026-10-17T20:03:06Z",
+  "b2_volumetric": {
+    "capture_derived_hoic": {
+      "type": "CAPTURE_DERIVED",
+      "total": 2000,
+      "detected": 1402,
+      "recall": 0.701,
+      "decisions": {
+        "ALLOW": 598,
+        "DETECTED": 1402
+      }
+    },
+    "benign_holdout": {
+      "type": "CAPTURE_DERIVED",
+      "total": 30000,
+      "false_positives": 3,
+      "fpr": 0.0001,
+      "decisions": {
+        "ALLOW": 29997,
+        "DETECTED": 2,
+        "SIMULATED_BLOCK": 1
+      },
+      "status": "PASS"
+    },
+    "synthetic_distributed_flood": {
+      "type": "SYNTHETIC",
+      "total": 5000,
+      "blocks": 4251,
+      "block_rate": 0.8502,
+      "decisions": {
+        "ALLOW": 749,
+        "DETECTED": 750,
+        "SIMULATED_BLOCK": 3501
+      }
+    }
+  },
+  "e2_authentication": {
+    "ssh_brute_force": {
+      "attempts": 20,
+      "decisions": {
+        "ALLOW": 2,
+        "DETECTED": 2,
+        "SIMULATED_BLOCK": 16
+      },
+      "final_decision": "SIMULATED_BLOCK",
+      "watermark": "[SIMULATED BLOCK - AUTH BRUTE FORCE]",
+      "status": "PASS"
+    },
+    "credential_stuffing": {
+      "targets": 10,
+      "decisions": {
+        "ALLOW": 2,
+        "DETECTED": 1,
+        "SIMULATED_BLOCK": 7
+      },
+      "final_decision": "SIMULATED_BLOCK",
+      "trigger_rule": "CREDENTIAL_STUFFING_ATTACK_DETECTED",
+      "status": "PASS"
+    },
+    "benign_auth": {
+      "attempt_1": "ALLOW",
+      "attempt_2": "ALLOW",
+      "status": "PASS"
+    },
+    "unstructured_netflow_fallback": {
+      "status": "INCOMPLETE",
+      "decision": "MONITOR",
+      "is_safe_monitor": true
+    }
+  }
+}

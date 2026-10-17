@@ -1,0 +1,48 @@
+{
+  "Vabnas/cicids-shap-stability": {
+    "url": "https://github.com/Vabnas/cicids-shap-stability",
+    "commit_sha": "9f7871c801f390348246ad9f14f7f89e8ed0fad7",
+    "size_kb": 47,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "description": "Explainable AI (SHAP)-based analysis of network intrusion detection models with cross-model agreement, cross-dataset stability, and data leakage evaluation on CIC-IDS2017 and CSE-CIC-IDS2018 datasets.",
+    "default_branch": "main",
+    "inspection_date": "2026-10-18"
+  },
+  "heraclitus0/TAD-IDS": {
+    "url": "https://github.com/heraclitus0/TAD-IDS",
+    "commit_sha": "4586df5c25c37cf2d8fa02cda55803b5f47ab0a6",
+    "size_kb": 862,
+    "license": {
+      "key": "mit",
+      "name": "MIT License",
+      "spdx_id": "MIT",
+      "url": "https://api.github.com/licenses/mit"
+    },
+    "description": "Addressing_Temporal_Fragility_in_Network_Intrusion_Detection_via_Structured_Feature_Modeling",
+    "default_branch": "main",
+    "inspection_date": "2026-10-18"
+  },
+  "LawrenceYH04/ML-IDS": {
+    "url": "https://github.com/LawrenceYH04/ML-IDS",
+    "commit_sha": "5a253fbbfb63c51d13827ddae99c620c30897b4a",
+    "size_kb": 13859,
+    "license": null,
+    "description": "ML intrusion detection on CSE-CIC-IDS2018: hybrid MI + autoencoder features, RF/XGB/MLP + AE, live FastAPI dashboard",
+    "default_branch": "main",
+    "inspection_date": "2026-10-18"
+  },
+  "YufengXin/network-attack-research": {
+    "url": "https://github.com/YufengXin/network-attack-research",
+    "commit_sha": "106e39b289937e5c2a8703149bd5f49ad9c578b5",
+    "size_kb": 6594,
+    "license": null,
+    "description": "Multi-class multi-tier network intrusion detection from CIC-IDS PCAP — tabular and time-series ML tracks",
+    "default_branch": "main",
+    "inspection_date": "2026-10-18"
+  }
+}

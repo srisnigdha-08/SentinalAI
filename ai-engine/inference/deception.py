@@ -7,12 +7,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from rl_engine.deception_scorer import SessionScorer
 
 _scorer = None
+DEFAULT_RUNTIME_Q_TABLE_PATH = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
 
 def get_scorer():
     global _scorer
     if _scorer is None:
         model_dir = os.getenv("MODEL_DIR", str(Path(__file__).parent.parent / "models"))
-        default_q_table = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
+        default_q_table = os.getenv("DEFAULT_RUNTIME_Q_TABLE_PATH", DEFAULT_RUNTIME_Q_TABLE_PATH)
         q_table_path = os.getenv("Q_TABLE_PATH", default_q_table)
         # Initialize separate writable state from the shipped learning artifact.
         # Existing runtime state and the original model file are never overwritten.

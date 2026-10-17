@@ -1,0 +1,345 @@
+{
+  "metadata": {
+    "timestamp": "2026-10-16T10:08:40Z",
+    "notice": "All block counts represent simulated policy decisions. Zero Windows Firewall rules were created."
+  },
+  "http_attack_categories": {
+    "BENIGN_HTTP": {
+      "total": 120,
+      "is_attack": false,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 0,
+      "config_d_detected": 0,
+      "config_d_blocked": 0
+    },
+    "SQL_INJECTION": {
+      "total": 35,
+      "is_attack": true,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 31,
+      "config_d_detected": 31,
+      "config_d_blocked": 31
+    },
+    "XSS": {
+      "total": 35,
+      "is_attack": true,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 35,
+      "config_d_detected": 35,
+      "config_d_blocked": 35
+    },
+    "PATH_TRAVERSAL": {
+      "total": 25,
+      "is_attack": true,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 25,
+      "config_d_detected": 25,
+      "config_d_blocked": 25
+    },
+    "COMMAND_INJECTION": {
+      "total": 25,
+      "is_attack": true,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 22,
+      "config_d_detected": 22,
+      "config_d_blocked": 22
+    },
+    "MALFORMED_HTTP": {
+      "total": 30,
+      "is_attack": true,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 30,
+      "config_d_detected": 30,
+      "config_d_blocked": 0
+    },
+    "NON_HTTP_PROTOCOL": {
+      "total": 30,
+      "is_attack": false,
+      "config_a_detected": 0,
+      "config_b_detected": 0,
+      "config_c_detected": 0,
+      "config_d_detected": 0,
+      "config_d_blocked": 0
+    }
+  },
+  "flow_corpus_slices": {
+    "PortScan": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 1000,
+        "fp": 13,
+        "tn": 987,
+        "fn": 0,
+        "block_tp": 998,
+        "block_fp": 8
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 1000,
+        "fp": 13,
+        "tn": 987,
+        "fn": 0,
+        "block_tp": 998,
+        "block_fp": 8
+      }
+    },
+    "DDoS": {
+      "config_a_prod": {
+        "tp": 720,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 280,
+        "block_tp": 38,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 998,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2,
+        "block_tp": 998,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 998,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2,
+        "block_tp": 998,
+        "block_fp": 0
+      }
+    },
+    "SSH_Patator": {
+      "config_a_prod": {
+        "tp": 461,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 539,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 989,
+        "fp": 1,
+        "tn": 999,
+        "fn": 11,
+        "block_tp": 959,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 989,
+        "fp": 1,
+        "tn": 999,
+        "fn": 11,
+        "block_tp": 959,
+        "block_fp": 0
+      }
+    },
+    "Web_Attacks": {
+      "config_a_prod": {
+        "tp": 75,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 925,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 609,
+        "fp": 12,
+        "tn": 988,
+        "fn": 391,
+        "block_tp": 156,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 609,
+        "fp": 12,
+        "tn": 988,
+        "fn": 391,
+        "block_tp": 156,
+        "block_fp": 0
+      }
+    },
+    "Infiltration": {
+      "config_a_prod": {
+        "tp": 27,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 9,
+        "block_tp": 7,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 31,
+        "fp": 10,
+        "tn": 990,
+        "fn": 5,
+        "block_tp": 20,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 36,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 31,
+        "fp": 10,
+        "tn": 990,
+        "fn": 5,
+        "block_tp": 20,
+        "block_fp": 0
+      }
+    },
+    "Botnet": {
+      "config_a_prod": {
+        "tp": 456,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 544,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 985,
+        "fp": 12,
+        "tn": 988,
+        "fn": 15,
+        "block_tp": 940,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 985,
+        "fp": 12,
+        "tn": 988,
+        "fn": 15,
+        "block_tp": 940,
+        "block_fp": 0
+      }
+    },
+    "DoS_Hulk": {
+      "config_a_prod": {
+        "tp": 659,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 341,
+        "block_tp": 125,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 967,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 33,
+        "block_tp": 921,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 1000,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 967,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 33,
+        "block_tp": 921,
+        "block_fp": 0
+      }
+    },
+    "Monday_Benign": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 10000,
+        "fn": 0,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_b_cand_flow": {
+        "tp": 0,
+        "fp": 7,
+        "tn": 9993,
+        "fn": 0,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_c_l7_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 10000,
+        "fn": 0,
+        "block_tp": 0,
+        "block_fp": 0
+      },
+      "config_d_combined": {
+        "tp": 0,
+        "fp": 7,
+        "tn": 9993,
+        "fn": 0,
+        "block_tp": 0,
+        "block_fp": 0
+      }
+    }
+  }
+}

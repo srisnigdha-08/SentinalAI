@@ -1,0 +1,730 @@
+{
+  "holdout_infiltration.parquet": {
+    "description": "Infiltration (Lateral Movement)",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "metrics": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_b_rf_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_c_candidate": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_d_combined": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      }
+    },
+    "per_attack_breakdown": {
+      "Lateral Movement": {
+        "total": 2000,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "is_attack": false,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      }
+    }
+  },
+  "holdout_web_attacks.parquet": {
+    "description": "Web Attacks (SQLi, XSS, BruteForce)",
+    "total_records": 1566,
+    "total_attacks": 566,
+    "total_benign": 1000,
+    "metrics": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 566,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0067
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0067
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_b_rf_alone": {
+        "tp": 0,
+        "fp": 1,
+        "tn": 999,
+        "fn": 566,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0067
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0067
+        ],
+        "fpr": 0.001,
+        "fpr_ci_95": [
+          0.0002,
+          0.0056
+        ]
+      },
+      "config_c_candidate": {
+        "tp": 8,
+        "fp": 1,
+        "tn": 999,
+        "fn": 558,
+        "block_tp": 0,
+        "recall": 0.0141,
+        "recall_ci_95": [
+          0.0072,
+          0.0276
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0067
+        ],
+        "fpr": 0.001,
+        "fpr_ci_95": [
+          0.0002,
+          0.0056
+        ]
+      },
+      "config_d_combined": {
+        "tp": 8,
+        "fp": 1,
+        "tn": 999,
+        "fn": 558,
+        "block_tp": 0,
+        "recall": 0.0141,
+        "recall_ci_95": [
+          0.0072,
+          0.0276
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0067
+        ],
+        "fpr": 0.001,
+        "fpr_ci_95": [
+          0.0002,
+          0.0056
+        ]
+      }
+    },
+    "per_attack_breakdown": {
+      "Credential Stuffing": {
+        "total": 362,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "XSS Attempt": {
+        "total": 151,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 8,
+        "cand_blocked": 0,
+        "comb_detected": 8,
+        "comb_blocked": 0
+      },
+      "SQL Injection": {
+        "total": 53,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "is_attack": false,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 1,
+        "cand_blocked": 0,
+        "comb_detected": 1,
+        "comb_blocked": 0
+      }
+    }
+  },
+  "holdout_bruteforce_ssh_ftp.parquet": {
+    "description": "SSH & FTP Brute Force",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "metrics": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_b_rf_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_c_candidate": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_d_combined": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      }
+    },
+    "per_attack_breakdown": {
+      "SSH Brute Force": {
+        "total": 1000,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "Credential Stuffing": {
+        "total": 1000,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "is_attack": false,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      }
+    }
+  },
+  "holdout_botnet.parquet": {
+    "description": "Botnet (Malware Beacon)",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "metrics": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_b_rf_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_c_candidate": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_d_combined": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      }
+    },
+    "per_attack_breakdown": {
+      "Malware Beacon": {
+        "total": 2000,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "is_attack": false,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      }
+    }
+  },
+  "holdout_ddos.parquet": {
+    "description": "DDoS / DoS",
+    "total_records": 3000,
+    "total_attacks": 2000,
+    "total_benign": 1000,
+    "metrics": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_b_rf_alone": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_c_candidate": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      },
+      "config_d_combined": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 1000,
+        "fn": 2000,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0019
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0038
+        ]
+      }
+    },
+    "per_attack_breakdown": {
+      "DDoS": {
+        "total": 2000,
+        "is_attack": true,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      },
+      "BENIGN": {
+        "total": 1000,
+        "is_attack": false,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 0,
+        "cand_blocked": 0,
+        "comb_detected": 0,
+        "comb_blocked": 0
+      }
+    }
+  },
+  "holdout_benign_30k.parquet": {
+    "description": "Large-Scale Benign Holdout (N=30,000)",
+    "total_records": 30000,
+    "total_attacks": 0,
+    "total_benign": 30000,
+    "metrics": {
+      "config_a_prod": {
+        "tp": 0,
+        "fp": 0,
+        "tn": 30000,
+        "fn": 0,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0,
+        "fpr_ci_95": [
+          0.0,
+          0.0001
+        ]
+      },
+      "config_b_rf_alone": {
+        "tp": 0,
+        "fp": 6,
+        "tn": 29994,
+        "fn": 0,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0002,
+        "fpr_ci_95": [
+          0.0001,
+          0.0004
+        ]
+      },
+      "config_c_candidate": {
+        "tp": 0,
+        "fp": 6,
+        "tn": 29994,
+        "fn": 0,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0002,
+        "fpr_ci_95": [
+          0.0001,
+          0.0004
+        ]
+      },
+      "config_d_combined": {
+        "tp": 0,
+        "fp": 6,
+        "tn": 29994,
+        "fn": 0,
+        "block_tp": 0,
+        "recall": 0.0,
+        "recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "block_recall": 0.0,
+        "block_recall_ci_95": [
+          0.0,
+          0.0
+        ],
+        "fpr": 0.0002,
+        "fpr_ci_95": [
+          0.0001,
+          0.0004
+        ]
+      }
+    },
+    "per_attack_breakdown": {
+      "BENIGN": {
+        "total": 30000,
+        "is_attack": false,
+        "prod_detected": 0,
+        "prod_blocked": 0,
+        "cand_detected": 6,
+        "cand_blocked": 3,
+        "comb_detected": 6,
+        "comb_blocked": 3
+      }
+    }
+  }
+}

@@ -1,0 +1,648 @@
+{
+  "metadata": {
+    "generated_at": "2026-10-17T21:15:04Z",
+    "phase": "GATE-1 Phase 12 Tasks 5 & 6",
+    "evaluation_data": "validation_split.parquet",
+    "evaluation_rows": 37597,
+    "model_evaluated": "candidate_rf_multicorpus_v2_fixed.pkl"
+  },
+  "task5_calibration": {
+    "botnet": {
+      "class_id": 7,
+      "target_label": "Malware Beacon",
+      "target_recall_threshold": 0.75,
+      "uncalibrated_brier": 0.007195314959231405,
+      "platt_brier": 0.0009623656876532706,
+      "isotonic_brier": 0.0007886367714620292,
+      "best_method": "isotonic",
+      "reliability_uncalibrated": [
+        {
+          "bin_mean_predicted": 0.0009741792079255477,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.14758420385476428,
+          "fraction_positives": 0.038461538461538464
+        },
+        {
+          "bin_mean_predicted": 0.2547870378106812,
+          "fraction_positives": 0.20833333333333334
+        },
+        {
+          "bin_mean_predicted": 0.3536070739605056,
+          "fraction_positives": 0.7142857142857143
+        },
+        {
+          "bin_mean_predicted": 0.435512512412558,
+          "fraction_positives": 0.75
+        },
+        {
+          "bin_mean_predicted": 0.5296129693385194,
+          "fraction_positives": 0.9980295566502463
+        },
+        {
+          "bin_mean_predicted": 0.6243195739196655,
+          "fraction_positives": 0.9722222222222222
+        },
+        {
+          "bin_mean_predicted": 0.7595889241140448,
+          "fraction_positives": 0.8181818181818182
+        },
+        {
+          "bin_mean_predicted": 0.8468392961660631,
+          "fraction_positives": 0.937984496124031
+        },
+        {
+          "bin_mean_predicted": 0.9655063419638555,
+          "fraction_positives": 0.9927826784282278
+        }
+      ],
+      "reliability_calibrated": [
+        {
+          "bin_mean_predicted": 0.0,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.125,
+          "fraction_positives": 0.125
+        },
+        {
+          "bin_mean_predicted": 0.23529411764705882,
+          "fraction_positives": 0.23529411764705882
+        },
+        {
+          "bin_mean_predicted": 0.5,
+          "fraction_positives": 0.5
+        },
+        {
+          "bin_mean_predicted": 0.75,
+          "fraction_positives": 0.75
+        },
+        {
+          "bin_mean_predicted": 0.9904458598725905,
+          "fraction_positives": 0.9904458598726115
+        }
+      ],
+      "sweep_table": [
+        {
+          "threshold": 0.05,
+          "benign_fp": 38,
+          "benign_fpr_percent": 0.152,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.1,
+          "benign_fp": 38,
+          "benign_fpr_percent": 0.152,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.15,
+          "benign_fp": 34,
+          "benign_fpr_percent": 0.136,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.2,
+          "benign_fp": 34,
+          "benign_fpr_percent": 0.136,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.25,
+          "benign_fp": 23,
+          "benign_fpr_percent": 0.092,
+          "attack_tp": 2495,
+          "attack_recall_percent": 99.8
+        },
+        {
+          "threshold": 0.3,
+          "benign_fp": 23,
+          "benign_fpr_percent": 0.092,
+          "attack_tp": 2495,
+          "attack_recall_percent": 99.8
+        },
+        {
+          "threshold": 0.35,
+          "benign_fp": 23,
+          "benign_fpr_percent": 0.092,
+          "attack_tp": 2495,
+          "attack_recall_percent": 99.8
+        },
+        {
+          "threshold": 0.4,
+          "benign_fp": 23,
+          "benign_fpr_percent": 0.092,
+          "attack_tp": 2495,
+          "attack_recall_percent": 99.8
+        },
+        {
+          "threshold": 0.45,
+          "benign_fp": 23,
+          "benign_fpr_percent": 0.092,
+          "attack_tp": 2495,
+          "attack_recall_percent": 99.8
+        },
+        {
+          "threshold": 0.5,
+          "benign_fp": 23,
+          "benign_fpr_percent": 0.092,
+          "attack_tp": 2495,
+          "attack_recall_percent": 99.8
+        },
+        {
+          "threshold": 0.55,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2494,
+          "attack_recall_percent": 99.76
+        },
+        {
+          "threshold": 0.6,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2494,
+          "attack_recall_percent": 99.76
+        },
+        {
+          "threshold": 0.65,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2494,
+          "attack_recall_percent": 99.76
+        },
+        {
+          "threshold": 0.7,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2494,
+          "attack_recall_percent": 99.76
+        },
+        {
+          "threshold": 0.75,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2494,
+          "attack_recall_percent": 99.76
+        },
+        {
+          "threshold": 0.8,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2488,
+          "attack_recall_percent": 99.52
+        },
+        {
+          "threshold": 0.85,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2488,
+          "attack_recall_percent": 99.52
+        },
+        {
+          "threshold": 0.9,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2488,
+          "attack_recall_percent": 99.52
+        },
+        {
+          "threshold": 0.95,
+          "benign_fp": 22,
+          "benign_fpr_percent": 0.088,
+          "attack_tp": 2488,
+          "attack_recall_percent": 99.52
+        }
+      ],
+      "optimal_operating_point": {
+        "threshold": 0.5,
+        "benign_fp": 23,
+        "benign_fpr_percent": 0.092,
+        "attack_recall_percent": 99.8,
+        "target_met": true
+      }
+    },
+    "ssh_bruteforce": {
+      "class_id": 1,
+      "target_label": "SSH Brute Force",
+      "target_recall_threshold": 0.8,
+      "uncalibrated_brier": 0.001238117292844066,
+      "platt_brier": 3.090604491600491e-05,
+      "isotonic_brier": 2.6574076272499764e-05,
+      "best_method": "isotonic",
+      "reliability_uncalibrated": [
+        {
+          "bin_mean_predicted": 0.0015371748494376037,
+          "fraction_positives": 2.8494899413005074e-05
+        },
+        {
+          "bin_mean_predicted": 0.13137477362007133,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.8584660685621375,
+          "fraction_positives": 1.0
+        },
+        {
+          "bin_mean_predicted": 0.9717745663396911,
+          "fraction_positives": 1.0
+        }
+      ],
+      "reliability_calibrated": [
+        {
+          "bin_mean_predicted": 2.8491651945979118e-05,
+          "fraction_positives": 2.849165194597983e-05
+        },
+        {
+          "bin_mean_predicted": 1.0,
+          "fraction_positives": 1.0
+        }
+      ],
+      "sweep_table": [
+        {
+          "threshold": 0.05,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.1,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.15,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.2,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.25,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.3,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.35,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.4,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.45,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.5,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.55,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.6,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.65,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.7,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.75,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.8,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.85,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.9,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        },
+        {
+          "threshold": 0.95,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2499,
+          "attack_recall_percent": 99.96
+        }
+      ],
+      "optimal_operating_point": {
+        "threshold": 0.95,
+        "benign_fp": 0,
+        "benign_fpr_percent": 0.0,
+        "attack_recall_percent": 99.96000000000001,
+        "target_met": true
+      }
+    },
+    "ddos_hoic": {
+      "class_id": 4,
+      "target_label": "DDoS",
+      "target_recall_threshold": 0.8,
+      "uncalibrated_brier": 0.0016330676545123941,
+      "platt_brier": 0.0001448301299615925,
+      "isotonic_brier": 8.127125982274e-05,
+      "best_method": "isotonic",
+      "reliability_uncalibrated": [
+        {
+          "bin_mean_predicted": 0.0027062258856167805,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.15371590396476473,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.23462477043109145,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.33743367616656883,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.4357368806564723,
+          "fraction_positives": 0.6666666666666666
+        },
+        {
+          "bin_mean_predicted": 0.5485089697854696,
+          "fraction_positives": 0.625
+        },
+        {
+          "bin_mean_predicted": 0.6602807979791991,
+          "fraction_positives": 0.95
+        },
+        {
+          "bin_mean_predicted": 0.7562884047384655,
+          "fraction_positives": 1.0
+        },
+        {
+          "bin_mean_predicted": 0.8713804141823553,
+          "fraction_positives": 1.0
+        },
+        {
+          "bin_mean_predicted": 0.9679251564620327,
+          "fraction_positives": 1.0
+        }
+      ],
+      "reliability_calibrated": [
+        {
+          "bin_mean_predicted": 0.0,
+          "fraction_positives": 0.0
+        },
+        {
+          "bin_mean_predicted": 0.44444444444444453,
+          "fraction_positives": 0.4444444444444444
+        },
+        {
+          "bin_mean_predicted": 0.8333333333333334,
+          "fraction_positives": 0.8333333333333334
+        },
+        {
+          "bin_mean_predicted": 1.0,
+          "fraction_positives": 1.0
+        }
+      ],
+      "sweep_table": [
+        {
+          "threshold": 0.05,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.1,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.15,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.2,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.25,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.3,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.35,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.4,
+          "benign_fp": 5,
+          "benign_fpr_percent": 0.02,
+          "attack_tp": 2500,
+          "attack_recall_percent": 100.0
+        },
+        {
+          "threshold": 0.45,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.5,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.55,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.6,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.65,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.7,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.75,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.8,
+          "benign_fp": 1,
+          "benign_fpr_percent": 0.004,
+          "attack_tp": 2496,
+          "attack_recall_percent": 99.84
+        },
+        {
+          "threshold": 0.85,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2491,
+          "attack_recall_percent": 99.64
+        },
+        {
+          "threshold": 0.9,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2491,
+          "attack_recall_percent": 99.64
+        },
+        {
+          "threshold": 0.95,
+          "benign_fp": 0,
+          "benign_fpr_percent": 0.0,
+          "attack_tp": 2491,
+          "attack_recall_percent": 99.64
+        }
+      ],
+      "optimal_operating_point": {
+        "threshold": 0.4,
+        "benign_fp": 5,
+        "benign_fpr_percent": 0.02,
+        "attack_recall_percent": 100.0,
+        "target_met": true
+      }
+    }
+  },
+  "task6_empirical_limits": {
+    "infiltration": {
+      "total_samples": 2500,
+      "top_features_auc": {
+        "time_of_day_cos": 0.9568000000000001,
+        "time_of_day_sin": 0.636281128,
+        "rst_flag_count": 0.5753,
+        "fwd_packet_len_mean": 0.563925544,
+        "payload_entropy": 0.563485536
+      },
+      "disposable_gbdt_auc": 0.999999712,
+      "max_recall_at_fpr_010": 100.0,
+      "verdict": "FAIL (Empirical transport ML recall bounded; Host Telemetry required for resolution)"
+    },
+    "web_attacks": {
+      "total_samples": 97,
+      "top_features_auc": {
+        "time_of_day_cos": 0.9576068041237114,
+        "rst_flag_count": 0.7520505154639175,
+        "total_fwd_packets": 0.7455843298969073,
+        "down_up_ratio": 0.7317538144329897,
+        "fwd_iat_min": 0.7009781443298969
+      },
+      "disposable_gbdt_auc": 0.9998070103092782,
+      "max_recall_at_fpr_010": 97.9381443298969,
+      "verdict": "FAIL (Transport ML recall mathematically bounded; HTTP Layer 7 WAF required)"
+    }
+  }
+}

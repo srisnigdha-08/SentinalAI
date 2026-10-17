@@ -1,0 +1,223 @@
+"""
+SentinelAI Phase 13: Clean, Leak-Free Final Test Partition Constructor (final_test_v2.parquet)
+Location: ai-engine/experiments/gate1_phase13_shift_and_leakage/build_final_test_v2.py
+"""
+
+import sys
+import os
+import json
+import hashlib
+from pathlib import Path
+from collections import Counter
+import numpy as np
+import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "experiments" / "gate1_phase7_cse2018_validation"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "experiments" / "gate1_phase10_detector_recovery"))
+
+from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES
+from build_candidate_v2_fixed import (
+    FEATURE_MAPPING_2018, FEATURE_MAPPING_2017, RAW_TO_SENTINEL,
+    standardize_df
+)
+
+SORTED_FEATS = sorted(FEATURE_NAMES)
+
+def hash_dataframe_rows(df: pd.DataFrame) -> list:
+    mat = df[SORTED_FEATS].to_numpy(dtype=np.float32)
+    return [hashlib.md5((",".join(f"{x:.4f}" for x in row)).encode("utf-8")).hexdigest() for row in mat]
+
+def compute_sha256(filepath: Path) -> str:
+    h = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        while chunk := f.read(65536):
+            h.update(chunk)
+    return h.hexdigest().upper()
+
+def main():
+    out_dir = Path(__file__).resolve().parent
+    out_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir = out_dir / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    
+    holdout_dir = Path("D:/sentinelai_datasets/cse_cic_ids2018/holdout_sets")
+    train_v2_path = Path("ai-engine/experiments/gate1_phase10_detector_recovery/partition_train_multicorpus_v2.parquet")
+    val_path = Path("ai-engine/experiments/gate1_phase12_evidence_repair/validation_split.parquet")
+    sealed_v1_path = Path("ai-engine/experiments/gate1_phase12_evidence_repair/final_sealed_test.parquet")
+    
+    raw_2018_dir = Path("D:/sentinelai_datasets/cse_cic_ids2018")
+    raw_2017_dir = Path("ai-engine/datasets/cicids2017")
+    
+    log_file = logs_dir / "build_final_test_v2.log"
+    with open(log_file, "w", encoding="utf-8") as log:
+        def log_p(msg):
+            print(msg)
+            log.write(msg + "\n")
+            log.flush()
+
+        log_p("=" * 80)
+        log_p("PHASE 13: CONSTRUCTING FRESH LEAK-FREE FINAL TEST V2 (final_test_v2.parquet)")
+        log_p("=" * 80)
+
+        # 1. Build Comprehensive Exclusion Set
+        log_p("\n[STEP 1] Constructing comprehensive exclusion hash set...")
+        exclusion_hashes = set()
+        
+        # All 6 original holdouts
+        for hp in sorted(holdout_dir.glob("*.parquet")):
+            df_h = pd.read_parquet(hp)
+            hashes = hash_dataframe_rows(df_h)
+            exclusion_hashes.update(hashes)
+            log_p(f"  Excluded burned holdout: {hp.name} ({len(df_h):,} rows) -> Total excluded: {len(exclusion_hashes):,}")
+            
+        # Train V2
+        if train_v2_path.exists():
+            df_tr = pd.read_parquet(train_v2_path)
+            hashes = hash_dataframe_rows(df_tr)
+            exclusion_hashes.update(hashes)
+            log_p(f"  Excluded Train V2 partition ({len(df_tr):,} rows) -> Total excluded: {len(exclusion_hashes):,}")
+            
+        # Validation split
+        if val_path.exists():
+            df_v = pd.read_parquet(val_path)
+            hashes = hash_dataframe_rows(df_v)
+            exclusion_hashes.update(hashes)
+            log_p(f"  Excluded Validation split ({len(df_v):,} rows) -> Total excluded: {len(exclusion_hashes):,}")
+            
+        # Sealed test v1
+        if sealed_v1_path.exists():
+            df_s1 = pd.read_parquet(sealed_v1_path)
+            hashes = hash_dataframe_rows(df_s1)
+            exclusion_hashes.update(hashes)
+            log_p(f"  Excluded Burned Sealed Test v1 ({len(df_s1):,} rows) -> Total excluded: {len(exclusion_hashes):,}")
+
+        log_p(f"\nTotal immutable excluded unique hashes: {len(exclusion_hashes):,}")
+
+        # 2. Quotas for final_test_v2
+        quotas = {
+            "BENIGN": 25000,
+            "SSH Brute Force": 2500,
+            "Credential Stuffing": 2500,
+            "DDoS": 2500,
+            "Malware Beacon": 2500,
+            "Lateral Movement": 2500,
+            "SQL Injection": 100,
+            "XSS Attempt": 500
+        }
+        
+        collected_rows = []
+        collected_counts = Counter()
+
+        # 2.1 Web attacks from CICIDS2017 raw
+        web_file = raw_2017_dir / "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv"
+        if web_file.exists():
+            log_p(f"\n[STEP 2.1] Extracting fresh unseen web attacks from {web_file.name}...")
+            chunksize = 25000
+            for chunk in pd.read_csv(web_file, chunksize=chunksize, encoding="utf-8", encoding_errors="ignore", low_memory=False):
+                std_chunk = standardize_df(chunk, FEATURE_MAPPING_2017, "CICIDS2017")
+                mask = std_chunk["ground_truth_label"].isin(["SQL Injection", "XSS Attempt"])
+                if not mask.any():
+                    continue
+                std_chunk = std_chunk[mask]
+                hashes = hash_dataframe_rows(std_chunk)
+                std_chunk["row_hash"] = hashes
+                unseen = std_chunk[~std_chunk["row_hash"].isin(exclusion_hashes)]
+                for _, r in unseen.iterrows():
+                    lbl = r["ground_truth_label"]
+                    h = r["row_hash"]
+                    if h in exclusion_hashes:
+                        continue
+                    if collected_counts[lbl] < quotas.get(lbl, 0):
+                        collected_rows.append(r.drop("row_hash"))
+                        collected_counts[lbl] += 1
+                        exclusion_hashes.add(h)
+            log_p(f"  Collected Web Attacks: {collected_counts}")
+
+        # 2.2 Extraction from CSE-CIC-IDS2018 files
+        extraction_specs = [
+            ("Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv", ["SSH Brute Force", "Credential Stuffing", "BENIGN"]),
+            ("Friday-02-03-2018_TrafficForML_CICFlowMeter.csv", ["Malware Beacon", "BENIGN"]),
+            ("Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv", ["DDoS", "BENIGN"]),
+            ("Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv", ["Lateral Movement", "BENIGN"]),
+        ]
+
+        log_p("\n[STEP 2.2] Streaming CSE-CIC-IDS2018 for remaining quotas with gap window...")
+        for filename, target_classes in extraction_specs:
+            filepath = raw_2018_dir / filename
+            if not filepath.exists():
+                log_p(f"Warning: {filepath} not found!")
+                continue
+
+            log_p(f"  Streaming: {filename} for target classes: {target_classes}...")
+            chunksize = 50000
+            file_counts = Counter()
+
+            for chunk_idx, chunk in enumerate(pd.read_csv(filepath, chunksize=chunksize, low_memory=False)):
+                std_chunk = standardize_df(chunk, FEATURE_MAPPING_2018, "CSE-CIC-IDS2018")
+                mask = std_chunk["ground_truth_label"].isin(target_classes)
+                if not mask.any():
+                    continue
+                std_chunk = std_chunk[mask]
+                hashes = hash_dataframe_rows(std_chunk)
+                std_chunk["row_hash"] = hashes
+                unseen = std_chunk[~std_chunk["row_hash"].isin(exclusion_hashes)]
+                if unseen.empty:
+                    continue
+
+                for _, r in unseen.iterrows():
+                    lbl = r["ground_truth_label"]
+                    h = r["row_hash"]
+                    if h in exclusion_hashes:
+                        continue
+                    if collected_counts[lbl] < quotas.get(lbl, 0):
+                        collected_rows.append(r.drop("row_hash"))
+                        collected_counts[lbl] += 1
+                        file_counts[lbl] += 1
+                        exclusion_hashes.add(h)
+
+                # Check if all classes from this file are satisfied
+                done_for_file = all(collected_counts[c] >= quotas.get(c, 0) for c in target_classes if c != "BENIGN")
+                if done_for_file and collected_counts["BENIGN"] >= quotas["BENIGN"]:
+                    log_p(f"    File quotas satisfied at chunk {chunk_idx + 1}")
+                    break
+
+            log_p(f"    Collected from {filename}: {file_counts}")
+
+        # Assemble DataFrame
+        df_final_test = pd.DataFrame(collected_rows)
+        # Ensure target_class is integer/float
+        df_final_test["target_class"] = df_final_test["ground_truth_label"].map(LABEL_MAP).astype(np.float32)
+        # Shuffle deterministically
+        df_final_test = df_final_test.sample(frac=1.0, random_state=1337).reset_index(drop=True)
+
+        target_file = out_dir / "final_test_v2.parquet"
+        df_final_test.to_parquet(target_file, index=False)
+
+        sha256_hash = compute_sha256(target_file)
+        manifest = {
+            "filename": target_file.name,
+            "filepath": str(target_file),
+            "sha256": sha256_hash,
+            "total_rows": int(len(df_final_test)),
+            "class_distribution": {str(k): int(v) for k, v in df_final_test["ground_truth_label"].value_counts().items()},
+            "target_class_distribution": {int(k): int(v) for k, v in df_final_test["target_class"].value_counts().items()},
+            "leakage_guarantee": "Strictly disjoint against holdouts, Train V2, Validation split, and Sealed Test v1 via MD5 row hash set of 53 features",
+            "frozen_at": "Phase 13 Task 5",
+            "evaluation_status": "SEALED - UNTOUCHED (DO NOT EVALUATE UNTIL TASK 7)"
+        }
+
+        manifest_file = out_dir / "final_test_v2_manifest.json"
+        with open(manifest_file, "w") as f:
+            json.dump(manifest, f, indent=2)
+
+        log_p("\n" + "=" * 80)
+        log_p(f"FINAL TEST V2 CREATED AND FROZEN")
+        log_p(f"File: {target_file}")
+        log_p(f"SHA-256: {sha256_hash}")
+        log_p(f"Total rows: {len(df_final_test):,}")
+        log_p(f"Distribution: {dict(df_final_test['ground_truth_label'].value_counts())}")
+        log_p("=" * 80)
+
+if __name__ == "__main__":
+    main()

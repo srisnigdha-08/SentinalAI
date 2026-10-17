@@ -1,0 +1,93 @@
+[
+  {
+    "caseNum": 1,
+    "title": "Healthy benign inference results in ALLOW",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 102
+  },
+  {
+    "caseNum": 2,
+    "title": "Healthy attack inference resulting in MONITOR",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 9
+  },
+  {
+    "caseNum": 3,
+    "title": "Healthy inference eligible for simulated blocking (autoBlockEnabled=false)",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 6
+  },
+  {
+    "caseNum": 4,
+    "title": "AI request timeout triggers fallback to UNAVAILABLE & MONITOR",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 7
+  },
+  {
+    "caseNum": 5,
+    "title": "ECONNREFUSED triggers fallback to UNAVAILABLE & MONITOR",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 8
+  },
+  {
+    "caseNum": 6,
+    "title": "HTTP 500 response triggers fallback to UNAVAILABLE & MONITOR",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 6
+  },
+  {
+    "caseNum": 7,
+    "title": "Malformed response fields safely handled as degraded fallback",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 6
+  },
+  {
+    "caseNum": 8,
+    "title": "Threat score clamping and non-finite value audit",
+    "status": "PARTIALLY_VERIFIED",
+    "notes": "Numeric clamping (1.95->1.0, -0.5->0.0, undefined->0.0) verified; however non-finite string \"invalid_nan\" evaluates to NaN and defaults to ALLOW without sanitization to 0.0",
+    "durationMs": 19
+  },
+  {
+    "caseNum": 9,
+    "title": "Database persistence failure invokes emergency disk audit",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 24
+  },
+  {
+    "caseNum": 10,
+    "title": "Emergency audit-file write failure handled safely without crash",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 8
+  },
+  {
+    "caseNum": 11,
+    "title": "Alert creation failure is caught and does not crash pipeline",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 12
+  },
+  {
+    "caseNum": 12,
+    "title": "Socket/WebSocket failure is logged as warning without aborting",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 6
+  },
+  {
+    "caseNum": 13,
+    "title": "Duplicate processing retains state machine integrity and preBlockStatus",
+    "status": "VERIFIED",
+    "notes": null,
+    "durationMs": 26
+  }
+]

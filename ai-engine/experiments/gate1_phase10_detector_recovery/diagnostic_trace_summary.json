@@ -1,0 +1,78 @@
+{
+  "DDoS HOIC & LOIC-UDP": {
+    "total": 2000,
+    "tp": 0,
+    "fn": 2000,
+    "recall": 0.0,
+    "predicted_distribution": {
+      "BENIGN": 2000
+    },
+    "missed_predicted_distribution": {
+      "BENIGN": 2000
+    },
+    "mean_p_benign_missed": 0.942,
+    "mean_max_p_missed": 0.942
+  },
+  "Infiltration": {
+    "total": 2000,
+    "tp": 3,
+    "fn": 1997,
+    "recall": 0.0015,
+    "predicted_distribution": {
+      "BENIGN": 1996,
+      "Malware Beacon": 4
+    },
+    "missed_predicted_distribution": {
+      "BENIGN": 1996,
+      "Malware Beacon": 1
+    },
+    "mean_p_benign_missed": 0.9356,
+    "mean_max_p_missed": 0.9356
+  },
+  "SSH Brute Force": {
+    "total": 1000,
+    "tp": 509,
+    "fn": 491,
+    "recall": 0.509,
+    "predicted_distribution": {
+      "BENIGN": 491,
+      "SSH Brute Force": 509
+    },
+    "missed_predicted_distribution": {
+      "BENIGN": 491
+    },
+    "mean_p_benign_missed": 0.7561,
+    "mean_max_p_missed": 0.7561
+  },
+  "Botnet Ares": {
+    "total": 2000,
+    "tp": 1217,
+    "fn": 783,
+    "recall": 0.6085,
+    "predicted_distribution": {
+      "Malware Beacon": 1372,
+      "BENIGN": 628
+    },
+    "missed_predicted_distribution": {
+      "BENIGN": 628,
+      "Malware Beacon": 155
+    },
+    "mean_p_benign_missed": 0.5744,
+    "mean_max_p_missed": 0.6268
+  },
+  "Web Attacks": {
+    "total": 566,
+    "tp": 2,
+    "fn": 564,
+    "recall": 0.0035,
+    "predicted_distribution": {
+      "BENIGN": 564,
+      "Malware Beacon": 2
+    },
+    "missed_predicted_distribution": {
+      "BENIGN": 564
+    },
+    "mean_p_benign_missed": 0.9012,
+    "mean_max_p_missed": 0.9012
+  }
+}

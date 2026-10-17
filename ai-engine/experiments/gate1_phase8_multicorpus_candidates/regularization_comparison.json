@@ -1,0 +1,110 @@
+{
+  "setting_1_baseline": {
+    "description": "Baseline (Unconstrained: max_depth=20, min_leaf=1)",
+    "hyperparameters": {
+      "n_estimators": 100,
+      "max_depth": 20,
+      "min_samples_leaf": 1,
+      "min_samples_split": 5
+    },
+    "avg_tree_depth": 20.0,
+    "avg_leaves_per_tree": 789.67,
+    "avg_nodes_per_tree": 1578.34,
+    "training_recall": 0.9938,
+    "training_fpr": 0.008316,
+    "validation_recall": 0.9923,
+    "validation_fpr": 0.009525,
+    "validation_fpr_wilson_ci": [
+      0.008169,
+      0.011105
+    ],
+    "generalization_gap_percent": 0.16,
+    "confusion_matrix": {
+      "tp": 14607,
+      "fn": 114,
+      "fp": 161,
+      "tn": 16741
+    }
+  },
+  "setting_2_proposed": {
+    "description": "Proposed Regularized (max_depth=12, min_leaf=20)",
+    "hyperparameters": {
+      "n_estimators": 100,
+      "max_depth": 12,
+      "min_samples_leaf": 20,
+      "min_samples_split": 20
+    },
+    "avg_tree_depth": 12.0,
+    "avg_leaves_per_tree": 227.18,
+    "avg_nodes_per_tree": 453.36,
+    "training_recall": 0.9881,
+    "training_fpr": 0.009875,
+    "validation_recall": 0.9887,
+    "validation_fpr": 0.009289,
+    "validation_fpr_wilson_ci": [
+      0.00795,
+      0.010851
+    ],
+    "generalization_gap_percent": -0.06,
+    "confusion_matrix": {
+      "tp": 14554,
+      "fn": 167,
+      "fp": 157,
+      "tn": 16745
+    }
+  },
+  "setting_3_shallow": {
+    "description": "Shallow Regularized (max_depth=10, min_leaf=50)",
+    "hyperparameters": {
+      "n_estimators": 100,
+      "max_depth": 10,
+      "min_samples_leaf": 50,
+      "min_samples_split": 50
+    },
+    "avg_tree_depth": 10.0,
+    "avg_leaves_per_tree": 141.09,
+    "avg_nodes_per_tree": 281.18,
+    "training_recall": 0.9857,
+    "training_fpr": 0.010406,
+    "validation_recall": 0.9859,
+    "validation_fpr": 0.009466,
+    "validation_fpr_wilson_ci": [
+      0.008114,
+      0.011042
+    ],
+    "generalization_gap_percent": -0.02,
+    "confusion_matrix": {
+      "tp": 14514,
+      "fn": 207,
+      "fp": 160,
+      "tn": 16742
+    }
+  },
+  "setting_4_moderate": {
+    "description": "Moderate Regularized (max_depth=15, min_leaf=10)",
+    "hyperparameters": {
+      "n_estimators": 100,
+      "max_depth": 15,
+      "min_samples_leaf": 10,
+      "min_samples_split": 10
+    },
+    "avg_tree_depth": 15.0,
+    "avg_leaves_per_tree": 350.75,
+    "avg_nodes_per_tree": 700.5,
+    "training_recall": 0.9909,
+    "training_fpr": 0.009844,
+    "validation_recall": 0.9906,
+    "validation_fpr": 0.009703,
+    "validation_fpr_wilson_ci": [
+      0.008333,
+      0.011296
+    ],
+    "generalization_gap_percent": 0.03,
+    "confusion_matrix": {
+      "tp": 14582,
+      "fn": 139,
+      "fp": 164,
+      "tn": 16738
+    }
+  }
+}

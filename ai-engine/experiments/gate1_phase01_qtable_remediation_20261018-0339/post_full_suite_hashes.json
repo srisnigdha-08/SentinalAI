@@ -1,0 +1,102 @@
+{
+  "timestamp_iso": "2026-10-17T22:14:02.363397+00:00",
+  "repo_root": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete",
+  "total_protected_files": 7,
+  "contract_baseline_matches": 6,
+  "contract_baseline_different": 1,
+  "contract_baseline_missing": 0,
+  "drift_detected_count": 0,
+  "artifacts": {
+    "ai-engine/models/rf_classifier_cicids_v2.pkl": {
+      "relative_path": "ai-engine/models/rf_classifier_cicids_v2.pkl",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\rf_classifier_cicids_v2.pkl",
+      "description": "Seed random forest model v2",
+      "notes": "Historical baseline from GATE1_CONTRACT.md",
+      "expected_sha256": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "current_sha256": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1",
+      "size_bytes": 46234119,
+      "mtime_iso": "2026-08-09T08:52:37.848428+00:00",
+      "status": "MATCH",
+      "drift_from_baseline": false,
+      "baseline_sha256": "CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1"
+    },
+    "ai-engine/models/isolation_forest_cicids.pkl": {
+      "relative_path": "ai-engine/models/isolation_forest_cicids.pkl",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\isolation_forest_cicids.pkl",
+      "description": "Isolation forest anomaly model",
+      "notes": "Historical baseline from GATE1_CONTRACT.md",
+      "expected_sha256": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "current_sha256": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4",
+      "size_bytes": 1429757,
+      "mtime_iso": "2026-08-09T10:12:01.724564+00:00",
+      "status": "MATCH",
+      "drift_from_baseline": false,
+      "baseline_sha256": "17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4"
+    },
+    "ai-engine/models/xgb_classifier_cicids_v2.pkl": {
+      "relative_path": "ai-engine/models/xgb_classifier_cicids_v2.pkl",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\xgb_classifier_cicids_v2.pkl",
+      "description": "XGBoost classifier model v2",
+      "notes": "Protected model in models/; baseline recorded in Step 1 preflight",
+      "expected_sha256": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "current_sha256": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D",
+      "size_bytes": 3623754,
+      "mtime_iso": "2026-08-08T06:45:43.765098+00:00",
+      "status": "MATCH",
+      "drift_from_baseline": false,
+      "baseline_sha256": "A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D"
+    },
+    "ai-engine/models/q_table.json": {
+      "relative_path": "ai-engine/models/q_table.json",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\q_table.json",
+      "description": "Seed Q-table baseline",
+      "notes": "Historical baseline from GATE1_CONTRACT.md",
+      "expected_sha256": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "current_sha256": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF",
+      "size_bytes": 2338,
+      "mtime_iso": "2026-10-05T20:59:06.652820+00:00",
+      "status": "MATCH",
+      "drift_from_baseline": false,
+      "baseline_sha256": "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF"
+    },
+    "ai-engine/runtime/q_table.json": {
+      "relative_path": "ai-engine/runtime/q_table.json",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\runtime\\q_table.json",
+      "description": "Runtime Q-table",
+      "notes": "Pre-Phase-12 contract baseline. Incident state in Step 1 is 08209E9989189BD45B6EDF35486A446F120DF36287A277A9DDDD35F6379152F7",
+      "expected_sha256": "5242A6496FA3E8EB00B101E9C3C24F354FDB849A1C5042686E207384B0F326E6",
+      "current_sha256": "08209E9989189BD45B6EDF35486A446F120DF36287A277A9DDDD35F6379152F7",
+      "size_bytes": 1224,
+      "mtime_iso": "2026-10-17T20:41:04.816951+00:00",
+      "status": "DIFFERENT",
+      "drift_from_baseline": false,
+      "baseline_sha256": "08209E9989189BD45B6EDF35486A446F120DF36287A277A9DDDD35F6379152F7"
+    },
+    "ai-engine/experiments/gate1_phase8_multicorpus_candidates/candidate_rf_multicorpus_v1.pkl": {
+      "relative_path": "ai-engine/experiments/gate1_phase8_multicorpus_candidates/candidate_rf_multicorpus_v1.pkl",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\candidate_rf_multicorpus_v1.pkl",
+      "description": "Phase 8 multi-corpus candidate RF model v1",
+      "notes": "Historical baseline from GATE1_CONTRACT.md",
+      "expected_sha256": "71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020",
+      "current_sha256": "71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020",
+      "size_bytes": 5850914,
+      "mtime_iso": "2026-10-16T17:39:20.287536+00:00",
+      "status": "MATCH",
+      "drift_from_baseline": false,
+      "baseline_sha256": "71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020"
+    },
+    "ai-engine/experiments/gate1_phase10_detector_recovery/candidate_rf_multicorpus_v2_fixed.pkl": {
+      "relative_path": "ai-engine/experiments/gate1_phase10_detector_recovery/candidate_rf_multicorpus_v2_fixed.pkl",
+      "absolute_path": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\experiments\\gate1_phase10_detector_recovery\\candidate_rf_multicorpus_v2_fixed.pkl",
+      "description": "Phase 10 detector recovery candidate RF model v2 fixed",
+      "notes": "Historical baseline from GATE1_CONTRACT.md",
+      "expected_sha256": "F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2",
+      "current_sha256": "F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2",
+      "size_bytes": 9290458,
+      "mtime_iso": "2026-10-17T19:37:52.570162+00:00",
+      "status": "MATCH",
+      "drift_from_baseline": false,
+      "baseline_sha256": "F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2"
+    }
+  }
+}

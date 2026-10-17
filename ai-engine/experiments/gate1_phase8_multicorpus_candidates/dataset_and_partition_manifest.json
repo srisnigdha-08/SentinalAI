@@ -1,0 +1,211 @@
+{
+  "phase": "Phase 8: Controlled Multi-Corpus Retraining",
+  "date": "2026-10-16",
+  "status": "GATE-1 OPEN",
+  "raw_corpora": {
+    "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+      "size_bytes": 77123859,
+      "sha256": "6FF1580F5F81C0AE28A26F7631721018577F5F7C5E0FEAC28B795FCFE7B411EE",
+      "corpus": "CICIDS2017"
+    },
+    "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+      "size_bytes": 76906168,
+      "sha256": "CA1824C51BFBB7B3C72290A11BE04366BA8815878C6A1CC5C44CB1CEE269E99B",
+      "corpus": "CICIDS2017"
+    },
+    "Friday-WorkingHours-Morning.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Friday-WorkingHours-Morning.pcap_ISCX.csv",
+      "size_bytes": 58316725,
+      "sha256": "53A41C24D570EA83B7AC55B2E94DF94E7A8216AEB80A2AF0246B6BC8BB543000",
+      "corpus": "CICIDS2017"
+    },
+    "Monday-WorkingHours.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Monday-WorkingHours.pcap_ISCX.csv",
+      "size_bytes": 176927918,
+      "sha256": "852C4BEB34EDA186F32561FA79DF7A0747E92E1A6535B01270820DD9FFE17F34",
+      "corpus": "CICIDS2017"
+    },
+    "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+      "size_bytes": 83102436,
+      "sha256": "6BCDA3857C2504676034E3EA57762D38393CC734CB377A726BD5CB153961B1B5",
+      "corpus": "CICIDS2017"
+    },
+    "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv",
+      "size_bytes": 52023263,
+      "sha256": "D67066211FB1689C78406F1506F4C44704ECB92088353D5C96D96D6474EB819D",
+      "corpus": "CICIDS2017"
+    },
+    "Tuesday-WorkingHours.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Tuesday-WorkingHours.pcap_ISCX.csv",
+      "size_bytes": 135078995,
+      "sha256": "52B8692AE8C7D2ED04671FE2B98335693C0A92C7AB157D8C8B534D6523080851",
+      "corpus": "CICIDS2017"
+    },
+    "Wednesday-workingHours.pcap_ISCX.csv": {
+      "path": "ai-engine/datasets/cicids2017\\Wednesday-workingHours.pcap_ISCX.csv",
+      "size_bytes": 225166395,
+      "sha256": "893C27DC968BF7A8ADEF1689F90BE55CA4A4DC3088FB63D6FF247AC56856DF2A",
+      "corpus": "CICIDS2017"
+    },
+    "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+      "size_bytes": 352368373,
+      "sha256": "D96F38E7496ABA83475031E6FB8C6FDF1ABF6AA1B71325A917798F3C7DE93DE1",
+      "corpus": "CSE-CIC-IDS2018"
+    },
+    "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_bytes": 382840456,
+      "sha256": "D0A7F5059D9823B6E9B392B759E306481A3502D190DEA7A1B5502AE079EA069B",
+      "corpus": "CSE-CIC-IDS2018"
+    },
+    "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+      "size_bytes": 107842858,
+      "sha256": "B0534C5D7D8B41E03DF71C6966C995D116A8ED28E61F377C8B14CDF5D28F4EDF",
+      "corpus": "CSE-CIC-IDS2018"
+    },
+    "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_bytes": 375945899,
+      "sha256": "FA2947A8256D81EE9103AE16139D62D0E17AA23E696EE80D9E76FB51C01C9C4B",
+      "corpus": "CSE-CIC-IDS2018"
+    },
+    "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_bytes": 358223333,
+      "sha256": "ACFF8BC61376EE031D80878EE6099E0B1A87A1BD711D8068298421418C9F8147",
+      "corpus": "CSE-CIC-IDS2018"
+    },
+    "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv",
+      "size_bytes": 328893673,
+      "sha256": "A5F4A1C2689E0AA6566C03A58466DE9C407C0BE0CBD3CC69306544026611BE04",
+      "corpus": "CSE-CIC-IDS2018"
+    },
+    "holdout_benign_30k.parquet": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\holdout_sets\\holdout_benign_30k.parquet",
+      "size_bytes": 2707608,
+      "sha256": "62FB5DDEBD915F38289EA7814E073A3C1F1A06D6FCF91F57E779D83E075480B6",
+      "corpus": "CSE-CIC-IDS2018-Holdout"
+    },
+    "holdout_botnet.parquet": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\holdout_sets\\holdout_botnet.parquet",
+      "size_bytes": 264250,
+      "sha256": "00FD4FA72736552FC95C976B4DBE6E5077B0B85E11BAE6A0E806BE53623CAFEA",
+      "corpus": "CSE-CIC-IDS2018-Holdout"
+    },
+    "holdout_bruteforce_ssh_ftp.parquet": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\holdout_sets\\holdout_bruteforce_ssh_ftp.parquet",
+      "size_bytes": 222969,
+      "sha256": "EDF54D185F755A67C684FB6DCFA4FFC75FF8C6986348636FF4440314EC227DC7",
+      "corpus": "CSE-CIC-IDS2018-Holdout"
+    },
+    "holdout_ddos.parquet": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\holdout_sets\\holdout_ddos.parquet",
+      "size_bytes": 256426,
+      "sha256": "C9F638F28D93108A56AEF4E69F1CD467A93D6E97AE531FB5D7CB2756D2A84C47",
+      "corpus": "CSE-CIC-IDS2018-Holdout"
+    },
+    "holdout_infiltration.parquet": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\holdout_sets\\holdout_infiltration.parquet",
+      "size_bytes": 282933,
+      "sha256": "094AD11F984580E08D4DC743050BCC1C25CCC49B03122D7B69D23D0A0B480F30",
+      "corpus": "CSE-CIC-IDS2018-Holdout"
+    },
+    "holdout_web_attacks.parquet": {
+      "path": "D:\\sentinelai_datasets\\cse_cic_ids2018\\holdout_sets\\holdout_web_attacks.parquet",
+      "size_bytes": 183694,
+      "sha256": "41ABF2CF1516F30627EED35E1F136EC545D9A0D89A1CE9661EF7FFF4DBC86354",
+      "corpus": "CSE-CIC-IDS2018-Holdout"
+    }
+  },
+  "partitions": {
+    "training_multicorpus": {
+      "file": {
+        "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\partition_train_multicorpus.parquet",
+        "size_bytes": 16380842,
+        "sha256": "A56023295BE6886FCF97421DF21DDF153057FFCF02B0E2032F66384AAF4CE981"
+      },
+      "total_rows": 179458,
+      "unique_classes": 8,
+      "class_distribution": {
+        "BENIGN": 96198,
+        "DDoS": 29806,
+        "Credential Stuffing": 16524,
+        "SSH Brute Force": 13564,
+        "Port Scan": 12643,
+        "Malware Beacon": 10152,
+        "XSS Attempt": 554,
+        "SQL Injection": 17
+      },
+      "corpora_source_distribution": {
+        "CICIDS2017": 111364,
+        "CSE-CIC-IDS2018": 68094
+      }
+    },
+    "validation_tuning": {
+      "file": {
+        "path": "ai-engine\\experiments\\gate1_phase8_multicorpus_candidates\\partition_validation_tuning.parquet",
+        "size_bytes": 3113638,
+        "sha256": "07CE94824E8A52F5482AD4610677AD5E38871EF1F4949607B3375FF1DDCE6B76"
+      },
+      "total_rows": 31623,
+      "unique_classes": 8,
+      "class_distribution": {
+        "BENIGN": 16902,
+        "DDoS": 5194,
+        "Credential Stuffing": 2921,
+        "Port Scan": 2357,
+        "SSH Brute Force": 2333,
+        "Malware Beacon": 1814,
+        "XSS Attempt": 98,
+        "SQL Injection": 4
+      },
+      "corpora_source_distribution": {
+        "CICIDS2017": 19717,
+        "CSE-CIC-IDS2018": 11906
+      }
+    },
+    "sealed_final_holdout": {
+      "total_records_on_disk": 43566,
+      "evaluation_population": 38566,
+      "slices": {
+        "holdout_benign_30k.parquet": {
+          "rows": 30000,
+          "attacks": 0,
+          "benign": 30000
+        },
+        "holdout_infiltration.parquet": {
+          "rows": 3000,
+          "attacks": 2000,
+          "benign": 1000
+        },
+        "holdout_web_attacks.parquet": {
+          "rows": 1566,
+          "attacks": 566,
+          "benign": 1000
+        },
+        "holdout_bruteforce_ssh_ftp.parquet": {
+          "rows": 3000,
+          "attacks": 2000,
+          "benign": 1000
+        },
+        "holdout_botnet.parquet": {
+          "rows": 3000,
+          "attacks": 2000,
+          "benign": 1000
+        },
+        "holdout_ddos.parquet": {
+          "rows": 3000,
+          "attacks": 2000,
+          "benign": 1000
+        }
+      }
+    }
+  }
+}

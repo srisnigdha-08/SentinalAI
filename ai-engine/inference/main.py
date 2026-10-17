@@ -224,6 +224,40 @@ async def deception_score(s: SessionData):
     res = get_scorer().process_session(s.model_dump())
     return {"success": True, "result": res}
 
+class AuthTelemetryRecord(BaseModel):
+    event_type: str = "AUTH_FAILURE"
+    src_ip: str = "0.0.0.0"
+    dst_ip: str = None
+    dst_port: int = 22
+    service: str = "ssh"
+    user_identity: str = None
+    raw_message: str = None
+    timestamp: float = None
+
+@app.post("/predict/auth/shadow", dependencies=[Depends(verify_api_key)])
+async def predict_auth_shadow(auth_record: AuthTelemetryRecord):
+    """
+    Shadow-only endpoint for E2 structured authentication telemetry.
+    Logs decisions in shadow mode without modifying production models, containment, or primary state.
+    """
+    if not predictor:
+        raise HTTPException(503, "Not ready")
+    if getattr(predictor, "shadow_e2", None) is None:
+        return {"success": True, "shadow_enabled": False, "message": "Shadow E2 detector is disabled by feature flag"}
+    try:
+        res = predictor.shadow_e2.evaluate(auth_record.model_dump())
+        return {
+            "success": True,
+            "shadow_enabled": True,
+            "decision": res.decision.value,
+            "severity": res.severity.value,
+            "confidence": res.confidence,
+            "rule": res.evidence.trigger_rule if res.evidence else None,
+            "mitigation": res.mitigation_recommendation.watermark if res.mitigation_recommendation else None
+        }
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
 if __name__=="__main__":
     import uvicorn
     uvicorn.run("inference.main:app",host="0.0.0.0",port=8000,reload=True)

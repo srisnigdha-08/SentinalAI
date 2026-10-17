@@ -1,0 +1,164 @@
+{
+  "A_original": {
+    "description": "Original 53 Features (Baseline)",
+    "feature_count": 53,
+    "fit_time_seconds": 5.61,
+    "validation_recall": 0.9944,
+    "validation_fpr": 0.003077,
+    "validation_fpr_wilson_ci": [
+      0.002347,
+      0.004032
+    ],
+    "confusion_matrix": {
+      "tp": 14639,
+      "fn": 82,
+      "fp": 52,
+      "tn": 16850
+    },
+    "per_class_recall": {
+      "BENIGN": 0.9969,
+      "SSH Brute Force": 0.994,
+      "SQL Injection": 0.0,
+      "Port Scan": 0.9966,
+      "DDoS": 0.9973,
+      "XSS Attempt": 0.0102,
+      "Malware Beacon": 0.9879,
+      "Credential Stuffing": 0.9897
+    }
+  },
+  "B_no_tcp_windows": {
+    "description": "TCP Windows Removed (51 Features)",
+    "feature_count": 51,
+    "fit_time_seconds": 5.69,
+    "validation_recall": 0.9882,
+    "validation_fpr": 0.008875,
+    "validation_fpr_wilson_ci": [
+      0.007568,
+      0.010404
+    ],
+    "confusion_matrix": {
+      "tp": 14548,
+      "fn": 173,
+      "fp": 150,
+      "tn": 16752
+    },
+    "per_class_recall": {
+      "BENIGN": 0.9911,
+      "SSH Brute Force": 0.991,
+      "SQL Injection": 0.0,
+      "Port Scan": 0.9958,
+      "DDoS": 0.9973,
+      "XSS Attempt": 0.0,
+      "Malware Beacon": 0.9361,
+      "Credential Stuffing": 0.9901
+    }
+  },
+  "C_raw_ports_added": {
+    "description": "Raw Destination Port Added (54 Features)",
+    "feature_count": 54,
+    "fit_time_seconds": 5.76,
+    "validation_recall": 0.9944,
+    "validation_fpr": 0.002426,
+    "validation_fpr_wilson_ci": [
+      0.001789,
+      0.003289
+    ],
+    "confusion_matrix": {
+      "tp": 14638,
+      "fn": 83,
+      "fp": 41,
+      "tn": 16861
+    },
+    "per_class_recall": {
+      "BENIGN": 0.9976,
+      "SSH Brute Force": 0.9949,
+      "SQL Injection": 0.0,
+      "Port Scan": 0.9966,
+      "DDoS": 0.9981,
+      "XSS Attempt": 0.0,
+      "Malware Beacon": 0.9879,
+      "Credential Stuffing": 0.9914
+    }
+  },
+  "D_timing_log_transformed": {
+    "description": "Timing Features Log1p-Transformed (53 Features)",
+    "feature_count": 53,
+    "fit_time_seconds": 6.04,
+    "validation_recall": 0.9944,
+    "validation_fpr": 0.003077,
+    "validation_fpr_wilson_ci": [
+      0.002347,
+      0.004032
+    ],
+    "confusion_matrix": {
+      "tp": 14638,
+      "fn": 83,
+      "fp": 52,
+      "tn": 16850
+    },
+    "per_class_recall": {
+      "BENIGN": 0.9969,
+      "SSH Brute Force": 0.994,
+      "SQL Injection": 0.0,
+      "Port Scan": 0.9966,
+      "DDoS": 0.9973,
+      "XSS Attempt": 0.0,
+      "Malware Beacon": 0.9879,
+      "Credential Stuffing": 0.9897
+    }
+  },
+  "E_combined_ablation": {
+    "description": "Combined: No Windows + Log Timing (51 Features)",
+    "feature_count": 51,
+    "fit_time_seconds": 5.93,
+    "validation_recall": 0.9882,
+    "validation_fpr": 0.009052,
+    "validation_fpr_wilson_ci": [
+      0.007732,
+      0.010596
+    ],
+    "confusion_matrix": {
+      "tp": 14548,
+      "fn": 173,
+      "fp": 153,
+      "tn": 16749
+    },
+    "per_class_recall": {
+      "BENIGN": 0.9909,
+      "SSH Brute Force": 0.991,
+      "SQL Injection": 0.0,
+      "Port Scan": 0.9958,
+      "DDoS": 0.9973,
+      "XSS Attempt": 0.0,
+      "Malware Beacon": 0.9361,
+      "Credential Stuffing": 0.9901
+    }
+  },
+  "F_final_justified_candidate": {
+    "description": "Justified Candidate: Normalized & Robust (51 Features)",
+    "feature_count": 51,
+    "fit_time_seconds": 5.66,
+    "validation_recall": 0.9887,
+    "validation_fpr": 0.009289,
+    "validation_fpr_wilson_ci": [
+      0.00795,
+      0.010851
+    ],
+    "confusion_matrix": {
+      "tp": 14554,
+      "fn": 167,
+      "fp": 157,
+      "tn": 16745
+    },
+    "per_class_recall": {
+      "BENIGN": 0.9907,
+      "SSH Brute Force": 0.9919,
+      "SQL Injection": 0.0,
+      "Port Scan": 0.9962,
+      "DDoS": 0.9975,
+      "XSS Attempt": 0.0,
+      "Malware Beacon": 0.9366,
+      "Credential Stuffing": 0.9901
+    }
+  }
+}

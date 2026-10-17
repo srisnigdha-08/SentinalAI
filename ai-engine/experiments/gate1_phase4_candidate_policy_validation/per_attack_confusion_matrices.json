@@ -1,0 +1,370 @@
+{
+  "PortScan": {
+    "attack_flows": 1000,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 0,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 1000
+    },
+    "production_containment_recall": 0.0,
+    "production_containment_recall_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_containment_confusion": {
+      "TP": 1000,
+      "FP": 13,
+      "TN": 987,
+      "FN": 0
+    },
+    "candidate_containment_recall": 1.0,
+    "candidate_containment_recall_ci95": [
+      0.99617,
+      1.0
+    ],
+    "candidate_simulated_block_recall": 0.998,
+    "candidate_simulated_block_recall_ci95": [
+      0.99274,
+      0.99945
+    ],
+    "candidate_fp_monitor_rate": 0.013,
+    "candidate_fp_monitor_ci95": [
+      0.00761,
+      0.02211
+    ],
+    "candidate_fp_block_rate": 0.008,
+    "candidate_fp_block_ci95": [
+      0.00406,
+      0.01571
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 987,
+      "MONITOR": 7,
+      "BLOCK": 1006
+    }
+  },
+  "DDoS": {
+    "attack_flows": 1000,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 720,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 280
+    },
+    "production_containment_recall": 0.72,
+    "production_containment_recall_ci95": [
+      0.69137,
+      0.74695
+    ],
+    "candidate_containment_confusion": {
+      "TP": 998,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 2
+    },
+    "candidate_containment_recall": 0.998,
+    "candidate_containment_recall_ci95": [
+      0.99274,
+      0.99945
+    ],
+    "candidate_simulated_block_recall": 0.998,
+    "candidate_simulated_block_recall_ci95": [
+      0.99274,
+      0.99945
+    ],
+    "candidate_fp_monitor_rate": 0.0,
+    "candidate_fp_monitor_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 1002,
+      "MONITOR": 0,
+      "BLOCK": 998
+    }
+  },
+  "SSH_Patator": {
+    "attack_flows": 1000,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 461,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 539
+    },
+    "production_containment_recall": 0.461,
+    "production_containment_recall_ci95": [
+      0.43031,
+      0.49199
+    ],
+    "candidate_containment_confusion": {
+      "TP": 989,
+      "FP": 1,
+      "TN": 999,
+      "FN": 11
+    },
+    "candidate_containment_recall": 0.989,
+    "candidate_containment_recall_ci95": [
+      0.98041,
+      0.99385
+    ],
+    "candidate_simulated_block_recall": 0.959,
+    "candidate_simulated_block_recall_ci95": [
+      0.94485,
+      0.96964
+    ],
+    "candidate_fp_monitor_rate": 0.001,
+    "candidate_fp_monitor_ci95": [
+      0.00018,
+      0.00564
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 1010,
+      "MONITOR": 31,
+      "BLOCK": 959
+    }
+  },
+  "Web_Attacks": {
+    "attack_flows": 1000,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 75,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 925
+    },
+    "production_containment_recall": 0.075,
+    "production_containment_recall_ci95": [
+      0.06025,
+      0.093
+    ],
+    "candidate_containment_confusion": {
+      "TP": 609,
+      "FP": 12,
+      "TN": 988,
+      "FN": 391
+    },
+    "candidate_containment_recall": 0.609,
+    "candidate_containment_recall_ci95": [
+      0.57839,
+      0.63877
+    ],
+    "candidate_simulated_block_recall": 0.156,
+    "candidate_simulated_block_recall_ci95": [
+      0.13483,
+      0.1798
+    ],
+    "candidate_fp_monitor_rate": 0.012,
+    "candidate_fp_monitor_ci95": [
+      0.00688,
+      0.02086
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 1379,
+      "MONITOR": 465,
+      "BLOCK": 156
+    }
+  },
+  "Infiltration": {
+    "attack_flows": 36,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 27,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 9
+    },
+    "production_containment_recall": 0.75,
+    "production_containment_recall_ci95": [
+      0.5893,
+      0.8625
+    ],
+    "candidate_containment_confusion": {
+      "TP": 31,
+      "FP": 10,
+      "TN": 990,
+      "FN": 5
+    },
+    "candidate_containment_recall": 0.86111,
+    "candidate_containment_recall_ci95": [
+      0.71341,
+      0.93918
+    ],
+    "candidate_simulated_block_recall": 0.55556,
+    "candidate_simulated_block_recall_ci95": [
+      0.39581,
+      0.70459
+    ],
+    "candidate_fp_monitor_rate": 0.01,
+    "candidate_fp_monitor_ci95": [
+      0.00544,
+      0.01831
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 995,
+      "MONITOR": 21,
+      "BLOCK": 20
+    }
+  },
+  "Botnet": {
+    "attack_flows": 1000,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 456,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 544
+    },
+    "production_containment_recall": 0.456,
+    "production_containment_recall_ci95": [
+      0.42536,
+      0.48698
+    ],
+    "candidate_containment_confusion": {
+      "TP": 985,
+      "FP": 12,
+      "TN": 988,
+      "FN": 15
+    },
+    "candidate_containment_recall": 0.985,
+    "candidate_containment_recall_ci95": [
+      0.9754,
+      0.99089
+    ],
+    "candidate_simulated_block_recall": 0.94,
+    "candidate_simulated_block_recall_ci95": [
+      0.92353,
+      0.9531
+    ],
+    "candidate_fp_monitor_rate": 0.012,
+    "candidate_fp_monitor_ci95": [
+      0.00688,
+      0.02086
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 1003,
+      "MONITOR": 57,
+      "BLOCK": 940
+    }
+  },
+  "DoS_Hulk": {
+    "attack_flows": 1000,
+    "benign_flows": 1000,
+    "production_containment_confusion": {
+      "TP": 659,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 341
+    },
+    "production_containment_recall": 0.659,
+    "production_containment_recall_ci95": [
+      0.62906,
+      0.68772
+    ],
+    "candidate_containment_confusion": {
+      "TP": 967,
+      "FP": 0,
+      "TN": 1000,
+      "FN": 33
+    },
+    "candidate_containment_recall": 0.967,
+    "candidate_containment_recall_ci95": [
+      0.95402,
+      0.97641
+    ],
+    "candidate_simulated_block_recall": 0.921,
+    "candidate_simulated_block_recall_ci95": [
+      0.90263,
+      0.93615
+    ],
+    "candidate_fp_monitor_rate": 0.0,
+    "candidate_fp_monitor_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00383
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 1033,
+      "MONITOR": 46,
+      "BLOCK": 921
+    }
+  },
+  "Monday_Benign": {
+    "attack_flows": 0,
+    "benign_flows": 10000,
+    "production_containment_confusion": {
+      "TP": 0,
+      "FP": 0,
+      "TN": 10000,
+      "FN": 0
+    },
+    "production_containment_recall": 0.0,
+    "production_containment_recall_ci95": [
+      0.0,
+      0.0
+    ],
+    "candidate_containment_confusion": {
+      "TP": 0,
+      "FP": 7,
+      "TN": 9993,
+      "FN": 0
+    },
+    "candidate_containment_recall": 0.0,
+    "candidate_containment_recall_ci95": [
+      0.0,
+      0.0
+    ],
+    "candidate_simulated_block_recall": 0.0,
+    "candidate_simulated_block_recall_ci95": [
+      0.0,
+      0.0
+    ],
+    "candidate_fp_monitor_rate": 0.0007,
+    "candidate_fp_monitor_ci95": [
+      0.00034,
+      0.00144
+    ],
+    "candidate_fp_block_rate": 0.0,
+    "candidate_fp_block_ci95": [
+      0.0,
+      0.00038
+    ],
+    "candidate_action_counts": {
+      "ALLOW": 9993,
+      "MONITOR": 7,
+      "BLOCK": 0
+    }
+  }
+}
