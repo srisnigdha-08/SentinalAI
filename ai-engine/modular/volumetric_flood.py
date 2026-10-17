@@ -47,8 +47,13 @@ class VolumetricWindowBuffer:
         self.last_access: float = time.time()
 
     def add_sample(self, ts: float, packets: float, bytes_count: float) -> None:
-        self.last_access = ts
-        self.samples.append((ts, packets, bytes_count))
+        self.last_access = max(self.last_access, ts)
+        if self.samples and ts < self.samples[-1][0]:
+            # Handle out-of-order sample jitter
+            self.samples.append((ts, packets, bytes_count))
+            self.samples = deque(sorted(self.samples, key=lambda s: s[0]))
+        else:
+            self.samples.append((ts, packets, bytes_count))
         self._prune(ts)
 
     def _prune(self, current_ts: float) -> None:

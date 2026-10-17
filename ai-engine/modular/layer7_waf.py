@@ -80,7 +80,8 @@ class Layer7WAFDetector(BaseDetector):
 
     def _normalize_and_decode(self, text: str) -> str:
         """Applies multi-pass URL and HTML entity decoding to counter obfuscation."""
-        decoded = text
+        # Bound payload length to 64 KB to protect against ReDoS on malicious inputs
+        decoded = text[:65536] if len(text) > 65536 else text
         for _ in range(3):
             prev = decoded
             decoded = urllib.parse.unquote_plus(decoded)
