@@ -19,10 +19,12 @@ async function generateFingerprint() {
     
     if (collName === 'auditlogs') {
       const latest = await coll.find({}, { projection: { _id: 1, createdAt: 1 } }).sort({ _id: -1 }).limit(1).toArray();
+      const latestId = latest[0]?._id?.toString() || null;
       report[collName] = {
         count,
-        latestId: latest[0]?._id?.toString() || null,
-        latestCreatedAt: latest[0]?.createdAt?.toISOString() || null
+        latestId,
+        latestCreatedAt: latest[0]?.createdAt?.toISOString() || null,
+        fingerprint: count > 0 ? `COUNT:${count}|LATEST_ID:${latestId}` : 'EMPTY_COLLECTION (0 documents)'
       };
     } else {
       const docs = await coll.find({}, { projection: { _id: 1, updatedAt: 1, createdAt: 1 } }).sort({ _id: 1 }).toArray();
@@ -33,7 +35,7 @@ async function generateFingerprint() {
       }
       report[collName] = {
         count,
-        fingerprint: count > 0 ? hash.digest('hex') : 'empty'
+        fingerprint: count > 0 ? hash.digest('hex') : 'EMPTY_COLLECTION (0 documents)'
       };
     }
   }

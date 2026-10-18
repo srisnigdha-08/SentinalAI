@@ -300,10 +300,10 @@ async function main() {
     console.log(`  -> Post-demotion REST request to /api/threats/settings: HTTP ${postDemoteRestCheck.status}`);
     console.log(`  -> Response body:`, JSON.stringify(postDemoteRestCheck.body));
 
-    if (postDemoteRestCheck.status !== 401 && postDemoteRestCheck.status !== 403) {
-      throw new Error(`SECURITY BREACH: Demoted analyst session still accessed restricted endpoint! Got HTTP ${postDemoteRestCheck.status}`);
+    if (postDemoteRestCheck.status !== 401) {
+      throw new Error(`SECURITY BREACH: Expected HTTP 401 after authVersion invalidation, got HTTP ${postDemoteRestCheck.status}`);
     }
-    console.log('  -> VERIFIED: Demoted user is immediately rejected with HTTP ' + postDemoteRestCheck.status);
+    console.log('  -> VERIFIED: Demoted user token is invalidated with HTTP 401');
 
     // Verify WebSocket disconnection
     console.log(`  -> Analyst WebSocket closed event observed: ${analystSocketDisconnected}`);
