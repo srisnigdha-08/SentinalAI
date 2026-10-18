@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { isValidIP, parseDate } = require('../utils/querySecurity')
+const { redactCapturedCredentials } = require('../utils/redact')
 
 const internalAuth = (req, res, next) => {
   const key = req.headers['x-api-key']
@@ -117,11 +118,7 @@ router.post('/', internalAuth, async (req, res, next) => {
 
     // Redact raw credentials before ingestion/storage
     if (Array.isArray(data.credentials)) {
-      data.credentials = data.credentials.map((cred) => ({
-        username: typeof cred?.username === 'string' ? cred.username.slice(0, 100) : '',
-        password: '***REDACTED***',
-        success: Boolean(cred?.success),
-      }))
+      data.credentials = redactCapturedCredentials(data.credentials)
     }
     const io = req.app.get('io')
     const c = getCollector()

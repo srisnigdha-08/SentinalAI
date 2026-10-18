@@ -3,6 +3,7 @@ const HoneypotSession = require('../models/HoneypotSession')
 const logger = require('../utils/logger')
 const aiSvc = require('./aiEngineService')
 const { escapeRegex, parsePagination } = require('../utils/querySecurity')
+const { redactCapturedCredentials } = require('../utils/redact')
 
 const findSessions = async ({ page = 1, limit = 20, node, status, ip } = {}) => {
   const {
@@ -111,7 +112,9 @@ const analyseClosure = async (session, telemetry) => {
       Number.isFinite(telemetry.durationSeconds) && telemetry.durationSeconds >= 0
         ? telemetry.durationSeconds
         : Math.floor((session.endTime - session.startTime) / 1000)
-    if (Array.isArray(telemetry.credentials)) session.credentials.push(...telemetry.credentials)
+    if (Array.isArray(telemetry.credentials)) {
+      session.credentials.push(...redactCapturedCredentials(telemetry.credentials))
+    }
     if (typeof telemetry.hassh === 'string') session.hassh = telemetry.hassh
   }
   session.status = 'closed'

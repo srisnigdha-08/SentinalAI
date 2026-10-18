@@ -19,6 +19,7 @@ const Alert = require('../models/Alert')
 const AIPrediction = require('../models/AIPrediction')
 const BlockedIP = require('../models/BlockedIP')
 const Campaign = require('../models/Campaign')
+const { redactCapturedCredentials } = require('./redact')
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db'
 const USERS = []
 if (process.env.ADMIN_INITIAL_PASSWORD && process.env.ADMIN_INITIAL_PASSWORD.trim()) {
@@ -124,7 +125,7 @@ async function seed() {
       honeypotNode: node.name,
       protocol: node.protocol,
       geoLocation: { country: attk.country, countryCode: 'XX' },
-      credentials: [{ username: 'root', password: '123456', success: false }],
+      credentials: redactCapturedCredentials([{ username: 'root', password: '123456', success: false }]),
       commands: cmds,
       startTime: start,
       endTime: new Date(start.getTime() + dur * 1000),
