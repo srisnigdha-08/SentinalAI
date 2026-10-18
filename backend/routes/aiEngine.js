@@ -6,6 +6,8 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse'
 const { protect, restrictTo } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonicalClasses')
+const { redactAIPrediction } = require('../utils/redact')
+
 
 // Scoped internal API-key or JWT user authentication middleware
 const internalOrUserAuth = (req, res, next) => {
@@ -181,11 +183,14 @@ router.post('/analyze', protect, restrictTo('admin', 'analyst'), async (req, res
 router.get('/predictions', protect, async (req, res, next) => {
   try {
     const r = await aiDbSvc.findPredictions(req.query)
-    sendPaginated(res, r.data, r.total, r.page, r.limit)
+    const role = req.user?.role || 'viewer'
+    const safeData = r.data.map((p) => redactAIPrediction(p, role))
+    sendPaginated(res, safeData, r.total, r.page, r.limit)
   } catch (err) {
     next(err)
   }
 })
+
 
 router.post('/predictions', internalOrUserAuth, async (req, res, next) => {
   try {

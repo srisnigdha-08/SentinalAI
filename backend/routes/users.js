@@ -1,10 +1,18 @@
 const express = require('express')
 const router = express.Router()
-const { getUsers, getUser, updateUser, deleteUser, getUserStats } = require('../controllers/userController')
+const {
+  getUsers,
+  getUser,
+  updateUser,
+  deleteUser,
+  getUserStats,
+  forceLogoutUser,
+} = require('../controllers/userController')
 const { protect, restrictTo } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 
 router.use(protect, restrictTo('admin'))
+
 
 /**
  * @openapi
@@ -104,4 +112,7 @@ router
   .put(validateObjectId, updateUser)
   .delete(validateObjectId, deleteUser)
 
+router.post('/:id/force-logout', validateObjectId, forceLogoutUser)
+
 module.exports = router
+

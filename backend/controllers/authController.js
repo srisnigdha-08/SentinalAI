@@ -23,17 +23,57 @@ const login = async (req, res, next) => {
   try {
     const { email, password } = req.body
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password')
-    if (!user || !(await user.comparePassword(password))) return sendError(res, 'Invalid credentials', 401)
-    if (user.status !== 'active') return sendError(res, 'Account inactive', 403)
+    if (!user || !(await user.comparePassword(password))) {
+      const { logAudit } = require('../utils/auditLogger')
+      await logAudit({
+        action: 'LOGIN_FAILED',
+        actor: null,
+        target: { identifier: email ? String(email).toLowerCase() : 'unknown', type: 'User' },
+        status: 'DENIED',
+        details: { reason: 'INVALID_CREDENTIALS' },
+        ip: req.ip,
+      })
+      return sendError(res, 'Invalid credentials', 401)
+    }
+    if (user.status !== 'active') {
+      const { logAudit } = require('../utils/auditLogger')
+      await logAudit({
+        action: 'LOGIN_FAILED',
+        actor: null,
+        target: { id: user._id.toString(), email: user.email, type: 'User' },
+        status: 'DENIED',
+        details: { reason: 'ACCOUNT_INACTIVE' },
+        ip: req.ip,
+      })
+      return sendError(res, 'Account inactive', 403)
+    }
     user.lastLogin = new Date()
     user.loginCount = (user.loginCount || 0) + 1
     await user.save({ validateBeforeSave: false })
+
+    const userIdStr = user._id.toString()
+    const { logAudit } = require('../utils/auditLogger')
+    await logAudit({
+      action: 'LOGIN_SUCCESS',
+      actor: { id: userIdStr, email: user.email, role: user.role },
+      target: { id: userIdStr, identifier: user.email, email: user.email, type: 'User' },
+      status: 'SUCCESS',
+      ip: req.ip,
+    })
+
     await response(user, 200, req, res, 'Welcome back, ' + user.name)
   } catch (error) {
     next(error)
   }
 }
-const getMe = (req, res) => sendSuccess(res, { user: req.user.toJSON ? req.user.toJSON() : req.user })
+const { getPermissions } = require('../config/permissions')
+const getMe = (req, res) => {
+  const user = req.user.toJSON ? req.user.toJSON() : { ...req.user }
+  if (!user.permissions && user.role) {
+    user.permissions = getPermissions(user.role)
+  }
+  return sendSuccess(res, { user })
+}
 const updatePassword = async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body || {}

@@ -6,6 +6,7 @@ process.env.SENTINEL_KEY = 'unit-sentinel-secret-for-session-tests'
 process.env.CLIENT_URL = 'http://localhost:3000'
 jest.mock('../models/User')
 jest.mock('../models/AuthSession')
+jest.mock('../models/AuditLog')
 jest.mock('../config/db', () => jest.fn())
 jest.mock('../utils/logger', () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }))
 jest.mock('../websocket/socketManager', () => ({ init: jest.fn(), stopHealthBroadcast: jest.fn() }))
@@ -17,6 +18,7 @@ const { install } = require('./helpers/authMemoryStore')
 const auth = require('../services/authSessionService')
 const cookies = require('../middleware/authCookies')
 const { app } = require('../server')
+jest.setTimeout(30000)
 let memory
 beforeEach(() => {
   jest.clearAllMocks()

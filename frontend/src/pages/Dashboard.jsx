@@ -49,21 +49,39 @@ export default function Dashboard() {
   const load = async () => {
     setError(null)
     try {
-      const [analyticsRes, threatsRes, nodesRes, vectorRes, healthRes] = await Promise.all([
+      const isViewer = userRole === 'viewer'
+      const requests = [
         threatAPI.analytics(),
         threatAPI.list({ limit: 8, sortBy: 'createdAt', sortOrder: 'desc' }),
         honeypotAPI.nodes(),
         threatAPI.vectorTrend(7),
-        systemAPI.health(),
-      ])
+      ]
+      if (!isViewer) {
+        requests.push(systemAPI.health())
+      }
+      const results = await Promise.all(requests)
+      const analyticsRes = results[0]
+      const threatsRes = results[1]
+      const nodesRes = results[2]
+      const vectorRes = results[3]
+      const healthRes = !isViewer ? results[4] : null
+
       const a = analyticsRes.data.data
       setAnalytics(a)
       setThreatCount(a?.kpis?.totalToday || 0)
       setThreats(threatsRes.data.data || [])
       setNodes(nodesRes.data.data?.nodes || [])
-      if (healthRes.data?.data) {
+      if (healthRes?.data?.data) {
         setSystemHealth(healthRes.data.data)
+      } else if (isViewer) {
+        setSystemHealth((prev) => prev || {
+          mode: 'REAL_MODE',
+          status: 'ok',
+          database: { status: 'connected' },
+          aiEngine: { status: 'connected' },
+        })
       }
+
 
       // Build stacked bar chart data from vector trend
       const raw = vectorRes.data.data?.trend || []
@@ -282,15 +300,16 @@ export default function Dashboard() {
         </div>
       </Panel>
 
-      <Panel title="System Telemetry" badge={systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING"} badgeType={systemHealth?.database?.status === 'connected' ? "ok" : "warn"}>
+      <Panel title="System Telemetry" badge={userRole === 'viewer' ? "MONITORING" : (systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING")} badgeType={userRole === 'viewer' ? "info" : (systemHealth?.database?.status === 'connected' ? "ok" : "warn")}>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           {[
             {
               name: 'Heap Memory',
-              statusText: `${systemHealth?.memory?.heapUsedMB || 0}MB / ${systemHealth?.memory?.heapTotalMB || 0}MB`,
-              pct: systemHealth?.memory?.pct || 0,
+              statusText: userRole === 'viewer' ? 'RESTRICTED (OPERATOR ONLY)' : `${systemHealth?.memory?.heapUsedMB || 0}MB / ${systemHealth?.memory?.heapTotalMB || 0}MB`,
+              pct: userRole === 'viewer' ? 0 : (systemHealth?.memory?.pct || 0),
               color: '#00d4ff'
             },
+
             {
               name: 'MongoDB',
               statusText: systemHealth?.database?.status === 'connected' ? 'CONNECTED' : (loading ? 'CHECKING...' : 'STANDBY'),

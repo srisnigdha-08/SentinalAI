@@ -6,6 +6,7 @@ process.env.SENTINEL_KEY = 'unit-sentinel-secret-for-enrollment-tests'
 process.env.CLIENT_URL = 'http://localhost:3000'
 jest.mock('../models/User')
 jest.mock('../models/AuthSession')
+jest.mock('../models/AuditLog')
 jest.mock('../config/db', () => jest.fn())
 jest.mock('../utils/logger', () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }))
 jest.mock('../websocket/socketManager', () => ({ init: jest.fn(), stopHealthBroadcast: jest.fn() }))
@@ -23,6 +24,7 @@ beforeEach(() => {
   memory = install(User, Session)
   sessions.setAvailability(null)
   User.create.mockImplementation(async (data) => ({
+    _id: '987654321098765432109876',
     ...data,
     toJSON: () => ({ _id: '987654321098765432109876', name: data.name, email: data.email, role: data.role }),
   }))

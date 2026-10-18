@@ -17,6 +17,8 @@ const INSECURE_PLACEHOLDERS = [
   'your_internal',
   'default_secret',
   'placeholder',
+  'replace_with',
+  'replace_',
   '4cd01f3e7b8c2a9d6e4f3a1b0c9d8e7f',
   '8e7d6c5b4a3f2e1d0c9b8a7f6e5d4c3b',
   '6f53e2d8c91a0b3f4e7d8c2b1a5e0d4c',

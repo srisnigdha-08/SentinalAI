@@ -93,7 +93,9 @@ describe('WebSocket Authentication & Role-Based Access Control', () => {
   afterAll((done) => {
     socketManager.stopHealthBroadcast()
     io.close(() => {
-      done()
+      server.close(() => {
+        done()
+      })
     })
   })
 
@@ -102,8 +104,12 @@ describe('WebSocket Authentication & Role-Based Access Control', () => {
     User.findById.mockImplementation((id) => ({
       select: async () => Object.values(mockUsers).find((user) => user._id === id),
     }))
-    if (testClient && testClient.connected) {
-      testClient.disconnect()
+    if (testClient) {
+      try {
+        testClient.disconnect()
+        testClient.close()
+      } catch {}
+      testClient = null
     }
     done()
   })
@@ -285,6 +291,7 @@ describe('WebSocket Authentication & Role-Based Access Control', () => {
     testClient = ioClient(`http://localhost:${port}`, {
       auth: { token: generateToken('111111111111111111111111', 'admin') },
       transports: ['websocket'],
+      reconnection: false,
     })
     let threats = 0
     let alerts = 0
@@ -310,4 +317,106 @@ describe('WebSocket Authentication & Role-Based Access Control', () => {
       }, 200)
     })
   })
+
+  test('viewer joining threat_subscribers and all still receives only redacted data', (done) => {
+    testClient = ioClient(`http://localhost:${port}`, {
+      auth: { token: generateToken('333333333333333333333333', 'viewer') },
+      transports: ['websocket'],
+      reconnection: false,
+    })
+
+    testClient.on('connect', () => {
+      testClient.emit('join_room', { role: 'viewer', userId: '333333333333333333333333' })
+      testClient.emit('subscribe_threats')
+    })
+
+    testClient.on('new_threat', (threat) => {
+      try {
+        expect(threat.sourceIP).toBe('198.51.100.xxx')
+        expect(threat.payload).toBe('[REDACTED_PAYLOAD]')
+        done()
+      } catch (err) {
+        done(err)
+      }
+    })
+
+    testClient.on('connected', () => {
+      socketManager.emitNewThreat({
+        _id: 'viewer-redaction-ws-test',
+        severity: 'CRITICAL',
+        sourceIP: '198.51.100.42',
+        attackType: 'SQL_INJECTION',
+        payload: 'UNION SELECT password FROM admins',
+      })
+    })
+  })
+
+  test('deactivated or demoted user live socket is forcibly disconnected', (done) => {
+    testClient = ioClient(`http://localhost:${port}`, {
+      auth: { token: generateToken('222222222222222222222222', 'analyst') },
+      transports: ['websocket'],
+      reconnection: false,
+    })
+
+    testClient.on('connect', () => {
+      testClient.emit('join_room', { role: 'analyst', userId: '222222222222222222222222' })
+    })
+
+    testClient.on('disconnect', (reason) => {
+      try {
+        expect(['io server disconnect', 'transport close']).toContain(reason)
+        done()
+      } catch (err) {
+        done(err)
+      }
+    })
+
+    testClient.on('connected', () => {
+      // Trigger live socket disconnect for user
+      socketManager.disconnectUser('222222222222222222222222')
+    })
+  })
+
+  test('securityEventBus emits redacted payload to viewer in all or threat_subscribers room', (done) => {
+    testClient = ioClient(`http://localhost:${port}`, {
+      auth: { token: generateToken('333333333333333333333333', 'viewer') },
+      transports: ['websocket'],
+      reconnection: false,
+    })
+
+    testClient.on('connect', () => {
+      testClient.emit('join_room', { role: 'viewer', userId: '333333333333333333333333' })
+    })
+
+    testClient.on('new_threat', (threat) => {
+      try {
+        expect(threat.sourceIP).toBe('198.51.100.xxx')
+        expect(threat.payload).toBe('[REDACTED_PAYLOAD]')
+        done()
+      } catch (err) {
+        done(err)
+      }
+    })
+
+    testClient.on('connected', () => {
+      const { SecurityEventBus } = require('../utils/securityEventBus')
+      const bus = new SecurityEventBus({ io })
+      bus._broadcastToWebSockets(
+        {
+          eventType: 'THREAT_DETECTED',
+          eventId: 'evt-test-1',
+          timestamp: new Date().toISOString(),
+          payload: {
+            _id: 'bus-threat-1',
+            severity: 'CRITICAL',
+            sourceIP: '198.51.100.88',
+            attackType: 'SQL Injection',
+            payload: 'DROP TABLE users;',
+          },
+        },
+        io
+      )
+    })
+  })
 })
+

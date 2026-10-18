@@ -12,6 +12,7 @@ jest.mock('../models/AuthSession')
 jest.mock('../models/ContainmentAction')
 jest.mock('../models/BlockedIP')
 jest.mock('../models/ThreatLog')
+jest.mock('../models/AuditLog')
 jest.mock('../config/db', () => jest.fn())
 jest.mock('../utils/logger', () => ({
   info: jest.fn(),

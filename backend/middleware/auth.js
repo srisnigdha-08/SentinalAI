@@ -55,12 +55,49 @@ const protect = async (req, res, next) => {
     sendError(res, error.message, error.statusCode || 503)
   }
 }
+const { hasPermission } = require('../config/permissions')
+
 const restrictTo =
   (...roles) =>
   (req, res, next) => {
-    if (!roles.includes(req.user.role)) return sendError(res, 'Access denied', 403)
+    if (!roles.includes(req.user?.role)) {
+      try {
+        const { logAudit } = require('../utils/auditLogger')
+        logAudit({
+          action: 'PERMISSION_DENIED',
+          actor: req.user,
+          target: { identifier: roles.join(','), type: 'Role' },
+          status: 'DENIED',
+          details: { requiredRoles: roles, path: req.originalUrl || req.path, method: req.method },
+          ip: req.ip,
+        }).catch(() => {})
+      } catch {}
+      return sendError(res, 'Access denied', 403)
+    }
     next()
   }
+
+const requirePermission = (permission) => (req, res, next) => {
+  if (!req.user || !req.user.role) {
+    return sendError(res, 'Authentication required', 401)
+  }
+  if (!hasPermission(req.user.role, permission)) {
+    try {
+      const { logAudit } = require('../utils/auditLogger')
+      logAudit({
+        action: 'PERMISSION_DENIED',
+        actor: req.user,
+        target: { identifier: permission, type: 'Permission' },
+        status: 'DENIED',
+        details: { requiredPermission: permission, path: req.originalUrl || req.path, method: req.method },
+        ip: req.ip,
+      }).catch(() => {})
+    } catch {}
+    return sendError(res, 'Access denied: insufficient permissions', 403)
+  }
+  next()
+}
+
 const optionalAuth = async (req, res, next) => {
   try {
     if (req.headers.authorization?.startsWith('Bearer '))
@@ -70,4 +107,5 @@ const optionalAuth = async (req, res, next) => {
   }
   next()
 }
-module.exports = { protect, restrictTo, optionalAuth }
+module.exports = { protect, restrictTo, requirePermission, optionalAuth }
+

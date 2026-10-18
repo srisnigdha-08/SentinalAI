@@ -5,16 +5,21 @@ import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
+import TriageModal from '../components/TriageModal.jsx'
 import { threatAPI, containmentAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
+import { usePermission } from '../hooks/usePermission.js'
 import toast from 'react-hot-toast'
 
 const STATUS_STYLES = {
-  BLOCKED:    { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
-  MONITORING: { background:'rgba(255,170,0,.1)',   color:'#ffaa00', border:'1px solid rgba(255,170,0,.3)'  },
-  DETECTED:   { background:'rgba(0,212,255,.1)',   color:'#00d4ff', border:'1px solid rgba(0,212,255,.25)' },
-  RESOLVED:   { background:'rgba(0,255,136,.1)',   color:'#00ff88', border:'1px solid rgba(0,255,136,.3)'  },
-  DEGRADED:   { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px dashed rgba(255,170,0,.5)' },
+  BLOCKED:        { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
+  MONITORING:     { background:'rgba(255,170,0,.1)',   color:'#ffaa00', border:'1px solid rgba(255,170,0,.3)'  },
+  DETECTED:       { background:'rgba(0,212,255,.1)',   color:'#00d4ff', border:'1px solid rgba(0,212,255,.25)' },
+  RESOLVED:       { background:'rgba(0,255,136,.1)',   color:'#00ff88', border:'1px solid rgba(0,255,136,.3)'  },
+  DEGRADED:       { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px dashed rgba(255,170,0,.5)' },
+  INVESTIGATING:  { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px solid rgba(255,170,0,.4)'  },
+  CONTAINED:      { background:'rgba(0,255,136,.15)',  color:'#00ff88', border:'1px solid rgba(0,255,136,.4)'  },
+  FALSE_POSITIVE: { background:'rgba(160,160,160,.1)', color:'#888888', border:'1px solid rgba(160,160,160,.3)' },
 }
 
 const TYPES = ['SSH Brute Force','SQL Injection','Port Scan','DDoS','RCE Attempt',
@@ -23,6 +28,10 @@ const TYPES = ['SSH Brute Force','SQL Injection','Port Scan','DDoS','RCE Attempt
 
 export default function ThreatLogs() {
   const { user } = useAuth()
+  const { hasPermission } = usePermission()
+  const canTriage = hasPermission('threats:triage')
+  const canBlock = hasPermission('threats:block')
+
   const [threats, setThreats] = useState([])
   const [total,   setTotal]   = useState(0)
   const [page,    setPage]    = useState(1)
@@ -38,7 +47,12 @@ export default function ThreatLogs() {
   const [selectedThreat, setSelectedThreat] = useState(null)
   const [submittingContainment, setSubmittingContainment] = useState(false)
 
+  const [triageModalOpen, setTriageModalOpen] = useState(false)
+  const [triageThreat, setTriageThreat] = useState(null)
+  const [triageReadOnly, setTriageReadOnly] = useState(false)
+
   const loadContainmentStatus = async () => {
+    if (user?.role === 'viewer') return
     try {
       const res = await containmentAPI.getStatus()
       setContainmentStatus(res.data?.data || null)
@@ -77,6 +91,12 @@ export default function ThreatLogs() {
   const openContainmentModal = (threat) => {
     setSelectedThreat(threat)
     setModalOpen(true)
+  }
+
+  const openTriageModal = (threat, readOnly = false) => {
+    setTriageThreat(threat)
+    setTriageReadOnly(readOnly)
+    setTriageModalOpen(true)
   }
 
   const handleConfirmContainment = async ({ target, durationSeconds, isPermanent, reason }) => {
@@ -188,6 +208,22 @@ export default function ThreatLogs() {
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontSize:13 }}>
                     <div>{l.attackType}</div>
                     {threatEvidenceLabel(l) && <div style={{ color: '#ffaa00', fontSize: 10 }}>{threatEvidenceLabel(l)}</div>}
+                    {l.triageNotes && (
+                      <div
+                        onClick={() => openTriageModal(l, !canTriage)}
+                        style={{
+                          color: '#7ab3cc',
+                          fontSize: 10,
+                          fontFamily: 'Share Tech Mono,monospace',
+                          cursor: 'pointer',
+                          marginTop: 3,
+                          opacity: 0.85,
+                        }}
+                        title={l.triageNotes}
+                      >
+                        📝 {l.triageNotes.length > 25 ? `${l.triageNotes.slice(0, 25)}...` : l.triageNotes}
+                      </div>
+                    )}
                     {l.mitreTechniques && l.mitreTechniques.length > 0 && (
                       <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:4 }}>
                         {l.mitreTechniques.map((tech, i) => (
@@ -245,28 +281,64 @@ export default function ThreatLogs() {
                     )}
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>
-                    {l.status !== 'BLOCKED' && (
-                      user?.role === 'viewer' ? (
-                        <span style={{
-                          fontFamily: 'Share Tech Mono,monospace',
-                          fontSize: 10,
-                          color: '#3a6a88',
-                          background: 'rgba(13,51,82,.3)',
-                          border: '1px solid #0d3352',
-                          padding: '3px 8px',
-                          borderRadius: 1,
-                          display: 'inline-block',
-                          letterSpacing: 0.5,
-                        }}>
-                          OBSERVATION MODE
-                        </span>
-                      ) : (
-                        <button onClick={() => openContainmentModal(l)} style={{
-                          background:'none', border:'1px solid #0d3352', color:'#3a6a88',
-                          fontSize:10, fontFamily:'Share Tech Mono,monospace', padding:'3px 8px', cursor:'pointer', borderRadius:1,
-                        }}>Block</button>
-                      )
-                    )}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {canTriage && (
+                        <button
+                          onClick={() => openTriageModal(l, false)}
+                          style={{
+                            background: 'rgba(0, 212, 255, 0.1)',
+                            border: '1px solid rgba(0, 212, 255, 0.3)',
+                            color: '#00d4ff',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                          }}
+                        >
+                          Triage
+                        </button>
+                      )}
+                      {l.status !== 'BLOCKED' && (
+                        canBlock ? (
+                          <button onClick={() => openContainmentModal(l)} style={{
+                            background:'none', border:'1px solid #0d3352', color:'#3a6a88',
+                            fontSize:10, fontFamily:'Share Tech Mono,monospace', padding:'3px 8px', cursor:'pointer', borderRadius:1,
+                          }}>Block</button>
+                        ) : (
+                          <span style={{
+                            fontFamily: 'Share Tech Mono,monospace',
+                            fontSize: 10,
+                            color: '#3a6a88',
+                            background: 'rgba(13,51,82,.3)',
+                            border: '1px solid #0d3352',
+                            padding: '3px 8px',
+                            borderRadius: 1,
+                            display: 'inline-block',
+                            letterSpacing: 0.5,
+                          }}>
+                            OBSERVATION MODE
+                          </span>
+                        )
+                      )}
+                      {!canTriage && l.triageNotes && (
+                        <button
+                          onClick={() => openTriageModal(l, true)}
+                          style={{
+                            background: 'none',
+                            border: '1px solid #0d3352',
+                            color: '#7ab3cc',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 6px',
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                          }}
+                        >
+                          Dossier
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -308,6 +380,14 @@ export default function ThreatLogs() {
         onClose={() => { setModalOpen(false); setSelectedThreat(null) }}
         onConfirm={handleConfirmContainment}
         loading={submittingContainment}
+      />
+
+      <TriageModal
+        isOpen={triageModalOpen}
+        threat={triageThreat}
+        isReadOnly={triageReadOnly}
+        onClose={() => { setTriageModalOpen(false); setTriageThreat(null) }}
+        onSuccess={() => load(page)}
       />
     </DashboardLayout>
   )

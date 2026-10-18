@@ -7,8 +7,7 @@ const fs = require('fs')
 const path = require('path')
 const { spawn } = require('child_process')
 const request = require('supertest')
-// Native Node 24 loader supports Puppeteer's ESM entry; Jest's CJS transformer does not.
-const puppeteer = process.getBuiltinModule('module').createRequire(__filename)('puppeteer-core')
+let puppeteer
 const User = require('../models/User')
 const Session = require('../models/AuthSession')
 suite('Actual browser cookie, cross-tab session and cutover regressions', () => {
@@ -23,6 +22,7 @@ suite('Actual browser cookie, cross-tab session and cutover regressions', () => 
   const root = path.resolve(__dirname, '../..')
   const evidence = path.join(root, '.test-runtime/auth-timezone-db-20261014-01/evidence')
   beforeAll(async () => {
+    puppeteer = process.getBuiltinModule('module').createRequire(__filename)('puppeteer-core')
     const uri = new URL(process.env.AUTH_TEST_MONGO_URI)
     if (
       uri.port !== '27029' ||

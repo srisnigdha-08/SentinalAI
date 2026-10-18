@@ -121,6 +121,22 @@ describe('Phase 1.2: Environment Secrets Validation & Safe Failure', () => {
     expect(() => validateEnv(env)).toThrow(ConfigurationError)
     expect(() => validateEnv(env)).toThrow(/ADMIN_INITIAL_PASSWORD must be at least 8 characters/i)
   })
+
+  // ── .env.demo.example Placeholders ──
+  test('fails safely when any secret contains .env.demo.example placeholder values', () => {
+    const demoPlaceholders = [
+      { key: 'JWT_SECRET', val: 'replace_with_generated_random_jwt_access_secret_64_hex_chars' },
+      { key: 'JWT_REFRESH_SECRET', val: 'replace_with_generated_random_jwt_refresh_secret_64_hex_chars' },
+      { key: 'HONEYPOT_API_KEY', val: 'replace_with_generated_random_honeypot_api_key_64_hex_chars' },
+      { key: 'SENTINEL_KEY', val: 'replace_with_generated_random_sentinel_internal_key_64_hex_chars' },
+    ]
+
+    for (const { key, val } of demoPlaceholders) {
+      const env = { ...validBaseEnv, [key]: val }
+      expect(() => validateEnv(env)).toThrow(ConfigurationError)
+      expect(() => validateEnv(env)).toThrow(/contains an insecure default\/placeholder/i)
+    }
+  })
 })
 
 describe('Phase 1.2: Administrator Bootstrap Flow', () => {

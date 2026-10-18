@@ -585,29 +585,57 @@ class SecurityEventBus {
 
   _broadcastToWebSockets(envelope, io) {
     try {
-      // Broadcast standard envelope on unified channel
-      io.to('all').emit('security_event', envelope)
+      const {
+        redactThreat,
+        redactIP,
+        redactAlert,
+        redactAIPrediction,
+      } = require('./redact')
+
+      const privilegedRooms = ['admin', 'analyst', 'threat_subscribers_privileged']
+      io.to(privilegedRooms).emit('security_event', envelope)
+
+      let redactedPayload = envelope.payload
+      if (envelope.eventType === 'THREAT_DETECTED' || envelope.eventType === 'THREAT_UPDATED') {
+        redactedPayload = redactThreat(envelope.payload, 'viewer')
+      } else if (envelope.eventType === 'ALERT_CREATED') {
+        redactedPayload = redactAlert(envelope.payload, 'viewer')
+      } else if (envelope.eventType === 'AI_PREDICTION') {
+        redactedPayload = redactAIPrediction(envelope.payload, 'viewer')
+      }
+
+      io.to('all').emit('security_event', {
+        ...envelope,
+        payload: redactedPayload,
+      })
 
       // Backward-compatibility: route to specific legacy channels based on eventType
       switch (envelope.eventType) {
         case 'THREAT_DETECTED':
-          io.to(['threat_subscribers', 'all']).emit('new_threat', envelope.payload)
+          io.to(privilegedRooms).emit('new_threat', envelope.payload)
+          io.to(['threat_subscribers', 'all']).emit('new_threat', redactedPayload)
           if (envelope.payload.severity === 'CRITICAL') {
             io.to('admin').emit('critical_alert', { ...envelope.payload, urgency: 'IMMEDIATE' })
           }
           break
         case 'THREAT_UPDATED':
-          io.to('all').emit('threat_updated', envelope.payload)
+          io.to(privilegedRooms).emit('threat_updated', envelope.payload)
+          io.to(['viewer', 'threat_subscribers_viewer', 'threat_subscribers', 'all']).emit(
+            'threat_updated',
+            { ...envelope.payload, sourceIP: redactIP(envelope.payload.sourceIP) }
+          )
           break
         case 'ALERT_CREATED':
           const targetRooms = envelope.payload.targetRoles || ['analyst']
-          io.to(envelope.payload.severity === 'CRITICAL' ? [...targetRooms, 'all'] : targetRooms).emit(
-            'new_alert',
-            envelope.payload
-          )
+          io.to(targetRooms.filter((r) => r !== 'viewer')).emit('new_alert', envelope.payload)
+          io.to(['viewer', 'all']).emit('new_alert', redactedPayload)
           break
         case 'AI_PREDICTION':
-          io.to('all').emit('ai_prediction', envelope.payload)
+          io.to(privilegedRooms).emit('ai_prediction', envelope.payload)
+          io.to(['viewer', 'threat_subscribers_viewer', 'threat_subscribers', 'all']).emit(
+            'ai_prediction',
+            redactedPayload
+          )
           break
         default:
           break

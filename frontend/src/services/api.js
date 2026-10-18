@@ -19,7 +19,9 @@ export const threatAPI = {
   get:         (id)       => api.get(`/threats/${id}`),
   create:      (data)     => api.post('/threats', data),
   update:      (id, data) => api.put(`/threats/${id}`, data),
+  triage:      (id, data) => api.patch(`/threats/${id}/triage`, data),
   delete:      (id)       => api.delete(`/threats/${id}`),
+
   blockIP:     (id)       => api.post(`/threats/${id}/block`),
   analytics:   ()         => api.get('/threats/analytics/summary'),
   vectorTrend: (days = 7) => api.get('/threats/vector-trend', { params: { days } }),
@@ -62,8 +64,14 @@ export const userAPI = {
   get:    (id)        => api.get(`/users/${id}`),
   update: (id, data)  => api.put(`/users/${id}`, data),
   delete: (id)        => api.delete(`/users/${id}`),
+  forceLogout: (id)   => api.post(`/users/${id}/force-logout`),
   stats:  ()          => api.get('/users/stats'),
 }
+
+export const auditAPI = {
+  list: (params) => api.get('/audit', { params }),
+}
+
 
 export const CANONICAL_CLASSES = [
   'BENIGN',

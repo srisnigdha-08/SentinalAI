@@ -4,11 +4,11 @@ const socketManager = require('../websocket/socketManager')
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse')
 const logger = require('../utils/logger')
 const { v4: uuidv4 } = require('uuid')
+const { redactHoneypotSession, redactIP } = require('../utils/redact')
 const sessionForRole = (session, role) => {
-  const value = session.toObject ? session.toObject() : { ...session }
-  if (['admin', 'analyst'].includes(role)) return value
-  return { ...value, credentials: (value.credentials || []).map((credential) => ({ success: credential.success })) }
+  return redactHoneypotSession(session, role || 'viewer')
 }
+
 const getSessions = async (req, res, next) => {
   try {
     const r = await honeypotService.findSessions(req.query)
@@ -94,7 +94,23 @@ const closeSession = async (req, res, next) => {
 }
 const getHoneypotAnalytics = async (req, res, next) => {
   try {
-    sendSuccess(res, await honeypotService.getFullAnalytics())
+    const role = req.user?.role || 'viewer'
+    const analytics = await honeypotService.getFullAnalytics()
+    if (role === 'viewer') {
+      if (Array.isArray(analytics?.intelligence?.topAttackers)) {
+        analytics.intelligence.topAttackers = analytics.intelligence.topAttackers.map((a) => ({
+          ...a,
+          _id: redactIP(a._id),
+        }))
+      }
+      if (Array.isArray(analytics?.charts?.topCommands)) {
+        analytics.charts.topCommands = analytics.charts.topCommands.map((c) => ({
+          ...c,
+          _id: '[REDACTED_COMMAND]',
+        }))
+      }
+    }
+    sendSuccess(res, analytics)
   } catch (err) {
     next(err)
   }

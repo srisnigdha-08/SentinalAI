@@ -2,7 +2,7 @@ import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { useState, useEffect } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
-import { threatAPI, containmentAPI } from '../services/api.js'
+import { threatAPI, containmentAPI, auditAPI } from '../services/api.js'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
 import toast from 'react-hot-toast'
 
@@ -10,6 +10,7 @@ export default function Settings() {
   const [autoBlockEnabled, setAutoBlockEnabled] = useState(false)
   const [blockedIPs, setBlockedIPs] = useState([])
   const [containmentStatus, setContainmentStatus] = useState(null)
+  const [auditLogs, setAuditLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [ipInput, setIpInput] = useState('')
   const [reasonInput, setReasonInput] = useState('')
@@ -21,18 +22,21 @@ export default function Settings() {
 
   const loadData = async () => {
     try {
-      const [settingsRes, blockedRes, containmentRes] = await Promise.all([
+      const [settingsRes, blockedRes, containmentRes, auditRes] = await Promise.all([
         threatAPI.getSettings(),
         threatAPI.getBlockedIPs(),
         containmentAPI.getStatus().catch(() => ({ data: { data: null } })),
+        auditAPI.list({ limit: 20 }).catch(() => ({ data: { data: [] } })),
       ])
       setAutoBlockEnabled(settingsRes.data?.data?.autoBlockEnabled || false)
       setBlockedIPs(blockedRes.data?.data?.blockedIPs || [])
       setContainmentStatus(containmentRes.data?.data || null)
+      setAuditLogs(auditRes.data?.data || [])
     } catch (err) {
       toast.error('Failed to load settings data')
     } finally {
       setLoading(false)
+
     }
   }
 
@@ -350,9 +354,88 @@ export default function Settings() {
               </tbody>
             </table>
           </Panel>
+
+          {/* Security Audit Trail Panel (Admin Only) */}
+          <Panel title="Security & Compliance Audit Trail" badge="AUDIT" badgeType="info">
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace' }}>
+                Immutable security event history recording privileged operations and authorization decisions.
+              </span>
+              <button
+                onClick={loadData}
+                style={{
+                  background: '#0d3352',
+                  border: '1px solid #1a4a6e',
+                  color: '#00d4ff',
+                  padding: '4px 10px',
+                  borderRadius: 2,
+                  fontFamily: 'Share Tech Mono,monospace',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+              >
+                Refresh Log
+              </button>
+            </div>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #0d3352', color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>
+                  <th style={{ padding: '8px 10px' }}>TIMESTAMP</th>
+                  <th style={{ padding: '8px 10px' }}>ACTION</th>
+                  <th style={{ padding: '8px 10px' }}>ACTOR</th>
+                  <th style={{ padding: '8px 10px' }}>TARGET</th>
+                  <th style={{ padding: '8px 10px' }}>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((log, i) => (
+                  <tr key={log._id || i} style={{ borderBottom: '1px solid rgba(13,51,82,.4)', fontSize: 12 }}>
+                    <td style={{ padding: '10px', color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>
+                      {log.createdAt ? new Date(log.createdAt).toLocaleString('en-US', { timeZone: REPORT_TIME_ZONE }) : '-'}
+                    </td>
+                    <td style={{ padding: '10px', color: '#00d4ff', fontFamily: 'Share Tech Mono,monospace' }}>
+                      {log.action}
+                    </td>
+                    <td style={{ padding: '10px', color: '#c8e6f5' }}>
+                      {log.actor?.email || 'System'}
+                      {log.actor?.role && (
+                        <span style={{ marginLeft: 6, fontSize: 10, padding: '2px 6px', background: '#081f35', border: '1px solid #1a4a6e', color: '#7ab3cc', borderRadius: 2 }}>
+                          {log.actor.role}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px', color: '#c8e6f5', fontFamily: 'Share Tech Mono,monospace' }}>
+                      {log.target?.identifier || log.target?.id || '-'}
+                    </td>
+                    <td style={{ padding: '10px' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        fontSize: 10,
+                        fontFamily: 'Share Tech Mono,monospace',
+                        borderRadius: 2,
+                        background: log.status === 'SUCCESS' || log.status === 'EXECUTED' ? 'rgba(0,255,136,.1)' : 'rgba(255,45,85,.1)',
+                        border: `1px solid ${log.status === 'SUCCESS' || log.status === 'EXECUTED' ? '#00ff88' : '#ff2d55'}`,
+                        color: log.status === 'SUCCESS' || log.status === 'EXECUTED' ? '#00ff88' : '#ff2d55',
+                      }}>
+                        {log.status || 'LOGGED'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {auditLogs.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
+                      No audit events recorded yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Panel>
           
         </div>
       )}
+
 
       <ContainmentConfirmModal
         isOpen={modalOpen}

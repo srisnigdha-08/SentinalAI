@@ -20,7 +20,7 @@ const { validateObjectId } = require('../middleware/validate')
  *       200:
  *         description: Paginated training samples
  */
-router.get('/', protect, restrictTo('admin', 'analyst', 'viewer'), async (req, res, next) => {
+router.get('/', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
   try {
     const result = await trainingSampleService.listSamples(req.query)
     sendPaginated(res, result.data, result.total, result.page, result.limit)
@@ -50,7 +50,9 @@ router.get('/', protect, restrictTo('admin', 'analyst', 'viewer'), async (req, r
  *       404:
  *         description: Training sample not found
  */
-router.get('/:id', protect, validateObjectId, restrictTo('admin', 'analyst', 'viewer'), async (req, res, next) => {
+router.get('/:id', protect, validateObjectId, restrictTo('admin', 'analyst'), async (req, res, next) => {
+
+
   try {
     const sample = await trainingSampleService.getSampleById(req.params.id)
     if (!sample) return sendError(res, 'Training sample not found', 404)

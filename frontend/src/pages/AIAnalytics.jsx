@@ -34,6 +34,7 @@ export default function AIAnalytics() {
   const { connected, on } = useSocket()
 
   const refreshSamples = () => {
+    if (user?.role === 'viewer') return
     trainingSampleAPI.list({ limit: 6 })
       .then(r => setSamples(r.data?.data || []))
       .catch(() => {})
@@ -340,7 +341,9 @@ export default function AIAnalytics() {
         <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:260, overflowY:'auto' }}>
           {samples.length === 0 ? (
             <div style={{ textAlign:'center', color:'#3a6a88', fontFamily:'Share Tech Mono,monospace', fontSize:11, padding:'1rem' }}>
-              No candidates in quarantine. Verified predictions with valid 53-feature vectors are queued here automatically.
+              {user?.role === 'viewer'
+                ? 'Model retraining telemetry and quarantine pool are restricted to Tier 2 Analyst & Root Admin operators.'
+                : 'No candidates in quarantine. Verified predictions with valid 53-feature vectors are queued here automatically.'}
             </div>
           ) : (
             samples.map(s => {

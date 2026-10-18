@@ -42,6 +42,10 @@ jest.mock('../services/alertService', () => ({
 jest.mock('../services/threatIntelService', () => ({
   enrichThreat: jest.fn().mockResolvedValue({}),
 }))
+jest.mock('../utils/auditLogger', () => ({
+  logAudit: jest.fn().mockResolvedValue({}),
+}))
+jest.mock('../models/AuditLog')
 
 const mongoose = require('mongoose')
 const ThreatLog = require('../models/ThreatLog')
@@ -305,16 +309,30 @@ describe('Phase 3.1: SEC-03 threatController.updateThreat Tamper Prevention', ()
     jest.clearAllMocks()
   })
 
-  test('SEC-03: autonomousAction cannot be updated via PUT /api/threats/:id', async () => {
+  test('SEC-03: status cannot be updated via PUT /api/threats/:id (must use PATCH /:id/triage or containment)', async () => {
+    req.body = {
+      status: 'BLOCKED',
+    }
+
+    await updateThreat(req, res, next)
+
+    expect(res.statusCode).toBe(400)
+    expect(res.jsonData.success).toBe(false)
+    expect(res.jsonData.error).toMatch(/Status cannot be modified via PUT/)
+  })
+
+  test('SEC-03: non-containment fields (notes, tags, triageNotes) update successfully via PUT', async () => {
     const spyUpdateThreat = jest.spyOn(threatService, 'updateThreat').mockResolvedValue({
       _id: req.params.id,
       notes: 'Analyst note',
-      status: 'MONITORING',
+      triageNotes: 'Triage note',
+      tags: ['apt29'],
     })
 
     req.body = {
       notes: 'Analyst note',
-      status: 'MONITORING',
+      triageNotes: 'Triage note',
+      tags: ['apt29'],
       autonomousAction: {
         taken: true,
         actionType: 'IP_BLOCKED',
@@ -330,7 +348,9 @@ describe('Phase 3.1: SEC-03 threatController.updateThreat Tamper Prevention', ()
     const passedUpdates = spyUpdateThreat.mock.calls[0][1]
 
     expect(passedUpdates.notes).toBe('Analyst note')
-    expect(passedUpdates.status).toBe('MONITORING')
+    expect(passedUpdates.triageNotes).toBe('Triage note')
+    expect(passedUpdates.tags).toEqual(['apt29'])
+    expect(passedUpdates.status).toBeUndefined()
     expect(passedUpdates.autonomousAction).toBeUndefined()
     expect(passedUpdates.aiScore).toBeUndefined()
 
@@ -348,7 +368,119 @@ describe('Phase 3.1: SEC-03 threatController.updateThreat Tamper Prevention', ()
     expect(res.jsonData.success).toBe(false)
     expect(res.jsonData.error).toMatch(/Invalid handledBy user ID/)
   })
+
+  test('mass assignment prevention: sourceIP, payload, severityHistory, and blocked state cannot be modified via updateThreat', async () => {
+    const spyUpdateThreat = jest.spyOn(threatService, 'updateThreat').mockResolvedValue({
+      _id: req.params.id,
+      notes: 'Updated notes',
+    })
+
+    req.body = {
+      notes: 'Updated notes',
+      sourceIP: '1.2.3.4',
+      payload: 'EVIL_OVERWRITE',
+      payloadHash: 'FAKE_HASH',
+      severityHistory: [{ severity: 'LOW' }],
+      isBlocked: true,
+      blocked: true,
+      severity: 'LOW',
+    }
+
+    await updateThreat(req, res, next)
+
+    expect(res.statusCode).toBe(200)
+    const passedUpdates = spyUpdateThreat.mock.calls[0][1]
+    expect(passedUpdates.notes).toBe('Updated notes')
+    expect(passedUpdates.sourceIP).toBeUndefined()
+    expect(passedUpdates.payload).toBeUndefined()
+    expect(passedUpdates.payloadHash).toBeUndefined()
+    expect(passedUpdates.severityHistory).toBeUndefined()
+    expect(passedUpdates.isBlocked).toBeUndefined()
+    expect(passedUpdates.blocked).toBeUndefined()
+    expect(passedUpdates.severity).toBeUndefined()
+
+    spyUpdateThreat.mockRestore()
+  })
 })
+
+describe('Phase 3.5: triageThreat Allowed Transitions & Bypass Protection', () => {
+  let req, res, next
+  const { triageThreat } = require('../controllers/threatController')
+
+  beforeEach(() => {
+    req = {
+      params: { id: new mongoose.Types.ObjectId().toString() },
+      body: {},
+      user: { _id: new mongoose.Types.ObjectId(), name: 'Analyst Jane', email: 'jane@sentinel.io', role: 'analyst' },
+    }
+    res = {
+      statusCode: null,
+      jsonData: null,
+      status(code) {
+        this.statusCode = code
+        return this
+      },
+      json(data) {
+        this.jsonData = data
+        return this
+      },
+    }
+    next = jest.fn()
+    jest.clearAllMocks()
+  })
+
+  test('PATCH /:id/triage rejects BLOCKED status with HTTP 400', async () => {
+    req.body = { status: 'BLOCKED' }
+
+    await triageThreat(req, res, next)
+
+    expect(res.statusCode).toBe(400)
+    expect(res.jsonData.success).toBe(false)
+    expect(res.jsonData.error).toMatch(/requires firewall containment flow/)
+  })
+
+  test('PATCH /:id/triage rejects invalid status transitions', async () => {
+    jest.spyOn(ThreatLog, 'findById').mockResolvedValue({
+      _id: req.params.id,
+      status: 'CONTAINED',
+    })
+
+    req.body = { status: 'ESCALATED' } // CONTAINED can only transition to RESOLVED or INVESTIGATING
+
+    await triageThreat(req, res, next)
+
+    expect(res.statusCode).toBe(400)
+    expect(res.jsonData.success).toBe(false)
+    expect(res.jsonData.error).toMatch(/Invalid status transition from CONTAINED to ESCALATED/)
+
+    ThreatLog.findById.mockRestore()
+  })
+
+  test('PATCH /:id/triage accepts valid status transition (DETECTED -> INVESTIGATING)', async () => {
+    jest.spyOn(ThreatLog, 'findById').mockResolvedValue({
+      _id: req.params.id,
+      status: 'DETECTED',
+    })
+    const spyUpdateThreat = jest.spyOn(threatService, 'updateThreat').mockResolvedValue({
+      _id: req.params.id,
+      status: 'INVESTIGATING',
+      triageNotes: 'Investigating anomalous traffic',
+      sourceIP: '198.51.100.99',
+    })
+
+    req.body = { status: 'INVESTIGATING', triageNotes: 'Investigating anomalous traffic' }
+
+    await triageThreat(req, res, next)
+
+    expect(res.statusCode).toBe(200)
+    expect(res.jsonData.success).toBe(true)
+    expect(res.jsonData.data.threat.status).toBe('INVESTIGATING')
+
+    ThreatLog.findById.mockRestore()
+    spyUpdateThreat.mockRestore()
+  })
+})
+
 
 describe('Phase 3.1: SEC-01 threatService.createThreat Defense-in-Depth', () => {
   test('non-AI threat never executes auto-block even if autoBlockEnabled is true and aiScore >= blockThreshold', async () => {

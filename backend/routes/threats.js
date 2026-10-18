@@ -8,6 +8,7 @@ const {
   getThreat,
   createThreat,
   updateThreat,
+  triageThreat,
   blockIP,
   deleteThreat,
   getSettings,
@@ -16,10 +17,12 @@ const {
   blockIPManual,
   unblockIPManual,
 } = require('../controllers/threatController')
-const { protect, restrictTo } = require('../middleware/auth')
+
+const { protect, restrictTo, requirePermission } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 
 router.use(protect)
+
 
 /**
  * @openapi
@@ -104,8 +107,9 @@ router.get('/recent', getRecent)
  *       200:
  *         description: Settings updated successfully
  */
-router.get('/settings', getSettings)
-router.post('/settings', restrictTo('admin'), updateSettings)
+router.get('/settings', requirePermission('settings:read'), getSettings)
+router.post('/settings', requirePermission('settings:write'), updateSettings)
+
 
 /**
  * @openapi
@@ -324,5 +328,7 @@ router
  *         description: Threat IP blocked successfully
  */
 router.post('/:id/block', validateObjectId, restrictTo('admin', 'analyst'), blockIP)
+router.patch('/:id/triage', validateObjectId, requirePermission('threats:triage'), triageThreat)
 
 module.exports = router
+

@@ -16,6 +16,8 @@ __pycache__/
 .env.*
 !.env.example
 !.env.test
+!.env.demo.example
+!deployment/.env.demo.example
 
 # Logs and runtime artifacts
 *.log
@@ -51,3 +53,9 @@ ai-engine/datasets/
 *.csv
 *.pcap
 *.pcap_ISCX.csv
+
+# Evidence dumps
+scratch/evidence/
+backups/
+
+

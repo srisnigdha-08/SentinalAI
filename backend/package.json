@@ -8,8 +8,8 @@
     "dev": "nodemon server.js",
     "seed": "node utils/seed.js",
     "clean": "node utils/clean.js",
-    "test": "jest --forceExit --detectOpenHandles",
-    "test:coverage": "jest --forceExit --detectOpenHandles --coverage",
+    "test": "jest --runInBand",
+    "test:coverage": "jest --coverage",
     "lint": "eslint .",
     "lint:fix": "eslint --fix .",
     "format": "prettier --write .",
@@ -21,6 +21,7 @@
       "**/tests/**/*.test.js"
     ],
     "testTimeout": 10000,
+    "maxWorkers": 4,
     "collectCoverageFrom": [
       "services/**/*.js",
       "utils/**/*.js",
@@ -59,6 +60,7 @@
     "husky": "^9.1.7",
     "jest": "^30.4.2",
     "lint-staged": "^17.3.0",
+    "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.0.3",
     "prettier": "^3.4.2",
     "puppeteer-core": "^25.10.0",
