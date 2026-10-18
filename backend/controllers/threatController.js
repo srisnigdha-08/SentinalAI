@@ -47,8 +47,26 @@ const getThreat = async (req, res, next) => {
     next(err)
   }
 }
+const ThreatLog = require('../models/ThreatLog')
 const ALLOWED_THREAT_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED']
 const ALLOWED_THREAT_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
+const ALLOWED_ATTACK_TYPES = ThreatLog.ALLOWED_ATTACK_TYPES || [
+  'SSH Brute Force',
+  'SSH Intrusion Attempt',
+  'SQL Injection',
+  'Port Scan',
+  'DDoS',
+  'RCE Attempt',
+  'XSS Attempt',
+  'Malware Beacon',
+  'Credential Stuffing',
+  'Ransomware',
+  'Lateral Movement',
+  'Data Exfiltration',
+  'Zero-Day Exploit',
+  'Unknown',
+  'UNINSPECTED_TRAFFIC',
+]
 
 const createThreat = async (req, res, next) => {
   try {
@@ -56,18 +74,80 @@ const createThreat = async (req, res, next) => {
     if (!sourceIP || typeof sourceIP !== 'string' || !isValidIP(sourceIP.trim())) {
       return sendError(res, 'Valid sourceIP is required', 400)
     }
-    if (!attackType || typeof attackType !== 'string' || attackType.length > 100) {
+    if (!attackType || typeof attackType !== 'string' || !ALLOWED_ATTACK_TYPES.includes(attackType.trim())) {
       return sendError(res, 'Valid attackType is required', 400)
     }
     if (severity && (typeof severity !== 'string' || !ALLOWED_THREAT_SEVERITIES.includes(severity.toUpperCase()))) {
       return sendError(res, 'Invalid severity level', 400)
     }
+
+    // REL-02: Safe timestamp / eventTime parsing and validation
+    let parsedEventTime = null
+    const rawTimestamp = req.body && (req.body.timestamp !== undefined ? req.body.timestamp : req.body.eventTime)
+    if (rawTimestamp !== undefined && rawTimestamp !== null) {
+      let d
+      if (typeof rawTimestamp === 'number') {
+        d = new Date(rawTimestamp < 1e11 ? rawTimestamp * 1000 : rawTimestamp)
+      } else if (typeof rawTimestamp === 'string' && rawTimestamp.trim() !== '') {
+        const trimmed = rawTimestamp.trim()
+        const num = Number(trimmed)
+        if (!isNaN(num) && /^\d+$/.test(trimmed)) {
+          d = new Date(num < 1e11 ? num * 1000 : num)
+        } else {
+          d = new Date(trimmed)
+        }
+      } else {
+        return sendError(res, 'Invalid event timestamp format', 400)
+      }
+
+      if (isNaN(d.getTime())) {
+        return sendError(res, 'Invalid event timestamp value', 400)
+      }
+
+      const nowMs = Date.now()
+      if (d.getTime() > nowMs + 60000) {
+        return sendError(res, 'Event timestamp cannot be in the future', 400)
+      }
+      if (d.getTime() < new Date('2000-01-01T00:00:00Z').getTime()) {
+        return sendError(res, 'Event timestamp is outside reasonable range', 400)
+      }
+      parsedEventTime = d
+    }
+
+    // SEC-01: Strip client-supplied threat scores and containment actions.
+    // Manual threats must never trigger automated blocking or spoof AI telemetry.
     const cleanData = {
-      ...req.body,
       sourceIP: sourceIP.trim(),
       attackType: attackType.trim(),
       severity: severity ? severity.toUpperCase() : 'MEDIUM',
+      destinationIP: typeof req.body.destinationIP === 'string' ? req.body.destinationIP.trim().slice(0, 100) : 'INTERNAL',
+      targetService: typeof req.body.targetService === 'string' ? req.body.targetService.trim().slice(0, 100) : 'UNKNOWN',
+      notes: typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 1000) : '',
+      handledBy: req.user?._id || null,
+      aiScore: 0,
+      confidence: 0,
+      status: 'DETECTED',
+      preBlockStatus: null,
+      containmentId: null,
+      predictionId: null,
+      isAiGenerated: false,
+      autonomousAction: {
+        taken: false,
+        actionType: null,
+        actionTime: null,
+      },
+      eventTime: parsedEventTime,
     }
+
+    if (req.body.geoLocation && typeof req.body.geoLocation === 'object') {
+      cleanData.geoLocation = {
+        country: typeof req.body.geoLocation.country === 'string' ? req.body.geoLocation.country.slice(0, 100) : 'Unknown',
+        city: typeof req.body.geoLocation.city === 'string' ? req.body.geoLocation.city.slice(0, 100) : 'Unknown',
+        lat: typeof req.body.geoLocation.lat === 'number' ? req.body.geoLocation.lat : undefined,
+        lon: typeof req.body.geoLocation.lon === 'number' ? req.body.geoLocation.lon : undefined,
+      }
+    }
+
     const threat = await threatService.createThreat(cleanData)
     if (['CRITICAL', 'HIGH'].includes(threat.severity)) {
       const alert = await alertService.createAlertFromThreat(threat)
@@ -82,7 +162,8 @@ const createThreat = async (req, res, next) => {
 }
 const updateThreat = async (req, res, next) => {
   try {
-    const allowed = ['status', 'notes', 'handledBy', 'autonomousAction']
+    // SEC-03: autonomousAction removed from allowed updates
+    const allowed = ['status', 'notes', 'handledBy']
     const updates = {}
     allowed.forEach((f) => {
       if (req.body[f] !== undefined) updates[f] = req.body[f]
@@ -96,6 +177,12 @@ const updateThreat = async (req, res, next) => {
     if (updates.notes !== undefined) {
       if (typeof updates.notes !== 'string' || updates.notes.length > 1000) {
         return sendError(res, 'Notes must be a string up to 1000 characters', 400)
+      }
+    }
+    if (updates.handledBy !== undefined && updates.handledBy !== null) {
+      const { isValidObjectId } = require('../utils/querySecurity')
+      if (!isValidObjectId(updates.handledBy)) {
+        return sendError(res, 'Invalid handledBy user ID', 400)
       }
     }
     const threat = await threatService.updateThreat(req.params.id, updates)

@@ -1,0 +1,36 @@
+# PROTECTED ASSET CRYPTOGRAPHIC CHECKSUMS (SHA-256)
+# Evidence Directory: ai-engine/experiments/gate1_phase2_2_demo_verification_20261018-1255
+# Generated: 2026-10-18T12:55:00+05:30
+# Verification Method: Windows PowerShell Get-FileHash / Python hashlib.sha256
+
+# --- Active Reinforcement Learning Tables ---
+ai-engine/models/q_table.json (Seed Baseline)
+  SHA-256: BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF
+  Size: 2,338 bytes
+  Status: UNTOUCHED / IMMUTABLE
+
+ai-engine/runtime/q_table.json (Runtime State)
+  SHA-256: 08209E9989189BD45B6EDF35486A446F120DF36287A277A9DDDD35F6379152F7
+  Size: 1,224 bytes
+  Status: INCIDENT-STATE (LOCKED & WRITE-PROTECTED; Zero drift during Phase 1-2.2)
+
+# --- Machine Learning Model Artifacts ---
+ai-engine/models/rf_classifier_cicids_v2.pkl (Production Random Forest)
+  SHA-256: CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1
+  Size: 45,996,168 bytes
+  Status: UNTOUCHED / IMMUTABLE
+
+ai-engine/models/isolation_forest_cicids.pkl (Production Anomaly Detector)
+  SHA-256: 17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4
+  Size: 1,489,451 bytes
+  Status: UNTOUCHED / IMMUTABLE
+
+ai-engine/models/xgb_classifier_cicids_v2.pkl (Candidate XGBoost Classifier)
+  SHA-256: A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D
+  Size: 1,515,671 bytes
+  Status: UNTOUCHED / IMMUTABLE
+
+ai-engine/experiments/gate1_phase8_multicorpus_candidates/candidate_rf_multicorpus_v1.pkl (Candidate Phase 8 RF)
+  SHA-256: 71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020
+  Size: 5,850,914 bytes
+  Status: UNTOUCHED / EXPERIMENTAL (51 features; sklearn 1.7.2 format)

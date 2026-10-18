@@ -124,6 +124,13 @@ const analyseClosure = async (session, telemetry) => {
     iocCount: session.iocExtracted?.urls?.length || 0,
     deceptionProfile: session.recommendedProfile || 'ubuntu_22',
   }
+  // Only pass startTime if the session stores a trustworthy event timestamp; never substitute processing time
+  if (session.startTime && (session.startTime instanceof Date || typeof session.startTime === 'string')) {
+    const parsedStart = new Date(session.startTime)
+    if (!isNaN(parsedStart.getTime())) {
+      payload.startTime = parsedStart.toISOString()
+    }
+  }
   const aiRes = await aiSvc.predictHoneypotSession(payload)
   if (aiRes?.success && aiRes?.result) {
     session.aiClassification = aiRes.result.predictedClass || null

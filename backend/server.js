@@ -15,6 +15,8 @@ const logger = require('./utils/logger')
 const socketManager = require('./websocket/socketManager')
 const { errorHandler, notFound } = require('./middleware/errorHandler')
 const app = express()
+// Preserve Express 4's nested query parsing semantics during the v5 migration.
+app.set('query parser', 'extended')
 const securityTopology = require('./config/securityTopology')
 const authTopology = securityTopology.topology()
 app.set('trust proxy', securityTopology.trustedProxy())
@@ -84,7 +86,18 @@ logger.info(
 app.use(compression())
 app.use(express.json({ limit: '10kb' }))
 app.use(express.urlencoded({ extended: true, limit: '10kb' }))
-app.use(mongoSanitize())
+const mongoSanitizeMiddleware = mongoSanitize()
+app.use((req, res, next) => {
+  // Express 5 exposes req.query as a getter. The sanitizer rewrites req.query,
+  // so snapshot it as a writable, request-local property before sanitizing.
+  Object.defineProperty(req, 'query', {
+    configurable: true,
+    enumerable: true,
+    writable: true,
+    value: req.query,
+  })
+  mongoSanitizeMiddleware(req, res, next)
+})
 if (process.env.NODE_ENV === 'development') app.use(morgan('dev'))
 else app.use(morgan('combined', { stream: { write: (msg) => logger.info(msg.trim()) } }))
 app.get('/', (_, res) =>

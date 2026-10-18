@@ -474,7 +474,7 @@ export default function Dashboard() {
             <KpiCard label="Threats Today"    value={loading ? '—' : kpis.totalToday || 0} delta="detected today" color="#ff2d55" />
             <KpiCard label="Threats Blocked"  value={loading ? '—' : kpis.blockedCount || 0} delta={`${kpis.blockRate || 0}% block rate`} color="#00ff88" />
             <KpiCard label="Avg Threat Score" value={loading ? '—' : `${((kpis.avgAIScore || 0) * 100).toFixed(1)}%`} delta="model and rule signals" color="#00d4ff" />
-            <KpiCard label="Active Honeypots" value={loading ? '—' : `${activeNodeCount} Nodes`} delta="traps armed" color="#ffaa00" />
+            <KpiCard label="Active Honeypots" value={loading ? '—' : `${activeNodeCount} Nodes`} delta="traps configured" color="#ffaa00" />
           </>
         ) : (
           <>

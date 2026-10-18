@@ -141,27 +141,95 @@ def compute_payload_entropy(fwd_len: float, bwd_len: float) -> float:
     return float(entropy)
 
 def compute_time_of_day(timestamp_val) -> tuple:
+    """
+    Computes cyclical time-of-day coordinates (sin, cos) under a consistent UTC policy.
+
+    Feature Contract & Policy:
+    - Target: Normalized 24-hour cyclical coordinates on the unit circle:
+        theta = 2 * pi * (hour + min/60 + sec/3600 + microsec/3600e6) / 24.0
+        return (float(sin(theta)), float(cos(theta)))
+    - Deterministic Fallback: If timestamp_val is None, empty, non-finite, or cannot
+      be parsed, returns (0.0, 0.0). This deterministic neutral origin eliminates
+      inference dependency on host server wall-clock time (datetime.now()) and aligns
+      with the training-time convention in prepare_features() where missing time
+      features were filled with 0.0.
+    - Consistent UTC Policy:
+      * Unix epoch numbers (int/float seconds) are parsed as UTC via datetime.fromtimestamp(ts, tz=datetime.timezone.utc).
+      * Timezone-aware datetimes/strings are converted to UTC via astimezone(datetime.timezone.utc).
+      * Timezone-naive datetimes/strings are explicitly interpreted as UTC.
+      * Non-finite floats (NaN, Inf) and out-of-range timestamps return (0.0, 0.0).
+    """
     if timestamp_val is None:
-        dt = datetime.datetime.now()
-    elif isinstance(timestamp_val, (int, float)):
+        return 0.0, 0.0
+
+    dt = None
+
+    if isinstance(timestamp_val, (int, float)):
         try:
-            dt = datetime.datetime.fromtimestamp(timestamp_val)
-        except:
-            dt = datetime.datetime.now()
+            val = float(timestamp_val)
+            if not np.isfinite(val):
+                return 0.0, 0.0
+            # Guard against extreme timestamps that raise OverflowError / OSError
+            # Allow valid range from year 1 to 9999 (-62135596800.0 to 253402300799.0)
+            if not (-62135596800.0 <= val <= 253402300799.0):
+                return 0.0, 0.0
+            dt = datetime.datetime.fromtimestamp(val, tz=datetime.timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            return 0.0, 0.0
+
     elif isinstance(timestamp_val, datetime.datetime):
-        dt = timestamp_val
-    else:
-        # String or other format, try to parse
-        ts_str = str(timestamp_val).strip()
+        if timestamp_val.tzinfo is None:
+            # Naive datetime: explicitly interpret as UTC
+            dt = timestamp_val.replace(tzinfo=datetime.timezone.utc)
+        else:
+            # Aware datetime: explicitly convert to UTC
+            dt = timestamp_val.astimezone(datetime.timezone.utc)
+
+    elif isinstance(timestamp_val, str):
+        ts_str = timestamp_val.strip()
+        if not ts_str or ts_str.lower() in ("none", "null", "nan"):
+            return 0.0, 0.0
+
+        # 1. Attempt parsing as numeric Unix epoch string (e.g. "1500000000")
         try:
-            dt = datetime.datetime.fromtimestamp(float(ts_str))
-        except:
+            val = float(ts_str)
+            if np.isfinite(val) and (-62135596800.0 <= val <= 253402300799.0):
+                dt = datetime.datetime.fromtimestamp(val, tz=datetime.timezone.utc)
+        except (ValueError, OverflowError, OSError):
+            dt = None
+
+        # 2. If not numeric epoch, attempt ISO-8601 parsing
+        if dt is None:
             try:
-                dt = datetime.datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-            except:
-                dt = datetime.datetime.now()
-    
-    hour_val = dt.hour + dt.minute / 60.0 + dt.second / 3600.0
+                # Replace trailing 'Z' with '+00:00' for broad ISO-8601 compatibility
+                iso_candidate = ts_str[:-1] + "+00:00" if ts_str.endswith("Z") else ts_str
+                parsed_dt = datetime.datetime.fromisoformat(iso_candidate)
+                if parsed_dt.tzinfo is None:
+                    dt = parsed_dt.replace(tzinfo=datetime.timezone.utc)
+                else:
+                    dt = parsed_dt.astimezone(datetime.timezone.utc)
+            except (ValueError, TypeError):
+                dt = None
+
+        # 3. If ISO fails, attempt standard tabular / CSV date-time formats
+        if dt is None:
+            for fmt in ("%Y-%m-%d %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%Y/%m/%d %H:%M:%S"):
+                try:
+                    parsed_dt = datetime.datetime.strptime(ts_str, fmt)
+                    dt = parsed_dt.replace(tzinfo=datetime.timezone.utc)
+                    break
+                except (ValueError, TypeError):
+                    continue
+
+        if dt is None:
+            return 0.0, 0.0
+
+    else:
+        # Unsupported type (e.g., list, dict, object)
+        return 0.0, 0.0
+
+    # Extract time components in UTC
+    hour_val = dt.hour + dt.minute / 60.0 + dt.second / 3600.0 + dt.microsecond / 3600000000.0
     sin_val = np.sin(2.0 * np.pi * hour_val / 24.0)
     cos_val = np.cos(2.0 * np.pi * hour_val / 24.0)
     return float(sin_val), float(cos_val)

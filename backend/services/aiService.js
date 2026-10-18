@@ -72,6 +72,15 @@ const storePrediction = async (data) => {
     const shouldBlock = !isDegraded && pred.threatScore >= blockThreshold && autoBlockEnabled
     const status = isDegraded ? 'DEGRADED' : shouldBlock ? 'BLOCKED' : 'MONITORING'
 
+    const rawEventTime = data.eventTime || data.timestamp
+    let eventTime = null
+    if (rawEventTime) {
+      const parsed = new Date(rawEventTime)
+      if (!isNaN(parsed.getTime())) {
+        eventTime = parsed
+      }
+    }
+
     const threat = await ThreatLog.create({
       severity,
       sourceIP: pred.sourceIP,
@@ -80,6 +89,8 @@ const storePrediction = async (data) => {
       confidence: pred.threatScore,
       status,
       preBlockStatus: shouldBlock ? 'MONITORING' : isDegraded ? 'DEGRADED' : null,
+      predictionId: pred._id,
+      eventTime,
       autonomousAction: {
         taken: shouldBlock,
         actionType: shouldBlock ? 'IP_BLOCKED' : null,

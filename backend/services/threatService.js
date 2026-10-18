@@ -84,7 +84,8 @@ const findThreats = async ({
 const findThreatById = (id) => ThreatLog.findById(id).populate('handledBy', 'name email role').select('+rawPayload')
 
 const createThreat = async (data) => {
-  const score = data.aiScore || 0
+  const isAiGenerated = Boolean(data.isAiGenerated)
+  const score = isAiGenerated ? (data.aiScore || 0) : 0
   const aiEngineService = require('./aiEngineService')
   const containmentService = require('./containmentService')
 
@@ -92,7 +93,7 @@ const createThreat = async (data) => {
   const autoBlockEnabled = setting ? setting.value === true : false
   const blockThreshold = await aiEngineService.getBlockThreshold()
 
-  const shouldBlock = score >= blockThreshold && autoBlockEnabled
+  const shouldBlock = isAiGenerated && score >= blockThreshold && autoBlockEnabled
   const actionTaken = shouldBlock
 
   let status = 'DETECTED'
@@ -102,10 +103,14 @@ const createThreat = async (data) => {
     status = 'BLOCKED'
   } else if (score >= 0.7) {
     status = 'MONITORING'
+  } else if (data.status && ALLOWED_STATUSES.includes(data.status)) {
+    status = data.status
   }
 
   const threat = await ThreatLog.create({
     ...data,
+    aiScore: score,
+    confidence: isAiGenerated ? (data.confidence || 0) : 0,
     status,
     preBlockStatus: shouldBlock ? (score >= 0.7 ? 'MONITORING' : 'DETECTED') : null,
     autonomousAction: {
@@ -113,6 +118,7 @@ const createThreat = async (data) => {
       actionType: actionTaken ? 'IP_BLOCKED' : null,
       actionTime: actionTaken ? new Date() : null,
     },
+    eventTime: data.eventTime || null,
   })
 
   if (actionTaken) {

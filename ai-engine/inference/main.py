@@ -3,7 +3,7 @@ import os, sys, time, logging, math, secrets
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
-from typing import Dict, List
+from typing import Dict, List, Optional, Union
 from collections import defaultdict, deque
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -98,7 +98,7 @@ class Record(BaseModel):
     fwd_urg_flags: float = 0.0; bwd_urg_flags: float = 0.0
     fwd_header_len: float = 20.0; bwd_header_len: float = 0.0
     fwd_avg_bytes_per_bulk: float = 0.0; bwd_avg_bytes_per_bulk: float = 0.0
-    timestamp: str = None
+    timestamp: Optional[Union[str, float, int]] = None
     class Config:
         extra = "allow"
         allow_inf_nan = False
@@ -121,6 +121,10 @@ class SessionData(BaseModel):
     sessionId: str = ""; sourceIP: str = "0.0.0.0"
     durationSeconds: float = Field(default=0.0, ge=0, allow_inf_nan=False); loginSucceeded: bool = False
     commands: List[Dict] = Field(default_factory=list, max_length=10000); iocCount: int = Field(default=0, ge=0); deceptionProfile: str = "ubuntu_22"
+    startTime: Optional[Union[str, float, int]] = None
+    timestamp: Optional[Union[str, float, int]] = None
+    class Config:
+        extra = "allow"
 
 def _public_result(r: dict) -> dict:
     if not isinstance(r, dict):
@@ -258,6 +262,24 @@ async def predict_auth_shadow(auth_record: AuthTelemetryRecord):
     except Exception as exc:
         return {"success": False, "error": str(exc)}
 
-if __name__=="__main__":
+if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("inference.main:app",host="0.0.0.0",port=8000,reload=True)
+    # Standalone development/diagnostic runner.
+    # Default to loopback (127.0.0.1) for defense-in-depth so internal inference endpoints
+    # are not inadvertently exposed across external network interfaces.
+    # Note: Binding to a non-loopback interface (e.g. 0.0.0.0) exposes the service
+    # to all reachable network interfaces and must be an intentional deployment choice.
+    # CLI launches (`uvicorn inference.main:app --host ... --port ...`) and process managers
+    # (e.g. systemd, Docker, gunicorn) do not execute __main__ and must be configured separately.
+    host = os.getenv("AI_ENGINE_HOST", "127.0.0.1")
+    # Specific AI_ENGINE_PORT is required; generic PORT (e.g. 5000 used by Node backend) is ignored
+    # to prevent port collisions in shared environments.
+    port = int(os.getenv("AI_ENGINE_PORT", "8000"))
+    # Development auto-reload is configurable via AI_ENGINE_RELOAD; disabled by default
+    # unless explicitly in development mode to avoid reload loops and file-watcher overhead.
+    reload_env = os.getenv("AI_ENGINE_RELOAD")
+    if reload_env is not None:
+        reload = reload_env.lower() in ("1", "true", "yes")
+    else:
+        reload = os.getenv("SENTINEL_ENV", "").lower() == "development"
+    uvicorn.run("inference.main:app", host=host, port=port, reload=reload)

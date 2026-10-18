@@ -4,7 +4,7 @@ const errorHandler = (err, req, res, _next) => {
   let statusCode = err.statusCode || 500
   let message = err.message || 'Server Error'
   if (err.name === 'CastError') {
-    message = 'Invalid ' + err.path + ': ' + err.value
+    message = 'Invalid identifier for ' + err.path
     statusCode = 400
   }
   if (err.code === 11000) {

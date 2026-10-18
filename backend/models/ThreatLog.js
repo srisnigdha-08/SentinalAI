@@ -46,6 +46,16 @@ const ThreatLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    predictionId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'AIPrediction',
+      default: null,
+      index: true,
+    },
+    eventTime: {
+      type: Date,
+      default: null,
+    },
     autonomousAction: {
       taken: { type: Boolean, default: false },
       actionType: {
@@ -96,4 +106,6 @@ ThreatLogSchema.pre('save', function (next) {
   }
   next()
 })
-module.exports = mongoose.model('ThreatLog', ThreatLogSchema)
+const ThreatLog = mongoose.model('ThreatLog', ThreatLogSchema)
+ThreatLog.ALLOWED_ATTACK_TYPES = ThreatLogSchema.path('attackType').enumValues
+module.exports = ThreatLog

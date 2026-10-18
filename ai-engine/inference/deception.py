@@ -4,7 +4,12 @@ from pathlib import Path
 # Add parent directory of inference to sys.path (so it can import from rl_engine)
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from rl_engine.deception_scorer import SessionScorer
+from rl_engine.deception_scorer import (
+    SessionScorer,
+    is_test_or_diagnostic_mode,
+    is_repo_runtime_write_authorized,
+    get_default_runtime_path,
+)
 
 _scorer = None
 DEFAULT_RUNTIME_Q_TABLE_PATH = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
@@ -13,20 +18,73 @@ def get_scorer():
     global _scorer
     if _scorer is None:
         model_dir = os.getenv("MODEL_DIR", str(Path(__file__).parent.parent / "models"))
-        default_q_table = os.getenv("DEFAULT_RUNTIME_Q_TABLE_PATH", DEFAULT_RUNTIME_Q_TABLE_PATH)
+        repo_default_path = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
+
+        # Resolve the effective default runtime path:
+        # 1. Environment variable override
+        # 2. Monkeypatched module attribute (if modified by a test)
+        # 3. get_default_runtime_path() which handles default-deny and PID isolation
+        if "DEFAULT_RUNTIME_Q_TABLE_PATH" in os.environ:
+            default_q_table = os.environ["DEFAULT_RUNTIME_Q_TABLE_PATH"]
+        elif DEFAULT_RUNTIME_Q_TABLE_PATH != repo_default_path:
+            default_q_table = DEFAULT_RUNTIME_Q_TABLE_PATH
+        else:
+            default_q_table = str(get_default_runtime_path())
+
         q_table_path = os.getenv("Q_TABLE_PATH", default_q_table)
-        # Initialize separate writable state from the shipped learning artifact.
-        # Existing runtime state and the original model file are never overwritten.
+
         target = Path(q_table_path).resolve()
         models_dir = Path(model_dir).resolve()
         seed = (models_dir / "q_table.json").resolve()
+        repo_runtime_dir = (Path(__file__).parent.parent / "runtime").resolve()
+        repo_runtime_file = (repo_runtime_dir / "q_table.json").resolve()
+
         target_norm = os.path.normcase(str(target))
         seed_norm = os.path.normcase(str(seed))
         models_dir_norm = os.path.normcase(str(models_dir))
+        runtime_dir_norm = os.path.normcase(str(repo_runtime_dir))
+        runtime_file_norm = os.path.normcase(str(repo_runtime_file))
 
-        if target_norm == seed_norm or target_norm.startswith(models_dir_norm + os.sep) or target == seed:
+        is_seed_target = (target_norm == seed_norm or 
+                          target_norm.startswith(models_dir_norm + os.sep) or 
+                          target == seed)
+
+        if is_seed_target:
+            if is_test_or_diagnostic_mode() and os.getenv("SENTINEL_FAIL_CLOSED_ON_REPO_MUTATION", "").lower() in ("1", "true", "yes"):
+                raise PermissionError(f"Scorer initialization targeting protected models directory ({target}) blocked.")
             q_table_path = default_q_table
             target = Path(q_table_path).resolve()
+            target_norm = os.path.normcase(str(target))
+
+        is_repo_runtime_target = (target_norm == runtime_file_norm or 
+                                  target_norm.startswith(runtime_dir_norm + os.sep) or 
+                                  target == repo_runtime_file)
+
+        if is_repo_runtime_target and not is_repo_runtime_write_authorized():
+            if is_test_or_diagnostic_mode() and os.getenv("SENTINEL_FAIL_CLOSED_ON_REPO_MUTATION", "").lower() in ("1", "true", "yes"):
+                raise PermissionError(f"Scorer initialization targeting repository runtime ({target}) blocked under test/diagnostic mode.")
+            elif is_test_or_diagnostic_mode():
+                target = get_default_runtime_path()
+                q_table_path = str(target)
+            else:
+                raise PermissionError(
+                    f"Scorer initialization targeting repository runtime ({target}) rejected: "
+                    "Repository persistence requires explicit authorization via SENTINEL_ALLOW_REPO_RUNTIME_WRITE=1."
+                )
+
+        # Stale temporary file eviction policy: if fresh runtime is explicitly requested,
+        # unlink any existing temporary file so that it initializes cleanly from seed.
+        is_isolated_temp = "sentinelai_isolated_runtime" in str(target)
+        if is_isolated_temp and os.getenv("SENTINEL_FRESH_RUNTIME", "").lower() in ("1", "true", "yes"):
+            if target.exists():
+                try:
+                    target.unlink()
+                except OSError:
+                    pass
+
+        # Initialize separate writable state from the shipped learning artifact.
+        # Existing runtime state and the original model file are never overwritten.
+        # Direct seed-copy is strictly guarded: exclusive creation ("xb") ensures no existing file is ever overwritten.
         if not target.exists() and seed.is_file():
             target.parent.mkdir(parents=True, exist_ok=True)
             try:

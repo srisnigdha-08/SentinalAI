@@ -1,0 +1,53 @@
+# SENTINELAI GATE-1 — PHASE 14.2 PROTECTED ASSET INTEGRITY AUDIT
+# Date: October 18, 2026 (Phase 14.2 Audit)
+# Computed via SHA-256 without modifying, opening in write mode, or altering any file.
+# Format: Path | Size | Current SHA-256 | Contract Baseline SHA-256 | Historical Status | Current Audit Drift
+
+ai-engine/models/rf_classifier_cicids_v2.pkl
+  Size: 46234119 bytes
+  Current SHA-256:   CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1
+  Contract Baseline: CA0EFB1FDE8F9BDC430C3C511E32CD91822B0F3DEECA845AA259BC8DD60023F1
+  Historical Status: MATCH
+  Current Drift:     FALSE (0 bytes drift, hash unchanged)
+
+ai-engine/models/isolation_forest_cicids.pkl
+  Size: 1429757 bytes
+  Current SHA-256:   17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4
+  Contract Baseline: 17BD08FFE105A3EA87DE85E0943761E7CB012ABD70537968E14D0A3394E19DA4
+  Historical Status: MATCH
+  Current Drift:     FALSE (0 bytes drift, hash unchanged)
+
+ai-engine/models/xgb_classifier_cicids_v2.pkl
+  Size: 3623754 bytes
+  Current SHA-256:   A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D
+  Contract Baseline: A5D630B471B0385BD270E579D44ADFEB628B1569284E5C821A282BDA0A7D210D
+  Historical Status: MATCH
+  Current Drift:     FALSE (0 bytes drift, hash unchanged)
+
+ai-engine/models/q_table.json
+  Size: 2338 bytes
+  Current SHA-256:   BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF
+  Contract Baseline: BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF
+  Historical Status: MATCH
+  Current Drift:     FALSE (0 bytes drift, hash unchanged)
+
+ai-engine/runtime/q_table.json
+  Size: 1224 bytes
+  Current SHA-256:   08209E9989189BD45B6EDF35486A446F120DF36287A277A9DDDD35F6379152F7
+  Contract Baseline: 5242A649...0F326E6 (Historical Pre-Phase-12 Baseline)
+  Historical Status: PRE-EXISTING INCIDENT MISMATCH (Mutated in Phase 12 by test_readiness.py)
+  Current Drift:     FALSE (0 bytes drift during audit, invariant incident state)
+
+ai-engine/experiments/gate1_phase8_multicorpus_candidates/candidate_rf_multicorpus_v1.pkl
+  Size: 5850914 bytes
+  Current SHA-256:   71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020
+  Contract Baseline: 71A1756E64FE1D1199BE03E5BA71105C9338294C977110DC0BA5EC8B31952020
+  Historical Status: MATCH
+  Current Drift:     FALSE (0 bytes drift, hash unchanged)
+
+ai-engine/experiments/gate1_phase10_detector_recovery/candidate_rf_multicorpus_v2_fixed.pkl
+  Size: 9290458 bytes
+  Current SHA-256:   F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2
+  Contract Baseline: F83C1F878E55EAEEE60E8E266DC17EA34876FA467BEE56900BB4533DE08354C2
+  Historical Status: MATCH
+  Current Drift:     FALSE (0 bytes drift, hash unchanged)

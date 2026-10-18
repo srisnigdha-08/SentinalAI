@@ -29,14 +29,21 @@ build/
 .parcel-cache/
 .eslintcache
 
-# OS files
+# OS & Editor files
 .DS_Store
 Thumbs.db
+.vscode/
+.idea/
 
 # Native test and learning state
 .test-runtime/
 runtime/
 .native-integration/
+coverage/
+*.bak*
+
+# Accidental binary artifacts
+System.IO.MemoryStream
 
 # Datasets and large PCAP captures
 datasets/
