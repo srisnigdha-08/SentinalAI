@@ -3,7 +3,7 @@ const AlertSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, maxlength: 200 },
     message: { type: String, required: true },
-    severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'], default: 'INFO', index: true },
+    severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'], default: 'INFO' },
     type: {
       type: String,
       enum: [
@@ -38,5 +38,7 @@ const AlertSchema = new mongoose.Schema(
 )
 AlertSchema.index({ createdAt: -1 })
 AlertSchema.index({ severity: 1, isRead: 1 })
+AlertSchema.index({ targetRoles: 1, isRead: 1, createdAt: -1 })
+AlertSchema.index({ 'sourceRef.refId': 1 })
 AlertSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 module.exports = mongoose.model('Alert', AlertSchema)

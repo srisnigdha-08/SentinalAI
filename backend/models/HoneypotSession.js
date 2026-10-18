@@ -58,6 +58,7 @@ HoneypotSessionSchema.index({ sourceIP: 1, createdAt: -1 })
 HoneypotSessionSchema.index({ honeypotNode: 1, status: 1 })
 HoneypotSessionSchema.index({ createdAt: -1 })
 HoneypotSessionSchema.index({ hassh: 1 })
+HoneypotSessionSchema.index({ linkedThreatLog: 1 })
 HoneypotSessionSchema.pre('save', function (next) {
   if (this.isModified('commands') || !this.mitreTechniques || this.mitreTechniques.length === 0) {
     const intents = this.commands.map((c) => c.intent).filter(Boolean)
