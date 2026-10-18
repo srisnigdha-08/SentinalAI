@@ -48,6 +48,8 @@ async function main() {
     const baseUrl = 'http://localhost:3000';
 
     async function loginAs(email, password) {
+      const client = await page.target().createCDPSession();
+      await client.send('Network.clearBrowserCookies');
       await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });
       await page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
       await page.goto(`${baseUrl}/login`, { waitUntil: 'domcontentloaded' });

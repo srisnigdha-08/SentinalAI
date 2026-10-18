@@ -14,24 +14,24 @@
 The SentinelAI database layer is functionally operational, resilient, and verified across all application flows. Core CRUD operations, index lookups on primary keys, and application-layer immutability hooks are functioning properly. Data types and schema definitions show **zero schema drift** across all documents. Password hashing is universally enforced with zero unhashed user credentials.
 
 Following the database health audit and remediation phases, all 14 identified issues have been evaluated with empirical evidence:
-- **Fixed (3)**:
+- **Fixed (6)**:
   - `ISS-01`: Cascading alert deletion implemented at the source in `threatService.deleteThreat`, eliminating new orphan creation while preserving the audit-first policy (`backend/tests/threatDeletionCascade.test.js`). The 2 historical demo alerts expire on 2026-10-25 via MongoDB's 7-day TTL index.
+  - `ISS-02`: Fixed live. The 48-hour sparse TTL index on `revokedAt` (`AuthSession.js:29`) was built live in `sentinel-db` by Mongoose `autoIndex` at backend startup. Revoked sessions are removed after 48h; refresh-replay detection is active during that 48h window.
+  - `ISS-04`: Fixed live. Alert compound index `{ targetRoles: 1, isRead: 1, createdAt: -1 }` on `Alert.js` was built live in `sentinel-db` by Mongoose `autoIndex` at backend startup, eliminating COLLSCAN on alert bell queries.
   - `ISS-12`: Removed dead hook `pre('findOneAndRemove')` from `AuditLog.js` (deprecated and removed in Mongoose 8.x).
+  - `ISS-13`: Fixed live. Foreign key reference indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` were built live in `sentinel-db` by Mongoose `autoIndex` at backend startup.
   - `ISS-14`: User creation path ensures `tokenVersion: 0`. Verified on disk in `sentinel-db` that `admin@sentinel.local` lacks `tokenVersion` on raw BSON storage; Mongoose schema safely defaults it to `0` on document hydration, and `protect` middleware functions because `claims.tv !== (user.tokenVersion || 0)` evaluates to false (`0 !== 0`). Any prior claim that `tokenVersion` was explicitly `0` on disk is retracted.
 - **Partially Fixed (1)**:
   - `ISS-09`: Unified write-path password redaction enforced via `backend/utils/redact.js:redactCapturedCredentials` across ingest, service, and seed paths (`backend/tests/honeypotCredentialRedaction.test.js`). 3,397 existing plaintext passwords remain in database storage fixtures (3,383 in session `9b21e8e00dd7` and 14 across 7 demo sessions) until a scrub script is explicitly executed.
-- **Accepted (4)**:
-  - `ISS-02`: Retaining revoked sessions for 30 days is an intentional security design choice required for refresh token replay detection (`claims.gen < session.generation`). A 48-hour TTL index was formulated in schema, but live index creation is deferred.
+- **Accepted (3)**:
   - `ISS-05`: Seeded demo threat (`198.51.100.88`, RFC 5737) is an intentional static documentation fixture; reconciliation engine intentionally skips it.
   - `ISS-10`: Forensic telemetry stored raw at rest with post-query redaction at read is an intentional SOC design choice balancing threat hunting utility against least privilege.
   - `ISS-11`: Synthetic demo records (`demo-*`) are required for live dashboard charts and evaluation presentation.
-- **Deferred (6)**:
+- **Deferred (4)**:
   - `ISS-03`: Automated, safe-by-default retention and archiving engine implemented in `backend/services/retentionService.js` and CLI trigger `scripts/run_retention.mjs`, verified with in-memory tests (`backend/tests/retentionPolicy.test.js`), but disabled by default (`RETENTION_ENABLED=false`) and never executed against the live database.
-  - `ISS-04`: Alert compound index `{ targetRoles: 1, isRead: 1, createdAt: -1 }` added to Mongoose schema `Alert.js`; live index build deferred post-viva to eliminate collection lock risks during evaluation.
   - `ISS-06`: ACID multi-document transaction helper implemented in `backend/utils/transactionHelper.js` with `runWithTransactionOrFallback` wired to `userController` and `threatController`, verified with atomic rollbacks on `rs0` (`backend/tests/transactionSupport.test.js`). Left disabled (`MONGO_USE_TRANSACTIONS=false`) because the live host database runs as a standalone MongoDB instance.
   - `ISS-07`: Database engine-level least privilege RBAC defined in `deployment/mongo-init.js`, granting insert-only privileges on `auditlogs` and rejecting direct updates/deletes with `code: 13`. Verified only on isolated test instance (`port 27030`); live MongoDB on port 27017 runs unauthenticated on localhost loopback.
   - `ISS-08`: Host unauthenticated MongoDB on localhost loopback; host `--auth` activation deferred post-viva per `docs/UPGRADE_RUNBOOK_REPLICA_AND_AUTH.md`.
-  - `ISS-13`: Foreign key indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` declared in schema files; live index creation on live database deferred post-viva.
 
 ---
 
@@ -39,18 +39,18 @@ Following the database health audit and remediation phases, all 14 identified is
 
 | Collection | Doc Count | Schema Health | Index Health | Referential Integrity | Growth / Lifecycle | Query Performance | Security / Privacy | Overall Grade | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **users** | 6 | Pass (0 drift) | Pass (Unique email) | Pass (100% valid) | Pass (Bounded) | Pass (Indexed ID/Email) | Pass (Bcrypt hashed) | **A** | Verified (`ISS-14`) |
-| **authsessions** | 57–70 | Pass (0 drift) | Warning (Redundant idx) | Pass (0 orphans) | Pass (30d TTL; replay-safe) | Pass (IDHACK) | Pass (SHA-256 hash) | **B+** | Accepted (`ISS-02`) |
-| **threatlogs** | 10 | Pass (0 drift) | Warning (Redundant idx) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Pass (Standard telemetry) | **B** | Deferred (`ISS-03`) |
-| **honeypotsessions** | 8 | Pass (0 drift) | Warning (Missing ref idx) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Warning (3,397 plaintext passwords; new writes masked) | **B-** | Partially Fixed (`ISS-09`) |
+| **users** | 6 | Pass (0 drift) | Pass (Unique email) | Pass (100% valid) | Pass (Bounded) | Pass (Indexed ID/Email) | Pass (Bcrypt hashed) | **A** | Fixed live (`ISS-14`) |
+| **authsessions** | 57–111 | Pass (0 drift) | Pass (Live 48h TTL index) | Pass (0 orphans) | Pass (30d expiresAt; live 48h revokedAt TTL) | Pass (IDHACK) | Pass (SHA-256 hash) | **A-** | Fixed live (`ISS-02`) |
+| **threatlogs** | 10 | Pass (0 drift) | Warning (Redundant severity_1 retains live) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Pass (Standard telemetry) | **B** | Deferred (`ISS-03`) |
+| **honeypotsessions** | 8 | Pass (0 drift) | Pass (Live linkedThreatLog_1 ref idx) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Warning (3,397 plaintext passwords; new writes masked) | **B+** | Fixed live (`ISS-13`) / Partial (`ISS-09`) |
 | **campaigns** | 1 | Pass (0 drift) | Pass (Indexed) | Pass (0 orphans) | Pass (Low volume) | Pass (Targeted lookup) | Pass (Metadata only) | **A** | Verified |
-| **alerts** | 5 | Pass (0 drift) | Warning (Index in schema only) | Pass (Cascade delete at source) | Pass (7-day TTL auto-purge) | Warning (COLLSCAN until live idx) | Pass (No sensitive leaks) | **B** | Fixed (`ISS-01`) / Deferred (`ISS-04`) |
+| **alerts** | 5 | Pass (0 drift) | Pass (Live compound targetRoles & ref idx) | Pass (Cascade delete at source) | Pass (7-day TTL auto-purge) | Pass (IXSCAN via compound idx) | Pass (No sensitive leaks) | **A-** | Fixed live (`ISS-01`, `ISS-04`) |
 | **aipredictions** | 9 | Pass (0 drift) | Pass (Indexed threatId) | Pass (0 orphans) | Warning (Retention deferred) | Pass (IXSCAN) | Pass (Inference telemetry) | **B+** | Deferred (`ISS-03`) |
 | **trainingsamples** | 0 | Pass (Empty) | Pass (Declared) | N/A (0 docs) | Warning (Uncapped growth) | N/A (0 docs) | Pass (Standard telemetry) | **A-** | Verified |
 | **blockedips** | 0 | Pass (Empty) | Pass (Unique IP) | Pass (0 docs) | Pass (TTL supported) | Pass (Indexed IP) | Pass (Firewall metadata) | **A-** | Verified (`ISS-05`) |
 | **containmentactions**| 0 | Pass (Empty) | Pass (Declared) | Pass (0 docs) | Warning (Uncapped growth) | Pass (Indexed target) | Pass (Action telemetry) | **A-** | Verified |
 | **systemsettings** | 1 | Pass (0 drift) | Pass (Unique singleton) | Pass (N/A) | Pass (Singleton 1 doc) | Pass (Single lookup) | Pass (Configuration only) | **A** | Verified |
-| **auditlogs** | 105–122 | Pass (0 drift) | Warning (Redundant idx) | Pass (12 target orphans*) | Pass (Immutable; excluded from purge) | Pass (IXSCAN pagination) | Pass (Mongoose hooks active; engine RBAC deferred) | **B+** | Fixed (`ISS-12`) / Deferred (`ISS-07`) |
+| **auditlogs** | 105–175 | Pass (0 drift) | Warning (Redundant action_1; live target.id_1 built) | Pass (12 target orphans*) | Pass (Immutable; excluded from purge) | Pass (IXSCAN pagination) | Pass (Mongoose hooks active; engine RBAC deferred) | **B+** | Fixed (`ISS-12`, `ISS-13`) / Deferred (`ISS-07`) |
 
 *\* AuditLog target orphans are expected when referenced entities (such as temporary test users or deleted threats) are removed from business collections, preserving forensic audit trails.*
 
@@ -113,30 +113,34 @@ Following the database health audit and remediation phases, all 14 identified is
 ---
 
 ### Check 3: Index Health (Declared vs Live `getIndexes`)
-- **Verification Method**: Compared schema definitions across `backend/models/*.js` against live indexes returned by `collection.indexes()`.
-- **Status**: **PASS WITH WARNINGS**
+- **Verification Method**: Dumped and audited raw indexes via `collection.indexes()` for all 12 collections (`scratch/evidence/sentinel_db_indexes_raw.json`).
+- **Status**: **PASS (64 Live Indexes; 5 New Indexes Built Live; 3 Redundant Indexes Retained)**
 - **Findings**:
-  1. **Redundant Compound Indexes**:
-     - `threatlogs`: Has both `{ severity: 1 }` and `{ severity: 1, status: 1 }`. The standalone `{ severity: 1 }` index is redundant because MongoDB can use the prefix of the compound index.
-     - `alerts`: Has both `{ severity: 1 }` and `{ severity: 1, isRead: 1 }`. The standalone `{ severity: 1 }` index is redundant.
-     - `auditlogs`: Has both `{ action: 1 }` and `{ action: 1, createdAt: -1 }`. The standalone `{ action: 1 }` index is redundant.
-  2. **Missing Essential Indexes**:
-     - `alerts`: Real notification polling and unread counting execute `Alert.countDocuments({ targetRoles: role, isRead: false })` and `Alert.find({ targetRoles: role, isRead: false }).sort({ createdAt: -1 })`. Existing index `{ severity: 1, isRead: 1 }` cannot support these queries because `targetRoles` is not in the index prefix, resulting in a full collection scan (`COLLSCAN`). The required index is `{ targetRoles: 1, isRead: 1, createdAt: -1 }`.
-     - `alerts`: No index exists on `sourceRef.refId`.
-     - `honeypotsessions`: No index on `linkedThreatLog`.
-     - `auditlogs`: No index on `target.id`.
+  1. **5 New Indexes Built Live by `autoIndex`**:
+     During backend initialization in development mode (`NODE_ENV=development`), Mongoose's default `autoIndex: true` automatically called `createIndex()` for all declared schema indexes. All 5 remediated indexes are **live** in `sentinel-db`:
+     - `authsessions`: `{ revokedAt: 1 }` (`expireAfterSeconds: 172800, sparse: true`) — **Live 48-Hour TTL Index**. Revoked sessions are purged after 48 hours; refresh-replay attack detection (`claims.gen < session.generation`) covers this 48-hour window.
+     - `alerts`: `{ targetRoles: 1, isRead: 1, createdAt: -1 }` — **Live Compound Index**. Eliminates collection scan (`COLLSCAN`) for notification polling and unread counting.
+     - `alerts`: `{ "sourceRef.refId": 1 }` — **Live Foreign Key Index**. Accelerates cascading alert deletion.
+     - `honeypotsessions`: `{ linkedThreatLog: 1 }` — **Live Foreign Key Index**.
+     - `auditlogs`: `{ "target.id": 1 }` — **Live Foreign Key Index**.
+  2. **3 Redundant Compound Indexes Retained**:
+     - `threatlogs`: `{ severity: 1 }` (prefix covered by compound `{ severity: 1, status: 1 }`).
+     - `alerts`: `{ severity: 1 }` (prefix covered by compound `{ severity: 1, isRead: 1 }`).
+     - `auditlogs`: `{ action: 1 }` (prefix covered by compound `{ action: 1, createdAt: -1 }`).
+     *Operational Note*: Mongoose `autoIndex: true` is strictly additive; it creates new indexes but never drops existing ones from MongoDB. Dropping redundant indexes requires an explicit manual administrative command (`db.collection.dropIndex("index_name")`).
 - **Evidence / Output**:
   ```text
-  Live Index Count: 59 indexes across 12 collections
-  Redundant Indexes Identified:
-    - threatlogs.severity_1 (covered by severity_1_status_1)
-    - alerts.severity_1 (covered by severity_1_isRead_1)
-    - auditlogs.action_1 (covered by action_1_createdAt_-1)
-  Missing Indexes:
-    - alerts: { targetRoles: 1, isRead: 1, createdAt: -1 } (causes COLLSCAN in alert bell polling)
-    - alerts: { "sourceRef.refId": 1 }
-    - honeypotsessions: { linkedThreatLog: 1 }
-    - auditlogs: { "target.id": 1 }
+  Live Index Count: 64 indexes across 12 collections (59 baseline + 5 new schema indexes)
+  New Live Indexes Built (Confirmed via raw getIndexes):
+    - authsessions: revokedAt_1 (TTL: 172800s / 48h, sparse: true)
+    - alerts: targetRoles_1_isRead_1_createdAt_-1
+    - alerts: sourceRef.refId_1
+    - honeypotsessions: linkedThreatLog_1
+    - auditlogs: target.id_1
+  Redundant Indexes Retained Live:
+    - threatlogs.severity_1
+    - alerts.severity_1
+    - auditlogs.action_1
   ```
 
 ---
@@ -343,9 +347,9 @@ Following the database health audit and remediation phases, all 14 identified is
 | ID | Title | Severity | Collection / File | Evidence (Query / Code) | Plain English Impact | Demo vs Real Risk | Status |
 | :---: | :--- | :---: | :--- | :--- | :--- | :--- | :---: |
 | **ISS-01** | Orphaned Alerts Pointing to Deleted Threat (Resolved at Source) | **Low** | `alerts`, `backend/services/threatService.js:156` | Query: `scratch/reconcile_orphaned_alerts.mjs`<br>Alerts `6ad4...d51` & `6ad4...d5a` point to deleted ThreatLog `6ad4...d4f` | Root cause eliminated at source in `threatService.deleteThreat`: cascades `Alert.deleteMany` for matching `sourceRef.refId` after audit logging succeeds. 2 historical orphaned alerts remain non-breaking and will naturally auto-purge via 7-day TTL index on 2026-10-25. | Low (Demo) / Low (Prod) | **Fixed for new orphans (2 historical alerts expire 2026-10-25)**: Cascading delete implemented in `threatService.deleteThreat`, verified by `tests/threatDeletionCascade.test.js`. |
-| **ISS-02** | Revoked AuthSessions Retained for 30 Days | **Low** | `authsessions` | `backend/services/authSessionService.js:180`<br>57–70 sessions in DB; revoked sessions linger until 30-day TTL | Retaining revoked sessions is required for refresh token replay detection (`claims.gen < session.generation`). | Low (Demo) / Low (Prod) | **Fixed in schema; live index not present (Accepted for replay detection)**: Retaining revoked session records is an intentional security design choice required for refresh-replay attack detection (`claims.gen < session.generation`). 48h TTL index formulated in `AuthSession.js:29`, but live index creation deferred post-viva. |
+| **ISS-02** | Revoked AuthSessions Retained for 30 Days | **Low** | `authsessions` | `backend/services/authSessionService.js:180`<br>57–111 sessions in DB; revoked sessions purged after 48h | 48-hour sparse TTL index on `revokedAt` is live in `sentinel-db` (built by `autoIndex`). Revoked sessions are removed after 48h, limiting replay detection to this window. | Low (Demo) / Low (Prod) | **Fixed live**: 48-hour sparse TTL index `{ revokedAt: 1 }` built live by Mongoose `autoIndex` at backend startup. Revoked sessions are purged after 48h, bounding the refresh-replay attack detection window (`claims.gen < session.generation`) to 48 hours. |
 | **ISS-03** | Lack of Data Retention Policies on High-Volume Telemetry | **High** | `threatlogs`, `honeypotsessions`, `backend/services/retentionService.js`, `scripts/run_retention.mjs` | Models: `ThreatLog.js`, `HoneypotSession.js`<br>Zero automated TTL purge | Implemented safe-by-default retention engine in `backend/services/retentionService.js` and CLI trigger `scripts/run_retention.mjs`. Disabled by default (`RETENTION_ENABLED=false`), dry-run by default. Explicitly excludes `auditlogs` and `demo-*` sessions/threats. Safely writes to `archived_*` collections before purging, cascades dependent alert cleanup (Task 6), and emits `RETENTION_RUN` audit logs. Never runs at server startup. | Low (Demo) / Resolved (Prod) | **Deferred**: Implemented in `backend/services/retentionService.js` and CLI `scripts/run_retention.mjs`, verified by `tests/retentionPolicy.test.js`, but disabled by default and never run against the live database. |
-| **ISS-04** | Missing Compound Index on `Alert.targetRoles` & `isRead` | **Medium** | `alerts` | `Alert.countDocuments({ targetRoles: role, isRead: false })`<br>`Alert.find({ targetRoles: role, isRead: false })` | Bell polling and unread counting execute full collection scans (`COLLSCAN`) because existing index `{ severity: 1, isRead: 1 }` lacks `targetRoles` prefix. | Low (Demo) / High (Prod) | **Deferred**: Compound index `{ targetRoles: 1, isRead: 1, createdAt: -1 }` added to `Alert.js` schema; live index creation on host `sentinel-db` deferred post-viva to eliminate collection lock risk. |
+| **ISS-04** | Missing Compound Index on `Alert.targetRoles` & `isRead` | **Medium** | `alerts` | `Alert.countDocuments({ targetRoles: role, isRead: false })`<br>`Alert.find({ targetRoles: role, isRead: false })` | Compound index `{ targetRoles: 1, isRead: 1, createdAt: -1 }` built live in `sentinel-db` by `autoIndex`, eliminating COLLSCAN on notification queries. | Low (Demo) / Resolved (Prod) | **Fixed live**: Compound index `{ targetRoles: 1, isRead: 1, createdAt: -1 }` on `Alert.js` was built live in `sentinel-db` by Mongoose `autoIndex` at backend startup, eliminating COLLSCAN on alert bell queries. |
 | **ISS-05** | Seeded Demo Threat Marked BLOCKED without Containment Record | **Low** | `threatlogs`, `blockedips`, `containmentactions` | ThreatLog `6aa3...a57` is `BLOCKED`, but `blockedips` and `containmentactions` have 0 docs | Static seeded demo fixture representing a historical block. `containmentReconciliationService` only checks expired `ContainmentAction` records and does not touch it. | Low (Demo) / Low (Prod) | **Accepted (seed data)**: Static seeded fixture (`198.51.100.88`, RFC 5737) representing a historical mock event. `containmentReconciliationService` only evaluates active/expired records with `ContainmentAction` entries and intentionally leaves this fixture untouched. |
 | **ISS-06** | No Multi-Document Transactions on Standalone MongoDB | **High** | `backend/utils/transactionHelper.js`, `backend/controllers/userController.js`, `backend/controllers/threatController.js` | Standalone Mongo configuration without replica set | Transaction helper `backend/utils/transactionHelper.js` added supporting `MONGO_USE_TRANSACTIONS=true`. In `userController` (`provisionUser`, `updateUser`, `forceLogoutUser`) and `threatController` (`blockIP`), transaction path runs when flag is enabled and replica set topology is detected; falls back to compensating rollback on standalone. Verified on isolated test replica set (`port 27030`, `rs0`): simulated audit write failure aborts transaction leaving ZERO partial state (`tests/transactionSupport.test.js`). Real local DB left on standalone with flag `false` for viva safety. | Low (Demo) / Resolved (Prod) | **Deferred**: Code path implemented behind `MONGO_USE_TRANSACTIONS=false` flag; live DB runs standalone with compensating rollbacks; multi-document transactions verified on isolated replica set port 27030. |
 | **ISS-07** | Application-Only Immutability on Audit Logs | **Medium** | `backend/models/AuditLog.js`, `deployment/mongo-init.js` | Direct MongoDB connection via mongo shell can modify/drop audit logs | Engine-level least privilege RBAC defined in `deployment/mongo-init.js`. `sentinel_app_role` has full read/write on operational collections, but strictly `find` and `insert` ONLY on `auditlogs`. Verified on isolated test instance (`port 27030`): direct `updateOne` and `deleteOne` on `auditlogs` are rejected by the MongoDB engine with error `code: 13` (`not authorized`). Runbook `docs/UPGRADE_RUNBOOK_REPLICA_AND_AUTH.md` documents production activation post-viva. | Low (Demo) / Resolved (Prod) | **Deferred**: Engine-level least privilege RBAC verified only on test instance port 27030; live MongoDB on port 27017 runs unauthenticated on localhost loopback. |
@@ -354,7 +358,7 @@ Following the database health audit and remediation phases, all 14 identified is
 | **ISS-10** | Forensic Data at Rest with Post-Query Redaction | **Low** | `backend/controllers/threatController.js`, `honeypotController.js`, `backend/utils/redact.js` | Redaction helper is called in Express controller after `Model.find()` | Redaction-at-read for IPs, commands, and URLs is an **intentional design choice** because SOC analysts require raw forensic data and full MITRE ATT&CK telemetry for threat hunting and incident response. The true residual risk is raw unencrypted data stored on disk and captured in database backups (`mongodump`), with no database-level encryption-at-rest configured. | Low (Demo) / Medium (Prod) | **Accepted**: Intentional SOC design choice (forensic threat hunting utility for analysts vs masked view for viewers). |
 | **ISS-11** | Synthetic Demo Records Mixed with Real Data | **Low** | `honeypotsessions`, `threatlogs` | 7 of 8 honeypot sessions have prefix `demo-*`; 9 of 10 threats are demo data | Populates dashboard charts for demonstration, but skews metrics in a real SOC production environment. | Low (Demo) / Medium (Prod) | **Accepted**: Synthetic demo records (`demo-*`) required for UI charts and evaluation demo presentation. |
 | **ISS-12** | Dead Immutability Hook in Mongoose 8.x | **Low** | `backend/models/AuditLog.js:38` | `AuditLogSchema.pre('findOneAndRemove', ...)` | Mongoose 8 removed `findOneAndRemove`. The hook is dead code and does not execute. | Low (Demo) / Low (Prod) | **Fixed**: Removed dead hook `pre('findOneAndRemove')` from `backend/models/AuditLog.js`. |
-| **ISS-13** | Missing Indexes on Foreign Key Paths | **Medium** | `alerts`, `honeypotsessions`, `auditlogs` | No indexes on `sourceRef.refId`, `linkedThreatLog`, `target.id` | Relationship queries degrade in performance as collection sizes scale beyond thousands of records. | Low (Demo) / High (Prod) | **Deferred**: Schema definitions verified; live index creation on live database deferred post-viva. |
+| **ISS-13** | Missing Indexes on Foreign Key Paths | **Medium** | `alerts`, `honeypotsessions`, `auditlogs` | No indexes on `sourceRef.refId`, `linkedThreatLog`, `target.id` | Foreign key reference indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` built live in `sentinel-db` by `autoIndex`, accelerating relationship queries. | Low (Demo) / Resolved (Prod) | **Fixed live**: Foreign key reference indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` built live in `sentinel-db` by Mongoose `autoIndex` at backend startup. |
 | **ISS-14** | Missing `tokenVersion` on Historical Seed User | **Low** | `users`, `backend/models/User.js` | `admin@sentinel.local` lacks `tokenVersion` on raw BSON storage | Schema default (`default: 0`) applies only upon in-memory document hydration; `protect` middleware succeeds because `claims.tv !== (user.tokenVersion || 0)` evaluates to false (`0 !== 0`). Prior claim that disk had explicit 0 is retracted. | Low (Demo) / Low (Prod) | **Fixed in code / Documented on disk**: User creation ensures `tokenVersion: 0`. Raw disk document in `sentinel-db` lacks `tokenVersion`; Mongoose hydrates default `0` in memory and `claims.tv !== (user.tokenVersion || 0)` prevents auth failures. |
 
 ---
@@ -365,7 +369,7 @@ Following the database health audit and remediation phases, all 14 identified is
 
 #### QW-1: Add Missing Compound Index on `Alert` and Foreign Key Paths
 - **Files**: `backend/models/Alert.js`, `backend/models/HoneypotSession.js`, `backend/models/AuditLog.js`
-- **Change**: Add dedicated compound and reference indexes:
+- **Change**: Added dedicated compound and reference indexes:
   ```javascript
   // Alert.js - supports alert polling and unread counting
   AlertSchema.index({ targetRoles: 1, isRead: 1, createdAt: -1 });
@@ -377,7 +381,7 @@ Following the database health audit and remediation phases, all 14 identified is
   // AuditLog.js
   AuditLogSchema.index({ "target.id": 1 });
   ```
-- **Effort**: S (15 mins) | **Risk**: Very Low | **Priority**: P1
+- **Status**: **COMPLETED / LIVE** (Built live in `sentinel-db` by Mongoose `autoIndex` at backend startup).
 
 #### QW-2: Clean Dead Hook in `AuditLog.js`
 - **Files**: `backend/models/AuditLog.js:38`
@@ -396,11 +400,11 @@ Following the database health audit and remediation phases, all 14 identified is
 
 #### QW-4: Shortened TTL for Revoked Sessions
 - **Files**: `backend/models/AuthSession.js`
-- **Change**: Add a dedicated sparse TTL index on `revokedAt` (e.g., 48 hours) rather than deleting sessions immediately on logout. This preserves refresh-replay attack detection for 48 hours while preventing indefinite 30-day session accumulation:
+- **Change**: Dedicated sparse TTL index on `revokedAt` (48 hours):
   ```javascript
   AuthSessionSchema.index({ revokedAt: 1 }, { expireAfterSeconds: 48 * 3600, sparse: true });
   ```
-- **Effort**: S (15 mins) | **Risk**: Low | **Priority**: P2
+- **Status**: **COMPLETED / LIVE** (Built live in `sentinel-db` by Mongoose `autoIndex` at backend startup; 48-hour purge window active).
 
 ---
 
@@ -494,11 +498,11 @@ flowchart TD
 #### 5. How are user sessions invalidated when an administrator changes a user's role or forces a logout?
 **Answer**: SentinelAI implements dual invalidation: (1) `user.authVersion` is incremented, instantly invalidating all active JWTs on their next request via `protect` middleware; (2) `AuthSession.revokedAt` is populated in the database.
 
-#### 6. Why does alert notification polling cause a collection scan (COLLSCAN) in MongoDB?
-**Answer**: The real query executed during polling is `Alert.countDocuments({ targetRoles: role, isRead: false })`. The existing compound index is `{ severity: 1, isRead: 1 }`. Under B-Tree prefix rules, MongoDB cannot use an index that does not lead with the queried fields, forcing a full collection scan. A compound index on `{ targetRoles: 1, isRead: 1, createdAt: -1 }` is required.
+#### 6. Why did alert notification polling previously cause a collection scan (COLLSCAN) in MongoDB?
+**Answer**: The real query executed during polling is `Alert.countDocuments({ targetRoles: role, isRead: false })`. The baseline compound index was `{ severity: 1, isRead: 1 }`. Under B-Tree prefix rules, MongoDB could not use an index that does not lead with the queried fields, forcing a full collection scan. A compound index on `{ targetRoles: 1, isRead: 1, createdAt: -1 }` was declared and is now live in `sentinel-db` (built by Mongoose `autoIndex` at startup), resolving the COLLSCAN to an indexed IXSCAN.
 
 #### 7. How does the TTL (Time-To-Live) index work on the `authsessions` collection?
-**Answer**: `AuthSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })`. MongoDB's background TTL thread scans the index once every 60 seconds and automatically deletes documents where `expiresAt <= currentDate`.
+**Answer**: SentinelAI utilizes two live TTL indexes on `authsessions`: (1) `AuthSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })` for natural 30-day session expiry; (2) `AuthSessionSchema.index({ revokedAt: 1 }, { expireAfterSeconds: 48 * 3600, sparse: true })` built live in `sentinel-db`. MongoDB's background TTL thread scans the index once every 60 seconds. Active sessions (where `revokedAt` is null) are omitted by the sparse index and never expired by it. Revoked sessions (where `revokedAt` is a BSON Date) are automatically deleted 48 hours after revocation, bounding refresh token replay detection (`claims.gen < session.generation`) to this 48-hour security window.
 
 #### 8. Why are there orphaned alerts in the database, and how does the application handle them?
 **Answer**: In historical test runs, deleting a threat left alerts referencing the deleted ID. This has been resolved at the source: `threatService.deleteThreat(id)` cascades deletion of all alerts where `sourceRef.refModel === 'ThreatLog'` and `sourceRef.refId === id`, while maintaining the audit-first policy in `threatController.deleteThreat`. The 2 historical orphaned alerts in `sentinel-db` cause no UI issues (as `findAlerts` does not populate `sourceRef`) and will automatically purge via MongoDB's 7-day TTL index on 2026-10-25.

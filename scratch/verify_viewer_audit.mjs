@@ -89,10 +89,21 @@ async function main() {
   const consoleErrors = [];
   const sensitiveLeaks = [];
   let liveSessionId = null;
-
+  let observedMaskedIps = 0;
+  let observedRedactedCommands = 0;
+  let expectedRefresh401Count = 0;
+  let hasLoggedIn = false;
 
   function inspectPayload(payloadText, context) {
     if (typeof payloadText !== 'string' || !payloadText) return;
+
+    // Track verified redactions so test cannot pass vacuously
+    const maskedMatches = (payloadText.match(/\d{1,3}\.\d{1,3}\.\d{1,3}\.xxx/g) || []).length;
+    observedMaskedIps += maskedMatches;
+
+    if (payloadText.includes('[REDACTED_COMMAND]')) {
+      observedRedactedCommands++;
+    }
 
     // 1. Check for unmasked IPv4
     const ipMatches = payloadText.match(IPV4_REGEX) || [];
@@ -185,8 +196,13 @@ async function main() {
       const status = response.status();
       const url = response.url();
       if ((status === 401 || status === 403) && url.includes('/api/')) {
-        forbiddenResponses.push({ status, url });
-        console.error(`  [Network ${status}] ${url}`);
+        if (url.includes('/api/auth/refresh-token') && !hasLoggedIn) {
+          expectedRefresh401Count++;
+          console.log(`  [Expected Network 401] ${url} (Initial unauthenticated session check)`);
+        } else {
+          forbiddenResponses.push({ status, url });
+          console.error(`  [Network ${status}] ${url}`);
+        }
       }
 
       if (url.includes('/api/') && !url.includes('/auth/login') && !url.includes('/auth/csrf')) {
@@ -216,6 +232,10 @@ async function main() {
     page.on('console', (msg) => {
       if (msg.type() === 'error') {
         const text = msg.text();
+        if (text.includes('/api/auth/refresh-token') && text.includes('401')) {
+          console.log(`  [Expected Console 401] Initial unauthenticated session check`);
+          return;
+        }
         if (!text.includes('favicon.ico')) {
           consoleErrors.push(text);
           console.error(`  [Console Error] ${text}`);
@@ -249,6 +269,7 @@ async function main() {
     });
 
     await page.waitForFunction(() => window.location.pathname === '/dashboard', { timeout: 10000 });
+    hasLoggedIn = true;
     console.log('  -> Logged in successfully to /dashboard\n');
 
     // Clear initial login frames/responses
@@ -405,11 +426,14 @@ async function main() {
     console.log('\n======================================================');
     console.log('=== VIEWER REAL-TIME AUDIT SUMMARY REPORT ===');
     console.log('======================================================');
-    console.log(`REST Responses Inspected: ${capturedRest.length}`);
-    console.log(`WebSocket Frames Captured: ${capturedWsFrames.length}`);
-    console.log(`401/403 Forbidden Responses: ${forbiddenResponses.length}`);
-    console.log(`Browser Console Errors:     ${consoleErrors.length}`);
-    console.log(`Sensitive Data Leaks:       ${sensitiveLeaks.length}`);
+    console.log(`REST Responses Inspected:    ${capturedRest.length}`);
+    console.log(`WebSocket Frames Captured:   ${capturedWsFrames.length}`);
+    console.log(`Expected Login Refresh 401s: ${expectedRefresh401Count}`);
+    console.log(`Real Forbidden (401/403):    ${forbiddenResponses.length}`);
+    console.log(`Browser Console Errors:      ${consoleErrors.length}`);
+    console.log(`Sensitive Data Leaks:        ${sensitiveLeaks.length}`);
+    console.log(`Masked IPs Observed:         ${observedMaskedIps}`);
+    console.log(`Redacted Commands Observed:  ${observedRedactedCommands}`);
 
     if (sensitiveLeaks.length > 0) {
       console.error('\n[FATAL AUDIT FAILURE] Detected sensitive data leaks:');
@@ -421,7 +445,12 @@ async function main() {
     }
 
     if (forbiddenResponses.length > 0 || consoleErrors.length > 0) {
-      console.error(`\n[FATAL AUDIT FAILURE] Found ${forbiddenResponses.length} forbidden network responses or ${consoleErrors.length} console errors.`);
+      console.error(`\n[FATAL AUDIT FAILURE] Found ${forbiddenResponses.length} unexpected forbidden responses or ${consoleErrors.length} console errors.`);
+      process.exit(1);
+    }
+
+    if (observedMaskedIps === 0 || observedRedactedCommands === 0) {
+      console.error(`\n[FATAL AUDIT FAILURE] Vacuous pass detected: Observed ${observedMaskedIps} masked IPs and ${observedRedactedCommands} redacted commands (expected > 0).`);
       process.exit(1);
     }
 

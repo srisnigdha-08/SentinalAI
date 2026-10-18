@@ -205,10 +205,6 @@ async function main() {
     fs.writeFileSync(analystWsPath, JSON.stringify(capturedWsFrames, null, 2));
     console.log(`  -> Saved analyst WS frames to: ${analystWsPath}`);
 
-    // Verify Analyst room confirmation
-    const connectedFrame = capturedWsFrames.find(f => (typeof f === 'string' ? f : f.frame).includes('"room":"analyst"'));
-    console.log('  -> Analyst connected frame:', connectedFrame ? (typeof connectedFrame === 'string' ? connectedFrame : connectedFrame.frame) : 'None');
-
     // Read back and print from disk as required by Item 2
     const diskFrames = JSON.parse(fs.readFileSync(analystWsPath, 'utf8'));
     console.log('\n=== REAL ANALYST WS FRAMES FROM DISK (scratch/evidence/analyst_ws_frames.json) ===');

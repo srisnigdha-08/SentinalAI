@@ -255,9 +255,9 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 | `revocationReason` | String| No | `null` | — | E.g. `'logout'`, `'password-change'`, `'refresh-replay'` |
 
 - **Indexes**:
-  - Live: `_id_` (`{ _id: 1 }`), `user_1` (`{ user: 1 }`), `expiresAt_1` (`{ expiresAt: 1 }`, `TTL(0s)`).
+  - Live: `_id_` (`{ _id: 1 }`), `user_1` (`{ user: 1 }`), `expiresAt_1` (`{ expiresAt: 1 }`, `TTL(0s)`), `revokedAt_1` (`{ revokedAt: 1 }`, `TTL(172800s)` / 48h, `sparse: true`).
 - **Hooks & Virtuals**: None. Uses `{ bufferCommands: false }` (`AuthSession.js:14`) to fail fast immediately if MongoDB is disconnected.
-- **Live Document Count**: 57 documents (46 active, 11 revoked).
+- **Live Document Count**: 111 documents (74 active with `revokedAt: null`, 37 revoked with timestamp; 48h TTL purges revoked sessions).
 - **Sanitized Example**:
   ```json
   {
@@ -298,7 +298,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 | `handledBy` | ObjectId | No | `null` | Ref: `'User'` | Assigned analyst |
 
 - **Indexes**:
-  - Live: `_id_`, `sourceIP_1_createdAt_-1`, `createdAt_-1`, `status_1`, `severity_1`, `severity_1_status_1`, `aiScore_-1`.
+  - Live: `_id_`, `sourceIP_1_createdAt_-1`, `createdAt_-1`, `status_1`, `severity_1` (redundant with compound), `severity_1_status_1`, `aiScore_-1`.
 - **Live Document Count**: 10 documents.
   - **1 ThreatLog** (`172.18.0.1`, `6aa3a28b3e9adbbeb9e3996f`): **Locally generated or lab traffic** (Docker bridge gateway to Cowrie honeypot container; 3,383 login attempts, 0 commands executed).
   - **9 ThreatLogs**: **Seeded Demo Data** (1 RFC 5737 `198.51.100.88`, 1 RFC 1918 `192.168.100.99`, 7 linked to `demo-*` synthetic honeypot sessions generated via `backend/utils/seed.js:41-48`).
@@ -318,7 +318,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
   - **Shared Implementation & Testing**: All write paths are unified through `backend/utils/redact.js:redactCapturedCredentials` and verified by [`backend/tests/honeypotCredentialRedaction.test.js`](../backend/tests/honeypotCredentialRedaction.test.js).
   - **Live Database State**: In `sentinel-db`, **3,397 historical credentials remain stored in plaintext across 8 sessions** (3,383 in lab session `9b21e8e00dd7` and 14 across the 7 demo sessions) because they were written prior to the unified redaction patch. A non-mutating dry-run scrub script (`scratch/scrub_honeypot_credentials.mjs`) is prepared to redact historical values post-viva upon administrator approval.
   - **Role-Based Retrieval**: Verified by [`backend/tests/honeypotCredentialPrivacy.test.js`](../backend/tests/honeypotCredentialPrivacy.test.js), API responses for role `viewer` strip the `username` and `password` properties entirely, while `admin`/`analyst` retain forensic metadata.
-- **Indexes**: `_id_`, `sessionId_1` (Unique), `sourceIP_1`, `honeypotNode_1_status_1`, `createdAt_-1`, `startTime_-1`.
+- **Indexes**: `_id_`, `sessionId_1` (Unique), `sourceIP_1`, `honeypotNode_1_status_1`, `createdAt_-1`, `startTime_-1`, and new live index `linkedThreatLog_1` (built by `autoIndex` for foreign key lookups).
 - **Live Document Count**: 8 documents (1 lab session `9b21e8e00dd7`, 7 demo sessions `demo-*`).
 
 ---
@@ -333,6 +333,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.6 alerts
 - **Purpose**: Operational notification queue for SOC analysts.
 - **Model File**: [`backend/models/Alert.js`](../backend/models/Alert.js).
+- **Indexes**: `_id_`, `expiresAt_1` (TTL 0s), `severity_1` (redundant), `targetRoles_1_isRead_1_createdAt_-1` (new live compound index built by `autoIndex` for role unread polling), `sourceRef.refId_1` (new live index built by `autoIndex` for foreign key lookups).
 - **Fields & Lifecyle**:
   - Contains polymorphic `sourceRef: { refModel, refId }`.
   - **Auto-Expiration TTL Index**: [`backend/models/Alert.js:41`](../backend/models/Alert.js#L41) defines `AlertSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })`. All alerts automatically purge 7 days after creation.
@@ -380,6 +381,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.12 auditlogs
 - **Purpose**: Append-only forensic security log tracking authentication, user administration, and firewall actions.
 - **Model File**: [`backend/models/AuditLog.js`](../backend/models/AuditLog.js).
+- **Indexes**: `_id_`, `action_1` (redundant with compound), `timestamp_-1`, `action_1_timestamp_-1`, `actor.id_1_timestamp_-1`, and new live index `target.id_1` (built by `autoIndex` for foreign key lookups).
 - **Immutability Architecture**: Mongoose hooks intercept `updateOne`, `updateMany`, `findOneAndUpdate`, `deleteOne`, `deleteMany`, `findOneAndDelete`, and `bulkWrite`. Any modification throws an error.
 - **Live Document Count**: 105 documents.
 
@@ -539,7 +541,7 @@ Application Mutation -> logAudit() (backend/utils/auditLogger.js)
 5. **How are user sessions invalidated when an administrator changes a user's role or forces a logout?**  
    *Answer*: SentinelAI implements dual invalidation: (1) `user.authVersion` is incremented, instantly invalidating all active JWTs on their next request via `protect` middleware; (2) `AuthSession.revokedAt` is populated in the database.
 6. **Why does alert notification polling cause a collection scan (COLLSCAN) in MongoDB?**  
-   *Answer*: The real query executed during polling is `Alert.countDocuments({ targetRoles: role, isRead: false })`. The existing compound index is `{ severity: 1, isRead: 1 }`. Under B-Tree prefix rules, MongoDB cannot use an index that does not lead with the queried fields, forcing a full collection scan. A compound index on `{ targetRoles: 1, isRead: 1, createdAt: -1 }` is required.
+   *Answer*: The query executed during polling is `Alert.countDocuments({ targetRoles: role, isRead: false })`. Historically, this triggered a full collection scan (COLLSCAN) because the previous index was `{ severity: 1, isRead: 1 }`, which lacked `targetRoles` as a prefix. This was resolved: a compound index on `{ targetRoles: 1, isRead: 1, createdAt: -1 }` is now **live** on `sentinel-db`, automatically built by Mongoose `autoIndex` at backend startup, converting the query into an `IXSCAN`.
 7. **What is the difference between an embedded document and a referenced document in SentinelAI?**  
    *Answer*: Commands inside `honeypotsessions.commands` are embedded subdocuments stored directly in the session document. `ThreatLog.handledBy` stores an ObjectId reference to a `User` document, populated on demand.
 8. **Why are there orphaned alerts in the database, and how does the application handle them?**  
@@ -553,7 +555,7 @@ Application Mutation -> logAudit() (backend/utils/auditLogger.js)
 12. **How does SentinelAI handle timezone boundaries for daily SOC threat reports?**  
     *Answer*: `backend/services/reporting/reportTime.js` computes UTC timestamps explicitly aligned with Indian Standard Time (`Asia/Kolkata`, UTC+05:30) day boundaries, ensuring that aggregation buckets correspond to the SOC team's local calendar day.
 13. **What is the difference between a sparse index and a compound index in MongoDB?**  
-    *Answer*: A compound index indexes multiple fields together (e.g. `{ sourceIP: 1, createdAt: -1 }`). A sparse index only indexes documents containing the indexed field. SentinelAI relies on compound indexes for multi-field filtering and sorting.
+    *Answer*: A compound index indexes multiple fields together (e.g. `{ sourceIP: 1, createdAt: -1 }`). A sparse index only indexes documents containing the indexed field. In SentinelAI, `{ revokedAt: 1 }` on `authsessions` is a sparse TTL index (`expireAfterSeconds: 172800` / 48 hours, now live): documents with `revokedAt: null` are omitted from the index and never purged, while revoked sessions with a Date timestamp are automatically removed after 48 hours. Refresh-token replay detection covers this 48-hour window. Redundant single-field indexes (`threatlogs.severity_1`, `alerts.severity_1`, `auditlogs.action_1`) remain in the database because Mongoose `autoIndex` creates missing indexes but does not drop unmanaged or redundant indexes; dropping them is a manual migration step.
 14. **Why is post-query redaction used, and what is its security trade-off?**  
     *Answer*: Redaction-at-read is an **intentional SOC design choice**: security analysts need raw, unmasked forensic data (attacker IP addresses, full command strings, download URLs, MITRE indicators) for threat hunting, while restricted roles like Viewers receive redacted views via Express middleware. The true residual security risk is that raw unencrypted data resides on the database host disk and in unencrypted database dumps (`mongodump`) unless database encryption-at-rest is configured.
 15. **Are database operations atomic across multiple collections in SentinelAI?**  
