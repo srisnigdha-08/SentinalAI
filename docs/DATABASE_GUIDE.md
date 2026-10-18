@@ -197,7 +197,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 | `_id` | ObjectId | Auto | Auto | — | Primary Key |
 | `name` | String | Yes | — | Min 2, Max 50 | Trimmed |
 | `email` | String | Yes | — | Unique | Lowercased, trimmed |
-| `password` | String | Yes | — | Min 8, `select: false` | Bcrypt hash ($2a$12$) |
+| `password` | String | Yes | — | Min 8, `select: false` | Bcrypt hash (12 salt rounds) |
 | `role` | String | No | `'viewer'` | `admin`, `analyst`, `viewer` | RBAC role |
 | `status` | String | No | `'active'` | `active`, `inactive`, `suspended` | Account lock state |
 | `lastLogin` | Date | No | `null` | — | Updated on successful login |
@@ -298,7 +298,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 | `handledBy` | ObjectId | No | `null` | Ref: `'User'` | Assigned analyst |
 
 - **Indexes**:
-  - Live: `_id_`, `sourceIP_1_createdAt_-1`, `createdAt_-1`, `status_1`, `severity_1` (redundant with compound), `severity_1_status_1`, `aiScore_-1`.
+  - Live (9 indexes): `_id_`, `createdAt_-1`, `severity_1_status_1`, `sourceIP_1_createdAt_-1`, `severity_1` (redundant with compound), `status_1`, `containmentId_1`, `predictionId_1`, `threatIntel.status_1`.
 - **Live Document Count**: 10 documents.
   - **1 ThreatLog** (`172.18.0.1`, `6aa3a28b3e9adbbeb9e3996f`): **Locally generated or lab traffic** (Docker bridge gateway to Cowrie honeypot container; 3,383 login attempts, 0 commands executed).
   - **9 ThreatLogs**: **Seeded Demo Data** (1 RFC 5737 `198.51.100.88`, 1 RFC 1918 `192.168.100.99`, 7 linked to `demo-*` synthetic honeypot sessions generated via `backend/utils/seed.js:41-48`).
@@ -318,7 +318,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
   - **Shared Implementation & Testing**: All write paths are unified through `backend/utils/redact.js:redactCapturedCredentials` and verified by [`backend/tests/honeypotCredentialRedaction.test.js`](../backend/tests/honeypotCredentialRedaction.test.js).
   - **Live Database State**: In `sentinel-db`, **3,397 historical credentials remain stored in plaintext across 8 sessions** (3,383 in lab session `9b21e8e00dd7` and 14 across the 7 demo sessions) because they were written prior to the unified redaction patch. A non-mutating dry-run scrub script (`scratch/scrub_honeypot_credentials.mjs`) is prepared to redact historical values post-viva upon administrator approval.
   - **Role-Based Retrieval**: Verified by [`backend/tests/honeypotCredentialPrivacy.test.js`](../backend/tests/honeypotCredentialPrivacy.test.js), API responses for role `viewer` strip the `username` and `password` properties entirely, while `admin`/`analyst` retain forensic metadata.
-- **Indexes**: `_id_`, `sessionId_1` (Unique), `sourceIP_1`, `honeypotNode_1_status_1`, `createdAt_-1`, `startTime_-1`, and new live index `linkedThreatLog_1` (built by `autoIndex` for foreign key lookups).
+- **Indexes**: Live (7 indexes): `_id_`, `sessionId_1` (Unique), `sourceIP_1_createdAt_-1`, `honeypotNode_1_status_1`, `createdAt_-1`, `hassh_1`, `linkedThreatLog_1` (built by `autoIndex` for foreign key lookups).
 - **Live Document Count**: 8 documents (1 lab session `9b21e8e00dd7`, 7 demo sessions `demo-*`).
 
 ---
@@ -326,6 +326,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.5 campaigns
 - **Purpose**: Correlates coordinated multi-session threat actor campaigns sharing common infrastructure, toolsets, or subnets.
 - **Model File**: [`backend/models/Campaign.js`](../backend/models/Campaign.js).
+- **Indexes**: Live (3 indexes): `_id_`, `campaignId_1` (Unique), `lastSeen_-1`.
 - **Live Document Count**: 1 document (`Coordinated Scanner Campaign`).
 
 ---
@@ -333,7 +334,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.6 alerts
 - **Purpose**: Operational notification queue for SOC analysts.
 - **Model File**: [`backend/models/Alert.js`](../backend/models/Alert.js).
-- **Indexes**: `_id_`, `expiresAt_1` (TTL 0s), `severity_1` (redundant), `targetRoles_1_isRead_1_createdAt_-1` (new live compound index built by `autoIndex` for role unread polling), `sourceRef.refId_1` (new live index built by `autoIndex` for foreign key lookups).
+- **Indexes**: Live (7 indexes): `_id_`, `createdAt_-1`, `severity_1_isRead_1`, `expiresAt_1` (TTL 0s), `severity_1` (redundant), `targetRoles_1_isRead_1_createdAt_-1` (new live compound index built by `autoIndex` for role unread polling), `sourceRef.refId_1` (new live index built by `autoIndex` for foreign key lookups).
 - **Fields & Lifecyle**:
   - Contains polymorphic `sourceRef: { refModel, refId }`.
   - **Auto-Expiration TTL Index**: [`backend/models/Alert.js:41`](../backend/models/Alert.js#L41) defines `AlertSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })`. All alerts automatically purge 7 days after creation.
@@ -345,6 +346,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.7 aipredictions
 - **Purpose**: Historical inference audit trail produced by Random Forest and Isolation Forest ML models.
 - **Model File**: [`backend/models/AIPrediction.js`](../backend/models/AIPrediction.js).
+- **Indexes**: Live (4 indexes): `_id_`, `createdAt_-1`, `threatScore_-1`, `sourceIP_1`.
 - **Live Document Count**: 9 documents.
 
 ---
@@ -352,6 +354,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.8 trainingsamples
 - **Purpose**: Stores labeled feature vectors for periodic model re-training.
 - **Model File**: [`backend/models/TrainingSample.js`](../backend/models/TrainingSample.js).
+- **Indexes**: Live (9 indexes): `_id_`, `sourcePredictionId_1`, `sampleHash_1`, `groundTruthLabel_1`, `status_1`, `quarantinedAt_1`, `sourcePredictionId_1_status_1`, `sampleHash_1_groundTruthLabel_1`, `status_1_groundTruthLabel_1`.
 - **Live Document Count**: 0 documents.
 
 ---
@@ -359,7 +362,8 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.9 blockedips
 - **Purpose**: Active firewall blocklist store for containment enforcement.
 - **Model File**: [`backend/models/BlockedIP.js`](../backend/models/BlockedIP.js).
-- **Fields**: `ip` (Unique), `reason`, `blockedBy`, `threatLogId`, `expiresAt` (TTL index).
+- **Fields**: `ip` (Unique), `reason`, `blockedBy`, `threatLogId`.
+- **Indexes**: Live (2 indexes): `_id_`, `ip_1` (Unique).
 - **Live Document Count**: 0 documents.
 
 ---
@@ -367,6 +371,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.10 containmentactions
 - **Purpose**: Formal containment orchestration state-machine tracking adapter enforcement, rollbacks, and failures.
 - **Model File**: [`backend/models/ContainmentAction.js`](../backend/models/ContainmentAction.js).
+- **Indexes**: Live (7 indexes): `_id_`, `containmentId_1` (Unique), `idempotencyKey_1` (Unique, Sparse), `normalizedTarget_1`, `enforcementStatus_1`, `expiresAt_1`, `correlationId_1`.
 - **Live Document Count**: 0 documents.
 
 ---
@@ -374,14 +379,15 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 ### 3.11 systemsettings
 - **Purpose**: Singleton collection storing operational switches (e.g. `autoContainmentEnabled`, `mlInferenceThreshold`).
 - **Model File**: [`backend/models/SystemSetting.js`](../backend/models/SystemSetting.js).
-- **Live Document Count**: 1 document (`singleton: 'SYSTEM_SETTINGS'`).
+- **Indexes**: Live (2 indexes): `_id_`, `key_1` (Unique).
+- **Live Document Count**: 1 document (`key: 'system_settings'`).
 
 ---
 
 ### 3.12 auditlogs
 - **Purpose**: Append-only forensic security log tracking authentication, user administration, and firewall actions.
 - **Model File**: [`backend/models/AuditLog.js`](../backend/models/AuditLog.js).
-- **Indexes**: `_id_`, `action_1` (redundant with compound), `timestamp_-1`, `action_1_timestamp_-1`, `actor.id_1_timestamp_-1`, and new live index `target.id_1` (built by `autoIndex` for foreign key lookups).
+- **Indexes**: Live (8 indexes): `_id_`, `action_1` (redundant with compound), `eventType_1`, `status_1`, `createdAt_-1`, `actor.id_1_createdAt_-1`, `action_1_createdAt_-1`, `target.id_1` (built by `autoIndex` for foreign key lookups).
 - **Immutability Architecture**: Mongoose hooks intercept `updateOne`, `updateMany`, `findOneAndUpdate`, `deleteOne`, `deleteMany`, `findOneAndDelete`, and `bulkWrite`. Any modification throws an error.
 - **Live Document Count**: 105 documents.
 
@@ -555,7 +561,7 @@ Application Mutation -> logAudit() (backend/utils/auditLogger.js)
 12. **How does SentinelAI handle timezone boundaries for daily SOC threat reports?**  
     *Answer*: `backend/services/reporting/reportTime.js` computes UTC timestamps explicitly aligned with Indian Standard Time (`Asia/Kolkata`, UTC+05:30) day boundaries, ensuring that aggregation buckets correspond to the SOC team's local calendar day.
 13. **What is the difference between a sparse index and a compound index in MongoDB?**  
-    *Answer*: A compound index indexes multiple fields together (e.g. `{ sourceIP: 1, createdAt: -1 }`). A sparse index only indexes documents containing the indexed field. In SentinelAI, `{ revokedAt: 1 }` on `authsessions` is a sparse TTL index (`expireAfterSeconds: 172800` / 48 hours, now live): documents with `revokedAt: null` are omitted from the index and never purged, while revoked sessions with a Date timestamp are automatically removed after 48 hours. Refresh-token replay detection covers this 48-hour window. Redundant single-field indexes (`threatlogs.severity_1`, `alerts.severity_1`, `auditlogs.action_1`) remain in the database because Mongoose `autoIndex` creates missing indexes but does not drop unmanaged or redundant indexes; dropping them is a manual migration step.
+    *Answer*: A compound index indexes multiple fields together (e.g. `{ sourceIP: 1, createdAt: -1 }`). A sparse index only indexes documents containing the indexed field (skipping missing/undefined fields, but including explicit `null` values). In SentinelAI, `{ revokedAt: 1 }` on `authsessions` is a sparse TTL index (`expireAfterSeconds: 172800` / 48 hours, now live): documents with `revokedAt: null` have index entries but are never expired by MongoDB's TTL thread because TTL monitor threads exclusively process BSON Date values. Revoked sessions with a Date timestamp are automatically removed after 48 hours. Redundant single-field indexes (`threatlogs.severity_1`, `alerts.severity_1`, `auditlogs.action_1`) remain in the database because Mongoose `autoIndex` creates missing indexes but does not drop unmanaged or redundant indexes; dropping them is a manual migration step.
 14. **Why is post-query redaction used, and what is its security trade-off?**  
     *Answer*: Redaction-at-read is an **intentional SOC design choice**: security analysts need raw, unmasked forensic data (attacker IP addresses, full command strings, download URLs, MITRE indicators) for threat hunting, while restricted roles like Viewers receive redacted views via Express middleware. The true residual security risk is that raw unencrypted data resides on the database host disk and in unencrypted database dumps (`mongodump`) unless database encryption-at-rest is configured.
 15. **Are database operations atomic across multiple collections in SentinelAI?**  

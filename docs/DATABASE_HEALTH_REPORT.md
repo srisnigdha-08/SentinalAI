@@ -45,11 +45,11 @@ Following the database health audit and remediation phases, all 14 identified is
 | **honeypotsessions** | 8 | Pass (0 drift) | Pass (Live linkedThreatLog_1 ref idx) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Warning (3,397 plaintext passwords; new writes masked) | **B+** | Fixed live (`ISS-13`) / Partial (`ISS-09`) |
 | **campaigns** | 1 | Pass (0 drift) | Pass (Indexed) | Pass (0 orphans) | Pass (Low volume) | Pass (Targeted lookup) | Pass (Metadata only) | **A** | Verified |
 | **alerts** | 5 | Pass (0 drift) | Pass (Live compound targetRoles & ref idx) | Pass (Cascade delete at source) | Pass (7-day TTL auto-purge) | Pass (IXSCAN via compound idx) | Pass (No sensitive leaks) | **A-** | Fixed live (`ISS-01`, `ISS-04`) |
-| **aipredictions** | 9 | Pass (0 drift) | Pass (Indexed threatId) | Pass (0 orphans) | Warning (Retention deferred) | Pass (IXSCAN) | Pass (Inference telemetry) | **B+** | Deferred (`ISS-03`) |
-| **trainingsamples** | 0 | Pass (Empty) | Pass (Declared) | N/A (0 docs) | Warning (Uncapped growth) | N/A (0 docs) | Pass (Standard telemetry) | **A-** | Verified |
+| **aipredictions** | 9 | Pass (0 drift) | Pass (Indexed threatScore/sourceIP/createdAt) | Pass (0 orphans) | Warning (Retention deferred) | Pass (IXSCAN) | Pass (Inference telemetry) | **B+** | Deferred (`ISS-03`) |
+| **trainingsamples** | 0 | Pass (Empty) | Pass (8 Declared & Live) | N/A (0 docs) | Warning (Uncapped growth) | N/A (0 docs) | Pass (Standard telemetry) | **A-** | Verified |
 | **blockedips** | 0 | Pass (Empty) | Pass (Unique IP) | Pass (0 docs) | Pass (TTL supported) | Pass (Indexed IP) | Pass (Firewall metadata) | **A-** | Verified (`ISS-05`) |
-| **containmentactions**| 0 | Pass (Empty) | Pass (Declared) | Pass (0 docs) | Warning (Uncapped growth) | Pass (Indexed target) | Pass (Action telemetry) | **A-** | Verified |
-| **systemsettings** | 1 | Pass (0 drift) | Pass (Unique singleton) | Pass (N/A) | Pass (Singleton 1 doc) | Pass (Single lookup) | Pass (Configuration only) | **A** | Verified |
+| **containmentactions**| 0 | Pass (Empty) | Pass (6 Declared & Live) | Pass (0 docs) | Warning (Uncapped growth) | Pass (Indexed target) | Pass (Action telemetry) | **A-** | Verified |
+| **systemsettings** | 1 | Pass (0 drift) | Pass (Unique key) | Pass (N/A) | Pass (Singleton 1 doc) | Pass (Single lookup) | Pass (Configuration only) | **A** | Verified |
 | **auditlogs** | 105–175 | Pass (0 drift) | Warning (Redundant action_1; live target.id_1 built) | Pass (12 target orphans*) | Pass (Immutable; excluded from purge) | Pass (IXSCAN pagination) | Pass (Mongoose hooks active; engine RBAC deferred) | **B+** | Fixed (`ISS-12`, `ISS-13`) / Deferred (`ISS-07`) |
 
 *\* AuditLog target orphans are expected when referenced entities (such as temporary test users or deleted threats) are removed from business collections, preserving forensic audit trails.*
@@ -116,14 +116,27 @@ Following the database health audit and remediation phases, all 14 identified is
 - **Verification Method**: Dumped and audited raw indexes via `collection.indexes()` for all 12 collections (`scratch/evidence/sentinel_db_indexes_raw.json`).
 - **Status**: **PASS (64 Live Indexes; 5 New Indexes Built Live; 3 Redundant Indexes Retained)**
 - **Findings**:
-  1. **5 New Indexes Built Live by `autoIndex`**:
+  1. **Exact Per-Collection Counts (64 Total Indexes Across 12 Collections)**:
+     - `aipredictions`: 4 indexes (`_id_`, `createdAt_-1`, `threatScore_-1`, `sourceIP_1`)
+     - `alerts`: 7 indexes (`_id_`, `createdAt_-1`, `severity_1_isRead_1`, `expiresAt_1`, `severity_1` [redundant], `targetRoles_1_isRead_1_createdAt_-1` [new live], `sourceRef.refId_1` [new live])
+     - `auditlogs`: 8 indexes (`_id_`, `action_1` [redundant], `eventType_1`, `status_1`, `createdAt_-1`, `actor.id_1_createdAt_-1`, `action_1_createdAt_-1`, `target.id_1` [new live])
+     - `authsessions`: 4 indexes (`_id_`, `user_1`, `expiresAt_1`, `revokedAt_1` [new live])
+     - `blockedips`: 2 indexes (`_id_`, `ip_1`)
+     - `campaigns`: 3 indexes (`_id_`, `campaignId_1`, `lastSeen_-1`)
+     - `containmentactions`: 7 indexes (`_id_`, `containmentId_1`, `idempotencyKey_1`, `normalizedTarget_1`, `enforcementStatus_1`, `expiresAt_1`, `correlationId_1`)
+     - `honeypotsessions`: 7 indexes (`_id_`, `sessionId_1`, `sourceIP_1_createdAt_-1`, `honeypotNode_1_status_1`, `createdAt_-1`, `hassh_1`, `linkedThreatLog_1` [new live])
+     - `systemsettings`: 2 indexes (`_id_`, `key_1`)
+     - `threatlogs`: 9 indexes (`_id_`, `createdAt_-1`, `severity_1_status_1`, `sourceIP_1_createdAt_-1`, `severity_1` [redundant], `status_1`, `containmentId_1`, `predictionId_1`, `threatIntel.status_1`)
+     - `trainingsamples`: 9 indexes (`_id_`, `sourcePredictionId_1`, `sampleHash_1`, `groundTruthLabel_1`, `status_1`, `quarantinedAt_1`, `sourcePredictionId_1_status_1`, `sampleHash_1_groundTruthLabel_1`, `status_1_groundTruthLabel_1`)
+     - `users`: 2 indexes (`_id_`, `email_1`)
+  2. **5 New Indexes Built Live by `autoIndex`**:
      During backend initialization in development mode (`NODE_ENV=development`), Mongoose's default `autoIndex: true` automatically called `createIndex()` for all declared schema indexes. All 5 remediated indexes are **live** in `sentinel-db`:
-     - `authsessions`: `{ revokedAt: 1 }` (`expireAfterSeconds: 172800, sparse: true`) — **Live 48-Hour TTL Index**. Revoked sessions are purged after 48 hours; refresh-replay attack detection (`claims.gen < session.generation`) covers this 48-hour window.
+     - `authsessions`: `{ revokedAt: 1 }` (`expireAfterSeconds: 172800, sparse: true`) — **Live 48-Hour TTL Index**. Revoked sessions with a Date timestamp are purged after 48 hours; refresh-replay attack detection (`claims.gen < session.generation`) covers this 48-hour window.
      - `alerts`: `{ targetRoles: 1, isRead: 1, createdAt: -1 }` — **Live Compound Index**. Eliminates collection scan (`COLLSCAN`) for notification polling and unread counting.
      - `alerts`: `{ "sourceRef.refId": 1 }` — **Live Foreign Key Index**. Accelerates cascading alert deletion.
      - `honeypotsessions`: `{ linkedThreatLog: 1 }` — **Live Foreign Key Index**.
      - `auditlogs`: `{ "target.id": 1 }` — **Live Foreign Key Index**.
-  2. **3 Redundant Compound Indexes Retained**:
+  3. **3 Redundant Compound Indexes Retained**:
      - `threatlogs`: `{ severity: 1 }` (prefix covered by compound `{ severity: 1, status: 1 }`).
      - `alerts`: `{ severity: 1 }` (prefix covered by compound `{ severity: 1, isRead: 1 }`).
      - `auditlogs`: `{ action: 1 }` (prefix covered by compound `{ action: 1, createdAt: -1 }`).
@@ -502,7 +515,8 @@ flowchart TD
 **Answer**: The real query executed during polling is `Alert.countDocuments({ targetRoles: role, isRead: false })`. The baseline compound index was `{ severity: 1, isRead: 1 }`. Under B-Tree prefix rules, MongoDB could not use an index that does not lead with the queried fields, forcing a full collection scan. A compound index on `{ targetRoles: 1, isRead: 1, createdAt: -1 }` was declared and is now live in `sentinel-db` (built by Mongoose `autoIndex` at startup), resolving the COLLSCAN to an indexed IXSCAN.
 
 #### 7. How does the TTL (Time-To-Live) index work on the `authsessions` collection?
-**Answer**: SentinelAI utilizes two live TTL indexes on `authsessions`: (1) `AuthSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })` for natural 30-day session expiry; (2) `AuthSessionSchema.index({ revokedAt: 1 }, { expireAfterSeconds: 48 * 3600, sparse: true })` built live in `sentinel-db`. MongoDB's background TTL thread scans the index once every 60 seconds. Active sessions (where `revokedAt` is null) are omitted by the sparse index and never expired by it. Revoked sessions (where `revokedAt` is a BSON Date) are automatically deleted 48 hours after revocation, bounding refresh token replay detection (`claims.gen < session.generation`) to this 48-hour security window.
+**Answer**: SentinelAI utilizes two live TTL indexes on `authsessions`: (1) `AuthSessionSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })` for natural 30-day session expiry; (2) `AuthSessionSchema.index({ revokedAt: 1 }, { expireAfterSeconds: 48 * 3600, sparse: true })` built live in `sentinel-db`.
+*Sparse Index & TTL Semantics*: In MongoDB, a `sparse` index only excludes documents where the indexed field is completely **missing / undefined**. Documents with an explicit `null` (such as active sessions where `revokedAt: null`) **are** indexed in the B-Tree index. However, MongoDB's background TTL thread **strictly expires documents only when the indexed field value is a BSON Date** (or an array containing Dates). Non-Date values (such as `null`, booleans, strings) are completely ignored by the TTL thread and NEVER purged. Therefore, active sessions with `revokedAt: null` are 100% safe from TTL eviction, while revoked sessions with a BSON Date timestamp are automatically purged 48 hours after revocation, bounding refresh token replay detection (`claims.gen < session.generation`) to this 48-hour security window.
 
 #### 8. Why are there orphaned alerts in the database, and how does the application handle them?
 **Answer**: In historical test runs, deleting a threat left alerts referencing the deleted ID. This has been resolved at the source: `threatService.deleteThreat(id)` cascades deletion of all alerts where `sourceRef.refModel === 'ThreatLog'` and `sourceRef.refId === id`, while maintaining the audit-first policy in `threatController.deleteThreat`. The 2 historical orphaned alerts in `sentinel-db` cause no UI issues (as `findAlerts` does not populate `sourceRef`) and will automatically purge via MongoDB's 7-day TTL index on 2026-10-25.
@@ -520,7 +534,7 @@ flowchart TD
 **Answer**: `backend/services/reporting/reportTime.js` computes UTC timestamps explicitly aligned with Indian Standard Time (`Asia/Kolkata`, UTC+05:30) day boundaries, ensuring that aggregation buckets correspond to the SOC team's local calendar day.
 
 #### 13. What is the difference between a sparse index and a compound index in MongoDB?
-**Answer**: A compound index indexes multiple fields together (e.g. `{ sourceIP: 1, createdAt: -1 }`). A sparse index only indexes documents containing the indexed field. SentinelAI relies on compound indexes for multi-field filtering and sorting.
+**Answer**: A compound index indexes multiple fields together (e.g. `{ sourceIP: 1, createdAt: -1 }`). A sparse index only indexes documents containing the indexed field (skipping missing/undefined fields, but including explicit `null` values). In SentinelAI, `{ revokedAt: 1 }` on `authsessions` is a sparse TTL index (`expireAfterSeconds: 172800` / 48 hours, live in `sentinel-db`): documents with `revokedAt: null` have index entries but are never expired by MongoDB's TTL thread because TTL monitor threads exclusively process BSON Date values. Revoked sessions with a Date timestamp are automatically removed after 48 hours. Redundant single-field indexes (`threatlogs.severity_1`, `alerts.severity_1`, `auditlogs.action_1`) remain in the database because Mongoose `autoIndex` creates missing indexes but does not drop unmanaged or redundant indexes; dropping them is a manual migration step.
 
 #### 14. Why is post-query redaction used, and what is its security trade-off?
 **Answer**: Redaction-at-read is an **intentional SOC design choice**: security analysts need raw, unmasked forensic data (attacker IP addresses, full command strings, download URLs, MITRE indicators) for threat hunting, while restricted roles like Viewers receive redacted views via Express middleware. The true residual security risk is that raw unencrypted data resides on the database host disk and in unencrypted database dumps (`mongodump`) unless database encryption-at-rest is configured.

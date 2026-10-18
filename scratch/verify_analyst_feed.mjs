@@ -95,6 +95,18 @@ async function main() {
       if (payload) {
         capturedWsFrames.push({
           timestamp: new Date().toISOString(),
+          direction: 'received',
+          frame: payload
+        });
+      }
+    });
+
+    cdp.on('Network.webSocketFrameSent', (params) => {
+      const payload = params.response?.payloadData;
+      if (payload) {
+        capturedWsFrames.push({
+          timestamp: new Date().toISOString(),
+          direction: 'sent',
           frame: payload
         });
       }
@@ -197,6 +209,20 @@ async function main() {
     await new Promise((res) => setTimeout(res, 3000));
 
     console.log(`[Step 3] Analyst WebSocket Frames Captured: ${capturedWsFrames.length}`);
+
+    // Assert socket room/role from connect and join_room payloads
+    const joinRoomFrame = capturedWsFrames.find(f => (f.frame || '').includes('join_room'));
+    const subscribedFrame = capturedWsFrames.find(f => (f.frame || '').includes('subscribed'));
+
+    if (!joinRoomFrame || !joinRoomFrame.frame.includes('"role":"analyst"')) {
+      throw new Error(`Failed room/role assertion: expected join_room with role 'analyst', found: ${JSON.stringify(joinRoomFrame)}`);
+    }
+    console.log(`  -> [PASS] Verified WebSocket client emitted join_room with role: 'analyst'`);
+
+    if (!subscribedFrame || !subscribedFrame.frame.includes('"channel":"threats"')) {
+      throw new Error(`Failed subscription assertion: expected subscribed event on channel 'threats', found: ${JSON.stringify(subscribedFrame)}`);
+    }
+    console.log(`  -> [PASS] Verified WebSocket server confirmed subscription to channel: 'threats'`);
 
     // Save evidence
     const evidenceDir = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), 'evidence');
