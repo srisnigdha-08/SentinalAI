@@ -257,7 +257,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
 - **Indexes**:
   - Live: `_id_` (`{ _id: 1 }`), `user_1` (`{ user: 1 }`), `expiresAt_1` (`{ expiresAt: 1 }`, `TTL(0s)`), `revokedAt_1` (`{ revokedAt: 1 }`, `TTL(172800s)` / 48h, `sparse: true`).
 - **Hooks & Virtuals**: None. Uses `{ bufferCommands: false }` (`AuthSession.js:14`) to fail fast immediately if MongoDB is disconnected.
-- **Live Document Count**: 111 documents (74 active with `revokedAt: null`, 37 revoked with timestamp; 48h TTL purges revoked sessions).
+- **Live Document Count**: 111–152 documents (dynamically generated with each user login; at 152 documents: 100 active with `revokedAt: null`, 52 revoked with timestamp; 48h TTL purges revoked sessions).
 - **Sanitized Example**:
   ```json
   {
