@@ -498,8 +498,10 @@ const getContainmentStatus = async () => {
  * Order: ThreatLog state transition -> BlockedIP upsert.
  * Compensation: If BlockedIP fails, ThreatLog is reverted to prior state (Scenario A).
  */
-const blockThreat = async (threatId, analystId, reason = 'Manual threat block') => {
-  const threat = await ThreatLog.findById(threatId)
+const blockThreat = async (threatId, analystId, reason = 'Manual threat block', session = null) => {
+  const threatQuery = ThreatLog.findById(threatId)
+  if (session) threatQuery.session(session)
+  const threat = await threatQuery
   if (!threat) return null
 
   // Protection of analyst terminal states
@@ -519,7 +521,7 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
         blockedBy: analystId,
         threatRef: threat._id,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, ...(session ? { session } : {}) }
     )
     return threat
   }
@@ -546,7 +548,7 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
     actionType: 'IP_BLOCKED',
     actionTime: new Date(),
   }
-  await threat.save()
+  await threat.save(session ? { session } : undefined)
 
   // Step 2: Upsert BlockedIP (Scenario A compensation on failure)
   let blockedDoc
@@ -560,11 +562,14 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
         blockedBy: analystId,
         threatRef: threat._id,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, ...(session ? { session } : {}) }
     )
     threat.containmentId = blockedDoc._id
-    await threat.save()
+    await threat.save(session ? { session } : undefined)
   } catch (blockedIpErr) {
+    if (session) {
+      throw blockedIpErr
+    }
     logger.error(
       `[Containment] BlockedIP operation failed for ${threat.sourceIP}: ${blockedIpErr.message}. Attempting compensating rollback on ThreatLog ${threat._id}...`
     )

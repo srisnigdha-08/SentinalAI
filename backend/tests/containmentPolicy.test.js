@@ -103,6 +103,11 @@ jest.mock('../models/AIPrediction', () => ({
   create: (...args) => mockAIPredictionCreate(...args),
 }))
 
+jest.mock('../models/AuditLog', () => ({
+  create: jest.fn().mockResolvedValue({}),
+  find: jest.fn().mockReturnValue({ sort: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue([]) }),
+}))
+
 const mockGetBlockThreshold = jest.fn().mockResolvedValue(0.92)
 jest.mock('../services/aiEngineService', () => ({
   getBlockThreshold: () => mockGetBlockThreshold(),
