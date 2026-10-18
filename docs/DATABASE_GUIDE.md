@@ -215,7 +215,7 @@ Cross-checking [`backend/models/`](../backend/models/) with live collection stat
   - `pre('save')`: Hashes password via `bcrypt.hash(password, 12)` if modified; initializes `tokenVersion = authVersion`.
   - `methods.comparePassword(pwd)`: Validates plain password against hash.
   - `methods.toJSON()`: Strips `password` and `__v`, computes assigned permissions via `getPermissions(this.role)`.
-- **Live Document Count**: 6 documents.
+- **Live Document Count**: 5 documents (canonical `admin@sentinel.io`, analysts `arjun@sentinel.io`, `priya@sentinel.io`, `operator1@sentinel.io`, and viewer `sara@sentinel.io`; historical dev seed user `admin@sentinel.local` deleted).
 - **Sanitized Example**:
   ```json
   {
@@ -552,8 +552,8 @@ Application Mutation -> logAudit() (backend/utils/auditLogger.js)
    *Answer*: Commands inside `honeypotsessions.commands` are embedded subdocuments stored directly in the session document. `ThreatLog.handledBy` stores an ObjectId reference to a `User` document, populated on demand.
 8. **Why are there orphaned alerts in the database, and how does the application handle them?**  
    *Answer*: In historical test runs, deleting a threat left alerts referencing the deleted ID. This has been resolved at the source: `threatService.deleteThreat(id)` cascades deletion of all alerts where `sourceRef.refModel === 'ThreatLog'` and `sourceRef.refId === id`, while strictly maintaining the audit-first policy in `threatController.deleteThreat`. The 2 historical orphaned alerts in `sentinel-db` cause no UI issues (as `findAlerts` does not populate `sourceRef`) and will automatically purge via MongoDB's 7-day TTL index on 2026-10-25.
-9. **Why is `tokenVersion` missing on `admin@sentinel.local` and `priya@sentinel.io`?**  
-   *Answer*: In git commit `5ea705144f`, `UserSchema` only defined `authVersion`. `tokenVersion` was added subsequently. Because MongoDB is a schema-less document store, adding a field with a default to a Mongoose schema does **not** retroactively backfill existing documents on disk; it only initializes on new document saves. On raw BSON disk storage, `tokenVersion` is undefined for `admin@sentinel.local` and `priya@sentinel.io`. When queried via Mongoose, document hydration assigns default `0`, and the `protect` middleware explicitly checks `claims.tv !== (user.tokenVersion || 0)`, ensuring that missing values default to 0 without causing authentication rejections. (Any prior claim that `tokenVersion` was explicitly 0 on disk is retracted).
+9. **Why was `tokenVersion` missing on `admin@sentinel.local` and `priya@sentinel.io`?**  
+   *Answer*: In git commit `5ea705144f`, `UserSchema` only defined `authVersion`. `tokenVersion` was added subsequently. Because MongoDB is a schema-less document store, adding a field with a default to a Mongoose schema does **not** retroactively backfill existing documents on disk; it only initializes on new document saves. On raw BSON disk storage, `tokenVersion` was undefined for `admin@sentinel.local` and `priya@sentinel.io`. When queried via Mongoose, document hydration assigns default `0`, and the `protect` middleware explicitly checks `claims.tv !== (user.tokenVersion || 0)`, ensuring that missing values default to 0 without causing authentication rejections. (The historical seed account `admin@sentinel.local` has now been deleted from `sentinel-db`, leaving only the 5 production accounts).
 10. **Why does the `AuditLog` hook on `findOneAndRemove` not work in Mongoose 8?**  
     *Answer*: `Model.findOneAndRemove` was deprecated in Mongoose 6 and removed in Mongoose 8. The method does not exist on Mongoose 8 models, making `pre('findOneAndRemove')` dead code.
 11. **What is the database performance impact of storing growing honeypot command arrays?**  

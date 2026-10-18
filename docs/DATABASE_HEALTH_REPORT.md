@@ -20,7 +20,7 @@ Following the database health audit and remediation phases, all 14 identified is
   - `ISS-04`: Fixed live. Alert compound index `{ targetRoles: 1, isRead: 1, createdAt: -1 }` on `Alert.js` was built live in `sentinel-db` by Mongoose `autoIndex` at backend startup, eliminating COLLSCAN on alert bell queries.
   - `ISS-12`: Removed dead hook `pre('findOneAndRemove')` from `AuditLog.js` (deprecated and removed in Mongoose 8.x).
   - `ISS-13`: Fixed live. Foreign key reference indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` were built live in `sentinel-db` by Mongoose `autoIndex` at backend startup.
-  - `ISS-14`: User creation path ensures `tokenVersion: 0`. Verified on disk in `sentinel-db` that `admin@sentinel.local` lacks `tokenVersion` on raw BSON storage; Mongoose schema safely defaults it to `0` on document hydration, and `protect` middleware functions because `claims.tv !== (user.tokenVersion || 0)` evaluates to false (`0 !== 0`). Any prior claim that `tokenVersion` was explicitly `0` on disk is retracted.
+  - `ISS-14`: User creation path ensures `tokenVersion: 0`. The unreferenced historical dev seed account `admin@sentinel.local` was permanently deleted from `sentinel-db` (`deletedCount: 1`), leaving only the 5 production accounts (`admin@sentinel.io`, `arjun@sentinel.io`, `priya@sentinel.io`, `operator1@sentinel.io`, `sara@sentinel.io`). For existing user `priya@sentinel.io`, missing `tokenVersion` safely hydrates to default `0` in Mongoose, and `protect` middleware evaluates `claims.tv !== (user.tokenVersion || 0)` as false (`0 !== 0`).
 - **Partially Fixed (1)**:
   - `ISS-09`: Unified write-path password redaction enforced via `backend/utils/redact.js:redactCapturedCredentials` across ingest, service, and seed paths (`backend/tests/honeypotCredentialRedaction.test.js`). 3,397 existing plaintext passwords remain in database storage fixtures (3,383 in session `9b21e8e00dd7` and 14 across 7 demo sessions) until a scrub script is explicitly executed.
 - **Accepted (3)**:
@@ -39,7 +39,7 @@ Following the database health audit and remediation phases, all 14 identified is
 
 | Collection | Doc Count | Schema Health | Index Health | Referential Integrity | Growth / Lifecycle | Query Performance | Security / Privacy | Overall Grade | Status |
 | :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **users** | 6 | Pass (0 drift) | Pass (Unique email) | Pass (100% valid) | Pass (Bounded) | Pass (Indexed ID/Email) | Pass (Bcrypt hashed) | **A** | Fixed live (`ISS-14`) |
+| **users** | 5 | Pass (0 drift) | Pass (Unique email) | Pass (100% valid) | Pass (Bounded) | Pass (Indexed ID/Email) | Pass (Bcrypt hashed) | **A** | Fixed live (`ISS-14`) |
 | **authsessions** | 57–152 | Pass (0 drift) | Pass (Live 48h TTL index) | Pass (0 orphans) | Pass (30d expiresAt; live 48h revokedAt TTL) | Pass (IDHACK) | Pass (SHA-256 hash) | **A-** | Fixed live (`ISS-02`) |
 | **threatlogs** | 10 | Pass (0 drift) | Warning (Redundant severity_1 retains live) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Pass (Standard telemetry) | **B** | Deferred (`ISS-03`) |
 | **honeypotsessions** | 8 | Pass (0 drift) | Pass (Live linkedThreatLog_1 ref idx) | Pass (0 orphans) | Warning (Retention deferred) | Warning (In-memory sort) | Warning (3,397 plaintext passwords; new writes masked) | **B+** | Fixed live (`ISS-13`) / Partial (`ISS-09`) |
@@ -192,7 +192,7 @@ Following the database health audit and remediation phases, all 14 identified is
 - **Findings**:
   1. **Seeded Demo Containment State**: ThreatLog `6aa3a43d3e9adbbeb9e39a57` (`198.51.100.88`, RFC 5737 documentation IP) has `status: 'BLOCKED'`, while `blockedips` and `containmentactions` have 0 documents.
      - **Reconciliation Analysis**: Inspected `backend/services/containmentReconciliationService.js:37-40`. The service only scans expired `ContainmentAction` records where `enforcementStatus` is `ACTIVE` or `ROLLBACK_FAILED` and `expiresAt <= now`. Because `6aa3...a57` is a static demo fixture with no `ContainmentAction` record, `containmentReconciliationService` will NOT alter it.
-  2. **Token Version on Seed Account**: Seed user `admin@sentinel.local` (and `priya@sentinel.io`) has `tokenVersion: undefined` on raw BSON storage while `authVersion: 0`. Mongoose defaults `tokenVersion` to `0` only upon in-memory document hydration. The `protect` middleware in `backend/middleware/auth.js:48` functions correctly because `claims.tv !== (user.tokenVersion || 0)` evaluates to `0 !== 0` (false), avoiding authentication rejections. Any previous claim in Task 10 that `tokenVersion` was explicitly stored as `0` on disk is formally retracted.
+  2. **Token Version on Historical Accounts**: Historical seed user `admin@sentinel.local` was permanently deleted from `sentinel-db` (`deletedCount: 1`), removing the unreferenced dev account. User `priya@sentinel.io` has `tokenVersion: undefined` on raw BSON storage while `authVersion: 0`. Mongoose defaults `tokenVersion` to `0` only upon in-memory document hydration. The `protect` middleware in `backend/middleware/auth.js:48` functions correctly because `claims.tv !== (user.tokenVersion || 0)` evaluates to `0 !== 0` (false), avoiding authentication rejections. Any previous claim in Task 10 that `tokenVersion` was explicitly stored as `0` on disk is formally retracted.
 - **Evidence / Output**:
   ```text
   === CHECK 5: CONSISTENCY BETWEEN COLLECTIONS ===
@@ -201,7 +201,7 @@ Following the database health audit and remediation phases, all 14 identified is
   ContainmentActions count: 0
   Active sessions for inactive/missing users: 0
   Active sessions with stale authVersion: 0
-  User admin@sentinel.local tokenVersion (undefined) != authVersion (0)
+  (Historical finding prior to deletion: User admin@sentinel.local tokenVersion (undefined) != authVersion (0); deleted in Task 15)
   ```
 
 ---
@@ -253,7 +253,7 @@ Following the database health audit and remediation phases, all 14 identified is
   Active (valid) sessions: 46
   Users with missing password hash: 0
   Users flagged mustChangePassword: 0
-  User accounts that have never logged in: 1 (admin@sentinel.local)
+  User accounts that have never logged in: 0 (historical dev user admin@sentinel.local deleted)
   ```
 
 ---
@@ -326,7 +326,7 @@ Following the database health audit and remediation phases, all 14 identified is
   9. `45.95.147.22` (`6ab3d154252c0d011c9f6937`): **Seeded Demo Data**. Linked to synthetic session `demo-94fd009d`.
   10. `192.168.100.99` (`6ac412bba47ed26fd8b83bd3`): **Seeded Demo Data**. RFC 1918 private subnet IP, AttackType: `Port Scan`, Severity: `MEDIUM`.
 - **Honeypot Sessions**: 1 real Cowrie session (`9b21e8e00dd7`) and 7 synthetic demo sessions (`demo-*`).
-- **Users**: 5 standard system accounts and 1 synthetic seed user (`admin@sentinel.local`).
+- **Users**: 5 standard system accounts (`admin@sentinel.io`, `arjun@sentinel.io`, `priya@sentinel.io`, `operator1@sentinel.io`, `sara@sentinel.io`; historical dev seed user `admin@sentinel.local` deleted).
 
 ---
 
@@ -372,7 +372,7 @@ Following the database health audit and remediation phases, all 14 identified is
 | **ISS-11** | Synthetic Demo Records Mixed with Real Data | **Low** | `honeypotsessions`, `threatlogs` | 7 of 8 honeypot sessions have prefix `demo-*`; 9 of 10 threats are demo data | Populates dashboard charts for demonstration, but skews metrics in a real SOC production environment. | Low (Demo) / Medium (Prod) | **Accepted**: Synthetic demo records (`demo-*`) required for UI charts and evaluation demo presentation. |
 | **ISS-12** | Dead Immutability Hook in Mongoose 8.x | **Low** | `backend/models/AuditLog.js:38` | `AuditLogSchema.pre('findOneAndRemove', ...)` | Mongoose 8 removed `findOneAndRemove`. The hook is dead code and does not execute. | Low (Demo) / Low (Prod) | **Fixed**: Removed dead hook `pre('findOneAndRemove')` from `backend/models/AuditLog.js`. |
 | **ISS-13** | Missing Indexes on Foreign Key Paths | **Medium** | `alerts`, `honeypotsessions`, `auditlogs` | No indexes on `sourceRef.refId`, `linkedThreatLog`, `target.id` | Foreign key reference indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` built live in `sentinel-db` by `autoIndex`, accelerating relationship queries. | Low (Demo) / Resolved (Prod) | **Fixed live**: Foreign key reference indexes on `sourceRef.refId`, `linkedThreatLog`, and `target.id` built live in `sentinel-db` by Mongoose `autoIndex` at backend startup. |
-| **ISS-14** | Missing `tokenVersion` on Historical Seed User | **Low** | `users`, `backend/models/User.js` | `admin@sentinel.local` lacks `tokenVersion` on raw BSON storage | Schema default (`default: 0`) applies only upon in-memory document hydration; `protect` middleware succeeds because `claims.tv !== (user.tokenVersion || 0)` evaluates to false (`0 !== 0`). Prior claim that disk had explicit 0 is retracted. | Low (Demo) / Low (Prod) | **Fixed in code / Documented on disk**: User creation ensures `tokenVersion: 0`. Raw disk document in `sentinel-db` lacks `tokenVersion`; Mongoose hydrates default `0` in memory and `claims.tv !== (user.tokenVersion || 0)` prevents auth failures. |
+| **ISS-14** | Missing `tokenVersion` on Historical Seed User | **Low** | `users`, `backend/models/User.js` | `admin@sentinel.local` lacked `tokenVersion` on raw BSON storage | Schema default (`default: 0`) applies upon in-memory document hydration. Unreferenced historical dev seed user `admin@sentinel.local` was permanently deleted from `sentinel-db` (`deletedCount: 1`), leaving only 5 production accounts. For `priya@sentinel.io`, `claims.tv !== (user.tokenVersion || 0)` evaluates to false (`0 !== 0`), preventing auth rejections. | Low (Demo) / Low (Prod) | **Fixed live**: User creation ensures `tokenVersion: 0`. Historical dev user `admin@sentinel.local` deleted from `sentinel-db`. Existing user `priya@sentinel.io` safely defaults `tokenVersion` to 0 in memory and auth middleware. |
 
 ---
 
@@ -521,8 +521,8 @@ flowchart TD
 #### 8. Why are there orphaned alerts in the database, and how does the application handle them?
 **Answer**: In historical test runs, deleting a threat left alerts referencing the deleted ID. This has been resolved at the source: `threatService.deleteThreat(id)` cascades deletion of all alerts where `sourceRef.refModel === 'ThreatLog'` and `sourceRef.refId === id`, while maintaining the audit-first policy in `threatController.deleteThreat`. The 2 historical orphaned alerts in `sentinel-db` cause no UI issues (as `findAlerts` does not populate `sourceRef`) and will automatically purge via MongoDB's 7-day TTL index on 2026-10-25.
 
-#### 9. Why is `tokenVersion` missing on `admin@sentinel.local`?
-**Answer**: In git commit `5ea705144f`, `UserSchema` only defined `authVersion`. `tokenVersion` was added subsequently. Because MongoDB is a schema-less document store, adding a field with a default to a Mongoose schema does **not** retroactively backfill existing documents on disk; it only initializes on new document saves. On raw BSON disk storage, `tokenVersion` is undefined for `admin@sentinel.local` and `priya@sentinel.io`. When queried via Mongoose, document hydration assigns default `0`, and the `protect` middleware explicitly checks `claims.tv !== (user.tokenVersion || 0)`, ensuring that missing values default to 0 without causing authentication rejections. (Any prior claim that `tokenVersion` was explicitly 0 on disk is retracted).
+#### 9. Why was `tokenVersion` missing on `admin@sentinel.local` and `priya@sentinel.io`?
+**Answer**: In git commit `5ea705144f`, `UserSchema` only defined `authVersion`. `tokenVersion` was added subsequently. Because MongoDB is a schema-less document store, adding a field with a default to a Mongoose schema does **not** retroactively backfill existing documents on disk; it only initializes on new document saves. On raw BSON disk storage, `tokenVersion` was undefined for `admin@sentinel.local` and `priya@sentinel.io`. When queried via Mongoose, document hydration assigns default `0`, and the `protect` middleware explicitly checks `claims.tv !== (user.tokenVersion || 0)`, ensuring that missing values default to 0 without causing authentication rejections. (The historical seed account `admin@sentinel.local` has now been permanently deleted from `sentinel-db`, leaving only the 5 production accounts).
 
 #### 10. Why is `pre('findOneAndRemove')` in `AuditLog.js` considered dead code?
 **Answer**: SentinelAI runs Mongoose `8.24.2`. In Mongoose 8.x, `Model.findOneAndRemove` was completely deprecated and removed from the API in favor of `Model.findOneAndDelete`. Therefore, the hook never fires.
