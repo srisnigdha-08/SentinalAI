@@ -2,6 +2,7 @@ const reportTime = require('../utils/reportingTime')
 const ThreatLog = require('../models/ThreatLog')
 const BlockedIP = require('../models/BlockedIP')
 const SystemSetting = require('../models/SystemSetting')
+const Alert = require('../models/Alert')
 const logger = require('../utils/logger')
 const { escapeRegex, parsePagination, parseSort, parseDate } = require('../utils/querySecurity')
 
@@ -153,10 +154,16 @@ const createThreat = async (data) => {
 }
 
 const updateThreat = (id, updates) => ThreatLog.findByIdAndUpdate(id, updates, { new: true, runValidators: true })
-const deleteThreat = (id) => ThreatLog.findByIdAndDelete(id)
-const blockThreatIP = async (id, analystId) => {
+const deleteThreat = async (id) => {
+  const deleted = await ThreatLog.findByIdAndDelete(id)
+  if (deleted) {
+    await Alert.deleteMany({ 'sourceRef.refModel': 'ThreatLog', 'sourceRef.refId': deleted._id })
+  }
+  return deleted
+}
+const blockThreatIP = async (id, analystId, session = null) => {
   const containmentService = require('./containmentService')
-  return containmentService.blockThreat(id, analystId)
+  return containmentService.blockThreat(id, analystId, 'Manual threat block', session)
 }
 
 const getRecentThreats = (limit = 10) => {
