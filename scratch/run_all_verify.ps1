@@ -1,5 +1,12 @@
-# Runner for all 5 browser verification scripts under PowerShell Start-Transcript
-$transcriptPath = Join-Path $PSScriptRoot "evidence\verify_run_20261019_001500.txt"
+param(
+  [string]$OutputPath = ""
+)
+
+if (-not $OutputPath) {
+  $ts = Get-Date -Format "yyyyMMdd_HHmmss"
+  $OutputPath = Join-Path $PSScriptRoot "evidence\verify_run_$ts.txt"
+}
+$transcriptPath = $OutputPath
 Start-Transcript -Path $transcriptPath -Force
 
 $env:VERIFY_ADMIN_PASSWORD = "Admin@1234"

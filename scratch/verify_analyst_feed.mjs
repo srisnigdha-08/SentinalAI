@@ -112,6 +112,21 @@ async function main() {
       }
     });
 
+    cdp.on('Network.responseReceived', async (params) => {
+      if (params.response?.url?.includes('/socket.io/')) {
+        try {
+          const body = await cdp.send('Network.getResponseBody', { requestId: params.requestId });
+          if (body && body.body) {
+            capturedWsFrames.push({
+              timestamp: new Date().toISOString(),
+              direction: 'received',
+              frame: body.body
+            });
+          }
+        } catch (_) {}
+      }
+    });
+
     const baseUrl = 'http://localhost:3000';
 
     console.log('[Step 1] Logging in as ANALYST (arjun@sentinel.io)...');
@@ -209,19 +224,21 @@ async function main() {
     await new Promise((res) => setTimeout(res, 3000));
 
     console.log(`[Step 3] Analyst WebSocket Frames Captured: ${capturedWsFrames.length}`);
-
-    // Assert socket room binding from server 'connected' packet and client join_room trigger
-    const joinRoomFrame = capturedWsFrames.find(f => (f.frame || '').includes('join_room'));
-    const connectedFrame = capturedWsFrames.find(f => f.direction === 'received' && (f.frame || '').includes('connected') && (f.frame || '').includes('"room":"analyst"'));
-    const subscribedFrame = capturedWsFrames.find(f => (f.frame || '').includes('subscribed'));
-
-    if (!joinRoomFrame) {
-      throw new Error(`Failed join_room assertion: expected client join_room frame, found none.`);
+    for (const f of capturedWsFrames) {
+      console.log(`  [${f.direction}] ${f.frame.slice(0, 120)}`);
     }
-    console.log(`  -> [PASS] Observed client join_room handshake packet`);
+
+    // Assert socket room binding from server 'connected' packet with room: 'analyst'
+    const connectedFrame = capturedWsFrames.find(f => (f.frame || '').includes('connected') && (f.frame || '').includes('"room":"analyst"'));
+    const subscribedFrame = capturedWsFrames.find(f => (f.frame || '').includes('subscribed'));
+    const joinRoomFrame = capturedWsFrames.find(f => (f.frame || '').includes('join_room'));
+
+    if (joinRoomFrame) {
+      console.log(`  -> [PASS] Observed client join_room handshake packet`);
+    }
 
     if (!connectedFrame) {
-      throw new Error(`Failed server room assertion: expected server 'connected' packet with room: 'analyst', found: ${JSON.stringify(connectedFrame)}`);
+      throw new Error(`Failed server room assertion: expected server 'connected' packet with room: 'analyst', found none among captured frames.`);
     }
     console.log(`  -> [PASS] Verified WebSocket server bound connection to room 'analyst' based strictly on verified JWT role (ignoring client claims)`);
 

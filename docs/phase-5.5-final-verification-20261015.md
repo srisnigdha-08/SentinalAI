@@ -149,8 +149,8 @@ Inspection of `backend/services/authSessionService.js`, `backend/models/AuthSess
 
 ### 4.2 Verified Revocation Triggers
 Application authorization logic immediately invalidates sessions upon any of the following events:
-1. **Single-Device Logout (`POST /api/auth/logout`):** Sets `isRevoked: true` on the specific session and clears client cookie.
-2. **Global Logout (`POST /api/auth/logout-all`):** Sets `isRevoked: true` on all user sessions and increments `user.authVersion`.
+1. **Single-Device Logout (`POST /api/auth/logout`):** Sets `revokedAt: Date` on the specific session and clears client cookie.
+2. **Global Logout (`POST /api/auth/logout-all`):** Sets `revokedAt: Date` on all user sessions and increments `user.authVersion`.
 3. **Password Change (`PUT /api/auth/update-password`):** Revokes all existing sessions and increments `user.authVersion`, forcing re-authentication across all clients.
 4. **Refresh Replay Detection:** If a revoked or superseded refresh token is presented, the system flags token reuse, immediately revokes the entire session chain, and logs a security event.
 5. **Account Deactivation:** `user.status !== 'active'` in `protect` middleware blocks all access immediately.
@@ -233,7 +233,7 @@ Host: 127.0.0.1:5000
 
 ### 6.3 Category 2: Authorized Read-Only Runtime Status
 - **Status:** **BLOCKED AT RUNTIME BY MANDATORY SAFETY CONSTRAINTS**
-- **Reason:** In `sentinel-db` (port 27017), the two existing auth sessions are revoked (`isRevoked: true`). Querying `/api/containment/status` as an authorized user requires either:
+- **Reason:** In `sentinel-db` (port 27017), the two existing auth sessions are revoked (`revokedAt: Date`). Querying `/api/containment/status` as an authorized user requires either:
   1. Authenticating as admin via `/api/auth/login` (which writes to `AuthSession` and updates `user.lastLogin` and `user.loginCount`).
   2. Directly modifying the live database to unrevoke an existing session.
   3. Resetting a credential.
