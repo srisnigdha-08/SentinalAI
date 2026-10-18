@@ -11,12 +11,16 @@ const UserSchema = new mongoose.Schema(
     loginCount: { type: Number, default: 0 },
     passwordChangedAt: { type: Date },
     authVersion: { type: Number, default: 0, min: 0 },
+    tokenVersion: { type: Number, default: 0, min: 0 },
     mustChangePassword: { type: Boolean, default: false },
     department: { type: String, default: 'SOC' },
   },
   { timestamps: true }
 )
 UserSchema.pre('save', async function (next) {
+  if (this.tokenVersion === undefined || this.tokenVersion === null) {
+    this.tokenVersion = this.authVersion ?? 0
+  }
   if (!this.isModified('password')) return next()
   this.password = await bcrypt.hash(this.password, 12)
   next()
@@ -29,9 +33,13 @@ UserSchema.methods.changedPasswordAfter = function (iat) {
   return false
 }
 UserSchema.methods.toJSON = function () {
+  const { getPermissions } = require('../config/permissions')
   const obj = this.toObject()
   delete obj.password
   delete obj.__v
+  obj.tokenVersion = this.tokenVersion ?? this.authVersion ?? 0
+  obj.permissions = getPermissions(this.role)
   return obj
 }
 module.exports = mongoose.model('User', UserSchema)
+

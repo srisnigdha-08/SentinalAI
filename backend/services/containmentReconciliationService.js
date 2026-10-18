@@ -156,6 +156,7 @@ class ContainmentReconciliationService {
         logger.error(`[ContainmentReconciliation] Unexpected error in interval: ${err.message}`)
       }
     }, this.intervalMs)
+    this.timer.unref?.()
     logger.info(`[ContainmentReconciliation] Service started (interval: ${this.intervalMs}ms)`)
   }
 
