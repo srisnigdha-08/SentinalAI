@@ -1,9 +1,9 @@
 import http from 'http'
 
 const accounts = [
-  { role: 'admin', email: 'admin@sentinel.io', passEnv: 'VERIFY_ADMIN_PASSWORD', fallback: 'Admin@1234' },
-  { role: 'analyst', email: 'arjun@sentinel.io', passEnv: 'VERIFY_ANALYST_PASSWORD', fallback: 'Analyst@1234' },
-  { role: 'viewer', email: 'sara@sentinel.io', passEnv: 'VERIFY_VIEWER_PASSWORD', fallback: 'Viewer@1234' }
+  { role: 'admin', email: 'admin@sentinel.io', passEnv: 'VERIFY_ADMIN_PASSWORD' },
+  { role: 'analyst', email: 'arjun@sentinel.io', passEnv: 'VERIFY_ANALYST_PASSWORD' },
+  { role: 'viewer', email: 'sara@sentinel.io', passEnv: 'VERIFY_VIEWER_PASSWORD' }
 ]
 
 function getCsrf() {
@@ -35,7 +35,10 @@ function getCsrf() {
 
 async function testLogin(account) {
   const { csrfToken, cookie } = await getCsrf()
-  const password = process.env[account.passEnv] || account.fallback
+  const password = process.env[account.passEnv]
+  if (!password) {
+    throw new Error(`Missing required environment variable ${account.passEnv}`)
+  }
   const payload = JSON.stringify({ email: account.email, password })
 
   return new Promise((resolve, reject) => {
