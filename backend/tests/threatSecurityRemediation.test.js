@@ -81,7 +81,9 @@ describe('Phase 3.1: ThreatLog Schema Telemetry & Traceability (OBS-01, REL-02)'
 })
 
 describe('Phase 3.1: SEC-01 & SEC-02 & REL-02 threatController.createThreat', () => {
-  let req, res, next
+  let req
+  let res
+  let next
 
   beforeEach(() => {
     req = {
@@ -285,7 +287,9 @@ describe('Phase 3.1: SEC-01 & SEC-02 & REL-02 threatController.createThreat', ()
 })
 
 describe('Phase 3.1: SEC-03 threatController.updateThreat Tamper Prevention', () => {
-  let req, res, next
+  let req
+  let res
+  let next
 
   beforeEach(() => {
     req = {
@@ -404,7 +408,9 @@ describe('Phase 3.1: SEC-03 threatController.updateThreat Tamper Prevention', ()
 })
 
 describe('Phase 3.5: triageThreat Allowed Transitions & Bypass Protection', () => {
-  let req, res, next
+  let req
+  let res
+  let next
   const { triageThreat } = require('../controllers/threatController')
 
   beforeEach(() => {
@@ -481,7 +487,6 @@ describe('Phase 3.5: triageThreat Allowed Transitions & Bypass Protection', () =
   })
 })
 
-
 describe('Phase 3.1: SEC-01 threatService.createThreat Defense-in-Depth', () => {
   test('non-AI threat never executes auto-block even if autoBlockEnabled is true and aiScore >= blockThreshold', async () => {
     jest.spyOn(SystemSetting, 'findOne').mockResolvedValue({ key: 'autoBlockEnabled', value: true })
@@ -552,8 +557,12 @@ describe('Phase 3.1: OBS-01 aiService.storePrediction Bi-directional Linking', (
     expect(createdThreatPayload.predictionId).toEqual(dummyPredId)
     expect(createdThreatPayload.attackType).toBe('DDoS')
     expect(createdThreatPayload.eventTime).toEqual(new Date('2026-10-18T07:15:00.000Z'))
-    expect(mockPredDoc.generatedThreat).toEqual(dummyThreatId)
-    expect(mockPredDoc.save).toHaveBeenCalled()
+    // The prediction is written already linked: its generatedThreat is the id the threat is created with,
+    // so no follow-up save is needed (M3).
+    const predPayload = AIPrediction.create.mock.calls[0][0]
+    expect(predPayload.generatedThreat).toBeDefined()
+    expect(String(createdThreatPayload._id)).toBe(String(predPayload.generatedThreat))
+    expect(mockPredDoc.save).not.toHaveBeenCalled()
 
     AIPrediction.create.mockRestore()
     SystemSetting.findOne.mockRestore()

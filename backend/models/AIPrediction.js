@@ -55,4 +55,6 @@ const AIPredictionSchema = new mongoose.Schema(
 AIPredictionSchema.index({ createdAt: -1 })
 AIPredictionSchema.index({ threatScore: -1 })
 AIPredictionSchema.index({ sourceIP: 1 })
+// Verified-accuracy aggregate (all-time) reads only analyst-verified predictions
+AIPredictionSchema.index({ verified: 1 })
 module.exports = mongoose.model('AIPrediction', AIPredictionSchema)

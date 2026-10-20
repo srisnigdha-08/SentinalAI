@@ -1,4 +1,5 @@
 const reportTime = require('../utils/reportingTime')
+const mongoose = require('mongoose')
 const AIPrediction = require('../models/AIPrediction')
 const ThreatLog = require('../models/ThreatLog')
 const logger = require('../utils/logger')
@@ -63,14 +64,26 @@ const storePrediction = async (data) => {
     }
   }
 
+  const isDegraded =
+    data.status === 'DEGRADED' || data.status === 'UNAVAILABLE' || data.predictedClass === 'UNINSPECTED_TRAFFIC'
+  const willCreateThreat =
+    !data.generatedThreat && (isDegraded || (Number(data.threatScore) >= 0.7 && data.predictedClass !== 'BENIGN'))
+  // The threat's id is chosen before either write, so the prediction is stored already linked to it and no
+  // follow-up save can leave a threat whose prediction does not point back (M3).
+  const threatId = willCreateThreat ? new mongoose.Types.ObjectId() : null
+  if (threatId) payload.generatedThreat = threatId
   const pred = await AIPrediction.create(payload)
-  const isDegraded = data.status === 'DEGRADED' || data.status === 'UNAVAILABLE' || data.predictedClass === 'UNINSPECTED_TRAFFIC'
-  if (!data.generatedThreat && (isDegraded || (pred.threatScore >= 0.7 && pred.predictedClass !== 'BENIGN'))) {
-    const severity = isDegraded ? 'MEDIUM' : pred.threatScore >= 0.9 ? 'CRITICAL' : pred.threatScore >= 0.75 ? 'HIGH' : 'MEDIUM'
+  if (willCreateThreat) {
+    const severity = isDegraded
+      ? 'MEDIUM'
+      : pred.threatScore >= 0.9
+        ? 'CRITICAL'
+        : pred.threatScore >= 0.75
+          ? 'HIGH'
+          : 'MEDIUM'
 
     // Authoritative Block Threshold & autoBlockEnabled setting
     const aiEngineService = require('./aiEngineService')
-    const BlockedIP = require('../models/BlockedIP')
     const SystemSetting = require('../models/SystemSetting')
 
     const blockThreshold = await aiEngineService.getBlockThreshold()
@@ -89,7 +102,8 @@ const storePrediction = async (data) => {
       }
     }
 
-    const threat = await ThreatLog.create({
+    const threatDoc = {
+      _id: threatId,
       severity,
       sourceIP: pred.sourceIP,
       attackType: pred.predictedClass,
@@ -104,10 +118,25 @@ const storePrediction = async (data) => {
         actionType: shouldBlock ? 'IP_BLOCKED' : null,
         actionTime: shouldBlock ? new Date() : null,
       },
-      notes: isDegraded ? (data.notes || (data.status === 'UNAVAILABLE' ? 'AI engine unavailable - held in MONITOR' : 'Explicit AI engine degraded fallback')) : ''
-    })
-    pred.generatedThreat = threat._id
-    await pred.save()
+      notes: isDegraded
+        ? data.notes ||
+          (data.status === 'UNAVAILABLE'
+            ? 'AI engine unavailable - held in MONITOR'
+            : 'Explicit AI engine degraded fallback')
+        : '',
+    }
+    let threat
+    try {
+      threat = await ThreatLog.create(threatDoc)
+    } catch (threatErr) {
+      // Compensate: the prediction must not reference a threat that was never written.
+      await AIPrediction.updateOne({ _id: pred._id }, { $unset: { generatedThreat: 1 } }).catch((unlinkErr) =>
+        logger.error(
+          `[AI Persistence] Could not unlink prediction ${pred._id} from failed threat: ${unlinkErr.message}`
+        )
+      )
+      throw threatErr
+    }
 
     // If automatic block occurred, execute centralized autoBlock with compensating rollback support
     if (shouldBlock) {
@@ -228,18 +257,33 @@ const verifyPrediction = async (id, userId, actualClass) => {
   return pred
 }
 
+// Score/class/anomaly/latency aggregates cover the last ANALYTICS_WINDOW_DAYS (default 30, max 90) instead of
+// every prediction ever stored (M6). Total uses the collection count metadata; verified accuracy stays all-time
+// (indexed on `verified`, a small subset).
+const analyticsWindowDays = () => {
+  const days = parseInt(process.env.ANALYTICS_WINDOW_DAYS, 10)
+  return Number.isInteger(days) && days >= 1 && days <= 90 ? days : 30
+}
+
 const getModelStats = async (now = new Date()) => {
   const weekAgo = reportTime.filter(7, now)
+  const windowDays = analyticsWindowDays()
+  const inWindow = { $match: { createdAt: reportTime.filter(windowDays, now) } }
   const [total, weekPreds, avgScores, byClass, anomalyStats, verifiedAcc, inferPerf, scoreDistrib, dailyPreds] =
     await Promise.all([
-      AIPrediction.countDocuments(),
+      AIPrediction.estimatedDocumentCount(),
       AIPrediction.countDocuments({ createdAt: weekAgo }),
-      AIPrediction.aggregate([{ $group: { _id: null, avg: { $avg: '$threatScore' }, max: { $max: '$threatScore' } } }]),
       AIPrediction.aggregate([
+        inWindow,
+        { $group: { _id: null, avg: { $avg: '$threatScore' }, max: { $max: '$threatScore' } } },
+      ]),
+      AIPrediction.aggregate([
+        inWindow,
         { $group: { _id: '$predictedClass', count: { $sum: 1 }, avgScore: { $avg: '$threatScore' } } },
         { $sort: { count: -1 } },
       ]),
       AIPrediction.aggregate([
+        inWindow,
         { $group: { _id: null, anomalies: { $sum: { $cond: ['$isAnomaly', 1, 0] } }, total: { $sum: 1 } } },
       ]),
       AIPrediction.aggregate([
@@ -253,10 +297,12 @@ const getModelStats = async (now = new Date()) => {
         },
       ]),
       AIPrediction.aggregate([
+        inWindow,
         { $match: { inferenceTimeMs: { $exists: true } } },
         { $group: { _id: null, avg: { $avg: '$inferenceTimeMs' }, max: { $max: '$inferenceTimeMs' } } },
       ]),
       AIPrediction.aggregate([
+        inWindow,
         {
           $bucket: {
             groupBy: '$threatScore',
@@ -295,7 +341,7 @@ const getModelStats = async (now = new Date()) => {
   ]
 
   return {
-    reporting: reportTime.reporting(now),
+    reporting: { ...reportTime.reporting(now), analyticsWindow: reportTime.metadata(windowDays, now) },
     summary: {
       totalPredictions: total,
       weekPredictions: weekPreds,

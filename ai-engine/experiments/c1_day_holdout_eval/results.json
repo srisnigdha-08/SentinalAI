@@ -1,5 +1,5 @@
 {
-  "generated_at": "2026-10-20T20:36:03.857929+00:00",
+  "generated_at": "2026-10-20T21:33:45.074877+00:00",
   "data_dir": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\datasets\\cicids2017",
   "rows_after_cleaning": 2827876,
   "class_counts_after_cleaning": {
@@ -165,17 +165,64 @@
               0.000865,
               0.001629
             ],
-            "attack_detection": 0.9362
-          }
+            "attack_detection": 0.9361
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.00425,
+              "attack_detection": 0.9773
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.002594,
+              "attack_detection": 0.972
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.001813,
+              "attack_detection": 0.9652
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.001531,
+              "attack_detection": 0.9556
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.001344,
+              "attack_detection": 0.9431
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.001187,
+              "attack_detection": 0.9361
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.000969,
+              "attack_detection": 0.9267
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.00075,
+              "attack_detection": 0.9113
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.000656,
+              "attack_detection": 0.8109
+            }
+          ]
         },
         "legacy_blend": {
           "threat_raised": {
-            "benign_fpr": 0.000125,
+            "benign_fpr": 0.0,
             "benign_fpr_ci95": [
-              4.9e-05,
-              0.000321
+              0.0,
+              0.00012
             ],
-            "attack_detection": 0.2324
+            "attack_detection": 0.2224
           },
           "block_line": {
             "benign_fpr": 0.0,
@@ -183,8 +230,55 @@
               0.0,
               0.00012
             ],
-            "attack_detection": 0.0473
-          }
+            "attack_detection": 0.0003
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.2224
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.1482
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0517
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0152
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0007
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0003
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            }
+          ]
         }
       }
     },
@@ -303,16 +397,63 @@
               0.000581
             ],
             "attack_detection": 0.8651
-          }
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.004962,
+              "attack_detection": 0.8967
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.003219,
+              "attack_detection": 0.8916
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.00105,
+              "attack_detection": 0.8849
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.000725,
+              "attack_detection": 0.8779
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.000531,
+              "attack_detection": 0.8684
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.000463,
+              "attack_detection": 0.8651
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.000369,
+              "attack_detection": 0.8612
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.000313,
+              "attack_detection": 0.8407
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.000169,
+              "attack_detection": 0.7733
+            }
+          ]
         },
         "legacy_blend": {
           "threat_raised": {
-            "benign_fpr": 0.000294,
+            "benign_fpr": 0.0,
             "benign_fpr_ci95": [
-              0.000221,
-              0.000391
+              0.0,
+              2.4e-05
             ],
-            "attack_detection": 0.2941
+            "attack_detection": 0.2931
           },
           "block_line": {
             "benign_fpr": 0.0,
@@ -320,8 +461,55 @@
               0.0,
               2.4e-05
             ],
-            "attack_detection": 0.0499
-          }
+            "attack_detection": 0.0
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.2931
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.1285
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0578
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.006
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0001
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            }
+          ]
         }
       }
     },
@@ -379,7 +567,54 @@
                 0.000585
               ],
               "attack_detection": null
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.00195,
+                "attack_detection": null
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.00105,
+                "attack_detection": null
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.00055,
+                "attack_detection": null
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.00045,
+                "attack_detection": null
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.00025,
+                "attack_detection": null
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.00025,
+                "attack_detection": null
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0002,
+                "attack_detection": null
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.00015,
+                "attack_detection": null
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              }
+            ]
           },
           "legacy_blend": {
             "threat_raised": {
@@ -397,7 +632,54 @@
                 0.000192
               ],
               "attack_detection": null
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.0001,
+                "attack_detection": null
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": null
+              }
+            ]
           }
         }
       },
@@ -472,14 +754,61 @@
                 0.000514
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.0006,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0006,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.0006,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0004,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.00025,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0002,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 5e-05,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           },
           "legacy_blend": {
             "threat_raised": {
-              "benign_fpr": 0.0002,
+              "benign_fpr": 5e-05,
               "benign_fpr_ci95": [
-                7.8e-05,
-                0.000514
+                9e-06,
+                0.000283
               ],
               "attack_detection": 0.0
             },
@@ -490,7 +819,54 @@
                 0.000192
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 5e-05,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           }
         }
       },
@@ -565,7 +941,54 @@
                 0.000365
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.00125,
+                "attack_detection": 0.0003
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0006,
+                "attack_detection": 0.0002
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.00035,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0002,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.00015,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0001,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 5e-05,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 5e-05,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           },
           "legacy_blend": {
             "threat_raised": {
@@ -583,7 +1006,54 @@
                 0.000192
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           }
         }
       },
@@ -674,14 +1144,61 @@
                 0.002126
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.005375,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0025,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.002025,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.001875,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.001775,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.001675,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0016,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.00155,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.001475,
+                "attack_detection": 0.0
+              }
+            ]
           },
           "legacy_blend": {
             "threat_raised": {
-              "benign_fpr": 0.0004,
+              "benign_fpr": 0.00025,
               "benign_fpr_ci95": [
-                0.000246,
-                0.00065
+                0.000136,
+                0.00046
               ],
               "attack_detection": 0.0
             },
@@ -692,7 +1209,54 @@
                 9.6e-05
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.00025,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           }
         }
       },
@@ -724,7 +1288,7 @@
         "attacks": {
           "n": 21956,
           "detection_rate_classifier": 0.0769,
-          "detection_rate_threat_raised": 0.0023,
+          "detection_rate_threat_raised": 0.0001,
           "unseen_class_n": 11956,
           "unseen_class_detection_rate_threat_raised": 0.0003
         },
@@ -766,7 +1330,7 @@
                 0.000139,
                 0.000392
               ],
-              "attack_detection": 0.0023
+              "attack_detection": 0.0001
             },
             "block_line": {
               "benign_fpr": 5e-05,
@@ -775,16 +1339,63 @@
                 0.000147
               ],
               "attack_detection": 0.0001
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 0.000233,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.000217,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.000167,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.00015,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.0001,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 5e-05,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 3.3e-05,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0001
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           },
           "legacy_blend": {
             "threat_raised": {
-              "benign_fpr": 6.7e-05,
+              "benign_fpr": 1.7e-05,
               "benign_fpr_ci95": [
-                2.6e-05,
-                0.000171
+                3e-06,
+                9.4e-05
               ],
-              "attack_detection": 0.0021
+              "attack_detection": 0.0
             },
             "block_line": {
               "benign_fpr": 0.0,
@@ -793,7 +1404,54 @@
                 6.4e-05
               ],
               "attack_detection": 0.0
-            }
+            },
+            "sweep": [
+              {
+                "line": 0.7,
+                "benign_fpr": 1.7e-05,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.75,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.8,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.85,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.9,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.92,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.95,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.97,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              },
+              {
+                "line": 0.99,
+                "benign_fpr": 0.0,
+                "attack_detection": 0.0
+              }
+            ]
           }
         }
       }
@@ -901,17 +1559,64 @@
               0.000582,
               0.000842
             ],
-            "attack_detection": 0.9541
-          }
+            "attack_detection": 0.954
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.006475,
+              "attack_detection": 0.9861
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.004469,
+              "attack_detection": 0.9825
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.002194,
+              "attack_detection": 0.9776
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.001075,
+              "attack_detection": 0.971
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.000806,
+              "attack_detection": 0.9607
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.0007,
+              "attack_detection": 0.954
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.000531,
+              "attack_detection": 0.9403
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.000306,
+              "attack_detection": 0.9216
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.000181,
+              "attack_detection": 0.8338
+            }
+          ]
         },
         "legacy_blend": {
           "threat_raised": {
-            "benign_fpr": 0.000275,
+            "benign_fpr": 9.4e-05,
             "benign_fpr_ci95": [
-              0.000205,
-              0.000369
+              5.7e-05,
+              0.000155
             ],
-            "attack_detection": 0.2049
+            "attack_detection": 0.1898
           },
           "block_line": {
             "benign_fpr": 0.0,
@@ -919,11 +1624,58 @@
               0.0,
               2.4e-05
             ],
-            "attack_detection": 0.0671
-          }
+            "attack_detection": 0.0003
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 9.4e-05,
+              "attack_detection": 0.1898
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.1593
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0731
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0261
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0005
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0003
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0
+            }
+          ]
         }
       }
     }
   },
-  "runtime_seconds": 173.4
+  "runtime_seconds": 168.9
 }

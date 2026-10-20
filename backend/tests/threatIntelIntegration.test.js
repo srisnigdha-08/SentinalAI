@@ -160,8 +160,10 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
 
     // Verify enrichment updated ThreatLog.threatIntel
     expect(mockThreatLogFindByIdAndUpdate).toHaveBeenCalledTimes(1)
+    // storePrediction assigns the threat id before writing (prediction pre-linked), so use the created id.
+    const createdThreatId = require('../models/ThreatLog').create.mock.calls[0][0]._id
     expect(mockThreatLogFindByIdAndUpdate).toHaveBeenCalledWith(
-      'threat-integration-001',
+      createdThreatId,
       {
         $set: {
           threatIntel: expect.objectContaining({

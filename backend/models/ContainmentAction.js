@@ -174,11 +174,26 @@ const ContainmentActionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Set to normalizedTarget while the action is in flight or enforced; removed once it can no longer
+    // hold a rule. The unique sparse index makes two concurrent requests for one target impossible.
+    targetLock: {
+      type: String,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
   }
 )
+
+// States in which no enforcement exists or is being created for the target.
+const LOCK_RELEASED_STATUSES = ['FAILED', 'REJECTED', 'ROLLED_BACK']
+
+ContainmentActionSchema.index({ targetLock: 1 }, { unique: true, sparse: true })
+
+ContainmentActionSchema.pre('save', function () {
+  this.targetLock = LOCK_RELEASED_STATUSES.includes(this.enforcementStatus) ? undefined : this.normalizedTarget
+})
 
 /**
  * Optimistic concurrency check and atomic status transition.
@@ -208,5 +223,6 @@ ContainmentActionSchema.statics.ACTION_TYPES = ACTION_TYPES
 ContainmentActionSchema.statics.POLICY_DECISIONS = POLICY_DECISIONS
 ContainmentActionSchema.statics.ENFORCEMENT_BACKENDS = ENFORCEMENT_BACKENDS
 ContainmentActionSchema.statics.VALID_TRANSITIONS = VALID_TRANSITIONS
+ContainmentActionSchema.statics.LOCK_RELEASED_STATUSES = LOCK_RELEASED_STATUSES
 
 module.exports = mongoose.model('ContainmentAction', ContainmentActionSchema)

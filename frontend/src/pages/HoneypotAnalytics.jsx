@@ -118,7 +118,7 @@ export default function HoneypotAnalytics() {
         <KpiCard label="Sessions Today"    value={loading?'—':kpis.totalToday||0}              delta="today"             color="#00d4ff" />
         <KpiCard label="Unique Attackers"  value={loading?'—':kpis.uniqueIPsToday||0}          delta="distinct IPs"      color="#ffaa00" />
         <KpiCard label="Avg Engagement"    value={loading?'—':fmtDuration(kpis.avgDurationSecs||0)} delta="per session"  color="#00ff88" />
-        <KpiCard label="Deception Score"   value={loading?'—':`${kpis.avgDeceptionScore||0}`}  delta="avg RL reward"     color="#8b5cf6" />
+        <KpiCard label="Deception Score"   value={loading?'—':`${kpis.avgDeceptionScore||0}`}  delta="avg engagement heuristic"     color="#8b5cf6" />
       </div>
 
       <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>

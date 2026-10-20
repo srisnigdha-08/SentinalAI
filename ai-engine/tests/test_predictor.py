@@ -229,28 +229,34 @@ class TestIsolationForestScoring:
         assert predictor.calculate_if_anomaly_signal(-0.4000) == 0.0
         assert predictor.calculate_if_anomaly_signal(-0.4500) == 0.0
 
-    def test_boundary_behavior_at_offset(self, predictor):
-        """At exactly the offset decision boundary, anomaly signal must be 0.0."""
-        offset = predictor.ifo.named_steps["if"].offset_
-        assert predictor.calculate_if_anomaly_signal(offset) == 0.0
-
-        # Slightly more negative than offset by 0.02 (10% of span 0.20)
-        assert predictor.calculate_if_anomaly_signal(offset - 0.02) == 0.1000
+    def test_boundary_behavior_at_anomaly_threshold(self, predictor):
+        """The signal starts at ANOMALY_THRESHOLD, the same boundary that sets isAnomaly (M10)."""
+        from inference.predictor import ANOMALY_THRESHOLD
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD) == 0.0
+        # Between the model offset_ (~-0.474) and -0.55 the flow is not an anomaly, so no signal
+        assert predictor.calculate_if_anomaly_signal(-0.50) == 0.0
+        # Slightly more negative than the threshold by 0.02 (10% of span 0.20)
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.02) == 0.1000
 
     def test_anomalous_score_scaling(self, predictor):
         """Deflections into outlier territory must scale proportionally."""
-        offset = predictor.ifo.named_steps["if"].offset_
+        from inference.predictor import ANOMALY_THRESHOLD
         # Halfway across span 0.20
-        assert predictor.calculate_if_anomaly_signal(offset - 0.10) == 0.5000
-        # Critical ANOMALY_THRESHOLD (-0.55): deflection = 0.075976 -> 0.3799
-        assert predictor.calculate_if_anomaly_signal(-0.55) == 0.3799
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.10) == 0.5000
+        assert predictor.calculate_if_anomaly_signal(-0.60) == 0.25
 
     def test_extreme_outlier_saturation(self, predictor):
         """Scores beyond the span must saturate cleanly at 1.0."""
-        offset = predictor.ifo.named_steps["if"].offset_
-        assert predictor.calculate_if_anomaly_signal(offset - 0.20) == 1.0
-        assert predictor.calculate_if_anomaly_signal(offset - 0.35) == 1.0
+        from inference.predictor import ANOMALY_THRESHOLD
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.20) == 1.0
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.35) == 1.0
         assert predictor.calculate_if_anomaly_signal(-0.80) == 1.0
+
+    def test_signal_and_is_anomaly_agree(self, predictor):
+        """A flow contributes anomaly signal exactly when it is flagged isAnomaly."""
+        from inference.predictor import ANOMALY_THRESHOLD
+        for s in [-0.30, -0.474, -0.50, -0.5499, -0.55, -0.5501, -0.60, -0.90]:
+            assert (predictor.calculate_if_anomaly_signal(s) > 0) == (s < ANOMALY_THRESHOLD)
 
     def test_score_range_and_boundedness(self, predictor):
         """Across extreme inputs, anomaly signal must strictly remain in [0.0, 1.0]."""

@@ -4,6 +4,7 @@ const logger = require('../utils/logger')
 const aiSvc = require('./aiEngineService')
 const { escapeRegex, parsePagination } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
+const mitreMapping = require('../utils/mitreMapping')
 
 // Must match PROFILES in ai-engine/rl_engine/deception_scorer.py and honeypot/switch_profile.py.
 const DECEPTION_PROFILES = ['ubuntu_22', 'debian_11', 'centos_7', 'windows_srv', 'aws_ec2', 'raspberry_pi']
@@ -90,26 +91,99 @@ const createSession = async (data) => {
   return session
 }
 
-const appendCommands = async (id, commands) => {
-  const session = await HoneypotSession.findById(id)
-  if (!session) return null
-  session.commands.push(...commands)
-  const text = commands.map((c) => c.command || '').join(' ')
-  const SENSITIVE = ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/']
-  SENSITIVE.forEach((f) => {
-    if (text.includes(f) && !session.filesAccessed.includes(f)) session.filesAccessed.push(f)
-  })
-  const urls = text.match(/https?:\/\/[^\s]+/g) || []
-  session.iocExtracted.urls.push(...urls.filter((u) => !session.iocExtracted.urls.includes(u)))
-  if (/wget|curl/i.test(text)) session.malwareDownloaded.push(...urls)
-  const n = session.commands.length
-  session.deceptionScore = Math.min(
-    100,
-    n * 3 + session.filesAccessed.length * 10 + session.iocExtracted.urls.length * 8
+const SENSITIVE_FILES = ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/']
+const sensitiveFilesIn = (text) => SENSITIVE_FILES.filter((f) => text.includes(f))
+const urlsIn = (text) => text.match(/https?:\/\/[^\s]+/g) || []
+const validDate = (value) => {
+  const date = value ? new Date(value) : new Date()
+  return Number.isNaN(date.getTime()) ? new Date() : date
+}
+
+// Every value below is attacker-controlled and goes through $literal, so a string such as "$x" is
+// stored as text instead of being evaluated as a field path inside the update pipeline.
+const unionWith = (path, values) => ({ $setUnion: [{ $ifNull: [path, []] }, { $literal: values }] })
+
+/**
+ * Atomically records honeypot activity and recomputes the derived scores in the same update, so
+ * concurrent command/download events for one session cannot overwrite each other (read-modify-save
+ * lost updates). deceptionScore = min(100, 3*commands + 10*sensitiveFiles + 8*urls + 15*downloads).
+ * Returns the updated document, or null when no session matches `filter`.
+ */
+const recordSessionActivity = async (
+  filter,
+  { commands = [], files = [], ips = [], urls = [], hashes = [], malware = [], downloads = 0 } = {}
+) => {
+  // pre('save') does not run for updates; MITRE techniques are derived from intents and only ever grow.
+  const techniques = mitreMapping.getMitreTechniquesForIntents(commands.map((c) => c.intent).filter(Boolean))
+  return HoneypotSession.findOneAndUpdate(
+    filter,
+    [
+      {
+        $set: {
+          commands: { $concatArrays: [{ $ifNull: ['$commands', []] }, { $literal: commands }] },
+          filesAccessed: unionWith('$filesAccessed', files),
+          'iocExtracted.ips': unionWith('$iocExtracted.ips', ips),
+          'iocExtracted.urls': unionWith('$iocExtracted.urls', urls),
+          'iocExtracted.hashes': unionWith('$iocExtracted.hashes', hashes),
+          malwareDownloaded: unionWith('$malwareDownloaded', malware),
+          mitreTechniques: unionWith('$mitreTechniques', techniques),
+          downloadCount: { $add: [{ $ifNull: ['$downloadCount', 0] }, downloads] },
+        },
+      },
+      {
+        $set: {
+          deceptionScore: {
+            $min: [
+              100,
+              {
+                $add: [
+                  { $multiply: [{ $size: '$commands' }, 3] },
+                  { $multiply: [{ $size: '$filesAccessed' }, 10] },
+                  { $multiply: [{ $size: '$iocExtracted.urls' }, 8] },
+                  { $multiply: ['$downloadCount', 15] },
+                ],
+              },
+            ],
+          },
+          engagementLevel: {
+            $switch: {
+              branches: [
+                { case: { $gte: [{ $size: '$commands' }, 20] }, then: 'deep' },
+                { case: { $gte: [{ $size: '$commands' }, 10] }, then: 'high' },
+                { case: { $gte: [{ $size: '$commands' }, 5] }, then: 'medium' },
+                { case: { $gte: [{ $size: '$commands' }, 2] }, then: 'low' },
+              ],
+              default: 'minimal',
+            },
+          },
+        },
+      },
+    ],
+    { new: true }
   )
-  session.engagementLevel = n >= 20 ? 'deep' : n >= 10 ? 'high' : n >= 5 ? 'medium' : n >= 2 ? 'low' : 'minimal'
-  await session.save()
-  return session
+}
+
+const appendCommands = async (id, commands) => {
+  const text = commands.map((c) => c.command || '').join(' ')
+  const urls = urlsIn(text)
+  return recordSessionActivity(
+    { _id: id },
+    {
+      // The pipeline bypasses schema validation, so enforce what CmdSchema requires here.
+      commands: commands
+        .filter((c) => typeof c.command === 'string' && c.command.length > 0)
+        .map((c) => ({
+          command: c.command,
+          timestamp: validDate(c.timestamp),
+          output: c.output || '',
+          success: Boolean(c.success),
+          intent: c.intent || null,
+        })),
+      files: sensitiveFilesIn(text),
+      urls,
+      malware: /wget|curl/i.test(text) ? urls : [],
+    }
+  )
 }
 
 const closeSession = async (id, { reclassify = false, telemetry = {} } = {}) => {
@@ -186,6 +260,7 @@ const analyseClosure = async (session, telemetry) => {
   if (aiRes?.success && aiRes?.result) {
     session.aiClassification = aiRes.result.predictedClass || null
     session.aiThreatScore = aiRes.result.threatScore || 0
+    session.aiClassificationMethod = aiRes.result.classificationMethod || 'rule_profile_synthetic_flow'
     logger.info(
       `[HP] AI classified session ${session.sessionId}: ${session.aiClassification} (${session.aiThreatScore})`
     )
@@ -388,13 +463,17 @@ const getFullAnalytics = async (now = new Date()) => {
       },
       { $sort: { sessions: -1 } },
     ]),
+    // Every aggregate below is bounded to the 7-day reporting window (M6): unbounded $unwind/$group
+    // over all sessions grew linearly with history.
     HoneypotSession.aggregate([
+      { $match: { createdAt: weekAgo } },
       { $unwind: '$commands' },
       { $group: { _id: '$commands.command', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
     ]),
     HoneypotSession.aggregate([
+      { $match: { createdAt: weekAgo } },
       {
         $group: {
           _id: '$sourceIP',
@@ -406,13 +485,17 @@ const getFullAnalytics = async (now = new Date()) => {
       { $sort: { sessions: -1 } },
       { $limit: 10 },
     ]),
-    HoneypotSession.aggregate([{ $group: { _id: '$engagementLevel', count: { $sum: 1 } } }]),
+    HoneypotSession.aggregate([
+      { $match: { createdAt: weekAgo } },
+      { $group: { _id: '$engagementLevel', count: { $sum: 1 } } },
+    ]),
     HoneypotSession.aggregate([
       { $match: { createdAt: weekAgo } },
       { $group: { _id: reportTime.dayGroup(), sessions: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
     HoneypotSession.aggregate([
+      { $match: { createdAt: weekAgo } },
       {
         $group: {
           _id: null,
@@ -425,7 +508,7 @@ const getFullAnalytics = async (now = new Date()) => {
   ])
   const avg = avgEngagement[0] || { avgDuration: 0, avgDeception: 0, avgCommands: 0 }
   return {
-    reporting: reportTime.reporting(now),
+    reporting: { ...reportTime.reporting(now), analyticsWindow: reportTime.metadata(7, now) },
     kpis: {
       totalToday,
       uniqueIPsToday: uniqueIPsToday.length,
@@ -460,6 +543,8 @@ module.exports = {
   findBySessionId,
   createSession,
   appendCommands,
+  recordSessionActivity,
+  sensitiveFilesIn,
   closeSession,
   getFullAnalytics,
   getNodeStatus,

@@ -191,7 +191,8 @@ def train(args):
             print(f"  {k_safe}: {v:,}")
         print(f"Total Rows: {len(df):,}")
 
-    X, y = prepare_features(df)
+    # Fail instead of training on silently zero-filled columns (renamed/missing CSV headers)
+    X, y = prepare_features(df, max_missing=0)
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     print(f"Train: {len(X_train):,} | Test: {len(X_test):,}")
 

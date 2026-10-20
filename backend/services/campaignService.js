@@ -37,48 +37,53 @@ const computeThreatLevel = (maxDeception, maxAiThreat) => {
   return 'LOW'
 }
 
+const SIMILARITY_THRESHOLD = 0.65
+const CANDIDATE_LIMIT = 200
+const uniqueCommands = (s) => new Set((s.commands || []).map((c) => (c.command || '').trim()).filter(Boolean))
+
+// Clustering rule: exact non-empty hassh, OR Jaccard command similarity >= 0.65 with >= 3 unique commands each.
+const sessionsMatch = (a, b) => {
+  const hasshMatches = Boolean(a.hassh && b.hassh && a.hassh === b.hassh)
+  const commandsMatch =
+    uniqueCommands(a).size >= 3 && uniqueCommands(b).size >= 3 && getJaccardSimilarity(a, b) >= SIMILARITY_THRESHOLD
+  return hasshMatches || commandsMatch
+}
+
 /**
  * Clusters a newly closed session.
+ *
+ * Only sessions from the last 7 days that could satisfy the rule are loaded: same hassh, or at least one
+ * shared command (Jaccard >= 0.65 is impossible without one). Both lookups are indexed, and only the
+ * campaigns containing those candidates are read, instead of every campaign and session (M6).
  */
 const clusterSession = async (session) => {
   try {
-    const SIMILARITY_THRESHOLD = 0.65
     const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-
-    // 1. Search for matching recent campaigns
-    const recentCampaigns = await Campaign.find({
-      lastSeen: { $gte: sevenDaysAgo },
-    }).populate('sessions')
-
-    let matchedCampaign = null
-
-    for (const campaign of recentCampaigns) {
-      if (!campaign.sessions || campaign.sessions.length === 0) continue
-
-      // Check if session matches ANY session in this campaign
-      let matchesCampaign = false
-      for (const memberSession of campaign.sessions) {
-        // Condition 1: Exact matching non-empty hassh
-        const hasshMatches = session.hassh && memberSession.hassh && session.hassh === memberSession.hassh
-        // Condition 2: Jaccard command similarity >= 0.65 (enforces minimum 3 unique commands floor)
-        const uniqueCmds1 = new Set((session.commands || []).map((c) => (c.command || '').trim()).filter(Boolean))
-        const uniqueCmds2 = new Set((memberSession.commands || []).map((c) => (c.command || '').trim()).filter(Boolean))
-        const commandsMatch =
-          uniqueCmds1.size >= 3 &&
-          uniqueCmds2.size >= 3 &&
-          getJaccardSimilarity(session, memberSession) >= SIMILARITY_THRESHOLD
-
-        if (hasshMatches || commandsMatch) {
-          matchesCampaign = true
-          break
-        }
-      }
-
-      if (matchesCampaign) {
-        matchedCampaign = campaign
-        break
-      }
+    const commands = [...uniqueCommands(session)]
+    const criteria = []
+    if (session.hassh) criteria.push({ hassh: session.hassh })
+    if (commands.length >= 3) criteria.push({ 'commands.command': { $in: commands } })
+    if (criteria.length === 0) {
+      logger.info(`[Campaign] No matching campaign or standalone session for ${session.sessionId}.`)
+      return null
     }
+
+    const candidates = await HoneypotSession.find({
+      _id: { $ne: session._id },
+      createdAt: { $gte: sevenDaysAgo },
+      $or: criteria,
+    })
+      .sort({ createdAt: -1 })
+      .limit(CANDIDATE_LIMIT)
+    const matching = candidates.filter((candidate) => sessionsMatch(session, candidate))
+    const matchingIds = matching.map((m) => m._id)
+
+    // 1. An active (recent) campaign that already contains a matching session
+    const matchedCampaign = matchingIds.length
+      ? await Campaign.findOne({ sessions: { $in: matchingIds }, lastSeen: { $gte: sevenDaysAgo } }).sort({
+          lastSeen: -1,
+        })
+      : null
 
     if (matchedCampaign) {
       // Add session to existing campaign
@@ -115,32 +120,15 @@ const clusterSession = async (session) => {
       return matchedCampaign
     }
 
-    // 2. If no campaign matches, look for matching recent standalone sessions
-    const allCampaigns = await Campaign.find({}, 'sessions')
-    const sessionIdsInCampaigns = allCampaigns.reduce((acc, c) => acc.concat(c.sessions.map((s) => s.toString())), [])
-
-    const standaloneSessions = await HoneypotSession.find({
-      _id: { $nin: sessionIdsInCampaigns, $ne: session._id },
-      status: 'closed',
-      createdAt: { $gte: sevenDaysAgo },
-    })
-
-    let matchedStandalone = null
-    for (const standalone of standaloneSessions) {
-      const hasshMatches = session.hassh && standalone.hassh && session.hassh === standalone.hassh
-      // Enforces minimum 3 unique commands floor for similarity branch
-      const uniqueCmds1 = new Set((session.commands || []).map((c) => (c.command || '').trim()).filter(Boolean))
-      const uniqueCmds2 = new Set((standalone.commands || []).map((c) => (c.command || '').trim()).filter(Boolean))
-      const commandsMatch =
-        uniqueCmds1.size >= 3 &&
-        uniqueCmds2.size >= 3 &&
-        getJaccardSimilarity(session, standalone) >= SIMILARITY_THRESHOLD
-
-      if (hasshMatches || commandsMatch) {
-        matchedStandalone = standalone
-        break
-      }
-    }
+    // 2. Otherwise pair with a matching closed session that is in no campaign yet
+    const inCampaigns = matchingIds.length
+      ? new Set(
+          (await Campaign.find({ sessions: { $in: matchingIds } }, 'sessions')).flatMap((c) =>
+            c.sessions.map((s) => s.toString())
+          )
+        )
+      : new Set()
+    const matchedStandalone = matching.find((m) => m.status === 'closed' && !inCampaigns.has(m._id.toString())) || null
 
     if (matchedStandalone) {
       // Create a new campaign
@@ -188,4 +176,5 @@ const clusterSession = async (session) => {
 module.exports = {
   clusterSession,
   getJaccardSimilarity,
+  sessionsMatch,
 }

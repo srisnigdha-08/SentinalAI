@@ -14,6 +14,8 @@ const {
 const clients = new Map()
 let _io = null
 
+const REQUEST_STATS_MIN_INTERVAL_MS = 5000
+
 const init = (io) => {
   _io = io
   io.on('connection', (socket) => {
@@ -61,7 +63,15 @@ const init = (io) => {
       socket.emit('subscribed', { channel: 'threats' })
     })
 
+    // Each request costs three countDocuments; answer bursts from the last snapshot instead (M4).
+    let lastStats = null
+    let lastStatsAt = 0
     socket.on('request_stats', async () => {
+      if (lastStats && Date.now() - lastStatsAt < REQUEST_STATS_MIN_INTERVAL_MS) {
+        socket.emit('stats_snapshot', lastStats)
+        return
+      }
+      lastStatsAt = Date.now()
       try {
         const now = new Date()
         const today = reportTime.filter(1, now)
@@ -70,13 +80,14 @@ const init = (io) => {
           ThreatLog.countDocuments({ severity: 'CRITICAL', createdAt: today }),
           ThreatLog.countDocuments({ status: 'BLOCKED' }),
         ])
-        socket.emit('stats_snapshot', {
+        lastStats = {
           totalToday: total,
           critical,
           blocked,
           reporting: reportTime.metadata(1, now),
           timestamp: new Date().toISOString(),
-        })
+        }
+        socket.emit('stats_snapshot', lastStats)
       } catch (e) {
         logger.debug('[WS] stats err: ' + e.message)
       }
@@ -112,7 +123,6 @@ const emitNewThreat = (threat) => {
     createdAt: threat.createdAt || new Date(),
     timestamp: threat.createdAt || new Date(),
   }
-
 
   const redactedPayload = redactThreat(rawPayload, 'viewer')
 
@@ -229,7 +239,8 @@ const emitNewAlert = (alert) => {
     type: alert.type,
     timestamp: alert.createdAt || new Date(),
   }
-  const targetRoles = Array.isArray(alert.targetRoles) && alert.targetRoles.length > 0 ? alert.targetRoles : ['admin', 'analyst']
+  const targetRoles =
+    Array.isArray(alert.targetRoles) && alert.targetRoles.length > 0 ? alert.targetRoles : ['admin', 'analyst']
 
   targetRoles.forEach((role) => {
     if (role === 'viewer') {
@@ -266,10 +277,7 @@ const emitAIPrediction = (p) => {
   }
 
   _io.to(['admin', 'analyst']).emit('ai_prediction', rawPred)
-  _io.to(['viewer', 'threat_subscribers_viewer']).emit(
-    'ai_prediction',
-    redactAIPrediction(rawPred, 'viewer')
-  )
+  _io.to(['viewer', 'threat_subscribers_viewer']).emit('ai_prediction', redactAIPrediction(rawPred, 'viewer'))
 }
 
 const emitHoneypotEvent = (eventType, data) => {

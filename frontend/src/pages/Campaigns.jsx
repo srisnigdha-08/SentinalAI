@@ -320,8 +320,11 @@ export default function Campaigns() {
                         <div style={{ textAlign: 'right' }}>
                           <span style={{ fontSize: 9, fontFamily: 'Share Tech Mono,monospace', color: '#ff2d55', display: 'block' }}>Dec: {s.deceptionScore || 0}</span>
                           {s.aiClassification && (
-                            <span style={{ fontSize: 9, fontFamily: 'Rajdhani,sans-serif', color: '#00ff88', display: 'block', fontWeight: 600 }}>
-                              {s.aiClassification.split('_').join(' ')}
+                            <span
+                              style={{ fontSize: 9, fontFamily: 'Rajdhani,sans-serif', color: '#00ff88', display: 'block', fontWeight: 600 }}
+                              title="Honeypot sessions carry no packet data: the class is chosen by command/login rules, then scored by the model on a representative flow."
+                            >
+                              {s.aiClassification.split('_').join(' ')} (rule-based)
                             </span>
                           )}
                         </div>

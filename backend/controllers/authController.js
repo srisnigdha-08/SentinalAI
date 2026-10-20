@@ -19,11 +19,20 @@ async function response(user, code, req, res, message) {
 }
 const register = (_req, res) =>
   sendError(res, 'Public registration is disabled. Contact an administrator for access.', 403)
+// Unknown emails still pay for one bcrypt comparison (same cost 12 as stored hashes), so response time
+// does not reveal which accounts exist.
+let timingEqualizerHash = null
+const equalizeTiming = async (password) => {
+  timingEqualizerHash = timingEqualizerHash || (await bcrypt.hash('sentinel-timing-equalizer', 12))
+  await bcrypt.compare(typeof password === 'string' ? password : '', timingEqualizerHash)
+  return false
+}
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body
     const user = await User.findOne({ email: email.toLowerCase() }).select('+password')
-    if (!user || !(await user.comparePassword(password))) {
+    const valid = user ? await user.comparePassword(password) : await equalizeTiming(password)
+    if (!valid) {
       const { logAudit } = require('../utils/auditLogger')
       await logAudit({
         action: 'LOGIN_FAILED',

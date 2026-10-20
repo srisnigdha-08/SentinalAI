@@ -3,7 +3,11 @@ jest.mock('../models/ThreatLog', () => ({ create: jest.fn() }))
 jest.mock('../models/Alert', () => ({ create: jest.fn() }))
 jest.mock('../utils/logger', () => ({ info: jest.fn(), error: jest.fn() }))
 jest.mock('../websocket/socketManager', () => ({ emitHoneypotEvent: jest.fn(), emitNewThreat: jest.fn() }))
-jest.mock('../services/honeypotService', () => ({ closeSession: jest.fn() }))
+jest.mock('../services/honeypotService', () => ({
+  closeSession: jest.fn(),
+  recordSessionActivity: jest.fn(),
+  sensitiveFilesIn: (text) => ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/'].filter((f) => text.includes(f)),
+}))
 const sessions = require('../models/HoneypotSession')
 const closure = require('../services/honeypotService')
 const logger = require('../utils/logger')
@@ -24,6 +28,7 @@ beforeEach(() => {
   sessions.findOne.mockResolvedValue(session)
   sessions.findById.mockResolvedValue(session)
   closure.closeSession.mockResolvedValue(session)
+  closure.recordSessionActivity.mockResolvedValue(session)
 })
 test('a completed closure is not processed or broadcast twice', async () => {
   session.closureAnalysisState = 'complete'
@@ -66,12 +71,32 @@ test('download returns its persisted session and a missing session returns null'
       url: 'https://example.invalid/file',
     })
   ).toBe(session)
-  expect(session.save).toHaveBeenCalledTimes(1)
-  sessions.findOne.mockResolvedValue(null)
+  // One atomic update instead of read-modify-save (M2)
+  expect(closure.recordSessionActivity).toHaveBeenCalledWith(
+    { sessionId: 'offline' },
+    { urls: ['https://example.invalid/file'], hashes: [], malware: ['https://example.invalid/file'], downloads: 1 }
+  )
+  expect(session.save).not.toHaveBeenCalled()
+  closure.recordSessionActivity.mockResolvedValue(null)
   expect(await collector.onFileDownload({ sessionId: 'missing', sourceIP: '192.0.2.10' })).toBeNull()
 })
+test('command activity is recorded atomically, opening the session first when it is unknown', async () => {
+  closure.recordSessionActivity.mockResolvedValueOnce(null).mockResolvedValueOnce(session)
+  sessions.findOne.mockResolvedValue(session) // onSessionOpened finds the session created by the opener
+  const s = await collector.onCommandReceived({
+    sessionId: 'offline',
+    sourceIP: '192.0.2.10',
+    command: 'cat /etc/passwd',
+    intent: 'CREDENTIAL_HARVEST',
+  })
+  expect(s).toBe(session)
+  expect(closure.recordSessionActivity).toHaveBeenCalledTimes(2)
+  const [, activity] = closure.recordSessionActivity.mock.calls[1]
+  expect(activity.files).toEqual(['/etc/passwd'])
+  expect(activity.commands[0]).toMatchObject({ command: 'cat /etc/passwd', intent: 'CREDENTIAL_HARVEST' })
+})
 test('download failure propagates and logs only error type, without captured payload', async () => {
-  session.save.mockRejectedValue(new TypeError('offline-private-captured-value'))
+  closure.recordSessionActivity.mockRejectedValue(new TypeError('offline-private-captured-value'))
   await expect(
     collector.onFileDownload({ sessionId: 'offline', sourceIP: '192.0.2.10', url: 'https://example.invalid/file' })
   ).rejects.toBeInstanceOf(TypeError)

@@ -5,6 +5,9 @@ SentinelAI Feature Extraction Pipeline
 import numpy as np
 import pandas as pd
 import datetime
+import logging
+
+_features_log = logging.getLogger("sentinel.features")
 
 FEATURE_NAMES = [
     "flow_duration","total_fwd_packets","total_bwd_packets",
@@ -418,9 +421,23 @@ def extract_features_from_honeypot(session: dict) -> np.ndarray:
         "timestamp": timestamp,
     })
 
-def prepare_features(df: pd.DataFrame):
+# Schema features with no column in the CICIDS2017 CSVs. They are zero for every training row (zero
+# variance, zero importance in the shipped models), so their absence is expected and only logged.
+KNOWN_ABSENT_FEATURES = ("time_of_day_sin", "time_of_day_cos")
+# Computed below when the column is absent.
+DERIVED_FEATURES = ("payload_entropy",)
+
+
+def prepare_features(df: pd.DataFrame, max_missing=None):
+    """
+    Maps a raw flow DataFrame onto FEATURE_NAMES. Columns that cannot be found are filled with 0.0 and
+    reported. With max_missing set (training/evaluation), more than that many unexpectedly missing
+    schema features raises instead of silently producing all-zero columns: a renamed CSV header would
+    otherwise train a model on a dead feature without any warning.
+    """
     # Strip column names whitespace and try matching case insensitively if exact match fails
     clean_cols = {c.strip(): c for c in df.columns}
+    zero_filled = []
     
     X_dict = {}
     for fn in FEATURE_NAMES:
@@ -448,6 +465,8 @@ def prepare_features(df: pd.DataFrame):
                 X_dict[fn] = pd.to_numeric(df[clean_cols[fn]], errors='coerce').fillna(0.0)
             else:
                 X_dict[fn] = pd.Series(0.0, index=df.index)
+                if fn not in DERIVED_FEATURES:
+                    zero_filled.append(fn)
                 
     # Fallback/dynamic calculations
     # 1. payload_entropy calculation on-the-fly
@@ -467,6 +486,14 @@ def prepare_features(df: pd.DataFrame):
         entropy[mask_b] -= p_b[mask_b] * np.log2(p_b[mask_b])
         X_dict["payload_entropy"] = entropy
         
+    unexpected = [fn for fn in zero_filled if fn not in KNOWN_ABSENT_FEATURES]
+    if unexpected:
+        _features_log.warning("prepare_features: %d schema feature(s) not found and zero-filled: %s",
+                              len(unexpected), ", ".join(unexpected))
+        if max_missing is not None and len(unexpected) > max_missing:
+            raise ValueError(f"Training data is missing {len(unexpected)} schema features "
+                             f"(allowed {max_missing}): {', '.join(unexpected)}")
+
     X = pd.DataFrame(X_dict)[FEATURE_NAMES]
     X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0)
     

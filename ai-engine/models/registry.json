@@ -1,0 +1,16 @@
+{
+  "registered_at": "2026-10-20T21:28:04.678246+00:00",
+  "classifier": {
+    "file": "rf_classifier_cicids_v2.pkl",
+    "type": "rf",
+    "sha256": "ca0efb1fde8f9bdc430c3c511e32cd91822b0f3deeca845aa259bc8dd60023f1",
+    "meta": "rf_classifier_cicids_v2_meta.json",
+    "version": "rf_cicids_v2.0"
+  },
+  "anomaly": {
+    "file": "isolation_forest_cicids.pkl",
+    "sha256": "17bd08ffe105a3ea87de85e0943761e7cb012abd70537968e14d0a3394e19da4",
+    "meta": "isolation_forest_cicids_meta.json",
+    "version": "v1.4_cicids"
+  }
+}

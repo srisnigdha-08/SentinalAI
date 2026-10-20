@@ -4,7 +4,8 @@ SentinelAI Q-Learning Deception Engine
 Adapts honeypot OS profile based on attacker engagement.
 Run demo: python deception_scorer.py
 """
-import json, math, random, logging, os, sys, tempfile, secrets
+import json, math, random, logging, os, sys, tempfile, secrets, time
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -92,11 +93,57 @@ def calc_reward(session: dict) -> float:
     if session.get("loginSucceeded", False): r += 2.0
     return min(r, 20.0)
 
+LOCK_TIMEOUT_S = 5.0
+LOCK_STALE_S = 30.0
+
+
+def _file_signature(path: Path):
+    try:
+        st = path.stat()
+        return (str(path.resolve()), st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
+
+
+@contextmanager
+def _exclusive_lock(target: Path):
+    """Cross-process lock via an O_EXCL sibling file; a lock older than LOCK_STALE_S is treated as abandoned."""
+    lock = target.with_name(target.name + ".lock")
+    deadline = time.monotonic() + LOCK_TIMEOUT_S
+    while True:
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+            os.write(fd, str(os.getpid()).encode())
+            os.close(fd)
+            break
+        except FileExistsError:
+            try:
+                if time.time() - lock.stat().st_mtime > LOCK_STALE_S:
+                    lock.unlink()
+                    continue
+            except OSError:
+                continue
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"Q-table lock busy: {lock}")
+            time.sleep(0.02)
+    try:
+        yield
+    finally:
+        try:
+            lock.unlink()
+        except OSError:
+            pass
+
+
 class DeceptionQLearner:
     def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.2, q_table_path="rl_engine/q_table.json"):
         self.alpha=alpha; self.gamma=gamma; self.epsilon=epsilon; self.q_table_path=q_table_path
         self.episode_count=0; self.total_reward=0.0; self.reward_history=[]
         self.q_table={s:{a:0.0 for a in PROFILES_LIST} for s in PROFILES_LIST}
+        # TD updates applied since the last save, and the state of the file when it was last read or written.
+        # Together they let save() merge with another process's writes instead of overwriting them (M5).
+        self._pending = []
+        self._disk_signature = None
         self._load()
 
     def _load(self):
@@ -108,7 +155,31 @@ class DeceptionQLearner:
                 self.episode_count=data.get("episode_count",0)
                 self.total_reward=data.get("total_reward",0.0)
                 self.reward_history=data.get("reward_history",[])
-            except: pass
+                self._disk_signature=_file_signature(p)
+            except (OSError, ValueError) as e:
+                log.warning("Q-table at %s could not be read (%s); starting from defaults", p, type(e).__name__)
+
+    def _td_update(self, table, state, action, reward, next_state):
+        for s_ in (state, next_state):
+            row = table.setdefault(s_, {})
+            for a in PROFILES_LIST:
+                row.setdefault(a, 0.0)
+        cur = table[state][action]
+        max_n = max(table.get(next_state, {}).values(), default=0.0)
+        table[state][action] = round(cur + self.alpha * (reward + self.gamma * max_n - cur), 4)
+
+    def _merge_foreign_writes(self, target: Path):
+        """Another process saved since we last read/wrote: adopt its state, replay our pending updates."""
+        with open(target, encoding="utf-8") as f:
+            disk = json.load(f)
+        table = disk.get("q_table", {})
+        for state, action, reward, next_state in self._pending:
+            self._td_update(table, state, action, reward, next_state)
+        self.q_table = table
+        self.episode_count = disk.get("episode_count", 0) + len(self._pending)
+        self.total_reward = disk.get("total_reward", 0.0) + sum(r for _, _, r, _ in self._pending)
+        self.reward_history = (disk.get("reward_history", []) + [round(r, 2) for _, _, r, _ in self._pending])[-100:]
+        log.info("Q-table merged with another process's writes (%d pending updates replayed)", len(self._pending))
 
     def save(self):
         target = Path(self.q_table_path).resolve()
@@ -158,30 +229,39 @@ class DeceptionQLearner:
                     )
 
         target.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic persistence: write to sibling temporary file and atomically replace.
-        # This prevents 0-byte truncation or partial JSON corruption if interrupted.
-        tmp_id = f"{os.getpid()}_{secrets.token_hex(4)}"
-        tmp_target = target.with_suffix(f".tmp_{tmp_id}")
-        payload = {
-            "q_table": self.q_table,
-            "episode_count": self.episode_count,
-            "total_reward": round(self.total_reward, 2),
-            "reward_history": self.reward_history[-100:],
-            "saved_at": datetime.now(timezone.utc).isoformat(),
-        }
-        try:
-            with open(tmp_target, "w", encoding="utf-8") as f:
-                json.dump(payload, f, indent=2)
-                f.flush()
-                os.fsync(f.fileno())
-            os.replace(tmp_target, target)
-        except Exception:
-            if tmp_target.exists():
+        with _exclusive_lock(target):
+            current = _file_signature(target)
+            if current is not None and current != self._disk_signature:
                 try:
-                    tmp_target.unlink()
-                except OSError:
-                    pass
-            raise
+                    self._merge_foreign_writes(target)
+                except (OSError, ValueError) as e:
+                    log.warning("Q-table on disk unreadable during merge (%s); writing local state", type(e).__name__)
+            # Atomic persistence: write to sibling temporary file and atomically replace.
+            # This prevents 0-byte truncation or partial JSON corruption if interrupted.
+            tmp_id = f"{os.getpid()}_{secrets.token_hex(4)}"
+            tmp_target = target.with_suffix(f".tmp_{tmp_id}")
+            payload = {
+                "q_table": self.q_table,
+                "episode_count": self.episode_count,
+                "total_reward": round(self.total_reward, 2),
+                "reward_history": self.reward_history[-100:],
+                "saved_at": datetime.now(timezone.utc).isoformat(),
+            }
+            try:
+                with open(tmp_target, "w", encoding="utf-8") as f:
+                    json.dump(payload, f, indent=2)
+                    f.flush()
+                    os.fsync(f.fileno())
+                os.replace(tmp_target, target)
+            except Exception:
+                if tmp_target.exists():
+                    try:
+                        tmp_target.unlink()
+                    except OSError:
+                        pass
+                raise
+            self._disk_signature = _file_signature(target)
+            self._pending = []
 
     def choose_action(self, state: str) -> str:
         eps=self.epsilon/(1+self.episode_count*0.01)
@@ -189,9 +269,8 @@ class DeceptionQLearner:
         q=self.q_table.get(state,{}); return max(q,key=q.get)
 
     def update(self, state, action, reward, next_state):
-        cur=self.q_table[state][action]
-        max_n=max(self.q_table.get(next_state,{}).values(),default=0.0)
-        self.q_table[state][action]=round(cur+self.alpha*(reward+self.gamma*max_n-cur),4)
+        self._td_update(self.q_table, state, action, reward, next_state)
+        self._pending.append((state, action, reward, next_state))
         self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
         # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
         if self.episode_count % max(1, int(os.getenv("Q_SAVE_EVERY", "1"))) == 0: self.save()

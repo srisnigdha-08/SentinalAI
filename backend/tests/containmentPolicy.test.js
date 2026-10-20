@@ -105,7 +105,11 @@ jest.mock('../models/AIPrediction', () => ({
 
 jest.mock('../models/AuditLog', () => ({
   create: jest.fn().mockResolvedValue({}),
-  find: jest.fn().mockReturnValue({ sort: jest.fn().mockReturnThis(), limit: jest.fn().mockReturnThis(), lean: jest.fn().mockResolvedValue([]) }),
+  find: jest.fn().mockReturnValue({
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue([]),
+  }),
 }))
 
 const mockGetBlockThreshold = jest.fn().mockResolvedValue(0.92)
@@ -123,6 +127,10 @@ const containmentService = require('../services/containmentService')
 describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Auto-block also files a ContainmentAction (M7); this suite has no database, so stub that step.
+    jest
+      .spyOn(containmentService, 'requestContainment')
+      .mockResolvedValue({ success: true, action: { enforcementStatus: 'ACTIVE', enforcementBackend: 'mock' } })
     mockGetBlockThreshold.mockResolvedValue(0.92)
     mockBlockedIPFind.mockReturnValue({
       populate: jest.fn().mockReturnThis(),

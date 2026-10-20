@@ -7,7 +7,7 @@ from typing import Dict, List, Optional, Union
 from collections import defaultdict, deque
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 import httpx, asyncio
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from inference.predictor import SentinelPredictor
@@ -110,9 +110,7 @@ class Record(BaseModel):
     fwd_header_len: float = 20.0; bwd_header_len: float = 0.0
     fwd_avg_bytes_per_bulk: float = 0.0; bwd_avg_bytes_per_bulk: float = 0.0
     timestamp: Optional[Union[str, float, int]] = None
-    class Config:
-        extra = "allow"
-        allow_inf_nan = False
+    model_config = ConfigDict(extra="allow", allow_inf_nan=False)
 
     @model_validator(mode="before")
     @classmethod
@@ -134,8 +132,7 @@ class SessionData(BaseModel):
     commands: List[Dict] = Field(default_factory=list, max_length=10000); iocCount: int = Field(default=0, ge=0); deceptionProfile: str = "ubuntu_22"
     startTime: Optional[Union[str, float, int]] = None
     timestamp: Optional[Union[str, float, int]] = None
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 def _defaulted_features(record: "Record") -> list:
     """Raw flow fields the caller did not send and that were filled with schema defaults."""

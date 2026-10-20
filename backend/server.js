@@ -57,18 +57,31 @@ app.use(
   })
 )
 app.use('/api', securityTopology.requireSecureApi)
+const { isHoneypotKey, isSentinelKey } = require('./utils/apiKeys')
+// Which internal service a request authenticates as, or null for browser/unauthenticated traffic.
+const machineIdentity = (req) => {
+  const key = req.headers['x-api-key']
+  if (!key) return null
+  if (isHoneypotKey(key)) return 'honeypot'
+  if (isSentinelKey(key)) return 'sentinel'
+  return null
+}
+const rateWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000
+// Per-IP limit for user/browser traffic. Dashboards poll about every 30 s, so 1000 per 15 min leaves headroom.
 const lim = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 10000,
+  windowMs: rateWindowMs,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 1000,
   message: { success: false, error: 'Too many requests' },
-  skip: (req) => {
-    const key = req.headers['x-api-key']
-    return Boolean(
-      key &&
-      ((process.env.HONEYPOT_API_KEY && key === process.env.HONEYPOT_API_KEY) ||
-        (process.env.SENTINEL_KEY && key === process.env.SENTINEL_KEY))
-    )
-  },
+  skip: (req) => machineIdentity(req) !== null,
+})
+// Service keys get their own, larger budget per key instead of an unlimited bypass, so a leaked honeypot
+// key cannot drive unthrottled writes (M13).
+const machineLim = rateLimit({
+  windowMs: rateWindowMs,
+  max: parseInt(process.env.RATE_LIMIT_MACHINE_MAX) || 20000,
+  message: { success: false, error: 'Too many requests' },
+  keyGenerator: (req) => 'service:' + machineIdentity(req),
+  skip: (req) => machineIdentity(req) === null,
 })
 const { defaultShutdownManager } = require('./utils/gracefulShutdown')
 app.use(defaultShutdownManager.middleware())
@@ -79,6 +92,7 @@ const authLim = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
 })
 app.use('/api', lim)
+app.use('/api', machineLim)
 app.use('/api/auth/login', authLim)
 app.use('/api/auth/register', authLim)
 app.use('/api/auth/provision', authLim)
@@ -188,7 +202,6 @@ app.get('/api/ws/stats', authProtect, authRequirePermission('system:telemetry_fu
   res.json({ success: true, data: socketManager.getStats() })
 )
 
-
 if (process.env.NODE_ENV !== 'production') {
   try {
     const { swaggerUi, swaggerSpec } = require('./config/swagger')
@@ -205,8 +218,12 @@ if (process.env.NODE_ENV !== 'production') {
     logger.debug('[Swagger] Swagger docs not initialized: ' + e.message)
   }
 } else {
-  app.use('/api/docs', (req, res) => res.status(404).json({ success: false, error: 'Documentation disabled in production' }))
-  app.get('/api/docs.json', (req, res) => res.status(404).json({ success: false, error: 'Documentation disabled in production' }))
+  app.use('/api/docs', (req, res) =>
+    res.status(404).json({ success: false, error: 'Documentation disabled in production' })
+  )
+  app.get('/api/docs.json', (req, res) =>
+    res.status(404).json({ success: false, error: 'Documentation disabled in production' })
+  )
 }
 
 app.use('/api/auth', require('./routes/auth'))
@@ -251,6 +268,11 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
       } catch (recErr) {
         logger.warn('[ContainmentReconciliation] Failed to start reconciliation service: ' + recErr.message)
       }
+      try {
+        require('./services/honeypotSweepService').defaultHoneypotSweepService.start()
+      } catch (sweepErr) {
+        logger.warn('[HoneypotSweep] Failed to start stale-session sweep: ' + sweepErr.message)
+      }
       server.listen(PORT, process.env.HOST || '127.0.0.1', () => {
         logger.info('SentinelAI Backend ready on port ' + PORT)
       })
@@ -267,6 +289,10 @@ defaultShutdownManager.registerService({
 defaultShutdownManager.registerService({
   name: 'revocationDelivery',
   stop: () => revocationDelivery.stop().catch(() => {}),
+})
+defaultShutdownManager.registerService({
+  name: 'honeypotSweep',
+  stop: () => require('./services/honeypotSweepService').defaultHoneypotSweepService.stop(),
 })
 defaultShutdownManager.registerService({
   name: 'containmentReconciliation',

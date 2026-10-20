@@ -100,7 +100,7 @@ def process_pcap(pcap_in, csv_out_dir):
         print("No flows extracted.")
         return
         
-    sentinel_api = os.environ.get("SENTINEL_API", "http://backend:5000/api")
+    sentinel_api = os.environ.get("SENTINEL_API", "http://localhost:5000/api")
     sentinel_key = os.environ.get("HONEYPOT_API_KEY") or os.environ.get("SENTINEL_KEY")
     if not sentinel_key:
         sys.exit("Error: HONEYPOT_API_KEY environment variable not set")

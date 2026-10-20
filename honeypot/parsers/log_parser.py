@@ -24,6 +24,10 @@ if not API_KEY:
     raise RuntimeError("Configuration error: HONEYPOT_API_KEY environment variable is missing.")
 COWRIE_LOG    = os.getenv("COWRIE_LOG",  "/opt/cowrie/var/log/cowrie/cowrie.json")
 POLL_INTERVAL = 0.5
+# Delivery retries for transient failures (connection errors, timeouts, HTTP 429/5xx). 4xx answers are
+# final: retrying a rejected event cannot succeed.
+POST_RETRIES  = int(os.getenv("SENTINEL_POST_RETRIES", "3"))
+POST_BACKOFF  = float(os.getenv("SENTINEL_POST_BACKOFF", "0.5"))
 HEADERS = {"Content-Type":"application/json","X-API-Key":API_KEY,"X-Source":"cowrie-parser"}
 _sessions = {}
 
@@ -43,13 +47,26 @@ def classify_intent(cmd):
     if re.search(r"chmod|setuid",c):              return "PRIVILEGE_ESCALATION"
     if re.search(r"crontab|systemctl enable",c):  return "PERSISTENCE"
     if re.search(r"nc -e|bash -i|python -c",c):   return "REVERSE_SHELL"
-    if re.search(r"uname|id|whoami|ifconfig",c):  return "RECONNAISSANCE"
+    # Whole words only: a bare "id" matched any command containing those letters (android, hidden, ...)
+    if re.search(r"\b(uname|id|whoami|ifconfig)\b",c):  return "RECONNAISSANCE"
     if re.search(r"rm -rf|dd if=",c):             return "DESTRUCTION"
     return "UNKNOWN"
 
 def post(ep, data):
-    try: r=requests.post(f"{API_BASE}{ep}",json=data,headers=HEADERS,timeout=5); return r.status_code<400
-    except: return False
+    for attempt in range(POST_RETRIES + 1):
+        try:
+            r = requests.post(f"{API_BASE}{ep}", json=data, headers=HEADERS, timeout=5)
+            if r.status_code < 400:
+                return True
+            if r.status_code != 429 and r.status_code < 500:
+                log.warning("Backend rejected %s (HTTP %s)", ep, r.status_code)
+                return False
+        except requests.RequestException as ex:
+            if attempt == POST_RETRIES:
+                log.warning("Delivery to %s failed (%s)", ep, type(ex).__name__)
+        if attempt < POST_RETRIES:
+            time.sleep(POST_BACKOFF * (2 ** attempt))
+    return False
 
 def ensure_session_opened(sid):
     meta = _sessions.get(sid)
@@ -63,7 +80,9 @@ def ensure_session_opened(sid):
             "sourceIP": meta["sourceIP"],
             "sourcePort": meta.get("sourcePort", 0),
             "honeypotNode": "SSH-COWRIE-01",
-            "protocol": "SSH"
+            "protocol": "SSH",
+            # Cowrie's own connect time, so replayed or delayed logs keep their real start time.
+            "startTime": meta.get("startTime"),
         }):
             log.warning(f"Session opening was not acknowledged: {sid}")
             return False
@@ -145,7 +164,13 @@ def on_closed(e):
     sid = e.get("session", "?")
     dur = e.get("duration", 0)
     meta = _sessions.get(sid)
-    if not meta: return
+    if not meta:
+        # Parser restarted mid-session: its in-memory state is gone, but the backend may hold the
+        # session. Deliver the close so it is analysed instead of staying "active" forever.
+        if e.get("src_ip"):
+            if post("/honeypot/ingest/close", {"sessionId": sid, "sourceIP": e["src_ip"], "durationSeconds": int(dur)}):
+                log.info(f"Session closed without parser state (parser restarted): {sid}")
+        return
     if meta.get("openedPosted"):
         acknowledged = post("/honeypot/ingest/close", {
             "sessionId": sid,

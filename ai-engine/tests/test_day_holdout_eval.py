@@ -82,8 +82,8 @@ def test_production_score_replica_matches_predictor_formula():
     assert cls[0] == 4 and score[0] == pytest.approx(0.99) and not unknown[0]
     _, legacy, _ = ev.production_scores(StubRF([[0.01, 0.99]]), StubIF([-0.40]), np.zeros((1, 3)), rule="legacy_blend")
     assert legacy[0] == pytest.approx(0.693)
-    # Same flow flagged anomalous (deflection 0.2 -> if_sig 1.0) -> 0.693 + 0.3
-    _, score, _ = ev.production_scores(StubRF([[0.01, 0.99]]), StubIF([-0.67]), np.zeros((1, 3)))
+    # Same flow flagged anomalous (0.2 below ANOMALY_THRESHOLD -0.55 -> if_sig 1.0) -> 0.693 + 0.3
+    _, score, _ = ev.production_scores(StubRF([[0.01, 0.99]]), StubIF([-0.75]), np.zeros((1, 3)))
     assert score[0] == pytest.approx(0.993)
     # BENIGN keeps the plain blend: rf_s = 1 - 0.9 = 0.1, inlier -> 0.07
     _, score, _ = ev.production_scores(StubRF([[0.9, 0.1]]), StubIF([-0.40]), np.zeros((1, 3)))

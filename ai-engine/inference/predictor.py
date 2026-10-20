@@ -1,5 +1,5 @@
 """SentinelAI Inference Predictor"""
-import os, sys, json, time, joblib, logging, requests, ipaddress
+import os, sys, json, time, joblib, logging, requests, ipaddress, hashlib
 import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -92,8 +92,24 @@ ANOMALY_THRESHOLD = -0.55
 # Isolation Forest Boundary-Anchored Anomaly Transformation Constants
 # Default 10th-percentile contamination decision boundary offset from isolation_forest_cicids training
 IF_DEFAULT_OFFSET = -0.47402357424116837
-# Anomaly severity scaling span: linear deflection span from inlier boundary (offset_) to extreme outlier saturation floor (-0.6740)
+# Anomaly severity scaling span: linear deflection span below the anomaly boundary to full saturation
 IF_ANOMALY_SPAN   = 0.20
+
+
+def anomaly_signal(if_score):
+    """
+    Isolation Forest score_samples() -> bounded anomaly signal in [0, 1], for scalars or numpy arrays.
+    The boundary is ANOMALY_THRESHOLD, the same value that sets isAnomaly / the "Unknown" override, so a
+    flow either is an anomaly (signal > 0) or is not (signal 0) — the graded signal previously started at
+    the model's offset_ (~-0.474) while isAnomaly used -0.55, disagreeing on ~2.8 % of benign flows (M10).
+    Measured on the C1 chronological split, detection and benign FPR are unchanged at the 0.70/0.85/0.92
+    lines; see docs/MEDIUM_PRIORITY_FIXES_REPORT.md.
+    """
+    s = np.asarray(if_score, dtype=float)
+    sig = np.where(np.isfinite(s) & (s < ANOMALY_THRESHOLD),
+                   np.minimum((ANOMALY_THRESHOLD - np.nan_to_num(s, nan=0.0, posinf=0.0, neginf=0.0)) / IF_ANOMALY_SPAN, 1.0),
+                   0.0)
+    return float(np.round(sig, 4)) if sig.ndim == 0 else sig
 
 def combine_threat_score(rf_s, if_sig, is_attack):
     """
@@ -115,6 +131,40 @@ def score_to_severity(s):
     if s >= 0.50: return "MEDIUM"
     return "LOW"
 
+REGISTRY_FILE = "registry.json"
+MODEL_TYPES = ("rf", "xgboost", "stacking")
+
+
+def file_sha256(path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_registry(model_dir: Path):
+    """
+    models/registry.json pins the deployed artifacts:
+      {"classifier": {"file", "type", "meta", "sha256"}, "anomaly": {"file", "meta", "sha256"}}
+    Returns the parsed registry, or None when the file does not exist. Raises ValueError when it exists
+    but is malformed, so a broken registry never silently falls back to a different model.
+    """
+    path = Path(model_dir) / REGISTRY_FILE
+    if not path.exists():
+        return None
+    reg = json.loads(path.read_text(encoding="utf-8"))
+    for role in ("classifier", "anomaly"):
+        entry = reg.get(role)
+        if not isinstance(entry, dict) or not entry.get("file") or not entry.get("sha256"):
+            raise ValueError(f"Model registry entry '{role}' needs at least 'file' and 'sha256'")
+        if Path(entry["file"]).name != entry["file"]:
+            raise ValueError(f"Model registry entry '{role}' must name a file inside the model directory")
+    if reg["classifier"].get("type", "rf") not in MODEL_TYPES:
+        raise ValueError(f"Model registry classifier type must be one of {MODEL_TYPES}")
+    return reg
+
+
 class SentinelPredictor:
     def __init__(self, model_dir="models"):
         self.model_dir = Path(model_dir)
@@ -123,6 +173,7 @@ class SentinelPredictor:
         self.model_type = "rf"
         self._loaded = False
         self.explainer = None
+        self.registry = None
         self.load()
 
     def load(self):
@@ -147,6 +198,37 @@ class SentinelPredictor:
         
         clf_path = None
         meta_path = None
+        # A registry pins exact files and hashes (M11). Without one, the legacy first-match order below
+        # applies, where any stray .pkl earlier in the list silently becomes the deployed model.
+        try:
+            registry = load_registry(self.model_dir)
+        except (ValueError, json.JSONDecodeError) as e:
+            log.error(f"Model registry invalid; inference unavailable: {e}")
+            return
+        if registry:
+            clf_entry, if_entry = registry["classifier"], registry["anomaly"]
+            pinned = ((self.model_dir / clf_entry["file"], clf_entry["sha256"]),
+                      (self.model_dir / if_entry["file"], if_entry["sha256"]))
+            for path, expected in pinned:
+                if not path.exists():
+                    log.error(f"Registered model file missing: {path.name}; inference unavailable")
+                    return
+                actual = file_sha256(path)
+                if actual != expected.lower():
+                    log.error(f"Model hash mismatch for {path.name} (expected {expected[:12]}, got {actual[:12]}); "
+                              "inference unavailable")
+                    return
+            self.model_type = clf_entry.get("type", "rf")
+            clf_path = pinned[0][0]
+            meta_path = self.model_dir / clf_entry["meta"] if clf_entry.get("meta") else None
+            if_p = pinned[1][0]
+            if_meta_p = self.model_dir / if_entry["meta"] if if_entry.get("meta") else None
+            self.registry = {"classifier": clf_entry["file"], "classifierSha256": clf_entry["sha256"],
+                             "anomaly": if_entry["file"], "anomalySha256": if_entry["sha256"], "verified": True}
+            log.info(f"Model registry: {clf_entry['file']} + {if_entry['file']} (sha256 verified)")
+            model_candidates = []
+        else:
+            log.warning("No models/registry.json: using first-match load order (run training/register_model.py)")
         for filename, mtype, meta_filename in model_candidates:
             cand_p = self.model_dir / filename
             if cand_p.exists():
@@ -157,7 +239,9 @@ class SentinelPredictor:
                 break
 
         # Decide which isolation forest model to load: isolation_forest_cicids.pkl over isolation_forest_v1.4.pkl
-        if (self.model_dir / "isolation_forest_cicids.pkl").exists():
+        if registry:
+            pass  # pinned above
+        elif (self.model_dir / "isolation_forest_cicids.pkl").exists():
             if_p = self.model_dir / "isolation_forest_cicids.pkl"
             if_meta_p = self.model_dir / "isolation_forest_cicids_meta.json"
             log.info("Found isolation_forest_cicids.pkl. Selecting real-data isolation forest...")
@@ -252,8 +336,8 @@ class SentinelPredictor:
     def calculate_if_anomaly_signal(self, if_score: float) -> float:
         """
         Transforms raw Isolation Forest score_samples() output to a bounded anomaly score in [0.0, 1.0].
-        - Inliers (score_samples >= offset, decision_function >= 0): returns 0.0
-        - Outliers (score_samples < offset, decision_function < 0): returns normalized deflection in (0.0, 1.0]
+        - Not anomalous (score_samples >= ANOMALY_THRESHOLD, i.e. isAnomaly False): returns 0.0
+        - Anomalous: returns normalized deflection below ANOMALY_THRESHOLD in (0.0, 1.0]
         - Extreme outliers (deflection >= IF_ANOMALY_SPAN): saturates at 1.0
         Preserves anomaly direction, avoids artificial benign inflation, remains deterministic and bounded.
         """
@@ -266,24 +350,32 @@ class SentinelPredictor:
         except (ValueError, TypeError):
             return 0.0
 
-        offset = IF_DEFAULT_OFFSET
-        if self.ifo is not None and hasattr(self.ifo, "named_steps") and "if" in self.ifo.named_steps:
-            offset = float(getattr(self.ifo.named_steps["if"], "offset_", IF_DEFAULT_OFFSET))
+        return anomaly_signal(val)
 
-        if val >= offset:
-            return 0.0
+    def _classify(self, X):
+        """
+        One forest pass: (class label, probability row, column of that label). For sklearn/xgboost
+        estimators predict() is the argmax of predict_proba(), so calling both ran the trees twice (L4).
+        """
+        proba = self.rf.predict_proba(X)[0]
+        classes = getattr(self.rf, "classes_", None)
+        if isinstance(classes, np.ndarray) and len(classes) == len(proba):
+            pos = int(np.argmax(proba))
+            return classes[pos], proba, pos
+        label = self.rf.predict(X)[0]  # estimators without classes_ (test doubles)
+        return label, proba, int(label)
 
-        deflection = offset - val
-        return round(float(min(deflection / IF_ANOMALY_SPAN, 1.0)), 4)
-
-    def get_explanation(self, record: dict, top_n=5) -> list:
+    def get_explanation(self, record: dict, top_n=5, X=None, cls_pos=None) -> list:
+        """SHAP contributions for the predicted class. predict() passes its feature vector and class column
+        so the explanation does not re-extract features or run the classifier again."""
         if not self._loaded or self.explainer is None:
             return []
         try:
             import shap
-            X = extract_features_from_record(record).reshape(1,-1)
+            if X is None:
+                X = extract_features_from_record(record).reshape(1,-1)
             X_scaled = self.clf.named_steps["scaler"].transform(X)
-            cls = int(self.clf.predict(X)[0])
+            cls = cls_pos if cls_pos is not None else self._classify(X)[2]
             
             raw_shap = self.explainer.shap_values(X_scaled)
             
@@ -321,8 +413,7 @@ class SentinelPredictor:
             raise ValueError("Features must be finite numbers")
         raw_vector = [float(v) for v in X[0]]
         try:
-            cls   = self.rf.predict(X)[0]
-            proba = self.rf.predict_proba(X)[0]
+            cls, proba, cls_pos = self._classify(X)
             cname = LABEL_NAMES.get(int(cls), "BENIGN")
             probs = {LABEL_NAMES.get(i, f"c{i}"): round(float(p),4) for i,p in enumerate(proba)}
             max_p = float(max(proba))
@@ -342,7 +433,7 @@ class SentinelPredictor:
             
         explanation = []
         if explain:
-            explanation = self.get_explanation(record)
+            explanation = self.get_explanation(record, X=X, cls_pos=cls_pos)
             
         # Shadow evaluation of B2 Volumetric Flood Detector (zero mutation of primary action/score)
         shadow_b2_eval = None
@@ -395,7 +486,7 @@ class SentinelPredictor:
         if not np.isfinite(X).all():
             raise ValueError("Features must be finite numbers")
         try:
-            cls = self.rf.predict(X)[0]; proba=self.rf.predict_proba(X)[0]
+            cls, proba, _ = self._classify(X)
             cname=LABEL_NAMES.get(int(cls),"SSH Brute Force"); max_p=float(max(proba))
         except Exception as e:
             raise ModelUnavailableError("Classifier inference failed") from e
@@ -444,4 +535,4 @@ class SentinelPredictor:
 
     def get_model_info(self):
         from utils.features import LABEL_MAP
-        return {"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD}}
+        return {"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD},"registry":self.registry}

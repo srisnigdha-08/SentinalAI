@@ -1,5 +1,9 @@
 const mongoose = require('mongoose')
 const logger = require('../utils/logger')
+const positiveInt = (value, fallback) => {
+  const n = parseInt(value, 10)
+  return Number.isInteger(n) && n > 0 ? n : fallback
+}
 const ensureDefaultAdmin = async () => {
   try {
     const adminPassword = process.env.ADMIN_INITIAL_PASSWORD
@@ -29,8 +33,8 @@ const ensureDefaultAdmin = async () => {
 const connectDB = async () => {
   try {
     const c = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db', {
-      maxPoolSize: 10,
-      serverSelectionTimeoutMS: 5000,
+      maxPoolSize: positiveInt(process.env.MONGO_MAX_POOL_SIZE, 10),
+      serverSelectionTimeoutMS: positiveInt(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS, 5000),
     })
     logger.info('MongoDB connected: ' + c.connection.host + '/' + c.connection.name)
     await ensureDefaultAdmin()

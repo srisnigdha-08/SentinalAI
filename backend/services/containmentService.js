@@ -25,6 +25,19 @@ const { logContainmentAudit } = require('../utils/containmentAudit')
 const logger = require('../utils/logger')
 const { isValidIP } = require('../utils/querySecurity')
 const { v4: uuidv4 } = require('uuid')
+const mongoose = require('mongoose')
+
+// Requester recorded for AI auto-blocks. Analyst rights only: single IPs, default (expiring) duration.
+const AUTO_BLOCK_REQUESTER = Object.freeze({
+  id: 'system:auto-block',
+  name: 'AI Auto-Block',
+  role: 'analyst',
+  status: 'active',
+})
+const userRef = (requester) => {
+  const id = requester?._id || requester?.id
+  return id && mongoose.isValidObjectId(id) ? id : null
+}
 
 /**
  * Executes a fully typed, policy-governed containment request (Phase 4).
@@ -51,6 +64,7 @@ const requestContainment = async ({
   idempotencyKey,
   threatRef,
   metadata = {},
+  emitEvents = true,
 }) => {
   const correlationId = uuidv4()
   const cleanReason = (typeof reason === 'string' ? reason.trim().slice(0, 200) : '') || 'Containment policy action'
@@ -123,7 +137,7 @@ const requestContainment = async ({
       originalThreatId: threatRef || null,
       severity: metadata.severity || null,
     },
-    requestedBy: requester?._id || requester?.id || null,
+    requestedBy: userRef(requester),
     requestedByName: requester?.name || 'System',
     requestedByRole: requester?.role || 'system',
     expiresAt: policyResult.expiration?.expiresAt || null,
@@ -144,9 +158,25 @@ const requestContainment = async ({
     details: { reason: cleanReason, durationSeconds, isPermanent },
   })
 
-  // Step 5: Transition REQUESTED -> VALIDATING
+  // Step 5: Transition REQUESTED -> VALIDATING. The first save takes the per-target lock; a concurrent
+  // request for the same target that passed Step 3 loses here and gets the winner's action back.
   actionDoc.transitionTo('VALIDATING')
-  await actionDoc.save()
+  try {
+    await actionDoc.save()
+  } catch (saveErr) {
+    if (saveErr?.code !== 11000 || !saveErr?.keyPattern?.targetLock) throw saveErr
+    const inFlight = await ContainmentAction.findOne({ targetLock: normalized })
+    logContainmentAudit({
+      action: 'ALREADY_ACTIVE_HIT',
+      containmentId: inFlight?.containmentId,
+      correlationId,
+      target: normalized,
+      enforcementStatus: inFlight?.enforcementStatus,
+      operatorId: requester?._id || requester?.id,
+      details: { message: 'Concurrent containment request for the same target' },
+    })
+    return { success: true, action: inFlight, alreadyActive: true, concurrent: true }
+  }
 
   // Step 6: Handle Policy Denial / Safety Exclusions
   if (policyResult.decision !== 'ALLOWED') {
@@ -176,7 +206,7 @@ const requestContainment = async ({
 
   // Step 7: Transition VALIDATING -> APPROVED
   actionDoc.transitionTo('APPROVED', {
-    approvedBy: requester?._id || requester?.id || null,
+    approvedBy: userRef(requester),
   })
   await actionDoc.save()
 
@@ -274,7 +304,7 @@ const requestContainment = async ({
         ip: normalized,
         reason: cleanReason,
         blockedAt: new Date(),
-        blockedBy: requester?._id || requester?.id || null,
+        blockedBy: userRef(requester),
         threatRef: threatRef || null,
       },
       { upsert: true, new: true }
@@ -293,7 +323,7 @@ const requestContainment = async ({
       t.preBlockStatus = t.status
       t.status = 'BLOCKED'
       t.containmentId = actionDoc._id
-      t.handledBy = requester?._id || requester?.id
+      t.handledBy = userRef(requester)
       t.autonomousAction = {
         taken: true,
         actionType: 'IP_BLOCKED',
@@ -305,12 +335,14 @@ const requestContainment = async ({
     logger.warn(`[Containment] Candidate threat update warning: ${threatErr.message}`)
   }
 
-  // Step 14: Emit WebSocket events
-  try {
-    const socketManager = require('../websocket/socketManager')
-    socketManager.emitIPBlocked(normalized, requester?.name || 'System', threatRef || null)
-  } catch (socketErr) {
-    logger.warn(`[Containment] Socket emission warning: ${socketErr.message}`)
+  // Step 14: Emit WebSocket events (callers that emit their own, such as auto-block, opt out)
+  if (emitEvents) {
+    try {
+      const socketManager = require('../websocket/socketManager')
+      socketManager.emitIPBlocked(normalized, requester?.name || 'System', threatRef || null)
+    } catch (socketErr) {
+      logger.warn(`[Containment] Socket emission warning: ${socketErr.message}`)
+    }
   }
 
   return { success: true, action: actionDoc }
@@ -855,6 +887,39 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
     throw blockedErr
   }
 
+  // Enforce through the configured containment adapter too, so auto-blocks share the ContainmentAction
+  // lifecycle (policy, audit, expiry, rollback) with manual containment. Mock adapter by default; the
+  // real firewall still needs its own gates. A rejection or adapter failure keeps the deny-list entry.
+  let enforcement = null
+  try {
+    const res = await module.exports.requestContainment({
+      target: threat.sourceIP,
+      actionType: 'block_ip',
+      reason: `${source} auto-block (score = ${threatScore})`,
+      requester: AUTO_BLOCK_REQUESTER,
+      idempotencyKey: `auto-block:${threat._id}`,
+      threatRef: threat._id,
+      metadata: { threatCategory: threat.attackType, severity: threat.severity },
+      emitEvents: false,
+    })
+    enforcement = {
+      status: res.action?.enforcementStatus,
+      backend: res.action?.enforcementBackend,
+      containmentId: res.action?.containmentId,
+    }
+  } catch (enforceErr) {
+    enforcement = { status: enforceErr.action?.enforcementStatus || 'FAILED', error: enforceErr.message }
+    logger.warn(
+      `[Containment] Auto-block adapter enforcement for ${threat.sourceIP} did not complete: ${enforceErr.message}`
+    )
+  }
+  const enforcedBy =
+    enforcement?.status === 'ACTIVE'
+      ? enforcement.backend === 'windows-firewall'
+        ? 'Enforced by the honeypot blocker and a Windows Firewall rule.'
+        : `Enforced by the honeypot blocker; containment adapter "${enforcement.backend}" (no host firewall rule).`
+      : 'Enforced by the honeypot blocker only; containment adapter enforcement did not complete.'
+
   // Socket & Alert emission ONLY after containment succeeds
   try {
     const socketManager = require('../websocket/socketManager')
@@ -864,7 +929,7 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
 
     const alert = await alertService.createAlert({
       title: 'IP Added to Deny-List (Auto)',
-      message: `IP ${threat.sourceIP} added to the SentinelAI deny-list by ${source} (Score: ${Math.round(threatScore * 100)}%). Enforced by the honeypot blocker only; no host firewall rule was applied.`,
+      message: `IP ${threat.sourceIP} added to the SentinelAI deny-list by ${source} (Score: ${Math.round(threatScore * 100)}%). ${enforcedBy}`,
       severity: 'HIGH',
       type: 'IP_BLOCKED',
       sourceRef: sourceRef || { refModel: 'ThreatLog', refId: threat._id },
@@ -874,7 +939,7 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
     logger.error(`[AI Auto-Block] Alert/Socket emission failed: ${e.message}`)
   }
 
-  return { success: true, blockedDoc, threat }
+  return { success: true, blockedDoc, threat, enforcement }
 }
 
 module.exports = {
@@ -885,4 +950,5 @@ module.exports = {
   blockIPManual,
   unblockIPManual,
   executeAutoBlock,
+  AUTO_BLOCK_REQUESTER,
 }

@@ -66,3 +66,7 @@ playwright-report/
 test-results/
 **/playwright-report/
 **/test-results/
+
+# Ad-hoc pre-edit backups (git history keeps prior versions)
+*.bak-*
+*.orig-*

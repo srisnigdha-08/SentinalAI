@@ -14,7 +14,8 @@ class Output(output.Output):
         self.blocked_ips = set()
         self.cache = {}  # ip -> (is_blocked, timestamp)
         self.cache_ttl = 2.0  # 2 seconds TTL for local overrides
-        self.api_url = os.getenv("SENTINEL_API_URL", "http://backend:5000/api")
+        # Same default as the parser (log_parser.py SENTINEL_API); set SENTINEL_API_URL when the backend is remote.
+        self.api_url = os.getenv("SENTINEL_API_URL", "http://localhost:5000/api")
         self.api_key = os.getenv("HONEYPOT_API_KEY", "")
         self.running = True
         

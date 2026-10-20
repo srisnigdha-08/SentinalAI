@@ -113,9 +113,9 @@ def test_threat_score_mathematically_unchanged(predictor_instance):
     # val = -0.55, offset = -0.47402357424116837
     # deflection = -0.47402357424116837 - (-0.55) = 0.07597642575883163
     # if_sig = min(0.07597642575883163 / 0.20, 1.0) = 0.379882... -> round(..., 4) = 0.3799
-    # blend = round(0.7 * 0.95 + 0.3 * 0.3799, 4) = 0.7790; attack class -> max(0.95, 0.7790) = 0.95
+    # if_score = -0.55 is exactly ANOMALY_THRESHOLD -> if_sig 0; blend = 0.665; attack class -> max(0.95, 0.665)
     expected_rf_s = 0.95
-    expected_if_sig = round(float((-0.47402357424116837 - (-0.55)) / 0.20), 4)
+    expected_if_sig = 0.0
     expected_score = round(max(expected_rf_s, 0.7 * expected_rf_s + 0.3 * expected_if_sig), 4)
     assert expected_score == 0.95
 

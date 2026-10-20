@@ -40,6 +40,8 @@ const HoneypotSessionSchema = new mongoose.Schema(
     iocExtracted: { ips: [String], urls: [String], hashes: [String] },
     linkedThreatLog: { type: mongoose.Schema.Types.ObjectId, ref: 'ThreatLog', default: null },
     deceptionScore: { type: Number, default: 0, min: 0, max: 100 },
+    // Cowrie file-download events; each adds 15 to deceptionScore (see honeypotService.recordSessionActivity).
+    downloadCount: { type: Number, default: 0 },
     engagementLevel: { type: String, enum: ['minimal', 'low', 'medium', 'high', 'deep'], default: 'minimal' },
     status: { type: String, enum: ['active', 'closed', 'analysed'], default: 'active' },
     closureAnalysisState: { type: String, enum: ['idle', 'processing', 'complete', 'failed'], default: 'idle' },
@@ -48,6 +50,9 @@ const HoneypotSessionSchema = new mongoose.Schema(
     closureAnalysisCompletedAt: Date,
     aiClassification: { type: String, default: null },
     aiThreatScore: { type: Number, default: 0 },
+    // How aiClassification was produced; for Cowrie sessions 'rule_profile_synthetic_flow' (rules pick the
+    // class, the model scores a representative flow), never real packet-level inference.
+    aiClassificationMethod: { type: String, default: null },
     qDeceptionScore: { type: Number, default: 0 },
     recommendedProfile: { type: String, default: 'ubuntu_22' },
     // Persona Cowrie actually served for this session: the Q-learner's action for its reward.
@@ -61,6 +66,8 @@ HoneypotSessionSchema.index({ honeypotNode: 1, status: 1 })
 HoneypotSessionSchema.index({ createdAt: -1 })
 HoneypotSessionSchema.index({ hassh: 1 })
 HoneypotSessionSchema.index({ linkedThreatLog: 1 })
+// Campaign clustering looks up recent sessions that share a command
+HoneypotSessionSchema.index({ 'commands.command': 1, createdAt: -1 })
 HoneypotSessionSchema.pre('save', function (next) {
   if (this.isModified('commands') || !this.mitreTechniques || this.mitreTechniques.length === 0) {
     const intents = this.commands.map((c) => c.intent).filter(Boolean)

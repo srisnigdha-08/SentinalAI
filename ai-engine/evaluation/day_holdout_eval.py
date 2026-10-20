@@ -44,7 +44,7 @@ sys.path.insert(0, str(ENGINE_ROOT))
 from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, RAW_LABEL_TO_TARGET, prepare_features  # noqa: E402
 from training.train import IF_PARAMS, RF_PARAMS  # noqa: E402
 from inference.predictor import (  # noqa: E402
-    ANOMALY_THRESHOLD, BLOCK_THRESHOLD, IF_ANOMALY_SPAN, MONITOR_THRESHOLD, combine_threat_score)
+    ANOMALY_THRESHOLD, BLOCK_THRESHOLD, MONITOR_THRESHOLD, anomaly_signal, combine_threat_score)
 
 BENIGN = LABEL_MAP["BENIGN"]
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -68,7 +68,7 @@ def load_file(path: Path, max_rows=None) -> pd.DataFrame:
     numeric = df.drop(columns=[label_col]).apply(pd.to_numeric, errors="coerce")
     finite = np.isfinite(numeric.to_numpy(dtype=float)).all(axis=1)  # train.py drops NaN/inf rows
     df = df.loc[finite].reset_index(drop=True)
-    X, y = prepare_features(df)
+    X, y = prepare_features(df, max_missing=0)
     out = pd.DataFrame(X.astype(np.float32), columns=FEATURE_NAMES)
     out["y"] = y
     out["target"] = df[label_col].astype(str).str.strip().map(lambda v: RAW_LABEL_TO_TARGET.get(v, v)).values
@@ -132,8 +132,7 @@ def production_scores(rf, ifo, X, rule="current"):
     max_p = proba.max(axis=1)
     rf_s = np.where(cls != BENIGN, max_p, 1.0 - max_p)
     if_score = ifo.named_steps["if"].score_samples(ifo.named_steps["scaler"].transform(X))
-    offset = float(ifo.named_steps["if"].offset_)
-    if_sig = np.where(if_score >= offset, 0.0, np.minimum((offset - if_score) / IF_ANOMALY_SPAN, 1.0))
+    if_sig = anomaly_signal(if_score)  # same function the live predictor uses
     if rule == "current":
         score = combine_threat_score(rf_s, if_sig, cls != BENIGN)
     elif rule == "legacy_blend":
