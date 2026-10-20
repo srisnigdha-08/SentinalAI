@@ -11,13 +11,17 @@ export function createAuthClient({ fetch: request, locks, channel, storage, base
     clearTimeout(refreshTimer)
     state = value
     if (value.token) {
+      try { storage?.setItem('sentinel_has_session', '1') } catch {}
       try {
         const claims = JSON.parse(atob(value.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
         if (Number.isFinite(claims.exp)) {
-          refreshTimer = setTimeout(() => refresh().catch(() => {}), Math.max(1000, claims.exp * 1000 - Date.now() - 30000))
+          const delay = Math.min(2147483647, Math.max(1000, claims.exp * 1000 - Date.now() - 30000))
+          refreshTimer = setTimeout(() => refresh().catch(() => {}), delay)
           refreshTimer.unref?.()
         }
       } catch {}
+    } else {
+      try { storage?.removeItem('sentinel_has_session') } catch {}
     }
     listeners.forEach(listener => listener(state))
   }
@@ -151,6 +155,9 @@ export function createAuthClient({ fetch: request, locks, channel, storage, base
     channel?.postMessage({ type: 'session-changed' })
     return result
   })
-  return { login, logout, register, provision, updatePassword, refresh, clear, getState: () => state,
+  const hasSessionHint = () => {
+    try { return storage?.getItem('sentinel_has_session') === '1' } catch { return false }
+  }
+  return { login, logout, register, provision, updatePassword, refresh, clear, hasSessionHint, getState: () => state,
     subscribe(listener) { listeners.add(listener); listener(state); return () => listeners.delete(listener) } }
 }

@@ -19,9 +19,11 @@ export default function HoneypotAnalytics() {
   const [sessions,  setSessions]  = useState([])
   const [nodes,     setNodes]     = useState([])
   const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState(null)
   const { connected, on } = useSocket()
 
   const load = async () => {
+    setError(null)
     try {
       const [aRes, sRes, nRes] = await Promise.all([
         honeypotAPI.analytics(),
@@ -31,7 +33,10 @@ export default function HoneypotAnalytics() {
       setAnalytics(aRes.data.data)
       setSessions(sRes.data.data || [])
       setNodes(nRes.data.data?.nodes || [])
-    } catch { toast.error('Failed to load honeypot data') }
+    } catch {
+      setError('Honeypot telemetry is unavailable. Retry to load current sessions and nodes.')
+      toast.error('Failed to load honeypot data')
+    }
     finally { setLoading(false) }
   }
 
@@ -68,14 +73,55 @@ export default function HoneypotAnalytics() {
         </span>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.25rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {error}</span>
+          <button
+            onClick={load}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem', marginBottom:'1.5rem' }}>
         <KpiCard label="Sessions Today"    value={loading?'—':kpis.totalToday||0}              delta="today"             color="#00d4ff" />
         <KpiCard label="Unique Attackers"  value={loading?'—':kpis.uniqueIPsToday||0}          delta="distinct IPs"      color="#ffaa00" />
         <KpiCard label="Avg Engagement"    value={loading?'—':fmtDuration(kpis.avgDurationSecs||0)} delta="per session"  color="#00ff88" />
         <KpiCard label="Deception Score"   value={loading?'—':`${kpis.avgDeceptionScore||0}`}  delta="avg RL reward"     color="#8b5cf6" />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
         {/* Sessions list */}
         <Panel title="Attacker Sessions" badge="LIVE" badgeType="live">
           <div style={{ maxHeight:320, overflowY:'auto' }}>
@@ -173,7 +219,7 @@ export default function HoneypotAnalytics() {
 
       {/* Node status grid */}
       <Panel title="Honeypot Nodes">
-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem' }}>
+        <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem' }}>
           {nodes.map(hp=>(
             <div key={hp.name} style={{ background:'#041120', border:'1px solid #0d3352', borderRadius:2, padding:'1.25rem' }}>
               <div style={{ fontFamily:'Orbitron,sans-serif', fontSize:10, fontWeight:700, color:'#7ab3cc', letterSpacing:1, marginBottom:8 }}>{hp.name}</div>

@@ -1,8 +1,9 @@
 'use strict'
 
-const { exec } = require('child_process')
+const { execFile } = require('child_process')
+const net = require('net')
 const util = require('util')
-const execPromise = util.promisify(exec)
+const execFilePromise = util.promisify(execFile)
 const logger = require('../../utils/logger')
 const ContainmentAdapterInterface = require('./adapterInterface')
 
@@ -21,6 +22,9 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     super()
     this.enabled =
       options.enabled !== undefined ? options.enabled : process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true'
+    // netsh runs without a shell: arguments are passed as an array, so no metacharacter can start a new command.
+    this._runNetsh =
+      options.runNetsh || ((args, timeout) => execFilePromise('netsh', args, { timeout, windowsHide: true }))
   }
 
   getBackendType() {
@@ -31,9 +35,9 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
    * Internal safety check to verify execution permission.
    */
   _assertEnabled() {
-    if (!this.enabled) {
+    if (!this.enabled || process.env.NODE_ENV === 'test' || process.env.CONTAINMENT_DRY_RUN === 'true') {
       const msg =
-        'Real Windows Firewall enforcement is disabled by safety gate. (ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT is not true).'
+        'Real Windows Firewall enforcement is disabled by safety gate. (ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT is not true, or NODE_ENV=test / CONTAINMENT_DRY_RUN=true).'
       logger.warn(`[WindowsFirewallAdapter] ${msg}`)
       const err = new Error(msg)
       err.code = 'FIREWALL_ENFORCEMENT_DISABLED'
@@ -48,7 +52,16 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     if (typeof target !== 'string' || !/^[0-9a-fA-F.:/]+$/.test(target.trim())) {
       throw new Error(`Invalid target address characters: ${target}`)
     }
-    return target.trim()
+    const clean = target.trim()
+    // Character checks alone accept strings such as ':::' or '1.2.3.4/99'; require a real IP or CIDR.
+    const [ip, prefix, ...rest] = clean.split('/')
+    const family = net.isIP(ip)
+    const prefixValid =
+      prefix === undefined || (/^\d{1,3}$/.test(prefix) && Number(prefix) <= (family === 6 ? 128 : 32))
+    if (!family || rest.length > 0 || !prefixValid) {
+      throw new Error(`Invalid target address: ${clean}`)
+    }
+    return clean
   }
 
   /**
@@ -81,11 +94,24 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     const assignedRuleName = this._sanitizeRuleName(rawRuleName)
 
     // Execute netsh rule addition: block inbound traffic from remote IP/CIDR
-    const cmd = `netsh advfirewall firewall add rule name="${assignedRuleName}" dir=in action=block remoteip="${safeTarget}" description="SentinelAI Automated Containment ${containmentId}"`
+    // containmentId is interpolated into a shell string: restrict it like the rule name
+    const safeId = String(containmentId).replace(/[^a-zA-Z0-9-]/g, '')
+    const args = [
+      'advfirewall',
+      'firewall',
+      'add',
+      'rule',
+      `name=${assignedRuleName}`,
+      'dir=in',
+      'action=block',
+      `remoteip=${safeTarget}`,
+      `description=SentinelAI Automated Containment ${safeId}`,
+    ]
+    const cmd = `netsh ${args.join(' ')}`
 
     try {
       logger.info(`[WindowsFirewallAdapter] Executing: ${cmd}`)
-      const { stdout, stderr } = await execPromise(cmd, { timeout: 10000 })
+      const { stdout, stderr } = await this._runNetsh(args, 10000)
       const duration = Date.now() - startTime
 
       return {
@@ -120,11 +146,12 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     const rawRuleName = ruleName || ruleId || this._formatRuleName(containmentId)
     const assignedRuleName = this._sanitizeRuleName(rawRuleName)
 
-    const cmd = `netsh advfirewall firewall delete rule name="${assignedRuleName}"`
+    const args = ['advfirewall', 'firewall', 'delete', 'rule', `name=${assignedRuleName}`]
+    const cmd = `netsh ${args.join(' ')}`
 
     try {
       logger.info(`[WindowsFirewallAdapter] Executing: ${cmd}`)
-      const { stdout, stderr } = await execPromise(cmd, { timeout: 10000 })
+      const { stdout, stderr } = await this._runNetsh(args, 10000)
       const duration = Date.now() - startTime
 
       return {
@@ -153,14 +180,18 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     this._assertEnabled()
     const rawRuleName = ruleName || ruleId || this._formatRuleName(containmentId)
     const assignedRuleName = this._sanitizeRuleName(rawRuleName)
-    const cmd = `netsh advfirewall firewall show rule name="${assignedRuleName}"`
+    const args = ['advfirewall', 'firewall', 'show', 'rule', `name=${assignedRuleName}`]
 
     try {
-      const { stdout } = await execPromise(cmd, { timeout: 5000 })
+      // netsh exits non-zero when no rule matches, so reaching this line means the rule exists.
+      const { stdout } = await this._runNetsh(args, 5000)
       const exists = stdout.includes(assignedRuleName)
+      // Match the "Enabled:" line only; a bare includes('Yes') matched any field. Non-English output
+      // falls back to "exists", since rules this adapter creates are enabled by default.
+      const enabledLine = stdout.match(/^\s*Enabled:\s*(\S+)/m)
       return {
         exists,
-        active: exists && stdout.includes('Yes'),
+        active: exists && (enabledLine ? enabledLine[1] === 'Yes' : true),
         details: { rawOutput: stdout.trim() },
       }
     } catch (err) {
@@ -174,10 +205,8 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
 
   async listActiveRules() {
     this._assertEnabled()
-    const cmd = `netsh advfirewall firewall show rule name=all`
-
     try {
-      const { stdout } = await execPromise(cmd, { timeout: 15000 })
+      const { stdout } = await this._runNetsh(['advfirewall', 'firewall', 'show', 'rule', 'name=all'], 15000)
       const rules = []
       const lines = stdout.split('\n')
       let currentRule = null

@@ -99,6 +99,9 @@ jest.mock('../services/honeypotService', () => ({
   getActiveNodes: jest.fn().mockResolvedValue([]),
   getDeceptionMetrics: jest.fn().mockResolvedValue({ deceptionRatio: 0.9 }),
   getFullAnalytics: jest.fn().mockResolvedValue({ totalSessions: 10 }),
+  getActiveProfile: jest.fn().mockResolvedValue({ profile: 'centos_7', source: 'default' }),
+  setActiveProfile: jest.fn().mockResolvedValue('debian_11'),
+  DECEPTION_PROFILES: ['ubuntu_22', 'debian_11', 'centos_7', 'windows_srv', 'aws_ec2', 'raspberry_pi'],
   findSessions: jest.fn().mockResolvedValue({
     data: [{ _id: 'hp-1', sessionId: 's1', sourceIP: '198.51.100.99', honeypotNode: 'SSH-01' }],
     total: 1,
@@ -468,6 +471,13 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     { method: 'get', path: '/api/honeypot/status', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/honeypot/analytics', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/honeypot/nodes', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    { method: 'get', path: '/api/honeypot/deception/profile', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'put',
+      path: '/api/honeypot/deception/profile',
+      body: { profile: 'debian_11' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
     { method: 'get', path: '/api/honeypot/sessions', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'post', path: '/api/honeypot/sessions', body: { sourceIP: '198.51.100.99', sourcePort: 2222, honeypotNode: 'SSH-01' }, expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 } },
     { method: 'get', path: '/api/honeypot/sessions/:id', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
@@ -500,7 +510,8 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     { method: 'get', path: '/api/ai/engine/stats', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'post', path: '/api/ai/analyze', body: { features: [1, 2, 3] }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/ai/predictions', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/ai/predictions', body: { sourceIP: '198.51.100.99', predictedClass: 'BRUTE_FORCE' }, expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 } },
+    // AI engine callback only: user sessions cannot record model output
+    { method: 'post', path: '/api/ai/predictions', body: { sourceIP: '198.51.100.99', predictedClass: 'BRUTE_FORCE' }, expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
     { method: 'get', path: '/api/ai/stats', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'put', path: '/api/ai/predictions/:id/verify', body: { actualClass: 'SSH Brute Force' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
 

@@ -1,6 +1,7 @@
 import Navbar from '../components/Navbar.jsx'
 import Sidebar from '../components/Sidebar.jsx'
 import RoleWorkspaceHeader from '../components/RoleWorkspaceHeader.jsx'
+import ConnectionStatus from '../components/ConnectionStatus.jsx'
 
 export default function DashboardLayout({ children }) {
   return (
@@ -16,6 +17,7 @@ export default function DashboardLayout({ children }) {
           {children}
         </main>
       </div>
+      <ConnectionStatus />
     </>
   )
 }

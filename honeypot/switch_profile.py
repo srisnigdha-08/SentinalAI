@@ -135,3 +135,5 @@ if __name__ == "__main__":
     generate_config(target_profile)
 
     print("Restart your independently managed Cowrie service to apply this profile.")
+    print("Then record it so the Q-learner credits sessions to the persona actually served:")
+    print(f'  PUT /api/honeypot/deception/profile  {{"profile": "{target_profile}"}}  (admin)')

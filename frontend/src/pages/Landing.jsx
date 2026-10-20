@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import Navbar from '../components/Navbar.jsx'
 import { threatAPI, honeypotAPI, aiAPI } from '../services/api.js'
+import { useAuth } from '../hooks/useAuth.js'
 
 function animateCounter(el, target, suffix = '') {
   if (!el) return
@@ -19,10 +20,30 @@ function animateCounter(el, target, suffix = '') {
 
 export default function Landing() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const cnt1 = useRef(); const cnt2 = useRef(); const cnt3 = useRef(); const cnt4 = useRef()
 
   useEffect(() => {
     let isMounted = true
+
+    // Safe fallback metrics for unauthenticated showcase visitors
+    // TODO: Implement an unauthenticated public aggregation endpoint (e.g., GET /api/public/stats)
+    // on the backend to stream live showcase metrics without requiring an operator JWT.
+    const fallbackStats = {
+      blocked: 2341,
+      analyzed: 14823,
+      honeypot: 312,
+      accuracy: 94,
+    }
+
+    if (!user) {
+      animateCounter(cnt1.current, fallbackStats.blocked)
+      animateCounter(cnt2.current, fallbackStats.analyzed)
+      animateCounter(cnt3.current, fallbackStats.honeypot)
+      animateCounter(cnt4.current, fallbackStats.accuracy, '%')
+      return
+    }
+
     Promise.all([
       threatAPI.analytics().catch(() => null),
       honeypotAPI.analytics().catch(() => null),
@@ -35,12 +56,11 @@ export default function Landing() {
       const aiSummary = aRes?.data?.data?.summary || {}
       const modelInfo = mRes?.data?.data || mRes?.data || {}
 
-      // REAL DATA SOURCE: actual counters from the SentinelAI pipeline
-      // If 0, counters display 0.
+      // Authenticated operators see real pipeline counters only (0 stays 0); sample values are for anonymous visitors
       const realBlocked = kpis.blockedCount || 0
       const realAnalyzed = kpis.totalAllTime || 0
       const realHoneypot = hpKpis.totalToday || 0
-      
+
       let realAccuracy = 0
       if (aiSummary.verifiedAccuracy) {
         realAccuracy = Math.round(aiSummary.verifiedAccuracy)
@@ -48,21 +68,13 @@ export default function Landing() {
         realAccuracy = Math.round(modelInfo.rfMetrics.accuracy * 100)
       }
 
-      // ======================================================================
-      // PRESERVED SIMULATION VALUES (previously hardcoded for demo):
-      // animateCounter(cnt1.current, 2341)
-      // animateCounter(cnt2.current, 14823)
-      // animateCounter(cnt3.current, 312)
-      // animateCounter(cnt4.current, 94, '%')
-      // ======================================================================
-
       animateCounter(cnt1.current, realBlocked)
       animateCounter(cnt2.current, realAnalyzed)
       animateCounter(cnt3.current, realHoneypot)
       animateCounter(cnt4.current, realAccuracy, '%')
     })
     return () => { isMounted = false }
-  }, [])
+  }, [user])
 
   return (
     <>
@@ -139,25 +151,45 @@ export default function Landing() {
 
           {/* Counters */}
           <div style={{
-            display: 'flex', gap: '3rem', marginTop: '5rem',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginTop: '5rem',
             animation: 'fadeUp .6s .6s ease both',
           }}>
-            {[
-              { ref: cnt1, label: 'Threats Blocked' },
-              { ref: cnt2, label: 'Attacks Analyzed' },
-              { ref: cnt3, label: 'Honeypot Sessions' },
-              { ref: cnt4, label: 'AI Accuracy' },
-            ].map(({ ref, label }) => (
-              <div key={label} style={{ textAlign: 'center' }}>
-                <div ref={ref} style={{
-                  fontFamily: 'Orbitron,sans-serif', fontSize: 32, fontWeight: 700, color: '#00d4ff',
-                }}>0</div>
-                <div style={{
-                  fontSize: 12, color: '#3a6a88', letterSpacing: 2,
-                  textTransform: 'uppercase', marginTop: 4,
-                }}>{label}</div>
-              </div>
-            ))}
+            {!user && (
+              <span
+                data-testid="sample-data-badge"
+                style={{
+                  fontFamily: 'Share Tech Mono, monospace',
+                  fontSize: 11,
+                  letterSpacing: 2,
+                  textTransform: 'uppercase',
+                  color: '#ffaa00',
+                  background: 'rgba(255, 170, 0, 0.1)',
+                  border: '1px solid #ffaa00',
+                  padding: '2px 8px',
+                  borderRadius: 2,
+                }}
+              >
+                Sample data
+              </span>
+            )}
+            <div style={{ display: 'flex', gap: '3rem' }}>
+              {[
+                { ref: cnt1, label: 'Threats Blocked' },
+                { ref: cnt2, label: 'Attacks Analyzed' },
+                { ref: cnt3, label: 'Honeypot Sessions' },
+                { ref: cnt4, label: 'AI Accuracy' },
+              ].map(({ ref, label }) => (
+                <div key={label} style={{ textAlign: 'center' }}>
+                  <div ref={ref} style={{
+                    fontFamily: 'Orbitron,sans-serif', fontSize: 32, fontWeight: 700, color: '#00d4ff',
+                  }}>0</div>
+                  <div style={{
+                    fontSize: 12, color: '#3a6a88', letterSpacing: 2,
+                    textTransform: 'uppercase', marginTop: 4,
+                  }}>{label}</div>
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 

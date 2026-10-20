@@ -5,6 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { SocketProvider } from "./context/SocketContext.jsx";
 import { useAuth } from "./hooks/useAuth.js";
+import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
 import "./styles/globals.css";
 
@@ -131,60 +132,62 @@ function AppRoutes() {
         }}
       />
 
-      <Suspense
-        fallback={
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "center",
-              alignItems: "center",
-              height: "100vh",
-              background: "#020b18",
-              color: "#00ff88",
-              fontFamily: "'Share Tech Mono', monospace",
-              fontSize: "18px",
-            }}
-          >
-            Loading...
-          </div>
-        }
-      >
-        <Routes>
-          {/* Public Pages */}
-          <Route path="/" element={<Landing />} />
-          <Route path="/about" element={<About />} />
-          <Route path="/features" element={<Features />} />
+      <ErrorBoundary>
+        <Suspense
+          fallback={
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                alignItems: "center",
+                height: "100vh",
+                background: "#020b18",
+                color: "#00ff88",
+                fontFamily: "'Share Tech Mono', monospace",
+                fontSize: "18px",
+              }}
+            >
+              Loading...
+            </div>
+          }
+        >
+          <Routes>
+            {/* Public Pages */}
+            <Route path="/" element={<Landing />} />
+            <Route path="/about" element={<About />} />
+            <Route path="/features" element={<Features />} />
 
-          {/* Login/Register */}
-          <Route element={<PublicRoute />}>
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
-          </Route>
-
-          {/* Password Change Route */}
-          <Route element={<ChangePasswordRoute />}>
-            <Route path="/change-password" element={<ChangePassword />} />
-          </Route>
-
-          {/* Protected Pages */}
-          <Route element={<ProtectedRoute />}>
-            <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/dashboard/threats" element={<ThreatLogs />} />
-            <Route path="/dashboard/honeypot" element={<HoneypotAnalytics />} />
-            <Route path="/dashboard/campaigns" element={<Campaigns />} />
-            <Route path="/dashboard/ai" element={<AIAnalytics />} />
-
-            {/* Admin-only Protected Pages */}
-            <Route element={<AdminRoute />}>
-              <Route path="/dashboard/users" element={<UserManagement />} />
-              <Route path="/settings" element={<Settings />} />
+            {/* Login/Register */}
+            <Route element={<PublicRoute />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
             </Route>
-          </Route>
 
-          {/* 404 */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Suspense>
+            {/* Password Change Route */}
+            <Route element={<ChangePasswordRoute />}>
+              <Route path="/change-password" element={<ChangePassword />} />
+            </Route>
+
+            {/* Protected Pages */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/dashboard/threats" element={<ThreatLogs />} />
+              <Route path="/dashboard/honeypot" element={<HoneypotAnalytics />} />
+              <Route path="/dashboard/campaigns" element={<Campaigns />} />
+              <Route path="/dashboard/ai" element={<AIAnalytics />} />
+
+              {/* Admin-only Protected Pages */}
+              <Route element={<AdminRoute />}>
+                <Route path="/dashboard/users" element={<UserManagement />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
+            </Route>
+
+            {/* 404 */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+      </ErrorBoundary>
     </>
   );
 }

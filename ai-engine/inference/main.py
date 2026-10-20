@@ -1,5 +1,5 @@
 """SentinelAI FastAPI Inference Server"""
-import os, sys, time, logging, math, secrets
+import os, sys, time, logging, math, secrets, threading
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
@@ -20,7 +20,16 @@ from fastapi.exceptions import RequestValidationError
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 log = logging.getLogger("sentinel.api")
 
-MODEL_DIR   = os.getenv("MODEL_DIR", str(Path(__file__).parent.parent/"models"))
+ENGINE_ROOT = Path(__file__).resolve().parent.parent
+# Load ai-engine/.env (never overriding variables already set). Skipped under pytest so a developer's
+# local .env cannot leak into the test suite's controlled environment.
+if "pytest" not in sys.modules:
+    from dotenv import load_dotenv
+    load_dotenv(ENGINE_ROOT / ".env", override=False)
+# Relative MODEL_DIR is resolved against ai-engine/, not the shell's CWD, so the loaded model
+# does not depend on where uvicorn was started (repo root has a different models/ copy).
+_model_dir  = Path(os.getenv("MODEL_DIR") or ENGINE_ROOT / "models")
+MODEL_DIR   = str(_model_dir if _model_dir.is_absolute() else ENGINE_ROOT / _model_dir)
 BACKEND_API = os.getenv("SENTINEL_API", "http://localhost:5000/api")
 API_KEY     = os.getenv("SENTINEL_KEY")
 if not API_KEY:
@@ -39,7 +48,9 @@ async def lifespan(app: FastAPI):
     log.info("Inference model state: " + ("ready" if predictor._loaded else "unavailable"))
     yield
     try:
-        if save_scorer():
+        with _scorer_lock:
+            saved = save_scorer()
+        if saved:
             log.info("Deception Q-table successfully flushed to disk on shutdown.")
         else:
             log.debug("Deception state was not initialized; no learning-state write.")
@@ -126,12 +137,25 @@ class SessionData(BaseModel):
     class Config:
         extra = "allow"
 
+def _defaulted_features(record: "Record") -> list:
+    """Raw flow fields the caller did not send and that were filled with schema defaults."""
+    return [f for f in Record.model_fields if f not in ("sourceIP", "timestamp") and f not in record.model_fields_set]
+
 def _public_result(r: dict) -> dict:
     if not isinstance(r, dict):
         return r
     return {k: v for k, v in r.items() if k not in ("featureVector", "featureSchemaVersion")}
 
+# Inference endpoints are plain `def`, so FastAPI runs them in its threadpool instead of blocking the
+# event loop with CPU-bound RF/IF/SHAP work. Shared mutable state is therefore guarded by locks.
+_stats_lock = threading.Lock()
+_scorer_lock = threading.Lock()
+
 def _upd(r):
+    with _stats_lock:
+        _upd_unlocked(r)
+
+def _upd_unlocked(r):
     stats["total"]+=1; stats["scores"].append(r["threatScore"]); stats["times"].append(r.get("inferenceTimeMs",0))
     stats["classes"][r["predictedClass"]]+=1
     if r["threatScore"]>=THRESHOLD: stats["threats"]+=1
@@ -167,33 +191,36 @@ async def model_info():
 
 @app.get("/model/stats", dependencies=[Depends(verify_api_key)])
 async def model_stats():
-    sc,it=list(stats["scores"]),list(stats["times"])
+    with _stats_lock:
+        sc,it=list(stats["scores"]),list(stats["times"])
     return {"totalPredictions":stats["total"],"totalThreats":stats["threats"],"totalBlocked":stats["blocked"],"avgThreatScore":round(sum(sc)/len(sc),4) if sc else 0,"avgInferenceMs":round(sum(it)/len(it),2) if it else 0,"classCounts":dict(stats["classes"]),"uptimeStart":stats["start"]}
 
 @app.post("/predict", dependencies=[Depends(verify_api_key)])
-async def predict(record: Record, bg: BackgroundTasks, explain: bool = False):
+def predict(record: Record, bg: BackgroundTasks, explain: bool = False):
     if not predictor: raise HTTPException(503,"Not ready")
     r = predictor.predict(record.model_dump(), explain=explain); _upd(r)
+    r["defaultedFeatures"] = _defaulted_features(record)
     bg.add_task(_notify, r, record.sourceIP)
     return {"success":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
 @app.post("/predict/internal", dependencies=[Depends(verify_api_key)])
-async def predict_internal(record: Record, explain: bool = False):
+def predict_internal(record: Record, explain: bool = False):
     """Backend-owned persistence: returns the raw vector and never calls back."""
     if not predictor: raise HTTPException(503, "Not ready")
     result = predictor.predict(record.model_dump(), explain=explain)
     _upd(result)
+    result["defaultedFeatures"] = _defaulted_features(record)
     return {"success": True, "result": result}
 
 @app.post("/predict/honeypot/internal", dependencies=[Depends(verify_api_key)])
-async def predict_honeypot_internal(session: SessionData):
+def predict_honeypot_internal(session: SessionData):
     if not predictor: raise HTTPException(503, "Not ready")
     result = predictor.predict_from_honeypot(session.model_dump())
     _upd(result)
     return {"success": True, "result": result}
 
 @app.post("/predict/eval", dependencies=[Depends(verify_api_key)])
-async def predict_eval(record: Record, explain: bool = False):
+def predict_eval(record: Record, explain: bool = False):
     """
     Isolated model evaluation endpoint for benchmark datasets (e.g. CICIDS2017).
     Executes full ML feature extraction, Random Forest classification, Isolation Forest
@@ -203,11 +230,12 @@ async def predict_eval(record: Record, explain: bool = False):
     """
     if not predictor: raise HTTPException(503, "Not ready")
     r = predictor.predict(record.model_dump(), explain=explain)
+    r["defaultedFeatures"] = _defaulted_features(record)
     return {"success":True,"evaluation":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
 
 @app.post("/predict/batch", dependencies=[Depends(verify_api_key)])
-async def predict_batch(records: List[Record], bg: BackgroundTasks):
+def predict_batch(records: List[Record], bg: BackgroundTasks):
     if not predictor: raise HTTPException(503,"Not ready")
     if len(records)>500: raise HTTPException(400,"Max 500")
     results=[]
@@ -217,15 +245,16 @@ async def predict_batch(records: List[Record], bg: BackgroundTasks):
     return {"success":True,"total":len(results),"threatCount":sum(1 for r in results if r["result"]["threatScore"]>=THRESHOLD),"results":results}
 
 @app.post("/predict/honeypot", dependencies=[Depends(verify_api_key)])
-async def predict_honeypot(s: SessionData, bg: BackgroundTasks):
+def predict_honeypot(s: SessionData, bg: BackgroundTasks):
     if not predictor: raise HTTPException(503,"Not ready")
     r=predictor.predict_from_honeypot(s.model_dump()); _upd(r)
     bg.add_task(_notify,r,s.sourceIP)
     return {"success":True,"sessionId":s.sessionId,"sourceIP":s.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
 @app.post("/deception/score", dependencies=[Depends(verify_api_key)])
-async def deception_score(s: SessionData):
-    res = get_scorer().process_session(s.model_dump())
+def deception_score(s: SessionData):
+    with _scorer_lock:
+        res = get_scorer().process_session(s.model_dump())
     return {"success": True, "result": res}
 
 class AuthTelemetryRecord(BaseModel):
@@ -239,7 +268,7 @@ class AuthTelemetryRecord(BaseModel):
     timestamp: float = None
 
 @app.post("/predict/auth/shadow", dependencies=[Depends(verify_api_key)])
-async def predict_auth_shadow(auth_record: AuthTelemetryRecord):
+def predict_auth_shadow(auth_record: AuthTelemetryRecord):
     """
     Shadow-only endpoint for E2 structured authentication telemetry.
     Logs decisions in shadow mode without modifying production models, containment, or primary state.

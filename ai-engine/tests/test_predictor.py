@@ -422,3 +422,29 @@ class TestShadowDetectorIntegration:
             assert res["predictedClass"] == "BENIGN"
 
 
+
+
+class TestCombineThreatScore:
+    """C3: classifier confidence is a floor for attack classes; BENIGN keeps the 0.7/0.3 blend."""
+
+    def test_confident_attack_inlier_reaches_threat_line(self):
+        from inference.predictor import combine_threat_score, MONITOR_THRESHOLD
+        assert combine_threat_score(0.99, 0.0, True) == pytest.approx(0.99)
+        assert combine_threat_score(0.99, 0.0, True) >= MONITOR_THRESHOLD
+
+    def test_anomaly_can_only_raise_an_attack_score(self):
+        from inference.predictor import combine_threat_score
+        assert combine_threat_score(0.80, 1.0, True) == pytest.approx(0.86)
+        assert combine_threat_score(0.80, 0.3, True) == pytest.approx(0.80)
+
+    def test_benign_keeps_blend(self):
+        from inference.predictor import combine_threat_score
+        assert combine_threat_score(0.10, 0.0, False) == pytest.approx(0.07)
+        assert combine_threat_score(0.10, 1.0, False) == pytest.approx(0.37)
+
+    def test_vectorised_matches_scalar(self):
+        import numpy as np
+        from inference.predictor import combine_threat_score
+        rf = np.array([0.99, 0.10, 0.80]); sig = np.array([0.0, 1.0, 1.0]); atk = np.array([True, False, True])
+        vec = combine_threat_score(rf, sig, atk)
+        assert list(np.round(vec, 4)) == [round(combine_threat_score(r, g, a), 4) for r, g, a in zip(rf, sig, atk)]

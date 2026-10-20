@@ -41,15 +41,56 @@ const validToken = () => accessToken({ _id: '123456789012345678901234', role: 'a
 describe('AI Engine routes authentication', () => {
   afterEach(() => jest.clearAllMocks())
 
-  // 1. POST /api/ai/predictions accepts the correct internal API key
-  test('POST /api/ai/predictions succeeds with correct internal API key', async () => {
+  // 1. POST /api/ai/predictions accepts the AI engine key
+  test('POST /api/ai/predictions succeeds with the AI engine (SENTINEL_KEY) key', async () => {
     const res = await request(app)
       .post('/api/ai/predictions')
-      .set('X-API-Key', 'test-internal-api-key-12345')
+      .set('X-API-Key', 'test-sentinel-key-12345')
       .send({ sourceIP: '192.168.1.1', predictedClass: 'BENIGN' })
 
     expect(res.status).toBe(201)
     expect(res.body.success).toBe(true)
+  })
+
+  test('POST /api/ai/predictions rejects the honeypot key with 403', async () => {
+    const res = await request(app)
+      .post('/api/ai/predictions')
+      .set('X-API-Key', 'test-internal-api-key-12345')
+      .send({ sourceIP: '192.168.1.1', predictedClass: 'BENIGN', threatScore: 0.99 })
+
+    expect(res.status).toBe(403)
+    expect(require('../services/aiService').storePrediction).not.toHaveBeenCalled()
+  })
+
+  test('POST /api/ai/predictions rejects a user JWT (no key)', async () => {
+    const res = await request(app)
+      .post('/api/ai/predictions')
+      .set('Authorization', `Bearer ${validToken()}`)
+      .send({ sourceIP: '192.168.1.1', predictedClass: 'BENIGN' })
+
+    expect(res.status).toBe(401)
+  })
+
+  test('POST /api/ai/predictions drops server-owned fields (no mass assignment)', async () => {
+    const aiService = require('../services/aiService')
+    await request(app)
+      .post('/api/ai/predictions')
+      .set('X-API-Key', 'test-sentinel-key-12345')
+      .send({
+        sourceIP: '203.0.113.9',
+        predictedClass: 'DDoS',
+        threatScore: 0.5,
+        verified: true,
+        actualClass: 'BENIGN',
+        generatedThreat: '123456789012345678901234',
+        inputSource: 'manual',
+      })
+
+    const stored = aiService.storePrediction.mock.calls[0][0]
+    expect(stored).toMatchObject({ sourceIP: '203.0.113.9', predictedClass: 'DDoS', threatScore: 0.5, inputSource: 'network_traffic' })
+    expect(stored).not.toHaveProperty('verified')
+    expect(stored).not.toHaveProperty('actualClass')
+    expect(stored).not.toHaveProperty('generatedThreat')
   })
 
   // 2. POST /api/ai/predictions rejects a missing API key (if no JWT present)

@@ -4,7 +4,14 @@ SentinelAI - CICIDS2017 Dataset Live Replay Demonstration
 =========================================================
 An honest, unrigged evaluation tool that replays real historical network attack
 and benign traffic from the official CICIDS2017 dataset against the ALREADY-TRAINED
-production SentinelAI inference server (/predict).
+production SentinelAI model.
+
+Two targets:
+  --target engine  (default) POST /predict/eval on the AI engine. Side-effect free: nothing is
+                   stored and nothing reaches the dashboard.
+  --target backend Signs in to the Node backend and POSTs each flow to /api/ai/analyze, the same
+                   path an analyst uses. Predictions are stored in MongoDB, threats/alerts are
+                   created for scores >= 0.7, and Socket.IO pushes them to the live dashboard.
 
 HARD CONSTRAINTS & INTEGRITY GUARANTEES:
 - Ground-truth 'Label' is NEVER included in the API request payload.
@@ -12,7 +19,9 @@ HARD CONSTRAINTS & INTEGRITY GUARANTEES:
   after the model has returned its independent prediction.
 - No second classifier, simulation mode, or synthetic fallbacks are used.
 - Uses the live, existing production model (rf_classifier_cicids_v2.pkl).
-- The secret API key is NEVER printed, logged, or hardcoded.
+- The secret API key and the analyst password are NEVER printed, logged, or hardcoded.
+- Backend mode uses RFC 5737 TEST-NET-2 source addresses (198.51.100.0/24), so even with
+  auto-block enabled no real host can be deny-listed.
 """
 
 import warnings
@@ -23,6 +32,7 @@ import sys
 import time
 import math
 import argparse
+import getpass
 import requests
 from pathlib import Path
 from datetime import datetime, timezone
@@ -70,9 +80,9 @@ RAW_LABEL_TO_TARGET = {
     "DoS Slowhttptest": "DDoS",
     "Heartbleed": "RCE Attempt",
     "Infiltration": "Lateral Movement",
-    "Web Attack \ufffd Brute Force": "Credential Stuffing",
-    "Web Attack \ufffd XSS": "XSS Attempt",
-    "Web Attack \ufffd Sql Injection": "SQL Injection"
+    "Web Attack � Brute Force": "Credential Stuffing",
+    "Web Attack � XSS": "XSS Attempt",
+    "Web Attack � Sql Injection": "SQL Injection"
 }
 
 # Verified mapping from raw CICIDS2017 stripped header names to Pydantic Record fields
@@ -136,7 +146,7 @@ def resolve_api_key(cli_key: str = None) -> str:
       1. Explicit CLI argument (--api-key)
       2. SENTINEL_KEY environment variable
       3. deployment/.env file (via python-dotenv if available)
-    
+
     SECURITY GUARANTEE: Never prints, logs, or writes the actual key value.
     """
     if cli_key and cli_key.strip():
@@ -165,6 +175,106 @@ def resolve_api_key(cli_key: str = None) -> str:
 
     print(f"{Color.RED}[ERROR] Authentication failed: SENTINEL_KEY not found in environment or deployment/.env.{Color.RESET}", file=sys.stderr)
     print("        Please provide it via export SENTINEL_KEY=... or --api-key <key>.", file=sys.stderr)
+    sys.exit(1)
+
+
+class EngineTarget:
+    """POST /predict/eval on the AI engine (no persistence, no dashboard)."""
+    name = "AI engine /predict/eval (no persistence)"
+
+    def __init__(self, api_url: str, api_key: str):
+        self.url = f"{api_url.rstrip('/')}/predict/eval"
+        self.headers = {"Content-Type": "application/json", "X-API-Key": api_key}
+
+    def describe(self) -> str:
+        return self.url
+
+    def source_ip(self, i: int) -> str:
+        return f"192.168.10.{100 + i}"
+
+    def analyze(self, payload: dict) -> requests.Response:
+        return requests.post(self.url, json=payload, headers=self.headers, timeout=10.0)
+
+    @staticmethod
+    def result_of(resp_json: dict) -> dict:
+        return resp_json.get("result", {})
+
+
+class BackendTarget:
+    """
+    Signs in to the Node backend (CSRF handshake + login) and POSTs flows to /api/ai/analyze.
+    Requires an admin or analyst account. Access tokens last 15 minutes, so a 401 triggers one
+    re-login before the flow is reported as failed.
+    """
+    name = "Backend /api/ai/analyze (stored + live dashboard)"
+
+    def __init__(self, backend_url: str, email: str, password: str, origin: str):
+        self.base = backend_url.rstrip("/")
+        self.email = email
+        self._password = password
+        self.origin = origin
+        self.http = requests.Session()
+        self.token = None
+
+    def describe(self) -> str:
+        return f"{self.base}/api/ai/analyze"
+
+    def source_ip(self, i: int) -> str:
+        # TEST-NET-2: never a real host, so an enabled auto-block cannot hit anything real.
+        return f"198.51.100.{(i % 254) + 1}"
+
+    def login(self):
+        headers = {"Origin": self.origin}
+        csrf = self.http.get(f"{self.base}/api/auth/csrf", headers=headers, timeout=10.0)
+        csrf.raise_for_status()
+        csrf_token = csrf.json()["data"]["csrfToken"]
+        resp = self.http.post(
+            f"{self.base}/api/auth/login",
+            json={"email": self.email, "password": self._password},
+            headers={**headers, "X-CSRF-Token": csrf_token},
+            timeout=10.0,
+        )
+        if resp.status_code != 200:
+            try:
+                reason = resp.json().get("error", "unknown error")
+            except ValueError:
+                reason = "unknown error"
+            raise RuntimeError(f"Backend login failed (HTTP {resp.status_code}): {reason}")
+        self.token = resp.json()["data"]["token"]
+
+    def _auth(self) -> dict:
+        return {"Authorization": f"Bearer {self.token}", "Content-Type": "application/json"}
+
+    def check_role_and_autoblock(self) -> tuple:
+        """Returns (role, autoBlockEnabled or None when the account cannot read settings)."""
+        me = self.http.get(f"{self.base}/api/auth/me", headers=self._auth(), timeout=10.0)
+        me.raise_for_status()
+        role = me.json()["data"]["user"]["role"]
+        settings = self.http.get(f"{self.base}/api/threats/settings", headers=self._auth(), timeout=10.0)
+        auto_block = settings.json()["data"].get("autoBlockEnabled") if settings.status_code == 200 else None
+        return role, auto_block
+
+    def analyze(self, payload: dict) -> requests.Response:
+        url = f"{self.base}/api/ai/analyze"
+        resp = self.http.post(url, json=payload, headers=self._auth(), timeout=30.0)
+        if resp.status_code == 401:
+            self.login()
+            resp = self.http.post(url, json=payload, headers=self._auth(), timeout=30.0)
+        return resp
+
+    @staticmethod
+    def result_of(resp_json: dict) -> dict:
+        return resp_json.get("data", {}).get("result", {})
+
+
+def resolve_backend_password(email: str) -> str:
+    """SENTINEL_DEMO_PASSWORD env var, else an interactive prompt. Never printed or logged."""
+    pw = os.getenv("SENTINEL_DEMO_PASSWORD")
+    if pw:
+        return pw
+    if sys.stdin.isatty():
+        return getpass.getpass(f"Password for {email}: ")
+    print(f"{Color.RED}[ERROR] Set SENTINEL_DEMO_PASSWORD or run interactively to enter the password.{Color.RESET}", file=sys.stderr)
     sys.exit(1)
 
 
@@ -290,25 +400,23 @@ def load_curated_sample(file_or_dir: Path, total_rows: int = 10) -> list:
     return curated[:total_rows]
 
 
-def run_replay(file_path: str, total_rows: int, delay: float, api_url: str, cli_key: str = None):
+def run_replay(file_path: str, total_rows: int, delay: float, target) -> dict:
     """
     Executes the replay demo with presentation-grade visual formatting.
+    `target` is an EngineTarget or BackendTarget. Returns the summary counts.
     """
-    api_key = resolve_api_key(cli_key)
-    api_url = api_url.rstrip("/")
-    predict_url = f"{api_url}/predict/eval"
-
     print(f"\n{Color.CYAN}{Color.BOLD}============================================================================{Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}         SentinelAI -- CICIDS2017 Real Attack Replay Demonstration          {Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}      Independent Live Evaluation of Production Random Forest Model         {Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}============================================================================{Color.RESET}\n")
 
     print(f"{Color.BOLD}Demonstration Parameters:{Color.RESET}")
-    print(f"  * API Endpoint:     {Color.WHITE}{predict_url}{Color.RESET}")
+    print(f"  * Target:           {Color.WHITE}{target.name}{Color.RESET}")
+    print(f"  * API Endpoint:     {Color.WHITE}{target.describe()}{Color.RESET}")
     print(f"  * Dataset Source:   {Color.WHITE}{file_path}{Color.RESET}")
     print(f"  * Sample Size:      {Color.WHITE}{total_rows} network flows{Color.RESET}")
     print(f"  * Flow Interval:    {Color.WHITE}{delay}s{Color.RESET}")
-    print(f"  * Authentication:   {Color.GREEN}Configured (X-API-Key active, value masked){Color.RESET}")
+    print(f"  * Authentication:   {Color.GREEN}Configured (credentials masked){Color.RESET}")
     print(f"  * Integrity Check:  {Color.GREEN}Ground truth withheld until post-inference{Color.RESET}")
     print(f"{Color.DIM}{'-' * 76}{Color.RESET}")
 
@@ -322,14 +430,11 @@ def run_replay(file_path: str, total_rows: int, delay: float, api_url: str, cli_
 
     print(f"      Selected {len(curated_sample)} network flows in {t_load_ms:.1f}ms.")
     print(f"{Color.DIM}{'-' * 76}{Color.RESET}")
-    print(f"{Color.YELLOW}[2/2] Replaying live network traffic through SentinelAI inference engine...{Color.RESET}\n")
+    print(f"{Color.YELLOW}[2/2] Replaying live network traffic through SentinelAI...{Color.RESET}\n")
 
     correct_predictions = 0
     total_evaluated = 0
-    headers = {
-        "Content-Type": "application/json",
-        "X-API-Key": api_key
-    }
+    failed = 0
 
     for i, item in enumerate(curated_sample, 1):
         # -------------------------------------------------------------
@@ -342,7 +447,7 @@ def run_replay(file_path: str, total_rows: int, delay: float, api_url: str, cli_
         raw_features = item["raw_features"].copy()
 
         payload = raw_features
-        payload["sourceIP"] = f"192.168.10.{100 + i}"
+        payload["sourceIP"] = target.source_ip(i)
         payload["timestamp"] = datetime.now(timezone.utc).isoformat()
 
         # Hard integrity assertions
@@ -351,25 +456,26 @@ def run_replay(file_path: str, total_rows: int, delay: float, api_url: str, cli_
 
         t_start = time.perf_counter()
         try:
-            resp = requests.post(predict_url, json=payload, headers=headers, timeout=10.0)
+            resp = target.analyze(payload)
             inference_wall_ms = round((time.perf_counter() - t_start) * 1000, 1)
-        except requests.exceptions.RequestException as e:
+        except (requests.exceptions.RequestException, RuntimeError) as e:
             print(f"{Color.RED}Flow #{i:02d} | API Error: {type(e).__name__}{Color.RESET}")
+            failed += 1
             continue
 
         if resp.status_code != 200:
             print(f"{Color.RED}Flow #{i:02d} | HTTP {resp.status_code}: {resp.text[:100]}{Color.RESET}")
+            failed += 1
             continue
 
-        resp_data = resp.json()
-        result = resp_data.get("result", {})
+        result = target.result_of(resp.json())
 
         predicted_class = result.get("predictedClass", "Unknown")
         threat_score = float(result.get("threatScore", 0.0))
         severity = result.get("severity", "UNKNOWN")
         action = result.get("action", "UNKNOWN")
         model_version = result.get("modelVersion", "Unknown")
-        inf_time_ms = result.get("inferenceTimeMs", inference_wall_ms)
+        inf_time_ms = result.get("inferenceTimeMs") or inference_wall_ms
 
         # POST-HOC COMPARISON: Revealed strictly after receiving response
         is_match = (predicted_class == post_hoc_ground_truth)
@@ -403,9 +509,13 @@ def run_replay(file_path: str, total_rows: int, delay: float, api_url: str, cli_
     print(f"  * Total Network Flows Tested:     {Color.BOLD}{total_evaluated}{Color.RESET}")
     print(f"  * Correct Model Predictions:      {Color.GREEN}{Color.BOLD}{correct_predictions}{Color.RESET}")
     print(f"  * Misclassified Flows:            {Color.RED if total_evaluated != correct_predictions else Color.GREEN}{total_evaluated - correct_predictions}{Color.RESET}")
+    print(f"  * Failed Requests:                {Color.RED if failed else Color.GREEN}{failed}{Color.RESET}")
     print(f"  * Sample Demonstration Accuracy:  {acc_color}{Color.BOLD}{accuracy_pct:.2f}%{Color.RESET}")
     print(f"  * Pipeline Integrity Status:      {Color.GREEN}[VERIFIED] Zero Ground-Truth Label Leakage{Color.RESET}")
+    if isinstance(target, BackendTarget):
+        print("  * Dashboard:                      predictions stored; scores >= 0.7 raised as live threats")
     print(f"{Color.CYAN}{'=' * 76}{Color.RESET}\n")
+    return {"evaluated": total_evaluated, "correct": correct_predictions, "failed": failed}
 
 
 def main():
@@ -428,17 +538,40 @@ def main():
         "--delay", "-d",
         type=float,
         default=1.5,
-        help="Delay in seconds between consecutive /predict requests"
+        help="Delay in seconds between consecutive requests"
+    )
+    parser.add_argument(
+        "--target", "-t",
+        choices=["engine", "backend"],
+        default="engine",
+        help="engine: side-effect-free AI engine /predict/eval; backend: sign in and send flows "
+             "through /api/ai/analyze so they are stored and appear on the live dashboard"
     )
     parser.add_argument(
         "--api-url", "-u",
         default="http://localhost:8000",
-        help="Base URL of the SentinelAI inference engine"
+        help="Base URL of the SentinelAI inference engine (engine target)"
     )
     parser.add_argument(
         "--api-key", "-k",
         default=None,
-        help="Optional API key override (defaults to SENTINEL_KEY env var or deployment/.env)"
+        help="Optional API key override (engine target; defaults to SENTINEL_KEY env var or deployment/.env)"
+    )
+    parser.add_argument(
+        "--backend-url",
+        default="http://127.0.0.1:5000",
+        help="Base URL of the Node backend (backend target)"
+    )
+    parser.add_argument(
+        "--email",
+        default=os.getenv("SENTINEL_DEMO_EMAIL"),
+        help="Admin/analyst account for the backend target (or SENTINEL_DEMO_EMAIL); the password "
+             "comes from SENTINEL_DEMO_PASSWORD or an interactive prompt"
+    )
+    parser.add_argument(
+        "--origin",
+        default="http://localhost:3000",
+        help="Origin header for the backend target; must equal the backend's CLIENT_URL"
     )
     parser.add_argument(
         "--no-color",
@@ -450,13 +583,33 @@ def main():
     if args.no_color:
         disable_colors()
 
-    run_replay(
+    if args.target == "backend":
+        if not args.email:
+            parser.error("--target backend requires --email (or SENTINEL_DEMO_EMAIL)")
+        target = BackendTarget(args.backend_url, args.email, resolve_backend_password(args.email), args.origin)
+        try:
+            target.login()
+            role, auto_block = target.check_role_and_autoblock()
+        except (requests.exceptions.RequestException, RuntimeError) as e:
+            print(f"{Color.RED}[ERROR] {e}{Color.RESET}", file=sys.stderr)
+            sys.exit(1)
+        if role not in ("admin", "analyst"):
+            print(f"{Color.RED}[ERROR] /api/ai/analyze requires an admin or analyst account (signed in as {role}).{Color.RESET}", file=sys.stderr)
+            sys.exit(1)
+        if auto_block:
+            print(f"{Color.YELLOW}[NOTE] Auto-block is ENABLED: flows at or above the block threshold will be "
+                  f"deny-listed (TEST-NET-2 addresses only, never a real host).{Color.RESET}")
+    else:
+        target = EngineTarget(args.api_url, resolve_api_key(args.api_key))
+
+    summary = run_replay(
         file_path=args.file,
         total_rows=args.rows,
         delay=args.delay,
-        api_url=args.api_url,
-        cli_key=args.api_key
+        target=target,
     )
+    if summary["evaluated"] == 0:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

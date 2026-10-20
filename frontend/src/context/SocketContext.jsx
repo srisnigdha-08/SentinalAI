@@ -20,6 +20,8 @@ export function SocketProvider({ children }) {
       auth: { token }, reconnectionAttempts: 10, reconnectionDelay: 1000, reconnectionDelayMax: 5000,
     })
     setSocket(connection)
+    // E2E hook (realtime.spec.js); dev server only, never in production bundles
+    if (import.meta.env.DEV && typeof window !== 'undefined') window.__socket = connection
     connection.on('connect', () => {
       setConnected(true)
       setReconnecting(false)
@@ -38,6 +40,7 @@ export function SocketProvider({ children }) {
       connection.removeAllListeners()
       connection.io.removeAllListeners()
       connection.disconnect()
+      if (import.meta.env.DEV && typeof window !== 'undefined') window.__socket = null
       setSocket(null)
       setConnected(false)
       setReconnecting(false)

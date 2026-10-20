@@ -10,8 +10,11 @@ const {
   getNodes,
   getHoneypotStatus,
 } = require('../controllers/honeypotController')
-const { protect, restrictTo } = require('../middleware/auth')
+const { protect, restrictTo, requirePermission } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
+const honeypotService = require('../services/honeypotService')
+const { sendSuccess } = require('../utils/apiResponse')
+const { logAudit } = require('../utils/auditLogger')
 
 router.use(protect)
 
@@ -46,6 +49,68 @@ router.get('/analytics', getHoneypotAnalytics)
  *         description: List of honeypot nodes
  */
 router.get('/nodes', getNodes)
+
+/**
+ * @openapi
+ * /honeypot/deception/profile:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Deception persona Cowrie is recorded as serving (the Q-learner's action)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active profile and where it was resolved from (setting, env or default)
+ *   put:
+ *     tags:
+ *       - Honeypot
+ *     summary: Record the persona applied with honeypot/switch_profile.py (does not reconfigure Cowrie)
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [profile]
+ *             properties:
+ *               profile:
+ *                 type: string
+ *                 enum: [ubuntu_22, debian_11, centos_7, windows_srv, aws_ec2, raspberry_pi]
+ *     responses:
+ *       200:
+ *         description: Profile recorded
+ *       400:
+ *         description: Unknown profile
+ */
+router.get('/deception/profile', async (req, res, next) => {
+  try {
+    sendSuccess(res, { ...(await honeypotService.getActiveProfile()), profiles: honeypotService.DECEPTION_PROFILES })
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.put('/deception/profile', requirePermission('settings:write'), async (req, res, next) => {
+  try {
+    const profile = typeof req.body?.profile === 'string' ? req.body.profile.trim() : ''
+    const previous = await honeypotService.getActiveProfile()
+    await honeypotService.setActiveProfile(profile)
+    await logAudit({
+      action: 'SETTINGS_CHANGED',
+      actor: req.user,
+      target: { identifier: 'deceptionActiveProfile', type: 'SystemSetting' },
+      status: 'SUCCESS',
+      details: { from: previous.profile, to: profile },
+      ip: req.ip,
+    })
+    sendSuccess(res, { profile, previous: previous.profile }, 'Active deception profile recorded')
+  } catch (err) {
+    next(err)
+  }
+})
 
 /**
  * @openapi

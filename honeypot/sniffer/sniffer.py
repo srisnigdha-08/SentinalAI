@@ -101,9 +101,9 @@ def process_pcap(pcap_in, csv_out_dir):
         return
         
     sentinel_api = os.environ.get("SENTINEL_API", "http://backend:5000/api")
-    sentinel_key = os.environ.get("SENTINEL_KEY")
+    sentinel_key = os.environ.get("HONEYPOT_API_KEY") or os.environ.get("SENTINEL_KEY")
     if not sentinel_key:
-        sys.exit("Error: SENTINEL_KEY environment variable not set")
+        sys.exit("Error: HONEYPOT_API_KEY environment variable not set")
     match_url = f"{sentinel_api}/honeypot/ingest/match-session"
     
     labeled_rows = []

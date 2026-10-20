@@ -28,6 +28,7 @@ export default function AIAnalytics() {
   const [modelInfo, setModelInfo] = useState(null)
   const [liveLogs,  setLiveLogs]  = useState([])
   const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState(null)
   const [verifyingId, setVerifyingId] = useState(null)
   const [selectedClass, setSelectedClass] = useState('')
   const [verifyLoading, setVerifyLoading] = useState(false)
@@ -86,22 +87,29 @@ export default function AIAnalytics() {
     }
   }
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [sRes, pRes, mRes] = await Promise.all([
-          aiAPI.stats(),
-          aiAPI.predictions({ limit: 12 }),
-          aiAPI.modelInfo().catch(() => ({ data: { data: null } })),
-        ])
-        setStats(sRes.data.data)
-        const predictionList = pRes.data.data || []
-        setPreds(predictionList)
-        setModelInfo(mRes.data?.data || mRes.data)
-        refreshSamples()
-      } catch { toast.error('Failed to load AI analytics') }
-      finally { setLoading(false) }
+  const load = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [sRes, pRes, mRes] = await Promise.all([
+        aiAPI.stats(),
+        aiAPI.predictions({ limit: 12 }),
+        aiAPI.modelInfo().catch(() => ({ data: { data: null } })),
+      ])
+      setStats(sRes.data.data)
+      const predictionList = pRes.data.data || []
+      setPreds(predictionList)
+      setModelInfo(mRes.data?.data || mRes.data)
+      refreshSamples()
+    } catch {
+      setError('AI analytics telemetry is unavailable. Retry to load model metrics.')
+      toast.error('Failed to load AI analytics')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     load()
   }, [])
 
@@ -159,14 +167,55 @@ export default function AIAnalytics() {
         </span>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.25rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {error}</span>
+          <button
+            onClick={load}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem', marginBottom:'1.5rem' }}>
         <KpiCard label="Total Predictions" value={loading?'—':summary.totalPredictions||0}               delta="all time"        color="#00ff88" />
         <KpiCard label="Avg Threat Score"  value={loading?'—':`${((summary.avgThreatScore||0)*100).toFixed(1)}%`} delta="model output" color="#00d4ff" />
         <KpiCard label="Anomaly Rate"      value={loading?'—':`${summary.anomalyRate||0}%`}              delta="isolation forest" color="#ffaa00" />
         <KpiCard label="Avg Inference"     value={loading?'—':`${summary.avgInferenceMs||0}ms`}         delta="per request"      color="#ff2d55" />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
         {/* Class volume chart */}
         <Panel title="Predictions by Attack Class">
           <ResponsiveContainer width="100%" height={220}>
@@ -208,7 +257,7 @@ export default function AIAnalytics() {
         </Panel>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
         {/* Daily volume */}
         <Panel title="Daily Prediction Volume — 7 IST Days">
           <ResponsiveContainer width="100%" height={200}>

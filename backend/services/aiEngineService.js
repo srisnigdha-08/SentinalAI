@@ -210,17 +210,19 @@ const getDeceptionScore = async (session) => {
 let cachedBlockThreshold = 0.92 // Default fallback
 let lastFetchedTime = 0
 const CACHE_TTL_MS = 60000 // Cache for 1 minute
+const THRESHOLD_FETCH_TIMEOUT_MS = 1500
 
 const getBlockThreshold = async () => {
   const now = Date.now()
   if (now - lastFetchedTime < CACHE_TTL_MS) {
     return cachedBlockThreshold
   }
+  // Back off on failure too: otherwise every call during an AI outage waits out a fresh timeout.
+  lastFetchedTime = now
   try {
-    const info = await getModelInfo()
+    const info = (await ai.get('/model/info', { timeout: THRESHOLD_FETCH_TIMEOUT_MS })).data
     if (info && info.thresholds && typeof info.thresholds.block === 'number') {
       cachedBlockThreshold = info.thresholds.block
-      lastFetchedTime = now
     }
   } catch (e) {
     logger.debug('[AI] Failed to fetch threshold from AI engine, using cached value: ' + e.message)

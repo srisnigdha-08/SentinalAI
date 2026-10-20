@@ -210,11 +210,12 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
+# Configure environment variables (SENTINEL_KEY must match backend/.env)
 cp .env.example .env
 
-# Launch FastAPI inference server
-uvicorn inference.main:app --host 0.0.0.0 --port 8000 --reload
+# Launch FastAPI inference server. --env-file is required: the engine does not read .env itself.
+# Bind to loopback; only the backend needs to reach it.
+uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file .env --reload
 # API documentation available at http://localhost:8000/docs
 ```
 

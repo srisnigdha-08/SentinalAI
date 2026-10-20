@@ -5,7 +5,7 @@ const isBlocked =
   (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_SEED !== 'true' && !process.argv.includes('--force'))
 if (isBlocked) {
   console.warn('\n[BLOCKED] Synthetic database seeding is disabled in production without explicit confirmation.')
-  console.warn('To explicitly seed fake/demo data, run: npm run seed -- --force or set ALLOW_MOCK_SEED=true\n')
+  console.warn('To explicitly seed fake/demo data, run: npm run seed -- --force --confirm=<database-name> or set ALLOW_MOCK_SEED=true\n')
   process.exit(0)
 }
 
@@ -21,6 +21,15 @@ const BlockedIP = require('../models/BlockedIP')
 const Campaign = require('../models/Campaign')
 const { redactCapturedCredentials } = require('./redact')
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db'
+require('./destructiveGuard').requireDatabaseConfirmation(MONGO_URI, 'seed', [
+  'users',
+  'threatlogs',
+  'honeypotsessions',
+  'alerts',
+  'aipredictions',
+  'blockedips',
+  'campaigns',
+])
 const USERS = []
 if (process.env.ADMIN_INITIAL_PASSWORD && process.env.ADMIN_INITIAL_PASSWORD.trim()) {
   USERS.push({

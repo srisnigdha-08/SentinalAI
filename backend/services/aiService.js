@@ -5,6 +5,14 @@ const logger = require('../utils/logger')
 const { parsePagination } = require('../utils/querySecurity')
 const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonicalClasses')
 
+// While the AI engine is down every analysed flow is degraded. Each one is still recorded as a
+// DEGRADED threat (held in MONITOR), but only one SYSTEM_HEALTH alert is raised per cooldown window.
+const DEGRADED_ALERT_COOLDOWN_MS = parseInt(process.env.DEGRADED_ALERT_COOLDOWN_MS, 10) || 5 * 60 * 1000
+let lastDegradedAlertAt = 0
+const resetDegradedAlertCooldown = () => {
+  lastDegradedAlertAt = 0
+}
+
 const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}) => {
   const {
     page: safePage,
@@ -122,7 +130,10 @@ const storePrediction = async (data) => {
       const alertService = require('./alertService')
       socketManager.emitNewThreat(threat)
 
-      if (isDegraded) {
+      if (isDegraded && Date.now() - lastDegradedAlertAt < DEGRADED_ALERT_COOLDOWN_MS) {
+        logger.debug('[AI] Degraded-state alert suppressed (cooldown active)')
+      } else if (isDegraded) {
+        lastDegradedAlertAt = Date.now()
         const alert = await alertService.createAlert({
           title: `System Alert: AI Engine ${data.status || 'DEGRADED'}`,
           message: `Traffic from ${threat.sourceIP} held in MONITOR due to uninspected/degraded state.`,
@@ -301,4 +312,4 @@ const getModelStats = async (now = new Date()) => {
   }
 }
 
-module.exports = { findPredictions, storePrediction, verifyPrediction, getModelStats }
+module.exports = { findPredictions, storePrediction, verifyPrediction, getModelStats, resetDegradedAlertCooldown }

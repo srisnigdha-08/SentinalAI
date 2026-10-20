@@ -50,6 +50,8 @@ const HoneypotSessionSchema = new mongoose.Schema(
     aiThreatScore: { type: Number, default: 0 },
     qDeceptionScore: { type: Number, default: 0 },
     recommendedProfile: { type: String, default: 'ubuntu_22' },
+    // Persona Cowrie actually served for this session: the Q-learner's action for its reward.
+    servedProfile: { type: String, default: null },
     mitreTechniques: [{ id: { type: String, required: true }, name: { type: String, required: true }, _id: false }],
   },
   { timestamps: true }

@@ -12,9 +12,11 @@ export default function Campaigns() {
   const [selectedCampaign, setSelectedCampaign] = useState(null)
   const [expandedSessionId, setExpandedSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
   const loadCampaigns = async (silent = false) => {
     if (!silent) setLoading(true)
+    setError(null)
     try {
       const res = await campaignAPI.list()
       const list = res.data.data || []
@@ -25,6 +27,7 @@ export default function Campaigns() {
         if (refreshed) setSelectedCampaign(refreshed)
       }
     } catch {
+      setError('Campaign telemetry is unavailable. Retry to load current clusters.')
       toast.error('Failed to load campaigns')
     } finally {
       setLoading(false)
@@ -89,23 +92,64 @@ export default function Campaigns() {
         </button>
       </div>
 
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.25rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {error}</span>
+          <button
+            onClick={() => loadCampaigns()}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* KPIs Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+      <div className="dashboard-grid dashboard-kpis" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
         <KpiCard label="Detected Campaigns" value={loading ? '—' : totalCampaigns} delta="clusters found" color="#00d4ff" />
         <KpiCard label="Clustered IPs" value={loading ? '—' : uniqueIPs} delta="coordinated nodes" color="#ffaa00" />
         <KpiCard label="Max Deception" value={loading ? '—' : maxDeception} delta="high reward triggers" color="#ff2d55" />
         <KpiCard label="Avg Sessions / Campaign" value={loading ? '—' : avgSessions} delta="persistence count" color="#00ff88" />
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: selectedCampaign ? '1.2fr 1fr' : '1fr', gap: '1rem', transition: 'all 0.3s' }}>
+      <div className={`dashboard-grid ${selectedCampaign ? 'dashboard-grid-two' : ''}`} style={{ gap: '1rem', transition: 'all 0.3s' }}>
         {/* Main Campaigns List Panel */}
         <Panel title="Active Attack Campaigns" badge={`${campaigns.length} Active`} badgeType="info">
-          <div style={{ overflowX: 'auto' }}>
+          <div className="sentinel-table-scroll" role="region" aria-label="Active attack campaigns" tabIndex={0}>
             {loading ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
                 ANALYZING TRAFFIC DATA...
               </div>
-            ) : campaigns.length === 0 ? (
+            ) : error ? null : campaigns.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
                 No live security events detected. Waiting for real telemetry...
               </div>

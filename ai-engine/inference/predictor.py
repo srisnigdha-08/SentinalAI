@@ -95,6 +95,20 @@ IF_DEFAULT_OFFSET = -0.47402357424116837
 # Anomaly severity scaling span: linear deflection span from inlier boundary (offset_) to extreme outlier saturation floor (-0.6740)
 IF_ANOMALY_SPAN   = 0.20
 
+def combine_threat_score(rf_s, if_sig, is_attack):
+    """
+    threatScore from classifier strength (rf_s) and the Isolation Forest signal (if_sig), both in [0, 1].
+    The 0.7/0.3 blend alone capped a confidently classified attack at 0.7 x confidence when the IF saw an
+    inlier, i.e. below the 0.70 threat line, hiding most correct detections (C3,
+    docs/C1_EVALUATION_PLAN_AND_RESULTS.md). For attack classes the classifier's confidence is therefore
+    a floor and the anomaly signal can only raise it; BENIGN flows keep the plain blend.
+    Accepts scalars or numpy arrays (the C1 evaluation uses the vectorised form).
+    """
+    rf_s = np.asarray(rf_s, dtype=float)
+    blend = 0.7 * rf_s + 0.3 * np.asarray(if_sig, dtype=float)
+    score = np.where(is_attack, np.maximum(rf_s, blend), blend)
+    return float(score) if score.ndim == 0 else score
+
 def score_to_severity(s):
     if s >= 0.90: return "CRITICAL"
     if s >= 0.70: return "HIGH"
@@ -322,7 +336,7 @@ class SentinelPredictor:
             raise ModelUnavailableError("Anomaly inference failed") from e
         rf_s   = max_p if cname != "BENIGN" else (1 - max_p)
         if_sig = self.calculate_if_anomaly_signal(if_score)
-        score  = round(0.7*rf_s + 0.3*if_sig, 4)
+        score  = round(combine_threat_score(rf_s, if_sig, cname != "BENIGN"), 4)
         if cname == "BENIGN" and is_anomaly:
             cname = "Unknown"; score = max(score, 0.55)
             
@@ -367,6 +381,10 @@ class SentinelPredictor:
         return ret
 
     def predict_from_honeypot(self, session: dict) -> dict:
+        # NOTE: Cowrie sessions carry no packet-level flow data. extract_features_from_honeypot picks a
+        # class with keyword/login rules and synthesises a representative 53-feature flow vector for
+        # that class; RF/IF then score that synthetic vector. The result is therefore rule-driven and is
+        # labelled as such via classificationMethod. The score also adds 0.02 per command (capped 0.99).
         t0 = time.perf_counter()
         X  = extract_features_from_honeypot(session).reshape(1,-1)
         n  = len(session.get("commands",[]))
@@ -389,7 +407,7 @@ class SentinelPredictor:
         # Fixed: calculate rf_s correctly for BENIGN to scale down the threat score
         rf_s = max_p if cname != "BENIGN" else (1.0 - max_p)
         if_sig = self.calculate_if_anomaly_signal(if_score)
-        base = 0.7 * rf_s + 0.3 * if_sig
+        base = combine_threat_score(rf_s, if_sig, cname != "BENIGN")
         score = round(min(base + n*0.02, 0.99), 4)
 
         # Shadow evaluation of E2 Structured Auth Event Adapter (zero mutation of primary action/score)
@@ -415,6 +433,7 @@ class SentinelPredictor:
         
         res = self._build(cname,score,max_p,is_anomaly,if_score,(time.perf_counter()-t0)*1000)
         res["ipReputationScore"] = rep_score
+        res["classificationMethod"] = "rule_profile_synthetic_flow"
         if shadow_e2_eval is not None:
             res["shadowE2"] = shadow_e2_eval
         return res

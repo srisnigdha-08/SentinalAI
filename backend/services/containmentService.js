@@ -19,7 +19,7 @@
 const ThreatLog = require('../models/ThreatLog')
 const BlockedIP = require('../models/BlockedIP')
 const ContainmentAction = require('../models/ContainmentAction')
-const { evaluatePolicy, normalizeTarget } = require('./containmentPolicyService')
+const { evaluatePolicy, normalizeTarget, checkTargetSafety } = require('./containmentPolicyService')
 const { getContainmentAdapter } = require('./containment/adapterFactory')
 const { logContainmentAudit } = require('../utils/containmentAudit')
 const logger = require('../utils/logger')
@@ -504,6 +504,13 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block', 
   const threat = await threatQuery
   if (!threat) return null
 
+  const safety = checkTargetSafety(threat.sourceIP)
+  if (!safety.isSafe) {
+    const err = new Error(`Containment policy rejected: ${safety.reason}`)
+    err.statusCode = 403
+    throw err
+  }
+
   // Protection of analyst terminal states
   if (threat.status === 'RESOLVED' || threat.status === 'FALSE_POSITIVE') {
     logger.warn(`[Containment] Cannot block threat ${threatId}: Threat is in analyst terminal state ${threat.status}`)
@@ -608,6 +615,13 @@ const blockIPManual = async ({ ip, reason, analystId, analystName, analystEmail 
   }
   const cleanIP = ip.trim()
   const cleanReason = (typeof reason === 'string' ? reason.trim().slice(0, 200) : '') || 'Manual analyst block'
+
+  const safety = checkTargetSafety(cleanIP)
+  if (!safety.isSafe) {
+    const err = new Error(`Containment policy rejected: ${safety.reason}`)
+    err.statusCode = 403
+    throw err
+  }
 
   // Snapshot existing BlockedIP state to support Scenario B compensation
   const foundBlocked = await BlockedIP.findOne({ ip: cleanIP })
@@ -790,6 +804,18 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
       }
     : { taken: false, actionType: null, actionTime: null }
 
+  // Callers mark the threat BLOCKED before calling; a protected target must be reverted, never recorded.
+  const safety = checkTargetSafety(threat.sourceIP)
+  if (!safety.isSafe) {
+    logger.warn(`[Containment] Auto-block refused for ${threat.sourceIP}: ${safety.reason}`)
+    threat.status = priorStatus
+    threat.preBlockStatus = null
+    threat.autonomousAction = { taken: false, actionType: null, actionTime: null }
+    threat.notes = [threat.notes, `[AUTO_BLOCK_REFUSED] ${safety.reason}`].filter(Boolean).join('\n')
+    await threat.save()
+    return { success: false, refused: true, reason: safety.reason, threat }
+  }
+
   let blockedDoc
   try {
     blockedDoc = await BlockedIP.findOneAndUpdate(
@@ -837,8 +863,8 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
     socketManager.emitIPBlocked(threat.sourceIP, source, threat._id)
 
     const alert = await alertService.createAlert({
-      title: 'IP Address Blocked (Auto)',
-      message: `IP ${threat.sourceIP} blocked automatically by ${source} (Score: ${Math.round(threatScore * 100)}%)`,
+      title: 'IP Added to Deny-List (Auto)',
+      message: `IP ${threat.sourceIP} added to the SentinelAI deny-list by ${source} (Score: ${Math.round(threatScore * 100)}%). Enforced by the honeypot blocker only; no host firewall rule was applied.`,
       severity: 'HIGH',
       type: 'IP_BLOCKED',
       sourceRef: sourceRef || { refModel: 'ThreatLog', refId: threat._id },

@@ -49,8 +49,9 @@ def get_default_runtime_path() -> Path:
     1. If an explicit DEFAULT_RUNTIME_Q_TABLE_PATH is provided, use it (custom/test path).
     2. If repository runtime write is explicitly authorized (SENTINEL_ALLOW_REPO_RUNTIME_WRITE=1)
        and not running in test/diagnostic mode, resolve to the repository runtime directory.
-    3. In all other cases (unconfigured scripts, test runners, diagnostics, ad-hoc runs),
-       safely redirect to an isolated, process-specific temporary directory.
+    3. Test runners and diagnostics redirect to an isolated, process-specific temporary directory.
+    4. A normal service run without either flag persists to a stable per-user directory outside the
+       repository, so learning survives restarts instead of being discarded with a per-PID temp dir.
     """
     env_path = os.getenv("DEFAULT_RUNTIME_Q_TABLE_PATH")
     if env_path:
@@ -58,6 +59,10 @@ def get_default_runtime_path() -> Path:
 
     if is_repo_runtime_write_authorized() and not is_test_or_diagnostic_mode():
         return (Path(__file__).parent.parent / "runtime" / "q_table.json").resolve()
+
+    if not is_test_or_diagnostic_mode():
+        base = Path(os.getenv("LOCALAPPDATA") or Path.home() / ".local" / "share")
+        return (base / "SentinelAI" / "runtime" / "q_table.json").resolve()
 
     # Default-deny on repo runtime: allocate a process-isolated temporary storage path
     temp_dir = Path(tempfile.gettempdir()) / f"sentinelai_isolated_runtime_{os.getpid()}"
@@ -188,7 +193,8 @@ class DeceptionQLearner:
         max_n=max(self.q_table.get(next_state,{}).values(),default=0.0)
         self.q_table[state][action]=round(cur+self.alpha*(reward+self.gamma*max_n-cur),4)
         self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
-        if self.episode_count%10==0: self.save()
+        # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
+        if self.episode_count % max(1, int(os.getenv("Q_SAVE_EVERY", "1"))) == 0: self.save()
 
     def get_profile_rankings(self):
         avg={p:sum(self.q_table[s].get(p,0) for s in PROFILES_LIST)/len(PROFILES_LIST) for p in PROFILES_LIST}
@@ -199,14 +205,28 @@ class DeceptionQLearner:
         return {"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.epsilon/(1+self.episode_count*0.01),3),"profileRankings":self.get_profile_rankings()}
 
 class SessionScorer:
+    """
+    Credit assignment: the reward observed in a session belongs to the profile that was ACTIVE
+    during that session (the action), taken from the state = the profile active before it.
+    The returned nextProfile is only a recommendation; nothing here reconfigures Cowrie.
+    """
     def __init__(self, q_table_path="rl_engine/q_table.json"):
         self.learner=DeceptionQLearner(q_table_path=q_table_path); self.current="ubuntu_22"
+        self.last_active=None
 
     def process_session(self, session: dict) -> dict:
-        reward=calc_reward(session); prev=session.get("deceptionProfile",self.current)
-        next_p=self.learner.choose_action(prev); self.learner.update(prev,next_p,reward,next_p)
-        self.current=next_p
-        return {"sessionId":session.get("sessionId"),"deceptionScore":round(min(reward*5,100),1),"rawReward":round(reward,3),"prevProfile":prev,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"learnerStats":self.learner.get_stats()}
+        reward=calc_reward(session)
+        active=session.get("deceptionProfile")
+        if active not in PROFILES: active=self.current
+        state=session.get("previousProfile")
+        if state not in PROFILES: state=self.last_active or active
+        for s in (state, active):
+            row=self.learner.q_table.setdefault(s,{})
+            for a in PROFILES_LIST: row.setdefault(a,0.0)
+        self.learner.update(state,active,reward,active)
+        self.last_active=active; self.current=active
+        next_p=self.learner.choose_action(active)
+        return {"sessionId":session.get("sessionId"),"deceptionScore":round(min(reward*5,100),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"learnerStats":self.learner.get_stats()}
 
     def get_current_profile(self): return {"name":self.current,"config":PROFILES[self.current]}
 

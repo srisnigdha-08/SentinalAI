@@ -82,6 +82,8 @@ const validateEnv = (env = process.env) => {
   // Optional: check ADMIN_INITIAL_PASSWORD complexity if provided
   if (env.ADMIN_INITIAL_PASSWORD && env.ADMIN_INITIAL_PASSWORD.trim().length < 8) {
     errors.push('ADMIN_INITIAL_PASSWORD must be at least 8 characters long.')
+  } else if (!isTest && isPlaceholder(env.ADMIN_INITIAL_PASSWORD)) {
+    errors.push('ADMIN_INITIAL_PASSWORD contains an insecure default/placeholder value.')
   }
 
   if (errors.length > 0) {

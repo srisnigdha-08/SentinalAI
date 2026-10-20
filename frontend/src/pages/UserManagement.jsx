@@ -15,6 +15,7 @@ export default function UserManagement() {
   const [users,   setUsers]   = useState([])
   const [stats,   setStats]   = useState(null)
   const [loading, setLoading] = useState(true)
+  const [listError, setListError] = useState(null)
   const [showProvision, setShowProvision] = useState(false)
   const [creating, setCreating] = useState(false)
   const emptyForm = { name: '', email: '', password: '', role: 'viewer', department: 'SOC' }
@@ -38,16 +39,23 @@ export default function UserManagement() {
     } finally { setCreating(false) }
   }
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [uRes, sRes] = await Promise.all([userAPI.list(), userAPI.stats()])
-        setUsers(uRes.data.data || [])
-        setStats(sRes.data.data)
-      } catch { toast.error('Failed to load users') }
-      finally { setLoading(false) }
+  const loadUsers = async () => {
+    setLoading(true)
+    setListError(null)
+    try {
+      const [uRes, sRes] = await Promise.all([userAPI.list(), userAPI.stats()])
+      setUsers(uRes.data.data || [])
+      setStats(sRes.data.data)
+    } catch {
+      setListError('Failed to load user list. Retry to fetch current operator accounts.')
+      toast.error('Failed to load users')
+    } finally {
+      setLoading(false)
     }
-    load()
+  }
+
+  useEffect(() => {
+    loadUsers()
   }, [])
 
   const deleteUser = async (user) => {
@@ -98,6 +106,47 @@ export default function UserManagement() {
         </form>
       </Panel>}
 
+      {listError && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.25rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {listError}</span>
+          <button
+            onClick={loadUsers}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Stats strip */}
       {stats && (
         <div style={{ display:'flex', gap:'1rem', marginBottom:'1.5rem' }}>
@@ -118,7 +167,8 @@ export default function UserManagement() {
         {loading ? (
           <div style={{ textAlign:'center', padding:'3rem', color:'#3a6a88', fontFamily:'Share Tech Mono,monospace', fontSize:12 }}>LOADING USERS...</div>
         ) : (
-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
+          <div className="sentinel-table-scroll" role="region" aria-label="User management" tabIndex={0}>
+          <table style={{ width:'100%', minWidth: 640, borderCollapse:'collapse', fontSize:13 }}>
             <thead><tr>
               {['','Name','Email','Role','Status','Last Login','Actions'].map(h=>(
                 <th key={h} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88',
@@ -171,6 +221,7 @@ export default function UserManagement() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </Panel>
     </DashboardLayout>

@@ -15,7 +15,8 @@ __pycache__/
 .env
 .env.*
 !.env.example
-!.env.test
+.env.test
+**/.env.test
 !.env.demo.example
 !deployment/.env.demo.example
 
@@ -59,3 +60,9 @@ scratch/evidence/
 backups/
 
 
+
+# Playwright Test Artifacts
+playwright-report/
+test-results/
+**/playwright-report/
+**/test-results/

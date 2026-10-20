@@ -5,6 +5,7 @@ import Panel from '../components/Panel.jsx'
 import { threatAPI, containmentAPI, auditAPI } from '../services/api.js'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
 import toast from 'react-hot-toast'
+import { containmentOutcome } from '../utils/containmentLabels.js'
 
 export default function Settings() {
   const [autoBlockEnabled, setAutoBlockEnabled] = useState(false)
@@ -12,6 +13,7 @@ export default function Settings() {
   const [containmentStatus, setContainmentStatus] = useState(null)
   const [auditLogs, setAuditLogs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [ipInput, setIpInput] = useState('')
   const [reasonInput, setReasonInput] = useState('')
   const [submittingBlock, setSubmittingBlock] = useState(false)
@@ -21,6 +23,8 @@ export default function Settings() {
   const [modalReason, setModalReason] = useState('')
 
   const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
       const [settingsRes, blockedRes, containmentRes, auditRes] = await Promise.all([
         threatAPI.getSettings(),
@@ -33,10 +37,10 @@ export default function Settings() {
       setContainmentStatus(containmentRes.data?.data || null)
       setAuditLogs(auditRes.data?.data || [])
     } catch (err) {
+      setError('System configuration is unavailable. Retry to load firewall and blocklist state.')
       toast.error('Failed to load settings data')
     } finally {
       setLoading(false)
-
     }
   }
 
@@ -65,10 +69,15 @@ export default function Settings() {
 
   const handleBlockManual = (e) => {
     e.preventDefault()
-    if (!ipInput.trim()) {
+    const ip = ipInput.trim()
+    if (!ip) {
       return toast.error('IP address is required')
     }
-    setModalTarget(ipInput.trim())
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}|::1|([0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4})?)$/
+    if (!ipRegex.test(ip)) {
+      return toast.error('Please enter a valid IPv4 or IPv6 address')
+    }
+    setModalTarget(ip)
     setModalReason(reasonInput.trim())
     setModalOpen(true)
   }
@@ -76,14 +85,14 @@ export default function Settings() {
   const handleConfirmContainment = async ({ target, durationSeconds, isPermanent, reason }) => {
     setSubmittingBlock(true)
     try {
-      await containmentAPI.requestAction({
+      const res = await containmentAPI.requestAction({
         target,
         actionType: 'block_ip',
         durationSeconds,
         isPermanent,
         reason,
       })
-      toast.success(`IP ${target} containment policy applied`)
+      toast.success(containmentOutcome(target, res))
       setIpInput('')
       setReasonInput('')
       setModalOpen(false)
@@ -141,6 +150,47 @@ export default function Settings() {
       <div style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: '#3a6a88', letterSpacing: 2, marginBottom: '1.5rem' }}>
         // SYSTEM ENFORCEMENT CONFIGURATION & LAB FIREWALL CONTROL
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.5rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {error}</span>
+          <button
+            onClick={loadData}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{
@@ -286,7 +336,8 @@ export default function Settings() {
 
           {/* Blocklist Table */}
           <Panel title="Enforced Honeypot Blocklist Queue" badge={`${blockedIPs.length} Blocked`} badgeType="live">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="sentinel-table-scroll" role="region" aria-label="Enforced honeypot blocklist" tabIndex={0}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {['Enforced IP', 'Blocked At', 'Triggered By / Author', 'Reason', 'Action'].map(h => (
@@ -353,6 +404,7 @@ export default function Settings() {
                 )}
               </tbody>
             </table>
+            </div>
           </Panel>
 
           {/* Security Audit Trail Panel (Admin Only) */}
@@ -377,7 +429,8 @@ export default function Settings() {
                 Refresh Log
               </button>
             </div>
-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+            <div className="sentinel-table-scroll" role="region" aria-label="Security and compliance audit trail" tabIndex={0}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid #0d3352', color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>
                   <th style={{ padding: '8px 10px' }}>TIMESTAMP</th>
@@ -431,6 +484,7 @@ export default function Settings() {
                 )}
               </tbody>
             </table>
+            </div>
           </Panel>
           
         </div>

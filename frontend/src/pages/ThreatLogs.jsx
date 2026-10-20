@@ -10,6 +10,7 @@ import { threatAPI, containmentAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 import { usePermission } from '../hooks/usePermission.js'
 import toast from 'react-hot-toast'
+import { containmentOutcome } from '../utils/containmentLabels.js'
 
 const STATUS_STYLES = {
   BLOCKED:        { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
@@ -102,7 +103,7 @@ export default function ThreatLogs() {
   const handleConfirmContainment = async ({ target, durationSeconds, isPermanent, reason }) => {
     setSubmittingContainment(true)
     try {
-      await containmentAPI.requestAction({
+      const res = await containmentAPI.requestAction({
         target,
         actionType: 'block_ip',
         durationSeconds,
@@ -114,7 +115,7 @@ export default function ThreatLogs() {
           severity: selectedThreat?.severity,
         },
       })
-      toast.success(`Containment rule active for ${target}`)
+      toast.success(containmentOutcome(target, res))
       setModalOpen(false)
       setSelectedThreat(null)
       load(page)
@@ -188,7 +189,8 @@ export default function ThreatLogs() {
             LOADING THREAT LOGS...
           </div>
         ) : (
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <div className="sentinel-table-scroll" role="region" aria-label="Threat logs" tabIndex={0}>
+          <table style={{ width:'100%', minWidth: 780, borderCollapse:'collapse' }}>
             <thead><tr>
               {['Time','Severity','Source IP','Type','Target','Score','Status','Threat Intel','Action'].map(h=>(
                 <th key={h} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88',
@@ -349,6 +351,7 @@ export default function ThreatLogs() {
               )}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Pagination */}

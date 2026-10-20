@@ -102,8 +102,8 @@ def test_get_ip_reputation_never_called_synchronously_during_honeypot(predictor_
 # ── TEST 2: ThreatScore is mathematically unchanged ───────────────────────────
 def test_threat_score_mathematically_unchanged(predictor_instance):
     """
-    TEST 2: ThreatScore is mathematically unchanged.
-    Formula is strictly: round(0.70 * rf_s + 0.30 * if_sig, 4).
+    TEST 2: ThreatScore is mathematically unchanged by reputation.
+    Formula (C3): for attack classes round(max(rf_s, 0.70 * rf_s + 0.30 * if_sig), 4).
     """
     record = {"sourceIP": "185.220.101.5"}
     res = predictor_instance.predict(record)
@@ -113,10 +113,11 @@ def test_threat_score_mathematically_unchanged(predictor_instance):
     # val = -0.55, offset = -0.47402357424116837
     # deflection = -0.47402357424116837 - (-0.55) = 0.07597642575883163
     # if_sig = min(0.07597642575883163 / 0.20, 1.0) = 0.379882... -> round(..., 4) = 0.3799
-    # expected score = round(0.7 * 0.95 + 0.3 * 0.3799, 4) = round(0.665 + 0.11397, 4) = 0.7790
+    # blend = round(0.7 * 0.95 + 0.3 * 0.3799, 4) = 0.7790; attack class -> max(0.95, 0.7790) = 0.95
     expected_rf_s = 0.95
     expected_if_sig = round(float((-0.47402357424116837 - (-0.55)) / 0.20), 4)
-    expected_score = round(0.7 * expected_rf_s + 0.3 * expected_if_sig, 4)
+    expected_score = round(max(expected_rf_s, 0.7 * expected_rf_s + 0.3 * expected_if_sig), 4)
+    assert expected_score == 0.95
 
     assert res["threatScore"] == expected_score
 
@@ -129,8 +130,10 @@ def test_action_is_unchanged(predictor_instance):
       score >= 0.70 -> MONITOR
       otherwise     -> ALLOW
     """
-    # Test MONITOR (score ~ 0.7790)
+    # Test MONITOR (attack at 0.80 confidence, mild anomaly -> max(0.80, 0.7*0.80 + 0.3*0.3799) = 0.80)
+    predictor_instance.rf.predict_proba.return_value = [[0.20, 0.80]]
     res = predictor_instance.predict({"sourceIP": "185.220.101.5"})
+    assert res["threatScore"] == 0.8
     assert res["action"] == "MONITOR"
 
     # Test BLOCK (max_p = 1.0, severe outlier)

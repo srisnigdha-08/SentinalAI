@@ -69,20 +69,26 @@ export function useRealTimeFeed(maxItems = 30) {
         if (!isMounted) return
         const recents = res.data?.data?.threats || []
         if (recents.length > 0) {
-          setFeed(recents.map(t => ({
-            id: t._id || `${Date.now()}-${seqRef.current++}`,
-            ts: new Date(t.createdAt).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false }),
-            ip: t.sourceIP,
-            msg: `${t.attackType} detected — score ${((t.aiScore || 0) * 100).toFixed(0)}%`,
-            sev: t.severity,
-          })))
+          setFeed(prev => {
+            const existingIps = new Set(prev.map(x => x.ip))
+            const newRecents = recents
+              .filter(t => !existingIps.has(t.sourceIP))
+              .map(t => ({
+                id: t._id || `${Date.now()}-${seqRef.current++}`,
+                ts: new Date(t.createdAt).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false }),
+                ip: t.sourceIP,
+                msg: `${t.attackType} detected — score ${((t.aiScore || 0) * 100).toFixed(0)}%`,
+                sev: t.severity,
+              }))
+            return [...prev, ...newRecents].slice(0, maxItems)
+          })
         }
       }).catch(() => {
         // Feed remains empty if no recent threats
       })
     })
     return () => { isMounted = false }
-  }, [])
+  }, [maxItems])
 
   return { feed, connected }
 }

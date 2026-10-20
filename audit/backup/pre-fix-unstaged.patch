@@ -1,0 +1,2136 @@
+diff --git a/.gitignore b/.gitignore
+index 2b65ae8..7502cd4 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -15,7 +15,8 @@ __pycache__/
+ .env
+ .env.*
+ !.env.example
+-!.env.test
++.env.test
++**/.env.test
+ !.env.demo.example
+ !deployment/.env.demo.example
+ 
+@@ -59,3 +60,9 @@ scratch/evidence/
+ backups/
+ 
+ 
++
++# Playwright Test Artifacts
++playwright-report/
++test-results/
++**/playwright-report/
++**/test-results/
+diff --git a/backend/.gitignore b/backend/.gitignore
+index 6a4a635..1650cff 100644
+--- a/backend/.gitignore
++++ b/backend/.gitignore
+@@ -2,7 +2,7 @@ node_modules/
+ .env
+ .env.*
+ !.env.example
+-!.env.test
++.env.test
+ logs/*.log
+ *.log
+ dist/
+diff --git a/backend/server.js b/backend/server.js
+index 0b00032..85eb39c 100644
+--- a/backend/server.js
++++ b/backend/server.js
+@@ -72,7 +72,12 @@ const lim = rateLimit({
+ })
+ const { defaultShutdownManager } = require('./utils/gracefulShutdown')
+ app.use(defaultShutdownManager.middleware())
+-const authLim = rateLimit({ windowMs: 900000, max: 100, message: { success: false, error: 'Too many auth attempts' } })
++const authLim = rateLimit({
++  windowMs: 900000,
++  max: process.env.NODE_ENV === 'test' ? 100000 : 100,
++  message: { success: false, error: 'Too many auth attempts' },
++  skip: () => process.env.NODE_ENV === 'test',
++})
+ app.use('/api', lim)
+ app.use('/api/auth/login', authLim)
+ app.use('/api/auth/register', authLim)
+@@ -216,11 +221,26 @@ app.use('/api/ai', require('./routes/aiEngine'))
+ app.use('/api/training-samples', require('./routes/trainingSamples'))
+ app.use('/api/system/outbox', require('./routes/systemOutbox'))
+ app.use('/api/audit', require('./routes/audit'))
++
++// Unauthenticated E2E hook: requires both flags so a stray ALLOW_TEST_ROUTES can't expose it outside tests
++if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_ROUTES === 'true') {
++  app.post('/api/test/emit-socket', (req, res) => {
++    const { event, data, payload, room } = req.body || {}
++    const eventData = data !== undefined ? data : payload
++    if (!event) return res.status(400).json({ error: 'event is required' })
++    if (room) {
++      io.to(room).emit(event, eventData)
++    } else {
++      io.emit(event, eventData)
++    }
++    res.json({ success: true, emitted: event, data: eventData, clientCount: io.engine.clientsCount })
++  })
++}
+ app.use(notFound)
+ 
+ app.use(errorHandler)
+ const PORT = process.env.PORT || 5000
+-if (process.env.NODE_ENV !== 'test') {
++if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
+   connectDB()
+     .then(async () => {
+       await revocationDelivery.start()
+@@ -258,7 +278,7 @@ defaultShutdownManager.registerService({
+   },
+ })
+ 
+-if (process.env.NODE_ENV !== 'test') {
++if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
+   defaultShutdownManager.attachSignalHandlers()
+ }
+ 
+diff --git a/backend/services/containment/WindowsFirewallAdapter.js b/backend/services/containment/WindowsFirewallAdapter.js
+index ea0caed..c10e87e 100644
+--- a/backend/services/containment/WindowsFirewallAdapter.js
++++ b/backend/services/containment/WindowsFirewallAdapter.js
+@@ -31,9 +31,9 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
+    * Internal safety check to verify execution permission.
+    */
+   _assertEnabled() {
+-    if (!this.enabled) {
++    if (!this.enabled || process.env.NODE_ENV === 'test' || process.env.CONTAINMENT_DRY_RUN === 'true') {
+       const msg =
+-        'Real Windows Firewall enforcement is disabled by safety gate. (ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT is not true).'
++        'Real Windows Firewall enforcement is disabled by safety gate. (ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT is not true, or NODE_ENV=test / CONTAINMENT_DRY_RUN=true).'
+       logger.warn(`[WindowsFirewallAdapter] ${msg}`)
+       const err = new Error(msg)
+       err.code = 'FIREWALL_ENFORCEMENT_DISABLED'
+diff --git a/backend/services/containment/adapterFactory.js b/backend/services/containment/adapterFactory.js
+index 0f8516e..7adbde7 100644
+--- a/backend/services/containment/adapterFactory.js
++++ b/backend/services/containment/adapterFactory.js
+@@ -22,6 +22,12 @@ const getContainmentAdapter = (options = {}) => {
+ 
+   const requestedBackend = options.backend || process.env.CONTAINMENT_BACKEND || 'mock'
+ 
++  if (process.env.NODE_ENV === 'test' || process.env.CONTAINMENT_DRY_RUN === 'true') {
++    logger.info('[AdapterFactory] Safety lock: Test environment or CONTAINMENT_DRY_RUN detected. Forcing MockContainmentAdapter.')
++    currentAdapter = new MockContainmentAdapter()
++    return currentAdapter
++  }
++
+   if (requestedBackend === 'windows-firewall' && process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true') {
+     logger.info('[AdapterFactory] Initializing WindowsFirewallAdapter (REAL ENFORCEMENT)')
+     currentAdapter = new WindowsFirewallAdapter({ enabled: true })
+diff --git a/frontend/package-lock.json b/frontend/package-lock.json
+index 35d3055..c4d59d1 100644
+--- a/frontend/package-lock.json
++++ b/frontend/package-lock.json
+@@ -17,6 +17,7 @@
+         "socket.io-client": "^4.7.4"
+       },
+       "devDependencies": {
++        "@playwright/test": "^1.64.1",
+         "@vitejs/plugin-react": "^4.2.1",
+         "autoprefixer": "^10.4.17",
+         "postcss": "^8.4.35",
+@@ -824,6 +825,22 @@
+         "node": ">= 8"
+       }
+     },
++    "node_modules/@playwright/test": {
++      "version": "1.64.1",
++      "resolved": "https://registry.npmjs.org/@playwright/test/-/test-1.64.1.tgz",
++      "integrity": "sha512-IaYGml/nSOiZWROfPtuIL7neuu9qDOZ3TNvNljUIrhDMxiGTgPjzj/g9p9RxpS2tSepPDRY+UwAaEeiKtUvIAg==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright": "1.64.1"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
+     "node_modules/@remix-run/router": {
+       "version": "1.23.3",
+       "resolved": "https://registry.npmjs.org/@remix-run/router/-/router-1.23.3.tgz",
+@@ -2566,6 +2583,35 @@
+         "node": ">= 6"
+       }
+     },
++    "node_modules/playwright": {
++      "version": "1.64.1",
++      "resolved": "https://registry.npmjs.org/playwright/-/playwright-1.64.1.tgz",
++      "integrity": "sha512-HCrVhHr5QQuwYoswEUGTb7gGp522yflbv/ST8nF4sFWGuLjQCt17Q/EubpGGSNKYn1tsTCPZxqHhHCfVURu7UA==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "dependencies": {
++        "playwright-core": "1.64.1"
++      },
++      "bin": {
++        "playwright": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
++    "node_modules/playwright-core": {
++      "version": "1.64.1",
++      "resolved": "https://registry.npmjs.org/playwright-core/-/playwright-core-1.64.1.tgz",
++      "integrity": "sha512-BC4s8y6SEVA6Q1rSxZTto8hI1KUI3xXlHGZgvGqP4IqPdI/a6FX9H29IDNz7vKo9l21b6LfYosScPL6M3xxyDQ==",
++      "dev": true,
++      "license": "Apache-2.0",
++      "bin": {
++        "playwright-core": "cli.js"
++      },
++      "engines": {
++        "node": ">=20"
++      }
++    },
+     "node_modules/postcss": {
+       "version": "8.5.25",
+       "resolved": "https://registry.npmjs.org/postcss/-/postcss-8.5.25.tgz",
+diff --git a/frontend/package.json b/frontend/package.json
+index ea1c80f..558adac 100644
+--- a/frontend/package.json
++++ b/frontend/package.json
+@@ -7,18 +7,23 @@
+     "dev": "vite",
+     "build": "vite build",
+     "preview": "vite preview",
+-    "test": "node --test tests/*.test.mjs"
++    "test": "node --test tests/*.test.mjs",
++    "test:e2e": "playwright test",
++    "test:e2e:ui": "playwright test --ui",
++    "test:e2e:headed": "playwright test --headed",
++    "test:e2e:report": "playwright show-report"
+   },
+   "dependencies": {
++    "axios": "^1.6.7",
+     "react": "^18.2.0",
+     "react-dom": "^18.2.0",
++    "react-hot-toast": "^2.4.1",
+     "react-router-dom": "^6.22.0",
+-    "axios": "^1.6.7",
+     "recharts": "^2.12.0",
+-    "socket.io-client": "^4.7.4",
+-    "react-hot-toast": "^2.4.1"
++    "socket.io-client": "^4.7.4"
+   },
+   "devDependencies": {
++    "@playwright/test": "^1.64.1",
+     "@vitejs/plugin-react": "^4.2.1",
+     "autoprefixer": "^10.4.17",
+     "postcss": "^8.4.35",
+diff --git a/frontend/src/App.jsx b/frontend/src/App.jsx
+index 07ddb0e..48f094e 100644
+--- a/frontend/src/App.jsx
++++ b/frontend/src/App.jsx
+@@ -5,6 +5,7 @@ import toast, { Toaster } from "react-hot-toast";
+ import { AuthProvider } from "./context/AuthContext.jsx";
+ import { SocketProvider } from "./context/SocketContext.jsx";
+ import { useAuth } from "./hooks/useAuth.js";
++import ErrorBoundary from "./components/ErrorBoundary.jsx";
+ 
+ import "./styles/globals.css";
+ 
+@@ -131,60 +132,62 @@ function AppRoutes() {
+         }}
+       />
+ 
+-      <Suspense
+-        fallback={
+-          <div
+-            style={{
+-              display: "flex",
+-              justifyContent: "center",
+-              alignItems: "center",
+-              height: "100vh",
+-              background: "#020b18",
+-              color: "#00ff88",
+-              fontFamily: "'Share Tech Mono', monospace",
+-              fontSize: "18px",
+-            }}
+-          >
+-            Loading...
+-          </div>
+-        }
+-      >
+-        <Routes>
+-          {/* Public Pages */}
+-          <Route path="/" element={<Landing />} />
+-          <Route path="/about" element={<About />} />
+-          <Route path="/features" element={<Features />} />
+-
+-          {/* Login/Register */}
+-          <Route element={<PublicRoute />}>
+-            <Route path="/login" element={<Login />} />
+-            <Route path="/register" element={<Register />} />
+-          </Route>
+-
+-          {/* Password Change Route */}
+-          <Route element={<ChangePasswordRoute />}>
+-            <Route path="/change-password" element={<ChangePassword />} />
+-          </Route>
+-
+-          {/* Protected Pages */}
+-          <Route element={<ProtectedRoute />}>
+-            <Route path="/dashboard" element={<Dashboard />} />
+-            <Route path="/dashboard/threats" element={<ThreatLogs />} />
+-            <Route path="/dashboard/honeypot" element={<HoneypotAnalytics />} />
+-            <Route path="/dashboard/campaigns" element={<Campaigns />} />
+-            <Route path="/dashboard/ai" element={<AIAnalytics />} />
+-
+-            {/* Admin-only Protected Pages */}
+-            <Route element={<AdminRoute />}>
+-              <Route path="/dashboard/users" element={<UserManagement />} />
+-              <Route path="/settings" element={<Settings />} />
++      <ErrorBoundary>
++        <Suspense
++          fallback={
++            <div
++              style={{
++                display: "flex",
++                justifyContent: "center",
++                alignItems: "center",
++                height: "100vh",
++                background: "#020b18",
++                color: "#00ff88",
++                fontFamily: "'Share Tech Mono', monospace",
++                fontSize: "18px",
++              }}
++            >
++              Loading...
++            </div>
++          }
++        >
++          <Routes>
++            {/* Public Pages */}
++            <Route path="/" element={<Landing />} />
++            <Route path="/about" element={<About />} />
++            <Route path="/features" element={<Features />} />
++
++            {/* Login/Register */}
++            <Route element={<PublicRoute />}>
++              <Route path="/login" element={<Login />} />
++              <Route path="/register" element={<Register />} />
+             </Route>
+-          </Route>
+ 
+-          {/* 404 */}
+-          <Route path="*" element={<Navigate to="/" replace />} />
+-        </Routes>
+-      </Suspense>
++            {/* Password Change Route */}
++            <Route element={<ChangePasswordRoute />}>
++              <Route path="/change-password" element={<ChangePassword />} />
++            </Route>
++
++            {/* Protected Pages */}
++            <Route element={<ProtectedRoute />}>
++              <Route path="/dashboard" element={<Dashboard />} />
++              <Route path="/dashboard/threats" element={<ThreatLogs />} />
++              <Route path="/dashboard/honeypot" element={<HoneypotAnalytics />} />
++              <Route path="/dashboard/campaigns" element={<Campaigns />} />
++              <Route path="/dashboard/ai" element={<AIAnalytics />} />
++
++              {/* Admin-only Protected Pages */}
++              <Route element={<AdminRoute />}>
++                <Route path="/dashboard/users" element={<UserManagement />} />
++                <Route path="/settings" element={<Settings />} />
++              </Route>
++            </Route>
++
++            {/* 404 */}
++            <Route path="*" element={<Navigate to="/" replace />} />
++          </Routes>
++        </Suspense>
++      </ErrorBoundary>
+     </>
+   );
+ }
+diff --git a/frontend/src/components/ContainmentConfirmModal.jsx b/frontend/src/components/ContainmentConfirmModal.jsx
+index 06003b1..d8a1a85 100644
+--- a/frontend/src/components/ContainmentConfirmModal.jsx
++++ b/frontend/src/components/ContainmentConfirmModal.jsx
+@@ -1,4 +1,5 @@
+ import React, { useState } from 'react'
++import Modal from './Modal.jsx'
+ 
+ export default function ContainmentConfirmModal({
+   isOpen,
+@@ -21,210 +22,167 @@ export default function ContainmentConfirmModal({
+       target,
+       durationSeconds,
+       isPermanent,
+-      reason: reason.trim() || threatInfo?.attackType ? `Blocked for ${threatInfo?.attackType || 'threat activity'}` : 'Manual analyst containment',
++      reason: reason.trim() || (threatInfo?.attackType ? `Blocked for ${threatInfo?.attackType}` : 'Manual analyst containment'),
+     })
+   }
+ 
+   const isMock = !backendInfo || backendInfo.backend === 'mock' || !backendInfo.realEnforcementEnabled
+ 
+   return (
+-    <div
+-      style={{
+-        position: 'fixed',
+-        top: 0,
+-        left: 0,
+-        right: 0,
+-        bottom: 0,
+-        backgroundColor: 'rgba(2, 8, 16, 0.85)',
+-        backdropFilter: 'blur(4px)',
+-        display: 'flex',
+-        alignItems: 'center',
+-        justifyContent: 'center',
+-        zIndex: 9999,
+-        padding: '1rem',
+-      }}
++    <Modal
++      isOpen={isOpen}
++      onClose={onClose}
++      dismissible={!loading}
++      title="CONTAINMENT VERIFICATION"
++      subtitle="// POLICY-GOVERNED ACTIVE RESPONSE CONFIRMATION"
++      maxWidth="540px"
++      borderColor="#ff2d55"
++      glowColor="rgba(255, 45, 85, 0.25)"
++      titleColor="#ff2d55"
+     >
++      {/* Backend Mode Pill */}
+       <div
+         style={{
+-          background: '#041120',
+-          border: '1px solid #ff2d55',
+-          boxShadow: '0 0 30px rgba(255, 45, 85, 0.25)',
+-          borderRadius: '4px',
+-          maxWidth: '540px',
+-          width: '100%',
+-          padding: '1.5rem',
++          background: isMock ? 'rgba(0, 212, 255, 0.1)' : 'rgba(255, 45, 85, 0.1)',
++          border: `1px solid ${isMock ? 'rgba(0, 212, 255, 0.3)' : 'rgba(255, 45, 85, 0.4)'}`,
++          padding: '8px 12px',
++          borderRadius: '2px',
+           display: 'flex',
+-          flexDirection: 'column',
+-          gap: '1.25rem',
++          alignItems: 'center',
++          justifyContent: 'space-between',
+         }}
+       >
+-        {/* Header */}
+-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(255,45,85,0.3)', paddingBottom: '0.75rem' }}>
+-          <div>
+-            <div style={{ fontFamily: 'Orbitron,sans-serif', fontSize: 16, fontWeight: 700, color: '#ff2d55' }}>
+-              CONTAINMENT <span style={{ color: '#c8e6f5' }}>VERIFICATION</span>
+-            </div>
+-            <div style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#7ab3cc', letterSpacing: 1 }}>
+-              // POLICY-GOVERNED ACTIVE RESPONSE CONFIRMATION
+-            </div>
+-          </div>
+-          <button
+-            onClick={onClose}
+-            disabled={loading}
+-            style={{
+-              background: 'none',
+-              border: 'none',
+-              color: '#3a6a88',
+-              fontSize: 18,
+-              cursor: 'pointer',
+-            }}
+-          >
+-            ✕
+-          </button>
+-        </div>
++        <span style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: isMock ? '#00d4ff' : '#ff2d55' }}>
++          ● ENFORCEMENT ENGINE: {isMock ? 'SIMULATION / MOCK ADAPTER' : 'WINDOWS FIREWALL (HOST)'}
++        </span>
++        <span style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#7ab3cc' }}>
++          {isMock ? 'Safe Dev Mode' : 'Live Host Rules'}
++        </span>
++      </div>
+ 
+-        {/* Backend Mode Pill */}
+-        <div
+-          style={{
+-            background: isMock ? 'rgba(0, 212, 255, 0.1)' : 'rgba(255, 45, 85, 0.1)',
+-            border: `1px solid ${isMock ? 'rgba(0, 212, 255, 0.3)' : 'rgba(255, 45, 85, 0.4)'}`,
+-            padding: '8px 12px',
+-            borderRadius: '2px',
+-            display: 'flex',
+-            alignItems: 'center',
+-            justifyContent: 'space-between',
+-          }}
+-        >
+-          <span style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: isMock ? '#00d4ff' : '#ff2d55' }}>
+-            ● ENFORCEMENT ENGINE: {isMock ? 'SIMULATION / MOCK ADAPTER' : 'WINDOWS FIREWALL (HOST)'}
+-          </span>
+-          <span style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#7ab3cc' }}>
+-            {isMock ? 'Safe Dev Mode' : 'Live Host Rules'}
+-          </span>
++      {/* Target Details */}
++      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(8, 31, 53, 0.5)', padding: '12px', borderRadius: '2px' }}>
++        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++          <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>TARGET ADDRESS:</span>
++          <span style={{ fontSize: 14, color: '#00d4ff', fontFamily: 'Share Tech Mono,monospace', fontWeight: 'bold' }}>{target}</span>
+         </div>
+-
+-        {/* Target Details */}
+-        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', background: 'rgba(8, 31, 53, 0.5)', padding: '12px', borderRadius: '2px' }}>
++        {threatInfo?.attackType && (
+           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+-            <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>TARGET ADDRESS:</span>
+-            <span style={{ fontSize: 14, color: '#00d4ff', fontFamily: 'Share Tech Mono,monospace', fontWeight: 'bold' }}>{target}</span>
+-          </div>
+-          {threatInfo?.attackType && (
+-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+-              <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>DETECTED VECTOR:</span>
+-              <span style={{ fontSize: 12, color: '#c8e6f5' }}>{threatInfo.attackType} ({threatInfo.severity || 'UNKNOWN'})</span>
+-            </div>
+-          )}
+-          {threatInfo?.aiScore !== undefined && (
+-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+-              <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AI CONFIDENCE SCORE:</span>
+-              <span style={{ fontSize: 12, color: threatInfo.aiScore >= 0.9 ? '#ff2d55' : '#ffaa00', fontFamily: 'Share Tech Mono,monospace' }}>
+-                {Math.round(threatInfo.aiScore * 100)}%
+-              </span>
+-            </div>
+-          )}
+-        </div>
+-
+-        {/* Options */}
+-        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+-            <label style={{ fontSize: 10, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', textTransform: 'uppercase' }}>
+-              Containment Duration (TTL)
+-            </label>
+-            <select
+-              value={duration}
+-              onChange={(e) => setDuration(e.target.value)}
+-              disabled={loading}
+-              style={{
+-                background: '#081f35',
+-                border: '1px solid #0d3352',
+-                color: '#c8e6f5',
+-                fontFamily: 'Share Tech Mono,monospace',
+-                fontSize: 12,
+-                padding: '8px 10px',
+-                borderRadius: '2px',
+-                outline: 'none',
+-              }}
+-            >
+-              <option value="3600">1 Hour (Standard containment)</option>
+-              <option value="21600">6 Hours</option>
+-              <option value="86400">24 Hours (1 Day)</option>
+-              <option value="604800">7 Days</option>
+-              <option value="permanent">Permanent (Requires Admin Confirmation)</option>
+-            </select>
++            <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>DETECTED VECTOR:</span>
++            <span style={{ fontSize: 12, color: '#c8e6f5' }}>{threatInfo.attackType} ({threatInfo.severity || 'UNKNOWN'})</span>
+           </div>
+-
+-          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+-            <label style={{ fontSize: 10, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', textTransform: 'uppercase' }}>
+-              Operator Justification / Notes
+-            </label>
+-            <input
+-              type="text"
+-              placeholder="e.g. Confirmed scanner IP from threat telemetry"
+-              value={reason}
+-              onChange={(e) => setReason(e.target.value)}
+-              disabled={loading}
+-              style={{
+-                background: '#081f35',
+-                border: '1px solid #0d3352',
+-                color: '#c8e6f5',
+-                fontFamily: 'Rajdhani,sans-serif',
+-                fontSize: 13,
+-                padding: '8px 10px',
+-                borderRadius: '2px',
+-                outline: 'none',
+-              }}
+-            />
++        )}
++        {threatInfo?.aiScore !== undefined && (
++          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++            <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AI CONFIDENCE SCORE:</span>
++            <span style={{ fontSize: 12, color: threatInfo.aiScore >= 0.9 ? '#ff2d55' : '#ffaa00', fontFamily: 'Share Tech Mono,monospace' }}>
++              {Math.round(threatInfo.aiScore * 100)}%
++            </span>
+           </div>
+-        </div>
+-
+-        {/* Policy Safety Warning */}
+-        <div style={{ fontSize: 11, color: '#7ab3cc', lineHeight: '1.4', background: 'rgba(13, 51, 82, 0.3)', padding: '8px 10px', borderRadius: '2px' }}>
+-          <strong style={{ color: '#00d4ff' }}>Safety Guarantee:</strong> Requests are checked against loopback, gateway, and service ports (5000, 8000, 27017, 3000) before any action is approved.
+-        </div>
++        )}
++      </div>
+ 
+-        {/* Actions */}
+-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem' }}>
+-          <button
+-            type="button"
+-            onClick={onClose}
++      {/* Options */}
++      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
++        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
++          <label htmlFor="containment-duration" style={{ fontSize: 10, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', textTransform: 'uppercase' }}>
++            Containment Duration (TTL)
++          </label>
++          <select
++            id="containment-duration"
++            value={duration}
++            onChange={(e) => setDuration(e.target.value)}
+             disabled={loading}
+             style={{
+-              background: 'transparent',
++              background: '#081f35',
+               border: '1px solid #0d3352',
+-              color: '#7ab3cc',
++              color: '#c8e6f5',
+               fontFamily: 'Share Tech Mono,monospace',
+-              fontSize: 11,
+-              padding: '8px 16px',
++              fontSize: 12,
++              padding: '8px 10px',
+               borderRadius: '2px',
+-              cursor: loading ? 'not-allowed' : 'pointer',
++              outline: 'none',
+             }}
+           >
+-            Cancel
+-          </button>
+-          <button
+-            type="button"
+-            onClick={handleConfirm}
++            <option value="3600">1 Hour (Standard containment)</option>
++            <option value="21600">6 Hours</option>
++            <option value="86400">24 Hours (1 Day)</option>
++            <option value="604800">7 Days</option>
++            <option value="permanent">Permanent (Requires Admin Confirmation)</option>
++          </select>
++        </div>
++
++        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
++          <label htmlFor="containment-reason" style={{ fontSize: 10, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', textTransform: 'uppercase' }}>
++            Operator Justification / Notes
++          </label>
++          <input
++            id="containment-reason"
++            type="text"
++            placeholder="e.g. Confirmed scanner IP from threat telemetry"
++            value={reason}
++            onChange={(e) => setReason(e.target.value)}
+             disabled={loading}
+             style={{
+-              background: '#ff2d55',
+-              border: '1px solid #ff2d55',
+-              color: '#fff',
++              background: '#081f35',
++              border: '1px solid #0d3352',
++              color: '#c8e6f5',
+               fontFamily: 'Rajdhani,sans-serif',
+-              fontWeight: 700,
+-              fontSize: 12,
+-              letterSpacing: '1px',
+-              textTransform: 'uppercase',
+-              padding: '8px 20px',
++              fontSize: 13,
++              padding: '8px 10px',
+               borderRadius: '2px',
+-              cursor: loading ? 'not-allowed' : 'pointer',
+-              boxShadow: '0 0 10px rgba(255, 45, 85, 0.4)',
++              outline: 'none',
+             }}
+-          >
+-            {loading ? 'Validating & Applying...' : 'Confirm Containment'}
+-          </button>
++          />
+         </div>
+       </div>
+-    </div>
++
++      {/* Policy Safety Warning */}
++      <div style={{ fontSize: 11, color: '#7ab3cc', lineHeight: '1.4', background: 'rgba(13, 51, 82, 0.3)', padding: '8px 10px', borderRadius: '2px' }}>
++        <strong style={{ color: '#00d4ff' }}>Safety Guarantee:</strong> Requests are checked against loopback, gateway, and service ports (5000, 8000, 27017, 3000) before any action is approved.
++      </div>
++
++      {/* Actions */}
++      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '0.5rem' }}>
++        <button
++          type="button"
++          onClick={onClose}
++          disabled={loading}
++          style={{
++            background: 'transparent',
++            border: '1px solid #0d3352',
++            color: '#7ab3cc',
++            fontFamily: 'Share Tech Mono,monospace',
++            fontSize: 11,
++            padding: '8px 16px',
++            borderRadius: '2px',
++            cursor: loading ? 'not-allowed' : 'pointer',
++          }}
++        >
++          Cancel
++        </button>
++        <button
++          type="button"
++          onClick={handleConfirm}
++          disabled={loading}
++          style={{
++            background: '#ff2d55',
++            border: '1px solid #ff2d55',
++            color: '#fff',
++            fontFamily: 'Rajdhani,sans-serif',
++            fontWeight: 700,
++            fontSize: 12,
++            letterSpacing: '1px',
++            textTransform: 'uppercase',
++            padding: '8px 20px',
++            borderRadius: '2px',
++            cursor: loading ? 'not-allowed' : 'pointer',
++            boxShadow: '0 0 10px rgba(255, 45, 85, 0.4)',
++          }}
++        >
++          {loading ? 'Validating & Applying...' : 'Confirm Containment'}
++        </button>
++      </div>
++    </Modal>
+   )
+ }
+diff --git a/frontend/src/components/LiveFeed.jsx b/frontend/src/components/LiveFeed.jsx
+index 00a3f28..1e6cc73 100644
+--- a/frontend/src/components/LiveFeed.jsx
++++ b/frontend/src/components/LiveFeed.jsx
+@@ -2,20 +2,11 @@
+ import { useRealTimeFeed } from '../hooks/useRealTimeFeed.js'
+ import SeverityBadge from './SeverityBadge.jsx'
+ 
+-// ============================================================================
+-// SIMULATION FEED (INTENTIONALLY PRESERVED FOR DEMO/TESTING)
+-// import { useLiveFeed } from '../hooks/useLiveFeed.js'
+-// ============================================================================
+-
+ export default function LiveFeed() {
+   // REAL DATA SOURCE:
+   // Listens to real detection pipeline events emitted by backend via Socket.IO
+   const { feed, connected } = useRealTimeFeed(30)
+ 
+-  // PRESERVED SIMULATION CALL (disabled in REAL DATA MODE):
+-  // To re-enable simulated feed for testing/demo purposes, switch back to:
+-  // const feed = useLiveFeed(30, 2200)
+-
+   return (
+     <div style={{
+       maxHeight: 260, overflowY: 'auto',
+diff --git a/frontend/src/components/TriageModal.jsx b/frontend/src/components/TriageModal.jsx
+index be09aad..f87849d 100644
+--- a/frontend/src/components/TriageModal.jsx
++++ b/frontend/src/components/TriageModal.jsx
+@@ -1,6 +1,7 @@
+ import React, { useState, useEffect } from 'react'
+ import { threatAPI } from '../services/api.js'
+ import toast from 'react-hot-toast'
++import Modal from './Modal.jsx'
+ 
+ const ALLOWED_STATUSES = [
+   'DETECTED',
+@@ -63,154 +64,157 @@ export default function TriageModal({
+   }
+ 
+   return (
+-    <div
+-      style={{
+-        position: 'fixed',
+-        top: 0,
+-        left: 0,
+-        right: 0,
+-        bottom: 0,
+-        backgroundColor: 'rgba(2, 8, 16, 0.85)',
+-        backdropFilter: 'blur(4px)',
+-        display: 'flex',
+-        alignItems: 'center',
+-        justifyContent: 'center',
+-        zIndex: 9999,
+-        padding: '1rem',
+-      }}
++    <Modal
++      isOpen={isOpen}
++      onClose={onClose}
++      dismissible={!loading}
++      title="INCIDENT TRIAGE & NOTES"
++      subtitle={isReadOnly ? '// READ-ONLY INCIDENT DOSSIER' : '// ANALYST INVESTIGATION & WORKFLOW DISPOSITION'}
++      maxWidth="560px"
++      borderColor="#00d4ff"
++      glowColor="rgba(0, 212, 255, 0.2)"
++      titleColor="#00d4ff"
+     >
+-      <div
+-        style={{
+-          background: '#041120',
+-          border: '1px solid #00d4ff',
+-          boxShadow: '0 0 30px rgba(0, 212, 255, 0.2)',
+-          borderRadius: '4px',
+-          maxWidth: '560px',
+-          width: '100%',
+-          padding: '1.5rem',
+-          display: 'flex',
+-          flexDirection: 'column',
+-          gap: '1.25rem',
+-        }}
+-      >
+-        {/* Header */}
+-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid rgba(0,212,255,0.25)', paddingBottom: '0.75rem' }}>
+-          <div>
+-            <div style={{ fontFamily: 'Orbitron,sans-serif', fontSize: 16, fontWeight: 700, color: '#00d4ff' }}>
+-              INCIDENT <span style={{ color: '#c8e6f5' }}>TRIAGE & NOTES</span>
+-            </div>
+-            <div style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#7ab3cc', letterSpacing: 1 }}>
+-              {isReadOnly ? '// READ-ONLY INCIDENT DOSSIER' : '// ANALYST INVESTIGATION & WORKFLOW DISPOSITION'}
+-            </div>
+-          </div>
+-          <button
+-            onClick={onClose}
+-            disabled={loading}
+-            style={{
+-              background: 'none',
+-              border: 'none',
+-              color: '#3a6a88',
+-              fontSize: 18,
+-              cursor: 'pointer',
+-            }}
+-          >
+-            ✕
+-          </button>
++      {/* Target Details */}
++      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, background: 'rgba(8, 31, 53, 0.5)', padding: 12, borderRadius: 2 }}>
++        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++          <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>THREAT ID:</span>
++          <span style={{ fontSize: 11, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace' }}>{threat._id}</span>
+         </div>
+-
+-        {/* Threat Context Card */}
+-        <div style={{
+-          background: 'rgba(8,31,53,0.6)',
+-          border: '1px solid #0d3352',
+-          borderRadius: '2px',
+-          padding: '10px 14px',
+-          display: 'grid',
+-          gridTemplateColumns: 'repeat(2, 1fr)',
+-          gap: '8px',
+-          fontFamily: 'Share Tech Mono,monospace',
+-          fontSize: 11,
+-        }}>
+-          <div>
+-            <span style={{ color: '#3a6a88' }}>TARGET / TYPE:</span>{' '}
+-            <span style={{ color: '#c8e6f5' }}>{threat.attackType}</span>
++        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++          <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>SOURCE IP:</span>
++          <span style={{ fontSize: 13, color: '#00d4ff', fontFamily: 'Share Tech Mono,monospace', fontWeight: 'bold' }}>{threat.sourceIP}</span>
++        </div>
++        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++          <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>ATTACK TYPE:</span>
++          <span style={{ fontSize: 12, color: '#c8e6f5' }}>{threat.attackType} ({threat.severity || 'UNKNOWN'})</span>
++        </div>
++        {threat.aiScore !== undefined && (
++          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++            <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AI CONFIDENCE SCORE:</span>
++            <span style={{ fontSize: 12, color: threat.aiScore >= 0.9 ? '#ff2d55' : threat.aiScore >= 0.7 ? '#ffaa00' : '#00d4ff', fontFamily: 'Share Tech Mono,monospace' }}>
++              {Math.round(threat.aiScore * 100)}%
++            </span>
+           </div>
+-          <div>
+-            <span style={{ color: '#3a6a88' }}>SOURCE IP:</span>{' '}
+-            <span style={{ color: '#00d4ff' }}>{threat.sourceIP}</span>
++        )}
++        {threat.targetService && (
++          <div style={{ display: 'flex', justifyContent: 'space-between' }}>
++            <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>TARGET SERVICE:</span>
++            <span style={{ fontSize: 12, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace' }}>{threat.targetService}</span>
+           </div>
+-          <div>
+-            <span style={{ color: '#3a6a88' }}>SEVERITY:</span>{' '}
+-            <span style={{ color: threat.severity === 'CRITICAL' ? '#ff2d55' : threat.severity === 'HIGH' ? '#ffaa00' : '#00d4ff' }}>
+-              {threat.severity}
+-            </span>
++        )}
++      </div>
++
++      {/* Threat Intel Dossier Summary */}
++      {threat.threatIntel && (
++        <div style={{ background: 'rgba(8, 31, 53, 0.3)', border: '1px solid #0d3352', padding: 10, borderRadius: 2 }}>
++          <div style={{ fontSize: 10, fontFamily: 'Share Tech Mono,monospace', color: '#c39bd3', marginBottom: 4, letterSpacing: 0.5 }}>
++            EXTERNAL THREAT INTEL (ABUSEIPDB)
+           </div>
+-          <div>
+-            <span style={{ color: '#3a6a88' }}>AI RISK SCORE:</span>{' '}
+-            <span style={{ color: '#00ff88' }}>{((threat.aiScore || 0) * 100).toFixed(0)}%</span>
++          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, fontSize: 11, fontFamily: 'Share Tech Mono,monospace' }}>
++            <div>
++              <span style={{ color: '#3a6a88' }}>Confidence: </span>
++              <span style={{ color: threat.threatIntel.abuseConfidenceScore > 50 ? '#ff2d55' : '#00d4ff' }}>
++                {threat.threatIntel.abuseConfidenceScore ?? 'N/A'}%
++              </span>
++            </div>
++            <div>
++              <span style={{ color: '#3a6a88' }}>Reports: </span>
++              <span style={{ color: '#c8e6f5' }}>{threat.threatIntel.totalReports ?? 0}</span>
++            </div>
++            <div style={{ gridColumn: 'span 2' }}>
++              <span style={{ color: '#3a6a88' }}>ISP: </span>
++              <span style={{ color: '#7ab3cc' }}>{threat.threatIntel.isp || 'N/A'}</span>
++            </div>
+           </div>
+         </div>
++      )}
+ 
+-        {/* Status Selection */}
+-        <div>
+-          <label style={{ display: 'block', fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: '#7ab3cc', marginBottom: 6 }}>
+-            INVESTIGATION DISPOSITION / STATUS:
++      {/* Form Controls */}
++      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
++        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
++          <label htmlFor="triage-status" style={{ fontSize: 10, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', textTransform: 'uppercase' }}>
++            Workflow Incident Status
+           </label>
+           {isReadOnly ? (
+-            <div style={{ ...inputStyle, background: 'rgba(8,31,53,0.3)', border: '1px dashed #0d3352', color: '#ffaa00' }}>
+-              {threat.status}
++            <div style={{ ...inputStyle, background: '#041120', color: '#00d4ff' }}>
++              {status}
+             </div>
+           ) : (
+             <select
+-              style={{ ...inputStyle, cursor: 'pointer' }}
++              id="triage-status"
+               value={status}
+               onChange={(e) => setStatus(e.target.value)}
+               disabled={loading}
++              style={{ ...inputStyle, cursor: 'pointer' }}
+             >
+-              {ALLOWED_STATUSES.map((s) => (
++              {ALLOWED_STATUSES.map(s => (
+                 <option key={s} value={s}>{s}</option>
+               ))}
+             </select>
+           )}
+         </div>
+ 
+-        {/* Notes */}
+-        <div>
+-          <label style={{ display: 'block', fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: '#7ab3cc', marginBottom: 6 }}>
+-            ANALYST TRIAGE NOTES:
++        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
++          <label htmlFor="triage-notes" style={{ fontSize: 10, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', textTransform: 'uppercase' }}>
++            Analyst Investigation Notes & Dossier Annotations
+           </label>
+           {isReadOnly ? (
+             <div style={{
+               ...inputStyle,
+-              minHeight: '90px',
+-              background: 'rgba(8,31,53,0.3)',
+-              border: '1px dashed #0d3352',
++              background: '#041120',
++              minHeight: 80,
+               whiteSpace: 'pre-wrap',
+-              color: threat.triageNotes ? '#c8e6f5' : '#4a6984',
++              color: triageNotes ? '#c8e6f5' : '#3a6a88'
+             }}>
+-              {threat.triageNotes || 'No analyst notes recorded for this security event.'}
++              {triageNotes || 'No investigation notes recorded for this incident.'}
+             </div>
+           ) : (
+             <textarea
+-              style={{ ...inputStyle, minHeight: '90px', resize: 'vertical' }}
+-              placeholder="Record forensic findings, containment justification, or false-positive notes..."
++              id="triage-notes"
++              rows={4}
++              placeholder="Record forensic observations, escalation justifications, or false-positive disposition..."
+               value={triageNotes}
+               onChange={(e) => setTriageNotes(e.target.value)}
+               disabled={loading}
+               maxLength={1000}
++              style={{ ...inputStyle, resize: 'vertical' }}
+             />
+           )}
+         </div>
++      </div>
+ 
+-        {/* Footer Actions */}
+-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
++      {/* Footer Actions */}
++      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 4 }}>
++        <button
++          type="button"
++          onClick={onClose}
++          disabled={loading}
++          style={{
++            background: 'transparent',
++            border: '1px solid #1a4a6e',
++            color: '#7ab3cc',
++            fontFamily: 'Rajdhani,sans-serif',
++            fontWeight: 600,
++            fontSize: 12,
++            letterSpacing: 1,
++            textTransform: 'uppercase',
++            padding: '7px 16px',
++            borderRadius: 2,
++            cursor: 'pointer',
++          }}
++        >
++          {isReadOnly ? 'Close' : 'Cancel'}
++        </button>
++        {!isReadOnly && (
+           <button
+             type="button"
+-            onClick={onClose}
++            onClick={handleSave}
+             disabled={loading}
+             style={{
+-              background: 'transparent',
+-              border: '1px solid #1a4a6e',
+-              color: '#7ab3cc',
++              background: 'rgba(0, 212, 255, 0.15)',
++              border: '1px solid #00d4ff',
++              color: '#00d4ff',
+               fontFamily: 'Rajdhani,sans-serif',
+               fontWeight: 600,
+               fontSize: 12,
+@@ -218,36 +222,14 @@ export default function TriageModal({
+               textTransform: 'uppercase',
+               padding: '7px 16px',
+               borderRadius: 2,
+-              cursor: 'pointer',
++              cursor: loading ? 'not-allowed' : 'pointer',
++              opacity: loading ? 0.6 : 1,
+             }}
+           >
+-            {isReadOnly ? 'Close' : 'Cancel'}
++            {loading ? 'Updating...' : 'Save Triage'}
+           </button>
+-          {!isReadOnly && (
+-            <button
+-              type="button"
+-              onClick={handleSave}
+-              disabled={loading}
+-              style={{
+-                background: 'rgba(0, 212, 255, 0.15)',
+-                border: '1px solid #00d4ff',
+-                color: '#00d4ff',
+-                fontFamily: 'Rajdhani,sans-serif',
+-                fontWeight: 600,
+-                fontSize: 12,
+-                letterSpacing: 1,
+-                textTransform: 'uppercase',
+-                padding: '7px 16px',
+-                borderRadius: 2,
+-                cursor: loading ? 'not-allowed' : 'pointer',
+-                opacity: loading ? 0.6 : 1,
+-              }}
+-            >
+-              {loading ? 'Updating...' : 'Save Triage'}
+-            </button>
+-          )}
+-        </div>
++        )}
+       </div>
+-    </div>
++    </Modal>
+   )
+ }
+diff --git a/frontend/src/context/AuthContext.jsx b/frontend/src/context/AuthContext.jsx
+index d3c4ef1..39f22cb 100644
+--- a/frontend/src/context/AuthContext.jsx
++++ b/frontend/src/context/AuthContext.jsx
+@@ -7,6 +7,10 @@ export function AuthProvider({ children }) {
+   const [error, setError] = useState(null)
+   useEffect(() => {
+     const unsubscribe = authSession.subscribe(setState)
++    if (!authSession.hasSessionHint?.()) {
++      setLoading(false)
++      return unsubscribe
++    }
+     authSession.refresh().catch(error => {
+       if (![401, 403].includes(error.status)) setError('Session service unavailable. Sign in again when it is reachable.')
+     }).finally(() => setLoading(false))
+diff --git a/frontend/src/context/SocketContext.jsx b/frontend/src/context/SocketContext.jsx
+index ebab699..8c8c9c8 100644
+--- a/frontend/src/context/SocketContext.jsx
++++ b/frontend/src/context/SocketContext.jsx
+@@ -20,6 +20,8 @@ export function SocketProvider({ children }) {
+       auth: { token }, reconnectionAttempts: 10, reconnectionDelay: 1000, reconnectionDelayMax: 5000,
+     })
+     setSocket(connection)
++    // E2E hook (realtime.spec.js); dev server only, never in production bundles
++    if (import.meta.env.DEV && typeof window !== 'undefined') window.__socket = connection
+     connection.on('connect', () => {
+       setConnected(true)
+       setReconnecting(false)
+@@ -38,6 +40,7 @@ export function SocketProvider({ children }) {
+       connection.removeAllListeners()
+       connection.io.removeAllListeners()
+       connection.disconnect()
++      if (import.meta.env.DEV && typeof window !== 'undefined') window.__socket = null
+       setSocket(null)
+       setConnected(false)
+       setReconnecting(false)
+diff --git a/frontend/src/hooks/useRealTimeAlerts.js b/frontend/src/hooks/useRealTimeAlerts.js
+index b3fe0fb..cda0bb4 100644
+--- a/frontend/src/hooks/useRealTimeAlerts.js
++++ b/frontend/src/hooks/useRealTimeAlerts.js
+@@ -21,8 +21,14 @@ export function useRealTimeAlerts() {
+         alertAPI.list({ limit: 10, isRead: false }),
+         alertAPI.unreadCount(),
+       ])
+-      setAlerts(alertsRes.data.data || [])
+-      setUnreadCount(countRes.data.data?.count || 0)
++      const fetchedAlerts = alertsRes.data.data || []
++      const fetchedCount = countRes.data.data?.count || 0
++      setAlerts(prev => {
++        const existingIds = new Set(prev.map(a => a._id || a.title))
++        const newFetched = fetchedAlerts.filter(a => !existingIds.has(a._id) && !existingIds.has(a.title))
++        return [...prev, ...newFetched].slice(0, 10)
++      })
++      setUnreadCount(prev => Math.max(prev, fetchedCount))
+     } catch {
+       // Silently fail — alerts are non-critical UI
+     } finally {
+@@ -59,9 +65,11 @@ export function useRealTimeAlerts() {
+   const markRead = useCallback(async (id) => {
+     try {
+       await alertAPI.markRead(id)
+-      setAlerts(prev => prev.filter(a => a._id !== id && a.id !== id))
++      setAlerts(prev => prev.filter(a => a._id !== id))
+       setUnreadCount(n => Math.max(0, n - 1))
+-    } catch { /* silent */ }
++    } catch {
++      // Ignore
++    }
+   }, [])
+ 
+   const markAllRead = useCallback(async () => {
+@@ -69,8 +77,10 @@ export function useRealTimeAlerts() {
+       await alertAPI.markAllRead()
+       setAlerts([])
+       setUnreadCount(0)
+-    } catch { /* silent */ }
++    } catch {
++      // Ignore
++    }
+   }, [])
+ 
+-  return { alerts, unreadCount, loading, markRead, markAllRead, refetch: loadAlerts }
++  return { alerts, unreadCount, loading, markRead, markAllRead }
+ }
+diff --git a/frontend/src/hooks/useRealTimeFeed.js b/frontend/src/hooks/useRealTimeFeed.js
+index f52e524..5a7b010 100644
+--- a/frontend/src/hooks/useRealTimeFeed.js
++++ b/frontend/src/hooks/useRealTimeFeed.js
+@@ -69,20 +69,26 @@ export function useRealTimeFeed(maxItems = 30) {
+         if (!isMounted) return
+         const recents = res.data?.data?.threats || []
+         if (recents.length > 0) {
+-          setFeed(recents.map(t => ({
+-            id: t._id || `${Date.now()}-${seqRef.current++}`,
+-            ts: new Date(t.createdAt).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false }),
+-            ip: t.sourceIP,
+-            msg: `${t.attackType} detected — score ${((t.aiScore || 0) * 100).toFixed(0)}%`,
+-            sev: t.severity,
+-          })))
++          setFeed(prev => {
++            const existingIps = new Set(prev.map(x => x.ip))
++            const newRecents = recents
++              .filter(t => !existingIps.has(t.sourceIP))
++              .map(t => ({
++                id: t._id || `${Date.now()}-${seqRef.current++}`,
++                ts: new Date(t.createdAt).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false }),
++                ip: t.sourceIP,
++                msg: `${t.attackType} detected — score ${((t.aiScore || 0) * 100).toFixed(0)}%`,
++                sev: t.severity,
++              }))
++            return [...prev, ...newRecents].slice(0, maxItems)
++          })
+         }
+       }).catch(() => {
+         // Feed remains empty if no recent threats
+       })
+     })
+     return () => { isMounted = false }
+-  }, [])
++  }, [maxItems])
+ 
+   return { feed, connected }
+ }
+diff --git a/frontend/src/layouts/DashboardLayout.jsx b/frontend/src/layouts/DashboardLayout.jsx
+index 3ee1cbd..9b6054f 100644
+--- a/frontend/src/layouts/DashboardLayout.jsx
++++ b/frontend/src/layouts/DashboardLayout.jsx
+@@ -1,6 +1,7 @@
+ import Navbar from '../components/Navbar.jsx'
+ import Sidebar from '../components/Sidebar.jsx'
+ import RoleWorkspaceHeader from '../components/RoleWorkspaceHeader.jsx'
++import ConnectionStatus from '../components/ConnectionStatus.jsx'
+ 
+ export default function DashboardLayout({ children }) {
+   return (
+@@ -16,6 +17,7 @@ export default function DashboardLayout({ children }) {
+           {children}
+         </main>
+       </div>
++      <ConnectionStatus />
+     </>
+   )
+ }
+diff --git a/frontend/src/pages/AIAnalytics.jsx b/frontend/src/pages/AIAnalytics.jsx
+index 3bf10a9..8aba992 100644
+--- a/frontend/src/pages/AIAnalytics.jsx
++++ b/frontend/src/pages/AIAnalytics.jsx
+@@ -28,6 +28,7 @@ export default function AIAnalytics() {
+   const [modelInfo, setModelInfo] = useState(null)
+   const [liveLogs,  setLiveLogs]  = useState([])
+   const [loading,   setLoading]   = useState(true)
++  const [error,     setError]     = useState(null)
+   const [verifyingId, setVerifyingId] = useState(null)
+   const [selectedClass, setSelectedClass] = useState('')
+   const [verifyLoading, setVerifyLoading] = useState(false)
+@@ -86,22 +87,29 @@ export default function AIAnalytics() {
+     }
+   }
+ 
+-  useEffect(() => {
+-    const load = async () => {
+-      try {
+-        const [sRes, pRes, mRes] = await Promise.all([
+-          aiAPI.stats(),
+-          aiAPI.predictions({ limit: 12 }),
+-          aiAPI.modelInfo().catch(() => ({ data: { data: null } })),
+-        ])
+-        setStats(sRes.data.data)
+-        const predictionList = pRes.data.data || []
+-        setPreds(predictionList)
+-        setModelInfo(mRes.data?.data || mRes.data)
+-        refreshSamples()
+-      } catch { toast.error('Failed to load AI analytics') }
+-      finally { setLoading(false) }
++  const load = async () => {
++    setLoading(true)
++    setError(null)
++    try {
++      const [sRes, pRes, mRes] = await Promise.all([
++        aiAPI.stats(),
++        aiAPI.predictions({ limit: 12 }),
++        aiAPI.modelInfo().catch(() => ({ data: { data: null } })),
++      ])
++      setStats(sRes.data.data)
++      const predictionList = pRes.data.data || []
++      setPreds(predictionList)
++      setModelInfo(mRes.data?.data || mRes.data)
++      refreshSamples()
++    } catch {
++      setError('AI analytics telemetry is unavailable. Retry to load model metrics.')
++      toast.error('Failed to load AI analytics')
++    } finally {
++      setLoading(false)
+     }
++  }
++
++  useEffect(() => {
+     load()
+   }, [])
+ 
+@@ -159,14 +167,55 @@ export default function AIAnalytics() {
+         </span>
+       </div>
+ 
+-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
++      {error && (
++        <div
++          role="alert"
++          style={{
++            padding: '12px 16px',
++            marginBottom: '1.25rem',
++            background: 'rgba(255, 170, 0, 0.1)',
++            border: '1px solid #ffaa00',
++            borderRadius: 2,
++            fontFamily: 'Share Tech Mono, monospace',
++            fontSize: 12,
++            color: '#ffaa00',
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'space-between',
++            flexWrap: 'wrap',
++            gap: 12,
++          }}
++        >
++          <span>⚠ {error}</span>
++          <button
++            onClick={load}
++            style={{
++              background: '#ffaa00',
++              border: 'none',
++              color: '#020b18',
++              fontFamily: 'Rajdhani, sans-serif',
++              fontWeight: 700,
++              fontSize: 12,
++              padding: '4px 14px',
++              borderRadius: 2,
++              cursor: 'pointer',
++              letterSpacing: 1,
++              textTransform: 'uppercase',
++            }}
++          >
++            Retry
++          </button>
++        </div>
++      )}
++
++      <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem', marginBottom:'1.5rem' }}>
+         <KpiCard label="Total Predictions" value={loading?'—':summary.totalPredictions||0}               delta="all time"        color="#00ff88" />
+         <KpiCard label="Avg Threat Score"  value={loading?'—':`${((summary.avgThreatScore||0)*100).toFixed(1)}%`} delta="model output" color="#00d4ff" />
+         <KpiCard label="Anomaly Rate"      value={loading?'—':`${summary.anomalyRate||0}%`}              delta="isolation forest" color="#ffaa00" />
+         <KpiCard label="Avg Inference"     value={loading?'—':`${summary.avgInferenceMs||0}ms`}         delta="per request"      color="#ff2d55" />
+       </div>
+ 
+-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
++      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
+         {/* Class volume chart */}
+         <Panel title="Predictions by Attack Class">
+           <ResponsiveContainer width="100%" height={220}>
+@@ -208,7 +257,7 @@ export default function AIAnalytics() {
+         </Panel>
+       </div>
+ 
+-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
++      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
+         {/* Daily volume */}
+         <Panel title="Daily Prediction Volume — 7 IST Days">
+           <ResponsiveContainer width="100%" height={200}>
+diff --git a/frontend/src/pages/Campaigns.jsx b/frontend/src/pages/Campaigns.jsx
+index 5fb27f8..ba03a9f 100644
+--- a/frontend/src/pages/Campaigns.jsx
++++ b/frontend/src/pages/Campaigns.jsx
+@@ -12,9 +12,11 @@ export default function Campaigns() {
+   const [selectedCampaign, setSelectedCampaign] = useState(null)
+   const [expandedSessionId, setExpandedSessionId] = useState(null)
+   const [loading, setLoading] = useState(true)
++  const [error, setError] = useState(null)
+ 
+   const loadCampaigns = async (silent = false) => {
+     if (!silent) setLoading(true)
++    setError(null)
+     try {
+       const res = await campaignAPI.list()
+       const list = res.data.data || []
+@@ -25,6 +27,7 @@ export default function Campaigns() {
+         if (refreshed) setSelectedCampaign(refreshed)
+       }
+     } catch {
++      setError('Campaign telemetry is unavailable. Retry to load current clusters.')
+       toast.error('Failed to load campaigns')
+     } finally {
+       setLoading(false)
+@@ -89,23 +92,64 @@ export default function Campaigns() {
+         </button>
+       </div>
+ 
++      {error && (
++        <div
++          role="alert"
++          style={{
++            padding: '12px 16px',
++            marginBottom: '1.25rem',
++            background: 'rgba(255, 170, 0, 0.1)',
++            border: '1px solid #ffaa00',
++            borderRadius: 2,
++            fontFamily: 'Share Tech Mono, monospace',
++            fontSize: 12,
++            color: '#ffaa00',
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'space-between',
++            flexWrap: 'wrap',
++            gap: 12,
++          }}
++        >
++          <span>⚠ {error}</span>
++          <button
++            onClick={() => loadCampaigns()}
++            style={{
++              background: '#ffaa00',
++              border: 'none',
++              color: '#020b18',
++              fontFamily: 'Rajdhani, sans-serif',
++              fontWeight: 700,
++              fontSize: 12,
++              padding: '4px 14px',
++              borderRadius: 2,
++              cursor: 'pointer',
++              letterSpacing: 1,
++              textTransform: 'uppercase',
++            }}
++          >
++            Retry
++          </button>
++        </div>
++      )}
++
+       {/* KPIs Grid */}
+-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
++      <div className="dashboard-grid dashboard-kpis" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
+         <KpiCard label="Detected Campaigns" value={loading ? '—' : totalCampaigns} delta="clusters found" color="#00d4ff" />
+         <KpiCard label="Clustered IPs" value={loading ? '—' : uniqueIPs} delta="coordinated nodes" color="#ffaa00" />
+         <KpiCard label="Max Deception" value={loading ? '—' : maxDeception} delta="high reward triggers" color="#ff2d55" />
+         <KpiCard label="Avg Sessions / Campaign" value={loading ? '—' : avgSessions} delta="persistence count" color="#00ff88" />
+       </div>
+ 
+-      <div style={{ display: 'grid', gridTemplateColumns: selectedCampaign ? '1.2fr 1fr' : '1fr', gap: '1rem', transition: 'all 0.3s' }}>
++      <div className={`dashboard-grid ${selectedCampaign ? 'dashboard-grid-two' : ''}`} style={{ gap: '1rem', transition: 'all 0.3s' }}>
+         {/* Main Campaigns List Panel */}
+         <Panel title="Active Attack Campaigns" badge={`${campaigns.length} Active`} badgeType="info">
+-          <div style={{ overflowX: 'auto' }}>
++          <div className="sentinel-table-scroll" role="region" aria-label="Active attack campaigns" tabIndex={0}>
+             {loading ? (
+               <div style={{ textAlign: 'center', padding: '3rem', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
+                 ANALYZING TRAFFIC DATA...
+               </div>
+-            ) : campaigns.length === 0 ? (
++            ) : error ? null : campaigns.length === 0 ? (
+               <div style={{ textAlign: 'center', padding: '3rem', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
+                 No live security events detected. Waiting for real telemetry...
+               </div>
+diff --git a/frontend/src/pages/ChangePassword.jsx b/frontend/src/pages/ChangePassword.jsx
+index 04326c0..2cd7774 100644
+--- a/frontend/src/pages/ChangePassword.jsx
++++ b/frontend/src/pages/ChangePassword.jsx
+@@ -15,6 +15,7 @@ export default function ChangePassword() {
+ 
+   const handleSubmit = async (e) => {
+     if (e) e.preventDefault()
++    if (loading) return
+     setFormError(null)
+ 
+     if (!currentPassword) {
+@@ -169,7 +170,7 @@ export default function ChangePassword() {
+             </div>
+           )}
+ 
+-          <form onSubmit={handleSubmit}>
++          <form onSubmit={handleSubmit} noValidate>
+             <div style={{ marginBottom: '1.25rem' }}>
+               <label htmlFor="current-password" style={labelStyle}>
+                 Current Password
+diff --git a/frontend/src/pages/Dashboard.jsx b/frontend/src/pages/Dashboard.jsx
+index 339e3f3..861dec4 100644
+--- a/frontend/src/pages/Dashboard.jsx
++++ b/frontend/src/pages/Dashboard.jsx
+@@ -8,6 +8,7 @@ import {
+ import DashboardLayout from '../layouts/DashboardLayout.jsx'
+ import KpiCard   from '../components/KpiCard.jsx'
+ import Panel     from '../components/Panel.jsx'
++import ErrorBoundary from '../components/ErrorBoundary.jsx'
+ import LiveFeed  from '../components/LiveFeed.jsx'
+ import StatusBar from '../components/StatusBar.jsx'
+ import SeverityBadge from '../components/SeverityBadge.jsx'
+@@ -159,7 +160,8 @@ export default function Dashboard() {
+   // Section 1: 24h chart + live feed
+   const activityAndFeedSection = (
+     <div key="activity-feed" className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
+-      <Panel title="Threat Activity — Today (IST)" badge="● LIVE" badgeType="live">
++      <ErrorBoundary compact>
++        <Panel title="Threat Activity — Today (IST)" badge="● LIVE" badgeType="live">
+         <ResponsiveContainer width="100%" height={220}>
+           <LineChart data={hourly24}>
+             <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
+@@ -177,15 +179,19 @@ export default function Dashboard() {
+           </div>
+         )}
+       </Panel>
+-      <Panel title="Live Attack Feed" badge="● STREAMING" badgeType="live">
++      </ErrorBoundary>
++      <ErrorBoundary compact>
++        <Panel title="Live Attack Feed" badge="● STREAMING" badgeType="live">
+         <LiveFeed />
+       </Panel>
++      </ErrorBoundary>
+     </div>
+   )
+ 
+   // Section 2: Active threat queue table
+   const threatQueueSection = (
+-    <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.length} active`} badgeType="live" style={{ marginBottom:'1rem' }}>
++    <ErrorBoundary key="threat-queue" compact>
++      <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.length} active`} badgeType="live" style={{ marginBottom:'1rem' }}>
+       <div className="sentinel-table-scroll" role="region" aria-label="Active threat queue" tabIndex={0}>
+       <table style={{ width:'100%', minWidth: 680, borderCollapse:'collapse' }}>
+         <thead>
+@@ -228,7 +234,7 @@ export default function Dashboard() {
+                   </span>
+                 ) : (
+                   <button onClick={async()=>{
+-                    try{ await threatAPI.blockIP(t._id); toast.error(`IP ${t.sourceIP} blocked`) }
++                    try{ await threatAPI.blockIP(t._id); toast.success(`IP ${t.sourceIP} blocked successfully`); load() }
+                     catch(e){ toast.error('Block failed') }
+                   }} style={{ background:'none', border:'1px solid #0d3352', color:'#3a6a88',
+                     fontSize:11, fontFamily:'Share Tech Mono,monospace', padding:'4px 10px',
+@@ -249,12 +255,14 @@ export default function Dashboard() {
+       </table>
+       </div>
+     </Panel>
++    </ErrorBoundary>
+   )
+ 
+   // Section 3: Honeypot + Top Attack Types + System Health
+   const telemetryAndNodesSection = (
+     <div key="telemetry-nodes" className="dashboard-grid dashboard-grid-three" style={{ gap:'1rem', marginBottom:'1rem' }}>
+-      <Panel title="Honeypot Nodes" badge={`${nodes.filter(n=>n.status==='active').length} ACTIVE`} badgeType="ok">
++      <ErrorBoundary compact>
++        <Panel title="Honeypot Nodes" badge={`${nodes.filter(n=>n.status==='active').length} ACTIVE`} badgeType="ok">
+         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+           {nodes.map(hp => (
+             <div key={hp.name} style={{ background:'#041120', border:'1px solid #0d3352', borderRadius:2, padding:12 }}>
+@@ -274,8 +282,10 @@ export default function Dashboard() {
+           )}
+         </div>
+       </Panel>
++      </ErrorBoundary>
+ 
+-      <Panel title="Top Attack Types" badge="ALL TIME" badgeType="info">
++      <ErrorBoundary compact>
++        <Panel title="Top Attack Types" badge="ALL TIME" badgeType="info">
+         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
+           {(charts.byAttackType||[]).slice(0,4).map(a => {
+             const max = charts.byAttackType?.[0]?.count || 1
+@@ -299,8 +309,10 @@ export default function Dashboard() {
+           )}
+         </div>
+       </Panel>
++      </ErrorBoundary>
+ 
+-      <Panel title="System Telemetry" badge={userRole === 'viewer' ? "MONITORING" : (systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING")} badgeType={userRole === 'viewer' ? "info" : (systemHealth?.database?.status === 'connected' ? "ok" : "warn")}>
++      <ErrorBoundary compact>
++        <Panel title="System Telemetry" badge={userRole === 'viewer' ? "MONITORING" : (systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING")} badgeType={userRole === 'viewer' ? "info" : (systemHealth?.database?.status === 'connected' ? "ok" : "warn")}>
+         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
+           {[
+             {
+@@ -353,13 +365,15 @@ export default function Dashboard() {
+           ))}
+         </div>
+       </Panel>
++      </ErrorBoundary>
+     </div>
+   )
+ 
+   // Section 4: Severity donut + Weekly trend
+   const chartsSection = (
+     <div key="charts-row" className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
+-      <Panel title="Threat Severity (Today)" badge="LIVE" badgeType="live">
++      <ErrorBoundary compact>
++        <Panel title="Threat Severity (Today)" badge="LIVE" badgeType="live">
+         <ResponsiveContainer width="100%" height={200}>
+           <PieChart>
+             <Pie data={sevData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
+@@ -375,8 +389,10 @@ export default function Dashboard() {
+           </div>
+         )}
+       </Panel>
++      </ErrorBoundary>
+ 
+-      <Panel title="Threat Trend — 7 IST Days" badge="7-DAY" badgeType="live">
++      <ErrorBoundary compact>
++        <Panel title="Threat Trend — 7 IST Days" badge="7-DAY" badgeType="live">
+         <ResponsiveContainer width="100%" height={200}>
+           <BarChart data={charts.weeklyTrend||[]}>
+             <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
+@@ -396,12 +412,14 @@ export default function Dashboard() {
+           </div>
+         )}
+       </Panel>
++      </ErrorBoundary>
+     </div>
+   )
+ 
+   // Section 5: Attack vector stacked
+   const vectorTrendSection = (
+-    <Panel key="vector-trend" title="Attack Vector Distribution — 7 IST Days" badge="TREND" badgeType="live" style={{ marginBottom:'1rem' }}>
++    <ErrorBoundary key="vector-trend" compact>
++      <Panel key="vector-trend" title="Attack Vector Distribution — 7 IST Days" badge="TREND" badgeType="live" style={{ marginBottom:'1rem' }}>
+       <ResponsiveContainer width="100%" height={220}>
+         <BarChart data={vectorData}>
+           <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
+@@ -420,6 +438,7 @@ export default function Dashboard() {
+         </div>
+       )}
+     </Panel>
++    </ErrorBoundary>
+   )
+ 
+   return (
+diff --git a/frontend/src/pages/HoneypotAnalytics.jsx b/frontend/src/pages/HoneypotAnalytics.jsx
+index bd9bde4..cbb0c58 100644
+--- a/frontend/src/pages/HoneypotAnalytics.jsx
++++ b/frontend/src/pages/HoneypotAnalytics.jsx
+@@ -19,9 +19,11 @@ export default function HoneypotAnalytics() {
+   const [sessions,  setSessions]  = useState([])
+   const [nodes,     setNodes]     = useState([])
+   const [loading,   setLoading]   = useState(true)
++  const [error,     setError]     = useState(null)
+   const { connected, on } = useSocket()
+ 
+   const load = async () => {
++    setError(null)
+     try {
+       const [aRes, sRes, nRes] = await Promise.all([
+         honeypotAPI.analytics(),
+@@ -31,7 +33,10 @@ export default function HoneypotAnalytics() {
+       setAnalytics(aRes.data.data)
+       setSessions(sRes.data.data || [])
+       setNodes(nRes.data.data?.nodes || [])
+-    } catch { toast.error('Failed to load honeypot data') }
++    } catch {
++      setError('Honeypot telemetry is unavailable. Retry to load current sessions and nodes.')
++      toast.error('Failed to load honeypot data')
++    }
+     finally { setLoading(false) }
+   }
+ 
+@@ -68,14 +73,55 @@ export default function HoneypotAnalytics() {
+         </span>
+       </div>
+ 
+-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
++      {error && (
++        <div
++          role="alert"
++          style={{
++            padding: '12px 16px',
++            marginBottom: '1.25rem',
++            background: 'rgba(255, 170, 0, 0.1)',
++            border: '1px solid #ffaa00',
++            borderRadius: 2,
++            fontFamily: 'Share Tech Mono, monospace',
++            fontSize: 12,
++            color: '#ffaa00',
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'space-between',
++            flexWrap: 'wrap',
++            gap: 12,
++          }}
++        >
++          <span>⚠ {error}</span>
++          <button
++            onClick={load}
++            style={{
++              background: '#ffaa00',
++              border: 'none',
++              color: '#020b18',
++              fontFamily: 'Rajdhani, sans-serif',
++              fontWeight: 700,
++              fontSize: 12,
++              padding: '4px 14px',
++              borderRadius: 2,
++              cursor: 'pointer',
++              letterSpacing: 1,
++              textTransform: 'uppercase',
++            }}
++          >
++            Retry
++          </button>
++        </div>
++      )}
++
++      <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem', marginBottom:'1.5rem' }}>
+         <KpiCard label="Sessions Today"    value={loading?'—':kpis.totalToday||0}              delta="today"             color="#00d4ff" />
+         <KpiCard label="Unique Attackers"  value={loading?'—':kpis.uniqueIPsToday||0}          delta="distinct IPs"      color="#ffaa00" />
+         <KpiCard label="Avg Engagement"    value={loading?'—':fmtDuration(kpis.avgDurationSecs||0)} delta="per session"  color="#00ff88" />
+         <KpiCard label="Deception Score"   value={loading?'—':`${kpis.avgDeceptionScore||0}`}  delta="avg RL reward"     color="#8b5cf6" />
+       </div>
+ 
+-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
++      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
+         {/* Sessions list */}
+         <Panel title="Attacker Sessions" badge="LIVE" badgeType="live">
+           <div style={{ maxHeight:320, overflowY:'auto' }}>
+@@ -173,7 +219,7 @@ export default function HoneypotAnalytics() {
+ 
+       {/* Node status grid */}
+       <Panel title="Honeypot Nodes">
+-        <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem' }}>
++        <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem' }}>
+           {nodes.map(hp=>(
+             <div key={hp.name} style={{ background:'#041120', border:'1px solid #0d3352', borderRadius:2, padding:'1.25rem' }}>
+               <div style={{ fontFamily:'Orbitron,sans-serif', fontSize:10, fontWeight:700, color:'#7ab3cc', letterSpacing:1, marginBottom:8 }}>{hp.name}</div>
+diff --git a/frontend/src/pages/Landing.jsx b/frontend/src/pages/Landing.jsx
+index 0eb3425..2331235 100644
+--- a/frontend/src/pages/Landing.jsx
++++ b/frontend/src/pages/Landing.jsx
+@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
+ import { useNavigate } from 'react-router-dom'
+ import Navbar from '../components/Navbar.jsx'
+ import { threatAPI, honeypotAPI, aiAPI } from '../services/api.js'
++import { useAuth } from '../hooks/useAuth.js'
+ 
+ function animateCounter(el, target, suffix = '') {
+   if (!el) return
+@@ -19,10 +20,30 @@ function animateCounter(el, target, suffix = '') {
+ 
+ export default function Landing() {
+   const navigate = useNavigate()
++  const { user } = useAuth()
+   const cnt1 = useRef(); const cnt2 = useRef(); const cnt3 = useRef(); const cnt4 = useRef()
+ 
+   useEffect(() => {
+     let isMounted = true
++
++    // Safe fallback metrics for unauthenticated showcase visitors
++    // TODO: Implement an unauthenticated public aggregation endpoint (e.g., GET /api/public/stats)
++    // on the backend to stream live showcase metrics without requiring an operator JWT.
++    const fallbackStats = {
++      blocked: 2341,
++      analyzed: 14823,
++      honeypot: 312,
++      accuracy: 94,
++    }
++
++    if (!user) {
++      animateCounter(cnt1.current, fallbackStats.blocked)
++      animateCounter(cnt2.current, fallbackStats.analyzed)
++      animateCounter(cnt3.current, fallbackStats.honeypot)
++      animateCounter(cnt4.current, fallbackStats.accuracy, '%')
++      return
++    }
++
+     Promise.all([
+       threatAPI.analytics().catch(() => null),
+       honeypotAPI.analytics().catch(() => null),
+@@ -35,12 +56,11 @@ export default function Landing() {
+       const aiSummary = aRes?.data?.data?.summary || {}
+       const modelInfo = mRes?.data?.data || mRes?.data || {}
+ 
+-      // REAL DATA SOURCE: actual counters from the SentinelAI pipeline
+-      // If 0, counters display 0.
++      // Authenticated operators see real pipeline counters only (0 stays 0); sample values are for anonymous visitors
+       const realBlocked = kpis.blockedCount || 0
+       const realAnalyzed = kpis.totalAllTime || 0
+       const realHoneypot = hpKpis.totalToday || 0
+-      
++
+       let realAccuracy = 0
+       if (aiSummary.verifiedAccuracy) {
+         realAccuracy = Math.round(aiSummary.verifiedAccuracy)
+@@ -48,21 +68,13 @@ export default function Landing() {
+         realAccuracy = Math.round(modelInfo.rfMetrics.accuracy * 100)
+       }
+ 
+-      // ======================================================================
+-      // PRESERVED SIMULATION VALUES (previously hardcoded for demo):
+-      // animateCounter(cnt1.current, 2341)
+-      // animateCounter(cnt2.current, 14823)
+-      // animateCounter(cnt3.current, 312)
+-      // animateCounter(cnt4.current, 94, '%')
+-      // ======================================================================
+-
+       animateCounter(cnt1.current, realBlocked)
+       animateCounter(cnt2.current, realAnalyzed)
+       animateCounter(cnt3.current, realHoneypot)
+       animateCounter(cnt4.current, realAccuracy, '%')
+     })
+     return () => { isMounted = false }
+-  }, [])
++  }, [user])
+ 
+   return (
+     <>
+@@ -139,25 +151,45 @@ export default function Landing() {
+ 
+           {/* Counters */}
+           <div style={{
+-            display: 'flex', gap: '3rem', marginTop: '5rem',
++            display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginTop: '5rem',
+             animation: 'fadeUp .6s .6s ease both',
+           }}>
+-            {[
+-              { ref: cnt1, label: 'Threats Blocked' },
+-              { ref: cnt2, label: 'Attacks Analyzed' },
+-              { ref: cnt3, label: 'Honeypot Sessions' },
+-              { ref: cnt4, label: 'AI Accuracy' },
+-            ].map(({ ref, label }) => (
+-              <div key={label} style={{ textAlign: 'center' }}>
+-                <div ref={ref} style={{
+-                  fontFamily: 'Orbitron,sans-serif', fontSize: 32, fontWeight: 700, color: '#00d4ff',
+-                }}>0</div>
+-                <div style={{
+-                  fontSize: 12, color: '#3a6a88', letterSpacing: 2,
+-                  textTransform: 'uppercase', marginTop: 4,
+-                }}>{label}</div>
+-              </div>
+-            ))}
++            {!user && (
++              <span
++                data-testid="sample-data-badge"
++                style={{
++                  fontFamily: 'Share Tech Mono, monospace',
++                  fontSize: 11,
++                  letterSpacing: 2,
++                  textTransform: 'uppercase',
++                  color: '#ffaa00',
++                  background: 'rgba(255, 170, 0, 0.1)',
++                  border: '1px solid #ffaa00',
++                  padding: '2px 8px',
++                  borderRadius: 2,
++                }}
++              >
++                Sample data
++              </span>
++            )}
++            <div style={{ display: 'flex', gap: '3rem' }}>
++              {[
++                { ref: cnt1, label: 'Threats Blocked' },
++                { ref: cnt2, label: 'Attacks Analyzed' },
++                { ref: cnt3, label: 'Honeypot Sessions' },
++                { ref: cnt4, label: 'AI Accuracy' },
++              ].map(({ ref, label }) => (
++                <div key={label} style={{ textAlign: 'center' }}>
++                  <div ref={ref} style={{
++                    fontFamily: 'Orbitron,sans-serif', fontSize: 32, fontWeight: 700, color: '#00d4ff',
++                  }}>0</div>
++                  <div style={{
++                    fontSize: 12, color: '#3a6a88', letterSpacing: 2,
++                    textTransform: 'uppercase', marginTop: 4,
++                  }}>{label}</div>
++                </div>
++              ))}
++            </div>
+           </div>
+         </section>
+ 
+diff --git a/frontend/src/pages/Login.jsx b/frontend/src/pages/Login.jsx
+index ac77acf..32e452b 100644
+--- a/frontend/src/pages/Login.jsx
++++ b/frontend/src/pages/Login.jsx
+@@ -12,6 +12,7 @@ export default function Login() {
+   const navigate  = useNavigate()
+ 
+   const handleSubmit = async () => {
++    if (loading) return
+     if (!email || !password) { toast.error('Enter credentials'); return }
+     setLoading(true)
+     try {
+diff --git a/frontend/src/pages/Settings.jsx b/frontend/src/pages/Settings.jsx
+index 4425fc9..c1ffc57 100644
+--- a/frontend/src/pages/Settings.jsx
++++ b/frontend/src/pages/Settings.jsx
+@@ -12,6 +12,7 @@ export default function Settings() {
+   const [containmentStatus, setContainmentStatus] = useState(null)
+   const [auditLogs, setAuditLogs] = useState([])
+   const [loading, setLoading] = useState(true)
++  const [error, setError] = useState(null)
+   const [ipInput, setIpInput] = useState('')
+   const [reasonInput, setReasonInput] = useState('')
+   const [submittingBlock, setSubmittingBlock] = useState(false)
+@@ -21,6 +22,8 @@ export default function Settings() {
+   const [modalReason, setModalReason] = useState('')
+ 
+   const loadData = async () => {
++    setLoading(true)
++    setError(null)
+     try {
+       const [settingsRes, blockedRes, containmentRes, auditRes] = await Promise.all([
+         threatAPI.getSettings(),
+@@ -33,10 +36,10 @@ export default function Settings() {
+       setContainmentStatus(containmentRes.data?.data || null)
+       setAuditLogs(auditRes.data?.data || [])
+     } catch (err) {
++      setError('System configuration is unavailable. Retry to load firewall and blocklist state.')
+       toast.error('Failed to load settings data')
+     } finally {
+       setLoading(false)
+-
+     }
+   }
+ 
+@@ -65,10 +68,15 @@ export default function Settings() {
+ 
+   const handleBlockManual = (e) => {
+     e.preventDefault()
+-    if (!ipInput.trim()) {
++    const ip = ipInput.trim()
++    if (!ip) {
+       return toast.error('IP address is required')
+     }
+-    setModalTarget(ipInput.trim())
++    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}|::1|([0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4})?)$/
++    if (!ipRegex.test(ip)) {
++      return toast.error('Please enter a valid IPv4 or IPv6 address')
++    }
++    setModalTarget(ip)
+     setModalReason(reasonInput.trim())
+     setModalOpen(true)
+   }
+@@ -142,6 +150,47 @@ export default function Settings() {
+         // SYSTEM ENFORCEMENT CONFIGURATION & LAB FIREWALL CONTROL
+       </div>
+ 
++      {error && (
++        <div
++          role="alert"
++          style={{
++            padding: '12px 16px',
++            marginBottom: '1.5rem',
++            background: 'rgba(255, 170, 0, 0.1)',
++            border: '1px solid #ffaa00',
++            borderRadius: 2,
++            fontFamily: 'Share Tech Mono, monospace',
++            fontSize: 12,
++            color: '#ffaa00',
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'space-between',
++            flexWrap: 'wrap',
++            gap: 12,
++          }}
++        >
++          <span>⚠ {error}</span>
++          <button
++            onClick={loadData}
++            style={{
++              background: '#ffaa00',
++              border: 'none',
++              color: '#020b18',
++              fontFamily: 'Rajdhani, sans-serif',
++              fontWeight: 700,
++              fontSize: 12,
++              padding: '4px 14px',
++              borderRadius: 2,
++              cursor: 'pointer',
++              letterSpacing: 1,
++              textTransform: 'uppercase',
++            }}
++          >
++            Retry
++          </button>
++        </div>
++      )}
++
+       {loading ? (
+         <div style={{
+           display: 'flex', justifyContent: 'center', alignItems: 'center', height: '200px',
+@@ -286,7 +335,8 @@ export default function Settings() {
+ 
+           {/* Blocklist Table */}
+           <Panel title="Enforced Honeypot Blocklist Queue" badge={`${blockedIPs.length} Blocked`} badgeType="live">
+-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
++            <div className="sentinel-table-scroll" role="region" aria-label="Enforced honeypot blocklist" tabIndex={0}>
++            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
+               <thead>
+                 <tr>
+                   {['Enforced IP', 'Blocked At', 'Triggered By / Author', 'Reason', 'Action'].map(h => (
+@@ -353,6 +403,7 @@ export default function Settings() {
+                 )}
+               </tbody>
+             </table>
++            </div>
+           </Panel>
+ 
+           {/* Security Audit Trail Panel (Admin Only) */}
+@@ -377,7 +428,8 @@ export default function Settings() {
+                 Refresh Log
+               </button>
+             </div>
+-            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
++            <div className="sentinel-table-scroll" role="region" aria-label="Security and compliance audit trail" tabIndex={0}>
++            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', textAlign: 'left' }}>
+               <thead>
+                 <tr style={{ borderBottom: '1px solid #0d3352', color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>
+                   <th style={{ padding: '8px 10px' }}>TIMESTAMP</th>
+@@ -431,6 +483,7 @@ export default function Settings() {
+                 )}
+               </tbody>
+             </table>
++            </div>
+           </Panel>
+           
+         </div>
+diff --git a/frontend/src/pages/ThreatLogs.jsx b/frontend/src/pages/ThreatLogs.jsx
+index 856655a..1d1d2f2 100644
+--- a/frontend/src/pages/ThreatLogs.jsx
++++ b/frontend/src/pages/ThreatLogs.jsx
+@@ -188,7 +188,8 @@ export default function ThreatLogs() {
+             LOADING THREAT LOGS...
+           </div>
+         ) : (
+-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
++          <div className="sentinel-table-scroll" role="region" aria-label="Threat logs" tabIndex={0}>
++          <table style={{ width:'100%', minWidth: 780, borderCollapse:'collapse' }}>
+             <thead><tr>
+               {['Time','Severity','Source IP','Type','Target','Score','Status','Threat Intel','Action'].map(h=>(
+                 <th key={h} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88',
+@@ -349,6 +350,7 @@ export default function ThreatLogs() {
+               )}
+             </tbody>
+           </table>
++          </div>
+         )}
+ 
+         {/* Pagination */}
+diff --git a/frontend/src/pages/UserManagement.jsx b/frontend/src/pages/UserManagement.jsx
+index 0ed51f9..c43a4bd 100644
+--- a/frontend/src/pages/UserManagement.jsx
++++ b/frontend/src/pages/UserManagement.jsx
+@@ -15,6 +15,7 @@ export default function UserManagement() {
+   const [users,   setUsers]   = useState([])
+   const [stats,   setStats]   = useState(null)
+   const [loading, setLoading] = useState(true)
++  const [listError, setListError] = useState(null)
+   const [showProvision, setShowProvision] = useState(false)
+   const [creating, setCreating] = useState(false)
+   const emptyForm = { name: '', email: '', password: '', role: 'viewer', department: 'SOC' }
+@@ -38,16 +39,23 @@ export default function UserManagement() {
+     } finally { setCreating(false) }
+   }
+ 
+-  useEffect(() => {
+-    const load = async () => {
+-      try {
+-        const [uRes, sRes] = await Promise.all([userAPI.list(), userAPI.stats()])
+-        setUsers(uRes.data.data || [])
+-        setStats(sRes.data.data)
+-      } catch { toast.error('Failed to load users') }
+-      finally { setLoading(false) }
++  const loadUsers = async () => {
++    setLoading(true)
++    setListError(null)
++    try {
++      const [uRes, sRes] = await Promise.all([userAPI.list(), userAPI.stats()])
++      setUsers(uRes.data.data || [])
++      setStats(sRes.data.data)
++    } catch {
++      setListError('Failed to load user list. Retry to fetch current operator accounts.')
++      toast.error('Failed to load users')
++    } finally {
++      setLoading(false)
+     }
+-    load()
++  }
++
++  useEffect(() => {
++    loadUsers()
+   }, [])
+ 
+   const deleteUser = async (user) => {
+@@ -98,6 +106,47 @@ export default function UserManagement() {
+         </form>
+       </Panel>}
+ 
++      {listError && (
++        <div
++          role="alert"
++          style={{
++            padding: '12px 16px',
++            marginBottom: '1.25rem',
++            background: 'rgba(255, 170, 0, 0.1)',
++            border: '1px solid #ffaa00',
++            borderRadius: 2,
++            fontFamily: 'Share Tech Mono, monospace',
++            fontSize: 12,
++            color: '#ffaa00',
++            display: 'flex',
++            alignItems: 'center',
++            justifyContent: 'space-between',
++            flexWrap: 'wrap',
++            gap: 12,
++          }}
++        >
++          <span>⚠ {listError}</span>
++          <button
++            onClick={loadUsers}
++            style={{
++              background: '#ffaa00',
++              border: 'none',
++              color: '#020b18',
++              fontFamily: 'Rajdhani, sans-serif',
++              fontWeight: 700,
++              fontSize: 12,
++              padding: '4px 14px',
++              borderRadius: 2,
++              cursor: 'pointer',
++              letterSpacing: 1,
++              textTransform: 'uppercase',
++            }}
++          >
++            Retry
++          </button>
++        </div>
++      )}
++
+       {/* Stats strip */}
+       {stats && (
+         <div style={{ display:'flex', gap:'1rem', marginBottom:'1.5rem' }}>
+@@ -118,7 +167,8 @@ export default function UserManagement() {
+         {loading ? (
+           <div style={{ textAlign:'center', padding:'3rem', color:'#3a6a88', fontFamily:'Share Tech Mono,monospace', fontSize:12 }}>LOADING USERS...</div>
+         ) : (
+-          <table style={{ width:'100%', borderCollapse:'collapse', fontSize:13 }}>
++          <div className="sentinel-table-scroll" role="region" aria-label="User management" tabIndex={0}>
++          <table style={{ width:'100%', minWidth: 640, borderCollapse:'collapse', fontSize:13 }}>
+             <thead><tr>
+               {['','Name','Email','Role','Status','Last Login','Actions'].map(h=>(
+                 <th key={h} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88',
+@@ -171,6 +221,7 @@ export default function UserManagement() {
+               ))}
+             </tbody>
+           </table>
++          </div>
+         )}
+       </Panel>
+     </DashboardLayout>
+diff --git a/frontend/src/services/authClient.js b/frontend/src/services/authClient.js
+index 832f6d1..a895774 100644
+--- a/frontend/src/services/authClient.js
++++ b/frontend/src/services/authClient.js
+@@ -11,13 +11,17 @@ export function createAuthClient({ fetch: request, locks, channel, storage, base
+     clearTimeout(refreshTimer)
+     state = value
+     if (value.token) {
++      try { storage?.setItem('sentinel_has_session', '1') } catch {}
+       try {
+         const claims = JSON.parse(atob(value.token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))
+         if (Number.isFinite(claims.exp)) {
+-          refreshTimer = setTimeout(() => refresh().catch(() => {}), Math.max(1000, claims.exp * 1000 - Date.now() - 30000))
++          const delay = Math.min(2147483647, Math.max(1000, claims.exp * 1000 - Date.now() - 30000))
++          refreshTimer = setTimeout(() => refresh().catch(() => {}), delay)
+           refreshTimer.unref?.()
+         }
+       } catch {}
++    } else {
++      try { storage?.removeItem('sentinel_has_session') } catch {}
+     }
+     listeners.forEach(listener => listener(state))
+   }
+@@ -151,6 +155,9 @@ export function createAuthClient({ fetch: request, locks, channel, storage, base
+     channel?.postMessage({ type: 'session-changed' })
+     return result
+   })
+-  return { login, logout, register, provision, updatePassword, refresh, clear, getState: () => state,
++  const hasSessionHint = () => {
++    try { return storage?.getItem('sentinel_has_session') === '1' } catch { return false }
++  }
++  return { login, logout, register, provision, updatePassword, refresh, clear, hasSessionHint, getState: () => state,
+     subscribe(listener) { listeners.add(listener); listener(state); return () => listeners.delete(listener) } }
+ }
+diff --git a/frontend/src/styles/globals.css b/frontend/src/styles/globals.css
+index 2bb0a7f..79c9a56 100644
+--- a/frontend/src/styles/globals.css
++++ b/frontend/src/styles/globals.css
+@@ -1,4 +1,3 @@
+-@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Rajdhani:wght@300;400;500;600;700&family=Orbitron:wght@400;700;900&display=swap');
+ @tailwind base;
+ @tailwind components;
+ @tailwind utilities;

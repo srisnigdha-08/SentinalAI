@@ -5,6 +5,47 @@ const aiSvc = require('./aiEngineService')
 const { escapeRegex, parsePagination } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
 
+// Must match PROFILES in ai-engine/rl_engine/deception_scorer.py and honeypot/switch_profile.py.
+const DECEPTION_PROFILES = ['ubuntu_22', 'debian_11', 'centos_7', 'windows_srv', 'aws_ec2', 'raspberry_pi']
+const ACTIVE_PROFILE_KEY = 'deceptionActiveProfile'
+
+/**
+ * The persona Cowrie is currently serving. An operator records it (PUT /api/honeypot/deception/profile)
+ * after applying switch_profile.py; DECEPTION_ACTIVE_PROFILE / the shipped CentOS 7 config are fallbacks.
+ */
+const getActiveProfile = async () => {
+  const SystemSetting = require('../models/SystemSetting')
+  const setting = await SystemSetting.findOne({ key: ACTIVE_PROFILE_KEY })
+  if (setting && DECEPTION_PROFILES.includes(setting.value)) return { profile: setting.value, source: 'setting' }
+  if (DECEPTION_PROFILES.includes(process.env.DECEPTION_ACTIVE_PROFILE))
+    return { profile: process.env.DECEPTION_ACTIVE_PROFILE, source: 'env' }
+  return { profile: 'centos_7', source: 'default' }
+}
+
+const setActiveProfile = async (profile) => {
+  if (!DECEPTION_PROFILES.includes(profile)) {
+    const error = new Error(`Unknown deception profile. Allowed: ${DECEPTION_PROFILES.join(', ')}`)
+    error.statusCode = 400
+    throw error
+  }
+  const SystemSetting = require('../models/SystemSetting')
+  await SystemSetting.findOneAndUpdate({ key: ACTIVE_PROFILE_KEY }, { value: profile }, { upsert: true, new: true })
+  return profile
+}
+
+const findPreviousServedProfile = async (excludeId) => {
+  try {
+    return await HoneypotSession.findOne({ _id: { $ne: excludeId }, servedProfile: { $ne: null } })
+      .sort({ createdAt: -1 })
+      .select('servedProfile')
+      .lean()
+  } catch (err) {
+    // Without a previous session the learner falls back to its in-memory last state.
+    logger.debug('[HP] Previous served profile lookup failed: ' + err.message)
+    return null
+  }
+}
+
 const findSessions = async ({ page = 1, limit = 20, node, status, ip } = {}) => {
   const {
     page: safePage,
@@ -118,6 +159,10 @@ const analyseClosure = async (session, telemetry) => {
     if (typeof telemetry.hassh === 'string') session.hassh = telemetry.hassh
   }
   session.status = 'closed'
+  // Credit the reward to the persona actually served, and give the learner the persona served in the
+  // previous session as its state, so a recorded profile switch becomes a real state transition.
+  if (!session.servedProfile) session.servedProfile = (await getActiveProfile()).profile
+  const previous = await findPreviousServedProfile(session._id)
   const payload = {
     sessionId: session.sessionId,
     sourceIP: session.sourceIP,
@@ -125,7 +170,10 @@ const analyseClosure = async (session, telemetry) => {
     loginSucceeded: session.credentials.some((c) => c.success),
     commands: session.commands,
     iocCount: session.iocExtracted?.urls?.length || 0,
-    deceptionProfile: session.recommendedProfile || 'ubuntu_22',
+    // The persona Cowrie actually served. Recommendations are not applied automatically, so this is
+    // the recorded active profile, not session.recommendedProfile.
+    deceptionProfile: session.servedProfile,
+    previousProfile: previous?.servedProfile || undefined,
   }
   // Only pass startTime if the session stores a trustworthy event timestamp; never substitute processing time
   if (session.startTime && (session.startTime instanceof Date || typeof session.startTime === 'string')) {
@@ -156,7 +204,8 @@ const analyseClosure = async (session, telemetry) => {
         predictedClass: session.aiClassification || 'SSH Brute Force',
         classProbabilities: aiResult.classProbabilities,
         threatScore: score,
-        modelVersion: aiResult.modelVersion || 'v2.1',
+        // Session features are rule-synthesised (see predictor.predict_from_honeypot); say so in the record
+        modelVersion: `${aiResult.modelVersion || 'v2.1'}+${aiResult.classificationMethod || 'rule_profile_synthetic_flow'}`,
         modelType: 'random_forest',
         isAnomaly: aiResult.isAnomaly || false,
         anomalyScore: aiResult.anomalyScore || 0,
@@ -248,7 +297,13 @@ const analyseClosure = async (session, telemetry) => {
       }
     } else if (!predictionCreatedThreat && shouldBlock) {
       const BlockedIP = require('../models/BlockedIP')
+      const { checkTargetSafety } = require('./containmentPolicyService')
+      const safety = checkTargetSafety(session.sourceIP)
       try {
+        if (!safety.isSafe) {
+          logger.warn(`[AI Auto-Block Session] Refused for ${session.sourceIP}: ${safety.reason}`)
+          return finishClosure(session, payload)
+        }
         const block = await BlockedIP.findOneAndUpdate(
           { ip: session.sourceIP },
           {
@@ -267,8 +322,8 @@ const analyseClosure = async (session, telemetry) => {
           const socketManager = require('../websocket/socketManager')
           const alertService = require('./alertService')
           const alert = await alertService.createAlert({
-            title: 'IP Address Blocked (Auto)',
-            message: `IP ${session.sourceIP} blocked automatically by AI Honeypot Classifier (Score: ${Math.round(score * 100)}%)`,
+            title: 'IP Added to Deny-List (Auto)',
+            message: `IP ${session.sourceIP} added to the SentinelAI deny-list by the honeypot session scorer (Score: ${Math.round(score * 100)}%). Enforced by the honeypot blocker only; no host firewall rule was applied.`,
             severity: 'HIGH',
             type: 'IP_BLOCKED',
             sourceRef: { refModel: 'HoneypotSession', refId: session._id },
@@ -385,12 +440,9 @@ const getFullAnalytics = async (now = new Date()) => {
 
 const getNodeStatus = async (now = new Date()) => {
   const today = reportTime.filter(1, now)
-  const NODES = [
-    { name: 'SSH-COWRIE-01', protocol: 'SSH', port: 2222 },
-    { name: 'HTTP-LURE-02', protocol: 'HTTP', port: 8080 },
-    { name: 'FTP-TRAP-03', protocol: 'FTP', port: 21 },
-    { name: 'SMTP-DECOY-04', protocol: 'SMTP', port: 25 },
-  ]
+  // Only nodes that exist in this repository. HTTP/FTP/SMTP decoys were listed here previously but
+  // were never implemented; do not re-add them without a real collector.
+  const NODES = [{ name: 'SSH-COWRIE-01', protocol: 'SSH', port: 2222 }]
   return Promise.all(
     NODES.map(async (node) => {
       const [sessionsToday, activeSessions] = await Promise.all([
@@ -411,4 +463,7 @@ module.exports = {
   closeSession,
   getFullAnalytics,
   getNodeStatus,
+  getActiveProfile,
+  setActiveProfile,
+  DECEPTION_PROFILES,
 }

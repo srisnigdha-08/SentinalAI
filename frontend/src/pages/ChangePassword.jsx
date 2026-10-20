@@ -15,6 +15,7 @@ export default function ChangePassword() {
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault()
+    if (loading) return
     setFormError(null)
 
     if (!currentPassword) {
@@ -169,7 +170,7 @@ export default function ChangePassword() {
             </div>
           )}
 
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} noValidate>
             <div style={{ marginBottom: '1.25rem' }}>
               <label htmlFor="current-password" style={labelStyle}>
                 Current Password

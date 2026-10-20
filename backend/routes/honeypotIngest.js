@@ -4,12 +4,12 @@ const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { isValidIP, parseDate } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
 
+const { isHoneypotKey, isSentinelKey } = require('../utils/apiKeys')
+
 const internalAuth = (req, res, next) => {
   const key = req.headers['x-api-key']
   if (!key) return sendError(res, 'Missing API key', 401)
-  const isHoneypot = Boolean(process.env.HONEYPOT_API_KEY && key === process.env.HONEYPOT_API_KEY)
-  const isSentinel = Boolean(process.env.SENTINEL_KEY && key === process.env.SENTINEL_KEY)
-  if (!isHoneypot && !isSentinel) return sendError(res, 'Invalid API key', 401)
+  if (!isHoneypotKey(key) && !isSentinelKey(key)) return sendError(res, 'Invalid API key', 401)
   next()
 }
 
@@ -243,7 +243,10 @@ router.post('/command', internalAuth, async (req, res, next) => {
     const invalid = telemetryError(req.body, 'COMMAND_INPUT')
     if (invalid) return sendError(res, invalid, 400)
     const c = getCollector()
-    const s = c ? await c.onCommandReceived(req.body, req.app.get('io')) : null
+    // Intent and malware flags are derived server-side; caller-supplied values are not trusted.
+    const intent = c ? c.classifyIntent(req.body.command) : 'UNKNOWN'
+    const data = { ...req.body, intent, isMalware: intent === 'MALWARE_DOWNLOAD' }
+    const s = c ? await c.onCommandReceived(data, req.app.get('io')) : null
     if (!s) return sendError(res, 'Honeypot session not found', 404)
     sendSuccess(res, { received: true, deceptionScore: s?.deceptionScore })
   } catch (err) {

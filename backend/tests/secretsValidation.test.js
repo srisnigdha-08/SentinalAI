@@ -122,6 +122,11 @@ describe('Phase 1.2: Environment Secrets Validation & Safe Failure', () => {
     expect(() => validateEnv(env)).toThrow(/ADMIN_INITIAL_PASSWORD must be at least 8 characters/i)
   })
 
+  test('fails safely when ADMIN_INITIAL_PASSWORD is the template placeholder', () => {
+    const env = { ...validBaseEnv, ADMIN_INITIAL_PASSWORD: 'CHANGE_ME_secure_initial_password_min_8_chars' }
+    expect(() => validateEnv(env)).toThrow(/ADMIN_INITIAL_PASSWORD contains an insecure default/i)
+  })
+
   // ── .env.demo.example Placeholders ──
   test('fails safely when any secret contains .env.demo.example placeholder values', () => {
     const demoPlaceholders = [

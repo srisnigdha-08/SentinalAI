@@ -72,7 +72,12 @@ const lim = rateLimit({
 })
 const { defaultShutdownManager } = require('./utils/gracefulShutdown')
 app.use(defaultShutdownManager.middleware())
-const authLim = rateLimit({ windowMs: 900000, max: 100, message: { success: false, error: 'Too many auth attempts' } })
+const authLim = rateLimit({
+  windowMs: 900000,
+  max: process.env.NODE_ENV === 'test' ? 100000 : 100,
+  message: { success: false, error: 'Too many auth attempts' },
+  skip: () => process.env.NODE_ENV === 'test',
+})
 app.use('/api', lim)
 app.use('/api/auth/login', authLim)
 app.use('/api/auth/register', authLim)
@@ -216,11 +221,26 @@ app.use('/api/ai', require('./routes/aiEngine'))
 app.use('/api/training-samples', require('./routes/trainingSamples'))
 app.use('/api/system/outbox', require('./routes/systemOutbox'))
 app.use('/api/audit', require('./routes/audit'))
+
+// Unauthenticated E2E hook: requires both flags so a stray ALLOW_TEST_ROUTES can't expose it outside tests
+if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_ROUTES === 'true') {
+  app.post('/api/test/emit-socket', (req, res) => {
+    const { event, data, payload, room } = req.body || {}
+    const eventData = data !== undefined ? data : payload
+    if (!event) return res.status(400).json({ error: 'event is required' })
+    if (room) {
+      io.to(room).emit(event, eventData)
+    } else {
+      io.emit(event, eventData)
+    }
+    res.json({ success: true, emitted: event, data: eventData, clientCount: io.engine.clientsCount })
+  })
+}
 app.use(notFound)
 
 app.use(errorHandler)
 const PORT = process.env.PORT || 5000
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
   connectDB()
     .then(async () => {
       await revocationDelivery.start()
@@ -258,7 +278,7 @@ defaultShutdownManager.registerService({
   },
 })
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
   defaultShutdownManager.attachSignalHandlers()
 }
 

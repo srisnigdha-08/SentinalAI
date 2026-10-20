@@ -22,6 +22,12 @@ const getContainmentAdapter = (options = {}) => {
 
   const requestedBackend = options.backend || process.env.CONTAINMENT_BACKEND || 'mock'
 
+  if (process.env.NODE_ENV === 'test' || process.env.CONTAINMENT_DRY_RUN === 'true') {
+    logger.info('[AdapterFactory] Safety lock: Test environment or CONTAINMENT_DRY_RUN detected. Forcing MockContainmentAdapter.')
+    currentAdapter = new MockContainmentAdapter()
+    return currentAdapter
+  }
+
   if (requestedBackend === 'windows-firewall' && process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true') {
     logger.info('[AdapterFactory] Initializing WindowsFirewallAdapter (REAL ENFORCEMENT)')
     currentAdapter = new WindowsFirewallAdapter({ enabled: true })

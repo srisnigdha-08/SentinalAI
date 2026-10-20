@@ -8,6 +8,7 @@ import {
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import KpiCard   from '../components/KpiCard.jsx'
 import Panel     from '../components/Panel.jsx'
+import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import LiveFeed  from '../components/LiveFeed.jsx'
 import StatusBar from '../components/StatusBar.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
@@ -15,6 +16,7 @@ import { threatAPI, honeypotAPI, systemAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
+import { denyListRecorded } from '../utils/containmentLabels.js'
 
 const SEV_COLORS = { CRITICAL:'#ff2d55', HIGH:'#ff6400', MEDIUM:'#ffaa00', LOW:'#00d4ff' }
 const VECTOR_COLORS = {
@@ -159,7 +161,8 @@ export default function Dashboard() {
   // Section 1: 24h chart + live feed
   const activityAndFeedSection = (
     <div key="activity-feed" className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
-      <Panel title="Threat Activity — Today (IST)" badge="● LIVE" badgeType="live">
+      <ErrorBoundary compact>
+        <Panel title="Threat Activity — Today (IST)" badge="● LIVE" badgeType="live">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={hourly24}>
             <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
@@ -177,15 +180,19 @@ export default function Dashboard() {
           </div>
         )}
       </Panel>
-      <Panel title="Live Attack Feed" badge="● STREAMING" badgeType="live">
+      </ErrorBoundary>
+      <ErrorBoundary compact>
+        <Panel title="Live Attack Feed" badge="● STREAMING" badgeType="live">
         <LiveFeed />
       </Panel>
+      </ErrorBoundary>
     </div>
   )
 
   // Section 2: Active threat queue table
   const threatQueueSection = (
-    <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.length} active`} badgeType="live" style={{ marginBottom:'1rem' }}>
+    <ErrorBoundary key="threat-queue" compact>
+      <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.length} active`} badgeType="live" style={{ marginBottom:'1rem' }}>
       <div className="sentinel-table-scroll" role="region" aria-label="Active threat queue" tabIndex={0}>
       <table style={{ width:'100%', minWidth: 680, borderCollapse:'collapse' }}>
         <thead>
@@ -228,8 +235,8 @@ export default function Dashboard() {
                   </span>
                 ) : (
                   <button onClick={async()=>{
-                    try{ await threatAPI.blockIP(t._id); toast.error(`IP ${t.sourceIP} blocked`) }
-                    catch(e){ toast.error('Block failed') }
+                    try{ await threatAPI.blockIP(t._id); toast.success(denyListRecorded(t.sourceIP)); load() }
+                    catch(e){ toast.error(e.response?.data?.error || 'Block failed') }
                   }} style={{ background:'none', border:'1px solid #0d3352', color:'#3a6a88',
                     fontSize:11, fontFamily:'Share Tech Mono,monospace', padding:'4px 10px',
                     cursor:'pointer', borderRadius:1 }}
@@ -249,12 +256,14 @@ export default function Dashboard() {
       </table>
       </div>
     </Panel>
+    </ErrorBoundary>
   )
 
   // Section 3: Honeypot + Top Attack Types + System Health
   const telemetryAndNodesSection = (
     <div key="telemetry-nodes" className="dashboard-grid dashboard-grid-three" style={{ gap:'1rem', marginBottom:'1rem' }}>
-      <Panel title="Honeypot Nodes" badge={`${nodes.filter(n=>n.status==='active').length} ACTIVE`} badgeType="ok">
+      <ErrorBoundary compact>
+        <Panel title="Honeypot Nodes" badge={`${nodes.filter(n=>n.status==='active').length} ACTIVE`} badgeType="ok">
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           {nodes.map(hp => (
             <div key={hp.name} style={{ background:'#041120', border:'1px solid #0d3352', borderRadius:2, padding:12 }}>
@@ -274,8 +283,10 @@ export default function Dashboard() {
           )}
         </div>
       </Panel>
+      </ErrorBoundary>
 
-      <Panel title="Top Attack Types" badge="ALL TIME" badgeType="info">
+      <ErrorBoundary compact>
+        <Panel title="Top Attack Types" badge="ALL TIME" badgeType="info">
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {(charts.byAttackType||[]).slice(0,4).map(a => {
             const max = charts.byAttackType?.[0]?.count || 1
@@ -299,8 +310,10 @@ export default function Dashboard() {
           )}
         </div>
       </Panel>
+      </ErrorBoundary>
 
-      <Panel title="System Telemetry" badge={userRole === 'viewer' ? "MONITORING" : (systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING")} badgeType={userRole === 'viewer' ? "info" : (systemHealth?.database?.status === 'connected' ? "ok" : "warn")}>
+      <ErrorBoundary compact>
+        <Panel title="System Telemetry" badge={userRole === 'viewer' ? "MONITORING" : (systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING")} badgeType={userRole === 'viewer' ? "info" : (systemHealth?.database?.status === 'connected' ? "ok" : "warn")}>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           {[
             {
@@ -353,13 +366,15 @@ export default function Dashboard() {
           ))}
         </div>
       </Panel>
+      </ErrorBoundary>
     </div>
   )
 
   // Section 4: Severity donut + Weekly trend
   const chartsSection = (
     <div key="charts-row" className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
-      <Panel title="Threat Severity (Today)" badge="LIVE" badgeType="live">
+      <ErrorBoundary compact>
+        <Panel title="Threat Severity (Today)" badge="LIVE" badgeType="live">
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
             <Pie data={sevData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
@@ -375,8 +390,10 @@ export default function Dashboard() {
           </div>
         )}
       </Panel>
+      </ErrorBoundary>
 
-      <Panel title="Threat Trend — 7 IST Days" badge="7-DAY" badgeType="live">
+      <ErrorBoundary compact>
+        <Panel title="Threat Trend — 7 IST Days" badge="7-DAY" badgeType="live">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={charts.weeklyTrend||[]}>
             <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
@@ -396,12 +413,14 @@ export default function Dashboard() {
           </div>
         )}
       </Panel>
+      </ErrorBoundary>
     </div>
   )
 
   // Section 5: Attack vector stacked
   const vectorTrendSection = (
-    <Panel key="vector-trend" title="Attack Vector Distribution — 7 IST Days" badge="TREND" badgeType="live" style={{ marginBottom:'1rem' }}>
+    <ErrorBoundary key="vector-trend" compact>
+      <Panel key="vector-trend" title="Attack Vector Distribution — 7 IST Days" badge="TREND" badgeType="live" style={{ marginBottom:'1rem' }}>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={vectorData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
@@ -420,6 +439,7 @@ export default function Dashboard() {
         </div>
       )}
     </Panel>
+    </ErrorBoundary>
   )
 
   return (

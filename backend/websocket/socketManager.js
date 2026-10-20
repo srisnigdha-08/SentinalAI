@@ -266,7 +266,7 @@ const emitAIPrediction = (p) => {
   }
 
   _io.to(['admin', 'analyst']).emit('ai_prediction', rawPred)
-  _io.to(['viewer', 'threat_subscribers_viewer', 'threat_subscribers', 'all']).emit(
+  _io.to(['viewer', 'threat_subscribers_viewer']).emit(
     'ai_prediction',
     redactAIPrediction(rawPred, 'viewer')
   )
@@ -275,7 +275,7 @@ const emitAIPrediction = (p) => {
 const emitHoneypotEvent = (eventType, data) => {
   if (!_io) return
   _io.to(['admin', 'analyst']).emit(eventType, { ...data, timestamp: new Date().toISOString() })
-  _io.to(['viewer', 'all']).emit(eventType, { ...redactHoneypotSession(data, 'viewer'), timestamp: new Date().toISOString() })
+  _io.to('viewer').emit(eventType, { ...redactHoneypotSession(data, 'viewer'), timestamp: new Date().toISOString() })
 
   const msgs = {
     honeypot_session_opened: 'Honeypot session from ' + data.sourceIP + ' on ' + data.honeypotNode,
@@ -293,7 +293,7 @@ const emitHoneypotEvent = (eventType, data) => {
     })
 
     const safeIP = redactIP(data.sourceIP)
-    _io.to(['viewer', 'all']).emit('live_feed_event', {
+    _io.to('viewer').emit('live_feed_event', {
       type: 'honeypot',
       sev: eventType === 'malware_download' ? 'CRITICAL' : 'HIGH',
       ip: safeIP,

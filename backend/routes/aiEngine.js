@@ -9,26 +9,7 @@ const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonical
 const { redactAIPrediction } = require('../utils/redact')
 
 
-// Scoped internal API-key or JWT user authentication middleware
-const internalOrUserAuth = (req, res, next) => {
-  const apiKey = req.headers['x-api-key']
-  const isInternal = Boolean(
-    apiKey &&
-    ((process.env.SENTINEL_KEY && apiKey === process.env.SENTINEL_KEY) ||
-      (process.env.HONEYPOT_API_KEY && apiKey === process.env.HONEYPOT_API_KEY))
-  )
-
-  if (isInternal) {
-    // Valid internal service call. Do NOT assign administrative privileges.
-    return next()
-  }
-
-  // Otherwise, fallback to standard JWT protection and authorization checks
-  protect(req, res, (err) => {
-    if (err) return next(err)
-    restrictTo('admin', 'analyst')(req, res, next)
-  })
-}
+const { isHoneypotKey, isSentinelKey } = require('../utils/apiKeys')
 
 /**
  * @openapi
@@ -156,9 +137,8 @@ router.post('/analyze', protect, restrictTo('admin', 'analyst'), async (req, res
  *   post:
  *     tags:
  *       - AI Engine
- *     summary: Ingest and store AI prediction record (Internal service or JWT)
+ *     summary: Store an AI prediction (AI engine callback only; SENTINEL_KEY)
  *     security:
- *       - BearerAuth: []
  *       - ApiKeyAuth: []
  *     requestBody:
  *       required: true
@@ -192,9 +172,45 @@ router.get('/predictions', protect, async (req, res, next) => {
 })
 
 
-router.post('/predictions', internalOrUserAuth, async (req, res, next) => {
+// Fields the AI engine callback (inference/main.py _notify) may set. Verification, threat links
+// and anything else on AIPrediction are server-owned and never accepted from the request.
+const PREDICTION_CALLBACK_FIELDS = [
+  'sourceIP',
+  'targetIP',
+  'predictedClass',
+  'classProbabilities',
+  'threatScore',
+  'modelVersion',
+  'modelType',
+  'isAnomaly',
+  'anomalyScore',
+  'inferenceTimeMs',
+  'featureVector',
+  'featureSchemaVersion',
+  'status',
+  'action',
+  'eventTime',
+  'timestamp',
+]
+
+// Only the AI engine (SENTINEL_KEY) may record model output. The honeypot key and user sessions
+// cannot fabricate predictions, because stored predictions can raise alerts and auto-block IPs.
+const aiEngineOnly = (req, res, next) => {
+  const key = req.headers['x-api-key']
+  if (!key) return sendError(res, 'Missing API key', 401)
+  if (isSentinelKey(key)) return next()
+  if (isHoneypotKey(key)) return sendError(res, 'This key is not authorised to record AI predictions', 403)
+  return sendError(res, 'Invalid API key', 401)
+}
+
+router.post('/predictions', aiEngineOnly, async (req, res, next) => {
   try {
-    sendSuccess(res, { prediction: await aiDbSvc.storePrediction(req.body) }, 'Stored', 201)
+    const body = req.body || {}
+    const data = { inputSource: 'network_traffic' }
+    for (const field of PREDICTION_CALLBACK_FIELDS) {
+      if (body[field] !== undefined) data[field] = body[field]
+    }
+    sendSuccess(res, { prediction: await aiDbSvc.storePrediction(data) }, 'Stored', 201)
   } catch (err) {
     next(err)
   }

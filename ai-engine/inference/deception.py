@@ -17,7 +17,9 @@ DEFAULT_RUNTIME_Q_TABLE_PATH = str(Path(__file__).parent.parent / "runtime" / "q
 def get_scorer():
     global _scorer
     if _scorer is None:
-        model_dir = os.getenv("MODEL_DIR", str(Path(__file__).parent.parent / "models"))
+        engine_root = Path(__file__).resolve().parent.parent
+        model_dir = Path(os.getenv("MODEL_DIR") or engine_root / "models")
+        model_dir = str(model_dir if model_dir.is_absolute() else engine_root / model_dir)
         repo_default_path = str(Path(__file__).parent.parent / "runtime" / "q_table.json")
 
         # Resolve the effective default runtime path:
