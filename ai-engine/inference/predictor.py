@@ -3,7 +3,7 @@ import os, sys, json, time, joblib, logging, requests, ipaddress, hashlib
 import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils.features import FEATURE_NAMES, LABEL_NAMES, FEATURE_SCHEMA_VERSION, extract_features_from_record, extract_features_from_honeypot
+from utils.features import FEATURE_NAMES, LABEL_NAMES, FEATURE_SCHEMA_VERSION, extract_features_from_record, classify_honeypot_session
 
 from inference.errors import ModelUnavailableError
 
@@ -141,6 +141,21 @@ def score_to_severity(s):
     if s >= 0.70: return "HIGH"
     if s >= 0.50: return "MEDIUM"
     return "LOW"
+
+# Honeypot verdicts. Nobody legitimate uses a decoy, so every class except the rule's BENIGN (logged in,
+# ran only harmless commands) sits near or above the alert line; the score rises with what the attacker did:
+# credential guessing -> MONITOR, lateral movement -> MONITOR, payload download/execution and exfiltration
+# -> BLOCK line (auto-block still requires the backend's autoBlockEnabled setting).
+HONEYPOT_RULES_VERSION = "honeypot_rules_v1"
+HONEYPOT_RULE_SCORES = {
+    "BENIGN":            0.40,
+    "Port Scan":         0.75,
+    "SSH Brute Force":   0.86,
+    "Lateral Movement":  0.90,
+    "RCE Attempt":       0.93,
+    "Data Exfiltration": 0.95,
+}
+HONEYPOT_COMMAND_STEP = 0.01  # per command, non-BENIGN only, capped at 0.99
 
 REGISTRY_FILE = "registry.json"
 MODEL_TYPES = ("rf", "xgboost", "stacking")
@@ -492,34 +507,20 @@ class SentinelPredictor:
         return ret
 
     def predict_from_honeypot(self, session: dict) -> dict:
-        # NOTE: Cowrie sessions carry no packet-level flow data. extract_features_from_honeypot picks a
-        # class with keyword/login rules and synthesises a representative 53-feature flow vector for
-        # that class; RF/IF then score that synthetic vector. The result is therefore rule-driven and is
-        # labelled as such via classificationMethod. The score also adds 0.02 per command (capped 0.99).
+        # Cowrie sessions carry no packet-level flow data, so the verdict comes from the session rules
+        # (utils.features.classify_honeypot_session) and HONEYPOT_RULE_SCORES. Running a rule-synthesised
+        # flow through the CICIDS classifier scored every session type BENIGN (C1, docs/AI_ENGINE_STUDY_GUIDE.md).
+        # The models are not used here; the readiness check is kept so the engine stays fail-closed as a whole.
         t0 = time.perf_counter()
-        X  = extract_features_from_honeypot(session).reshape(1,-1)
-        n  = len(session.get("commands",[]))
-        # Decoupled in Phase 2.4B: AbuseIPDB reputation is no longer queried synchronously during inference.
-        rep_score = None
         if not self._loaded:
             raise ModelUnavailableError("Required models are not loaded")
-        if not np.isfinite(X).all():
-            raise ValueError("Features must be finite numbers")
-        try:
-            cls, proba, _ = self._classify(X)
-            cname=LABEL_NAMES.get(int(cls),"SSH Brute Force"); max_p=float(max(proba))
-        except Exception as e:
-            raise ModelUnavailableError("Classifier inference failed") from e
-        try:
-            if_score=float(self.ifo.named_steps["if"].score_samples(self.ifo.named_steps["scaler"].transform(X))[0]); is_anomaly=if_score<ANOMALY_THRESHOLD
-        except Exception as e:
-            raise ModelUnavailableError("Anomaly inference failed") from e
-        
-        # Fixed: calculate rf_s correctly for BENIGN to scale down the threat score
-        rf_s = max_p if cname != "BENIGN" else (1.0 - max_p)
-        if_sig = self.calculate_if_anomaly_signal(if_score)
-        base = combine_threat_score(rf_s, if_sig, cname != "BENIGN")
-        score = round(min(base + n*0.02, 0.99), 4)
+        # Decoupled in Phase 2.4B: AbuseIPDB reputation is no longer queried synchronously during inference.
+        rep_score = None
+        cname = classify_honeypot_session(session)
+        n = len(session.get("commands", []))
+        score = HONEYPOT_RULE_SCORES[cname]
+        if cname != "BENIGN":
+            score = round(min(score + n * HONEYPOT_COMMAND_STEP, 0.99), 4)
 
         # Shadow evaluation of E2 Structured Auth Event Adapter (zero mutation of primary action/score)
         shadow_e2_eval = None
@@ -542,16 +543,16 @@ class SentinelPredictor:
             except Exception as exc:
                 log.debug(f"Shadow E2 evaluation failed safe: {exc}")
         
-        res = self._build(cname,score,max_p,is_anomaly,if_score,(time.perf_counter()-t0)*1000)
-        res["ipReputationScore"] = rep_score
-        res["classificationMethod"] = "rule_profile_synthetic_flow"
+        action = "BLOCK" if score >= BLOCK_THRESHOLD else "MONITOR" if score >= MONITOR_THRESHOLD else "ALLOW"
+        # No model ran, so there is no classifier confidence or anomaly score to report.
+        res = {"predictedClass": cname, "threatScore": score, "severity": score_to_severity(score),
+               "confidence": None, "isAnomaly": False, "anomalyScore": None,
+               "inferenceTimeMs": round((time.perf_counter() - t0) * 1000, 2), "action": action,
+               "modelVersion": HONEYPOT_RULES_VERSION, "featureImportance": [],
+               "ipReputationScore": rep_score, "classificationMethod": "honeypot_rules"}
         if shadow_e2_eval is not None:
             res["shadowE2"] = shadow_e2_eval
         return res
-
-    def _build(self,cls,score,confidence,anomaly,if_score,ms):
-        action="BLOCK" if score>=BLOCK_THRESHOLD else "MONITOR" if score>=MONITOR_THRESHOLD else "ALLOW"
-        return {"predictedClass":cls,"threatScore":score,"severity":score_to_severity(score),"confidence":round(confidence,4),"isAnomaly":anomaly,"anomalyScore":round(if_score,4),"inferenceTimeMs":round(ms,2),"action":action,"modelVersion":self.rf_meta.get("version","v2.1"),"featureImportance":[]}
 
     def get_model_info(self):
         from utils.features import LABEL_MAP

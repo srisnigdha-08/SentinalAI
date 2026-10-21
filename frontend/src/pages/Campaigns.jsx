@@ -322,7 +322,7 @@ export default function Campaigns() {
                           {s.aiClassification && (
                             <span
                               style={{ fontSize: 9, fontFamily: 'Rajdhani,sans-serif', color: '#00ff88', display: 'block', fontWeight: 600 }}
-                              title="Honeypot sessions carry no packet data: the class is chosen by command/login rules, then scored by the model on a representative flow."
+                              title="Honeypot sessions carry no packet data: class and score come from login/command rules, not from the flow model."
                             >
                               {s.aiClassification.split('_').join(' ')} (rule-based)
                             </span>

@@ -19,7 +19,11 @@ const AIPredictionSchema = new mongoose.Schema(
     classProbabilities: { type: Map, of: Number },
     threatScore: { type: Number, required: true, min: 0, max: 1 },
     modelVersion: { type: String, default: 'rf_classifier_v2.1' },
-    modelType: { type: String, enum: ['isolation_forest', 'random_forest', 'ensemble'], default: 'random_forest' },
+    modelType: {
+      type: String,
+      enum: ['isolation_forest', 'random_forest', 'ensemble', 'rules'],
+      default: 'random_forest',
+    },
     isAnomaly: { type: Boolean, default: false },
     anomalyScore: { type: Number, min: -1, max: 1 },
     featureImportance: { type: Map, of: Number, select: false },

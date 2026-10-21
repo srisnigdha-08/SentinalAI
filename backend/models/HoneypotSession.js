@@ -50,8 +50,8 @@ const HoneypotSessionSchema = new mongoose.Schema(
     closureAnalysisCompletedAt: Date,
     aiClassification: { type: String, default: null },
     aiThreatScore: { type: Number, default: 0 },
-    // How aiClassification was produced; for Cowrie sessions 'rule_profile_synthetic_flow' (rules pick the
-    // class, the model scores a representative flow), never real packet-level inference.
+    // How aiClassification was produced; for Cowrie sessions 'honeypot_rules' (login outcome and command
+    // keywords set class and score), never model inference. Older records may say 'rule_profile_synthetic_flow'.
     aiClassificationMethod: { type: String, default: null },
     qDeceptionScore: { type: Number, default: 0 },
     recommendedProfile: { type: String, default: 'ubuntu_22' },

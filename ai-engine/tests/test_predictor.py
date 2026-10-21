@@ -425,7 +425,9 @@ class TestShadowDetectorIntegration:
             res = pred.predict_from_honeypot(session)
             assert "shadowE2" in res
             assert res["shadowE2"]["status"] == "HEALTHY"
-            assert res["predictedClass"] == "BENIGN"
+            # Primary verdict comes from the honeypot rules (failed login), unaffected by the shadow detector
+            assert res["predictedClass"] == "SSH Brute Force"
+            assert res["classificationMethod"] == "honeypot_rules"
 
 
 

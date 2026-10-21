@@ -318,29 +318,39 @@ def extract_features_from_record(record: dict) -> np.ndarray:
         entropy, t_sin, t_cos
     ], dtype=np.float64)
 
-def extract_features_from_honeypot(session: dict) -> np.ndarray:
+def classify_honeypot_session(session: dict) -> str:
+    """
+    Rule-based class of a Cowrie session (login outcome, command keywords, IOC count, duration).
+    This is the honeypot verdict served by predictor.predict_from_honeypot: Cowrie records no packet
+    statistics, so there is no flow for the CICIDS-trained classifier to score.
+    """
     cmds = session.get("commands", [])
-    cmd_texts = [str(c.get("command", "")).lower() for c in cmds]
-    cmd_str = " ".join(cmd_texts)
+    cmd_str = " ".join(str(c.get("command", "")).lower() for c in cmds)
     login_ok = bool(session.get("loginSucceeded", False))
     dur_sec = float(session.get("durationSeconds", 1))
     ioc_cnt = int(session.get("iocCount", 0))
-    
-    # Classify session to target profile
+
     if not login_ok:
-        profile_name = "SSH Brute Force"
-    else:
-        if len(cmds) == 0:
-            profile_name = "Port Scan"
-        elif ioc_cnt >= 3 or dur_sec > 120 or any(k in cmd_str for k in ["scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "netcat"]):
-            profile_name = "Data Exfiltration"
-        elif any(k in cmd_str for k in ["ssh ", "telnet", "ping", "nmap", "arp", "route", "smb", "mount"]):
-            profile_name = "Lateral Movement"
-        elif any(k in cmd_str for k in ["wget", "curl", "chmod", "./", "python", "perl", "bash", "sh", "gcc"]):
-            profile_name = "RCE Attempt"
-        else:
-            profile_name = "BENIGN"
-            
+        return "SSH Brute Force"
+    if len(cmds) == 0:
+        return "Port Scan"
+    if ioc_cnt >= 3 or dur_sec > 120 or any(k in cmd_str for k in ["scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "netcat"]):
+        return "Data Exfiltration"
+    if any(k in cmd_str for k in ["ssh ", "telnet", "ping", "nmap", "arp", "route", "smb", "mount"]):
+        return "Lateral Movement"
+    if any(k in cmd_str for k in ["wget", "curl", "chmod", "./", "python", "perl", "bash", "sh", "gcc"]):
+        return "RCE Attempt"
+    return "BENIGN"
+
+
+def extract_features_from_honeypot(session: dict) -> np.ndarray:
+    """
+    Representative 53-feature flow for a session's rule class. Not used for serving: the per-profile
+    means match utils/data_generator.py (synthetic data), and the CICIDS-trained classifier scores every
+    one of these vectors as BENIGN, so predict_from_honeypot returns the rule verdict instead.
+    """
+    profile_name = classify_honeypot_session(session)
+
     PROFILES_MEANS = {
         "BENIGN":             {"dur": 65000.0,  "bps": 6500.0,    "pps": 250.0,   "syn": 0.5},
         "SSH Brute Force":    {"dur": 650.0,    "bps": 200000.0,  "pps": 5000.0,  "syn": 2.0},

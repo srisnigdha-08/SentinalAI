@@ -260,7 +260,7 @@ const analyseClosure = async (session, telemetry) => {
   if (aiRes?.success && aiRes?.result) {
     session.aiClassification = aiRes.result.predictedClass || null
     session.aiThreatScore = aiRes.result.threatScore || 0
-    session.aiClassificationMethod = aiRes.result.classificationMethod || 'rule_profile_synthetic_flow'
+    session.aiClassificationMethod = aiRes.result.classificationMethod || 'honeypot_rules'
     logger.info(
       `[HP] AI classified session ${session.sessionId}: ${session.aiClassification} (${session.aiThreatScore})`
     )
@@ -279,9 +279,9 @@ const analyseClosure = async (session, telemetry) => {
         predictedClass: session.aiClassification || 'SSH Brute Force',
         classProbabilities: aiResult.classProbabilities,
         threatScore: score,
-        // Session features are rule-synthesised (see predictor.predict_from_honeypot); say so in the record
-        modelVersion: `${aiResult.modelVersion || 'v2.1'}+${aiResult.classificationMethod || 'rule_profile_synthetic_flow'}`,
-        modelType: 'random_forest',
+        // Cowrie sessions are classified by rules, not by a model (see predictor.predict_from_honeypot)
+        modelVersion: `${aiResult.modelVersion || 'honeypot_rules_v1'}+${aiResult.classificationMethod || 'honeypot_rules'}`,
+        modelType: 'rules',
         isAnomaly: aiResult.isAnomaly || false,
         anomalyScore: aiResult.anomalyScore || 0,
         inferenceTimeMs: aiResult.inferenceTimeMs ?? null,
