@@ -78,3 +78,64 @@ jobs:
         working-directory: frontend
       - run: npm run build
         working-directory: frontend
+
+  backend-mongo:
+    name: Backend (MongoDB-backed suites)
+    runs-on: ubuntu-latest
+    services:
+      mongo:
+        image: mongo:7
+        ports:
+          - 27029:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.runCommand({ ping: 1 })'"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      # The four suites skipped in the default job refuse any other host/port/database.
+      AUTH_TEST_MONGO_URI: mongodb://127.0.0.1:27029/sentinelai_auth_timezone_test_20261014
+      # aiEngineService refuses to load without a key; these are CI-only placeholders, never real secrets.
+      SENTINEL_KEY: ci-mongo-suites-sentinel-key-0123456789
+      HONEYPOT_API_KEY: ci-mongo-suites-honeypot-key-0123456789
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - run: npm ci --ignore-scripts
+        working-directory: frontend
+      - name: Run MongoDB-backed suites
+        working-directory: backend
+        run: npx jest --runInBand --ci tests/authPersistence.test.js tests/credentialLifecycleIntegration.test.js tests/timezonePersistence.test.js tests/authBrowser.test.js
+
+  model-integrity:
+    name: Model registry integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: ai-engine/requirements.txt
+      - run: pip install -r requirements.txt
+        working-directory: ai-engine
+      - name: Registered models match their pinned SHA-256
+        working-directory: ai-engine
+        run: python training/register_model.py --check
+      - name: Engine loads the registered models and serves a prediction
+        working-directory: ai-engine
+        env:
+          SENTINEL_KEY: ci-model-integrity-key-0123456789
+        run: |
+          python -c "
+          import sys; sys.path.insert(0, '.')
+          from inference.predictor import SentinelPredictor
+          p = SentinelPredictor(model_dir='models')
+          assert p._loaded and p.registry and p.registry['verified'], 'registered models failed to load'
+          r = p.predict({'flow_duration': 1000.0, 'total_fwd_packets': 2.0})
+          print(p.registry['classifier'], r['predictedClass'], r['threatScore'])
+          "

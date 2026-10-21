@@ -47,6 +47,17 @@ const revocationDelivery = require('./services/revocationDelivery').createRevoca
 authSessions.setAvailability(revocationDelivery.available)
 app.set('io', io)
 socketManager.init(io)
+// Correlation id first, so every later log line and the AI engine call carry it.
+app.use(require('./utils/requestContext').middleware)
+const metrics = require('./utils/metrics')
+app.use(metrics.httpMiddleware)
+metrics.gauge('sentinel_socket_clients', 'Connected Socket.IO clients', () => io.engine.clientsCount)
+metrics.gauge('sentinel_mongo_connected', '1 when MongoDB is connected', () =>
+  require('mongoose').connection.readyState === 1 ? 1 : 0
+)
+metrics.gauge('sentinel_ai_circuit_open', '1 while the AI engine circuit breaker is open', () =>
+  require('./services/aiEngineService').circuitState() === 'open' ? 1 : 0
+)
 app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: false }))
 app.use(
   cors({
@@ -129,6 +140,8 @@ app.get('/', (_, res) =>
     timestamp: new Date().toISOString(),
   })
 )
+// Prometheus scrape endpoint: bearer METRICS_TOKEN when set, otherwise loopback only.
+app.get('/metrics', metrics.handler)
 app.get('/health', async (_, res) => {
   const mongoose = require('mongoose')
   const aiSvc = require('./services/aiEngineService')
@@ -273,6 +286,11 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
       } catch (sweepErr) {
         logger.warn('[HoneypotSweep] Failed to start stale-session sweep: ' + sweepErr.message)
       }
+      try {
+        require('./services/driftMonitorService').defaultDriftMonitorService.start()
+      } catch (driftErr) {
+        logger.warn('[Drift] Failed to start drift monitor: ' + driftErr.message)
+      }
       server.listen(PORT, process.env.HOST || '127.0.0.1', () => {
         logger.info('SentinelAI Backend ready on port ' + PORT)
       })
@@ -289,6 +307,10 @@ defaultShutdownManager.registerService({
 defaultShutdownManager.registerService({
   name: 'revocationDelivery',
   stop: () => revocationDelivery.stop().catch(() => {}),
+})
+defaultShutdownManager.registerService({
+  name: 'driftMonitor',
+  stop: () => require('./services/driftMonitorService').defaultDriftMonitorService.stop(),
 })
 defaultShutdownManager.registerService({
   name: 'honeypotSweep',

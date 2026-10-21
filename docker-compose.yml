@@ -1,0 +1,88 @@
+# SentinelAI local stack: MongoDB, AI engine, backend and dashboard (+ optional Prometheus).
+#
+#   cp deployment/.env.compose.example .env      # fill in real secrets (openssl rand -hex 32)
+#   docker compose up --build                    # dashboard on http://localhost:8080
+#   docker compose --profile monitoring up       # also Prometheus on http://localhost:9090
+#
+# The honeypot (Cowrie, parser, sniffer, rotator) runs on a separate host by design and is not part of
+# this stack. NODE_ENV=development here because the stack serves plain HTTP on localhost; production needs
+# TLS in front of the backend (NODE_ENV=production + TRUST_PROXY), see backend/config/securityTopology.js.
+name: sentinelai
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ai-engine:
+    build: ./ai-engine
+    restart: unless-stopped
+    environment:
+      SENTINEL_KEY: ${SENTINEL_KEY:?set SENTINEL_KEY in .env}
+      SENTINEL_API: http://backend:5000/api
+      CORS_ORIGINS: http://backend:5000
+      Q_TABLE_PATH: /data/q_table.json
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD:-0.85}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    volumes:
+      - ai-data:/data # Q-learning state survives container restarts
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ai-engine:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 5000
+      MONGO_URI: mongodb://mongo:27017/sentinel-db
+      AI_ENGINE_URL: http://ai-engine:8000
+      CLIENT_URL: http://localhost:8080
+      SENTINEL_KEY: ${SENTINEL_KEY:?set SENTINEL_KEY in .env}
+      HONEYPOT_API_KEY: ${HONEYPOT_API_KEY:?set HONEYPOT_API_KEY in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@sentinel.io}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
+      OUTBOX_STORE: mongo
+      LOG_FORMAT: json
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    ports:
+      - "5000:5000" # honeypot hosts post to /api/honeypot/ingest
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "8080:8080"
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: ["monitoring"]
+    depends_on:
+      - backend
+      - ai-engine
+    volumes:
+      - ./deployment/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deployment/metrics_token:/etc/prometheus/metrics_token:ro
+    ports:
+      - "9090:9090"
+
+volumes:
+  mongo-data:
+  ai-data:

@@ -1,5 +1,6 @@
 {
   "registered_at": "2026-10-20T21:28:04.678246+00:00",
+  "sklearn_version": "1.4.0",
   "classifier": {
     "file": "rf_classifier_cicids_v2.pkl",
     "type": "rf",

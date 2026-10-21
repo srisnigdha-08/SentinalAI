@@ -4,7 +4,7 @@ const express = require('express')
 const router = express.Router()
 const AuditLog = require('../models/AuditLog')
 const { protect, requirePermission } = require('../middleware/auth')
-const { sendPaginated, sendError } = require('../utils/apiResponse')
+const { sendPaginated } = require('../utils/apiResponse')
 const { parsePagination, escapeRegex } = require('../utils/querySecurity')
 
 router.use(protect)

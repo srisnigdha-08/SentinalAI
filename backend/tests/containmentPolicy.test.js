@@ -115,6 +115,7 @@ jest.mock('../models/AuditLog', () => ({
 const mockGetBlockThreshold = jest.fn().mockResolvedValue(0.92)
 jest.mock('../services/aiEngineService', () => ({
   getBlockThreshold: () => mockGetBlockThreshold(),
+  getAlertThreshold: () => Promise.resolve(0.7),
   predictRecord: jest.fn(),
   runFullPipeline: jest.fn(),
 }))

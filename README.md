@@ -132,16 +132,23 @@ sentinelai/
 
 ## 📊 Model Evaluation & Scientific Rigor
 
-SentinelAI was rigorously evaluated against the standardized **CICIDS2017** benchmark intrusion dataset:
+SentinelAI is evaluated on the **CICIDS2017** benchmark. How the data is split changes the numbers a lot,
+so each figure says which split it comes from (full method and results:
+[docs/C1_EVALUATION_PLAN_AND_RESULTS.md](docs/C1_EVALUATION_PLAN_AND_RESULTS.md)).
 
-### Multi-Class Performance Metrics
-* **Production Model:** Random Forest Classifier (`rf_classifier_cicids_v2.pkl`)
-  * **Test Accuracy:** **98.43%**
-  * **Weighted F1-Score:** **98.62%**
-  * **Macro F1-Score:** **84.48%**
-* **Secondary Candidate Model:** XGBoost Classifier (`xgb_classifier_cicids_v2.pkl`)
-  * **Test Accuracy:** **99.13%**
-  * **Weighted F1-Score:** **99.24%**
+### Multi-Class Performance Metrics (production Random Forest, `rf_classifier_cicids_v2.pkl`)
+| Split | Accuracy | Macro F1 | What it measures |
+|---|---|---|---|
+| Random 80/20 rows (as in the model metadata) | 98.43% (re-run: 98.69%) | 0.84 (re-run: 0.88) | Optimistic: flows from the same attack burst land in train and test |
+| **Chronological per class** (train on earlier flows, test on later ones) | **97.57%** | **0.74** | Honest in-distribution estimate; rare classes (bot/C2, XSS, SQLi) are weak |
+| Leave one capture day out | 59–94% | 0.19–0.29 | Attacks from a day never trained on are almost all missed |
+
+The XGBoost candidate (99.13% accuracy) was measured on the same random split and is not deployed.
+
+### Alerting (backend threat/alert creation)
+The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.85**, chosen on a
+validation split with a safety margin for drift (`ALERT_THRESHOLD`). On the later, held-out traffic of the
+chronological split it alerts on **87.5% of attacks** with **0.085% of benign flows** raising an alert.
 
 ### 🔍 Scientific Transparency: Addressing Real-World Class Imbalance
 In alignment with academic honesty and scientific rigor, SentinelAI documents performance boundaries when deploying models into live networks:

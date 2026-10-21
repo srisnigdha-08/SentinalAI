@@ -28,7 +28,7 @@ def test_model_metadata_verification(evaluator):
     assert meta["isolationForest"]["exists"] is True
     assert meta["isolationForest"]["sha256"].startswith("17BD08FF")
     assert meta["thresholds"]["block"] == 0.92
-    assert meta["thresholds"]["monitor"] == 0.70
+    assert meta["thresholds"]["monitor"] == 0.85  # validated alert line (docs/IMPROVEMENTS_REPORT.md)
     assert meta["thresholds"]["anomaly"] == -0.55
 
 

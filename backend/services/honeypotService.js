@@ -301,6 +301,7 @@ const analyseClosure = async (session, telemetry) => {
     const setting = await SystemSetting.findOne({ key: 'autoBlockEnabled' })
     const autoBlockEnabled = setting ? setting.value === true : false
     const blockThreshold = await aiSvc.getBlockThreshold()
+    const alertThreshold = await aiSvc.getAlertThreshold()
     const shouldBlock = score >= blockThreshold && autoBlockEnabled
 
     if (session.linkedThreatLog && !predictionCreatedThreat) {
@@ -339,7 +340,7 @@ const analyseClosure = async (session, telemetry) => {
         }
 
         if (shouldBlock && existingThreat.status !== 'BLOCKED') {
-          existingThreat.preBlockStatus = score >= 0.7 ? 'MONITORING' : 'DETECTED'
+          existingThreat.preBlockStatus = score >= alertThreshold ? 'MONITORING' : 'DETECTED'
           existingThreat.status = 'BLOCKED'
           existingThreat.autonomousAction = { taken: true, actionType: 'IP_BLOCKED', actionTime: new Date() }
           await existingThreat.save()
@@ -358,7 +359,7 @@ const analyseClosure = async (session, telemetry) => {
         } else {
           // Reclassification must not undo an existing containment decision.
           if (existingThreat.status !== 'BLOCKED') {
-            existingThreat.status = score >= 0.7 ? 'MONITORING' : 'DETECTED'
+            existingThreat.status = score >= alertThreshold ? 'MONITORING' : 'DETECTED'
           }
           await existingThreat.save()
         }

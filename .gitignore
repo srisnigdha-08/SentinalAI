@@ -19,6 +19,7 @@ __pycache__/
 **/.env.test
 !.env.demo.example
 !deployment/.env.demo.example
+!deployment/.env.compose.example
 
 # Logs and runtime artifacts
 *.log
@@ -70,3 +71,6 @@ test-results/
 # Ad-hoc pre-edit backups (git history keeps prior versions)
 *.bak-*
 *.orig-*
+
+# Prometheus scrape credential for the compose monitoring profile
+deployment/metrics_token

@@ -72,13 +72,13 @@ function sanitizePayload(obj, depth = 0) {
  * Abstract Outbox Storage Contract
  */
 class OutboxStore {
-  async persistEnvelope(envelope) {
+  async persistEnvelope(_envelope) {
     throw new Error('persistEnvelope() must be implemented by subclass')
   }
-  async markDelivered(eventId) {
+  async markDelivered(_eventId) {
     throw new Error('markDelivered() must be implemented by subclass')
   }
-  async markFailed(eventId, error) {
+  async markFailed(_eventId, _error) {
     throw new Error('markFailed() must be implemented by subclass')
   }
   async getPendingEvents() {
@@ -127,7 +127,7 @@ class InMemoryOutboxStore extends OutboxStore {
     const rec = this.records.get(eventId)
     if (rec) {
       rec.attempts++
-      rec.lastError = err ? (err.message || String(err)) : 'Unknown error'
+      rec.lastError = err ? err.message || String(err) : 'Unknown error'
       rec.status = rec.attempts >= 3 ? 'FAILED' : 'PENDING'
     }
   }
@@ -240,7 +240,6 @@ class FileOutboxStore extends OutboxStore {
 
   _writeAll(data) {
     const fs = require('fs')
-    const path = require('path')
     this._prune(data)
     const jsonStr = JSON.stringify(data, null, 2)
     const tmpPath = `${this.filePath}.tmp.${Date.now()}_${Math.random().toString(36).substring(2, 8)}`
@@ -251,14 +250,18 @@ class FileOutboxStore extends OutboxStore {
       fs.writeFileSync(tmpPath, jsonStr, 'utf8')
       try {
         fs.renameSync(tmpPath, this.filePath)
-      } catch (renameErr) {
+      } catch {
         // Windows fallback if destination is open
         fs.copyFileSync(tmpPath, this.filePath)
-        try { fs.unlinkSync(tmpPath) } catch (_) {}
+        try {
+          fs.unlinkSync(tmpPath)
+        } catch (_) {}
       }
     } catch (writeErr) {
       logger.error(`[FileOutboxStore] Atomic write failed: ${writeErr.message}`)
-      try { if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath) } catch (_) {}
+      try {
+        if (fs.existsSync(tmpPath)) fs.unlinkSync(tmpPath)
+      } catch (_) {}
       throw writeErr
     }
   }
@@ -289,7 +292,7 @@ class FileOutboxStore extends OutboxStore {
     const data = this._readAll()
     if (data[eventId]) {
       data[eventId].attempts = (data[eventId].attempts || 0) + 1
-      data[eventId].lastError = err ? (err.message || String(err)) : 'Unknown error'
+      data[eventId].lastError = err ? err.message || String(err) : 'Unknown error'
       data[eventId].status = data[eventId].attempts >= 3 ? 'FAILED' : 'PENDING'
       this._writeAll(data)
     }
@@ -398,7 +401,7 @@ class SecurityEventBus {
       source,
       version: '1.0',
       timestamp: new Date().toISOString(),
-      correlationId: correlationId || (payload.id || payload._id || null),
+      correlationId: correlationId || payload.id || payload._id || null,
       payload: sanitized,
     }
   }
@@ -515,7 +518,10 @@ class SecurityEventBus {
         if (publishResult && publishResult.success) {
           await this.outboxStore.markDelivered(envelope.eventId)
         } else {
-          const errObj = publishResult && publishResult.error ? new Error(publishResult.error) : new Error(publishResult ? publishResult.status : 'delivery_failed')
+          const errObj =
+            publishResult && publishResult.error
+              ? new Error(publishResult.error)
+              : new Error(publishResult ? publishResult.status : 'delivery_failed')
           await this.outboxStore.markFailed(envelope.eventId, errObj)
         }
       }
@@ -585,12 +591,7 @@ class SecurityEventBus {
 
   _broadcastToWebSockets(envelope, io) {
     try {
-      const {
-        redactThreat,
-        redactIP,
-        redactAlert,
-        redactAIPrediction,
-      } = require('./redact')
+      const { redactThreat, redactIP, redactAlert, redactAIPrediction } = require('./redact')
 
       const privilegedRooms = ['admin', 'analyst', 'threat_subscribers_privileged']
       io.to(privilegedRooms).emit('security_event', envelope)
@@ -620,16 +621,17 @@ class SecurityEventBus {
           break
         case 'THREAT_UPDATED':
           io.to(privilegedRooms).emit('threat_updated', envelope.payload)
-          io.to(['viewer', 'threat_subscribers_viewer', 'threat_subscribers', 'all']).emit(
-            'threat_updated',
-            { ...envelope.payload, sourceIP: redactIP(envelope.payload.sourceIP) }
-          )
+          io.to(['viewer', 'threat_subscribers_viewer', 'threat_subscribers', 'all']).emit('threat_updated', {
+            ...envelope.payload,
+            sourceIP: redactIP(envelope.payload.sourceIP),
+          })
           break
-        case 'ALERT_CREATED':
+        case 'ALERT_CREATED': {
           const targetRooms = envelope.payload.targetRoles || ['analyst']
           io.to(targetRooms.filter((r) => r !== 'viewer')).emit('new_alert', envelope.payload)
           io.to(['viewer', 'all']).emit('new_alert', redactedPayload)
           break
+        }
         case 'AI_PREDICTION':
           io.to(privilegedRooms).emit('ai_prediction', envelope.payload)
           io.to(['viewer', 'threat_subscribers_viewer', 'threat_subscribers', 'all']).emit(
@@ -676,7 +678,108 @@ class SecurityEventBus {
   }
 }
 
-const defaultSecurityEventBus = new SecurityEventBus()
+/**
+ * MongoDB-backed outbox (OUTBOX_STORE=mongo): survives restarts and works across API workers.
+ */
+class MongoOutboxStore extends OutboxStore {
+  _model() {
+    return require('../models/OutboxEvent')
+  }
+
+  _retentionMs() {
+    const days = parseInt(process.env.OUTBOX_RETENTION_DAYS, 10)
+    return (Number.isInteger(days) && days > 0 ? days : 7) * 86400000
+  }
+
+  async persistEnvelope(envelope) {
+    await this._model().updateOne(
+      { eventId: envelope.eventId },
+      { $setOnInsert: { eventId: envelope.eventId, eventType: envelope.eventType, envelope, status: 'PENDING' } },
+      { upsert: true }
+    )
+    return true
+  }
+
+  async markDelivered(eventId) {
+    const now = new Date()
+    await this._model().updateOne(
+      { eventId },
+      { $set: { status: 'DELIVERED', deliveredAt: now, expiresAt: new Date(now.getTime() + this._retentionMs()) } }
+    )
+  }
+
+  async markFailed(eventId, err) {
+    const Model = this._model()
+    const rec = await Model.findOneAndUpdate(
+      { eventId },
+      { $inc: { attempts: 1 }, $set: { lastError: err ? err.message || String(err) : 'Unknown error' } },
+      { new: true }
+    )
+    if (rec && rec.attempts >= 3) await Model.updateOne({ eventId }, { $set: { status: 'FAILED' } })
+  }
+
+  async getPendingEvents() {
+    const rows = await this._model().find({ status: 'PENDING' }).sort({ createdAt: 1 }).limit(500).lean()
+    return rows.map((r) => r.envelope)
+  }
+
+  async getFailedEvents() {
+    const rows = await this._model().find({ status: 'FAILED' }).sort({ createdAt: 1 }).limit(500).lean()
+    return rows.map((r) => ({
+      envelope: r.envelope,
+      attempts: r.attempts,
+      lastError: r.lastError,
+      createdAt: r.createdAt,
+    }))
+  }
+
+  async redriveFailedEvents() {
+    const res = await this._model().updateMany(
+      { status: 'FAILED' },
+      { $set: { status: 'PENDING', attempts: 0, lastError: `Manual redrive at ${new Date().toISOString()}` } }
+    )
+    return res.modifiedCount || 0
+  }
+
+  async getOutboxStats() {
+    const Model = this._model()
+    const [total, pending, delivered, failed] = await Promise.all([
+      Model.estimatedDocumentCount(),
+      Model.countDocuments({ status: 'PENDING' }),
+      Model.countDocuments({ status: 'DELIVERED' }),
+      Model.countDocuments({ status: 'FAILED' }),
+    ])
+    return { total, pending, delivered, failed }
+  }
+}
+
+const storeFromEnv = (env = process.env) => {
+  if (env.OUTBOX_STORE === 'mongo') return new MongoOutboxStore()
+  if (env.OUTBOX_STORE === 'file') return new FileOutboxStore(env.OUTBOX_FILE || undefined)
+  return null
+}
+
+/**
+ * Records an event that was already delivered over Socket.IO: it enters the bus history, subscribers and
+ * metrics, and (with an outbox store) a durable DELIVERED record. Never throws into the caller's path.
+ */
+SecurityEventBus.prototype.recordDelivered = function (eventInput) {
+  try {
+    const result = this.publish(eventInput)
+    if (this.outboxStore && result.status === 'published') {
+      const envelope = this.history[this.history.length - 1]
+      Promise.resolve(this.outboxStore.persistEnvelope(envelope))
+        .then(() => this.outboxStore.markDelivered(envelope.eventId))
+        .catch((err) => logger.debug(`[EventBus] Outbox record failed: ${err.message}`))
+    }
+    return result
+  } catch (err) {
+    logger.debug(`[EventBus] Event not recorded: ${err.message}`)
+    return { success: false, status: 'not_recorded', error: err.message }
+  }
+}
+
+const defaultSecurityEventBus = new SecurityEventBus({ outboxStore: storeFromEnv() })
 
 module.exports = {
   SecurityEventBus,
@@ -686,4 +789,6 @@ module.exports = {
   OutboxStore,
   InMemoryOutboxStore,
   FileOutboxStore,
+  MongoOutboxStore,
+  storeFromEnv,
 }

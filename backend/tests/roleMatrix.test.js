@@ -70,6 +70,9 @@ jest.mock('../services/aiEngineService', () => ({
   getModelInfo: jest.fn().mockResolvedValue({ model: 'RandomForest', version: '1.0' }),
   getModelStats: jest.fn().mockResolvedValue({ accuracy: 0.95, totalInferences: 120 }),
   runFullPipeline: jest.fn().mockResolvedValue({ threatScore: 0.88, classification: 'BRUTE_FORCE' }),
+  getDrift: jest.fn().mockResolvedValue({ status: 'ok' }),
+  reloadModel: jest.fn().mockResolvedValue({ success: true, current: { registry: { classifier: 'x.pkl' } } }),
+  getDeceptionRecommendation: jest.fn().mockResolvedValue({ nextProfile: 'debian_11' }),
 }))
 
 jest.mock('../services/aiService', () => ({
@@ -134,7 +137,6 @@ jest.mock('../services/honeypotService', () => ({
     deceptionScore: 0.8,
   }),
 }))
-
 
 jest.mock('../services/containmentService', () => ({
   blockIPManual: jest.fn().mockResolvedValue({
@@ -420,114 +422,396 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     // 1. Root & Health
     { method: 'get', path: '/', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/health', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
+    // Not JWT-gated: METRICS_TOKEN when set, otherwise loopback only; supertest connects over loopback.
+    { method: 'get', path: '/metrics', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/system/health', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/ws/stats', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/docs.json', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
 
     // 2. Auth Routes
     { method: 'get', path: '/api/auth/csrf', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/auth/register', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } },
-    { method: 'post', path: '/api/auth/provision', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } }, // protectMutation rejects if no CSRF
+    {
+      method: 'post',
+      path: '/api/auth/register',
+      expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 },
+    },
+    {
+      method: 'post',
+      path: '/api/auth/provision',
+      expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 },
+    }, // protectMutation rejects if no CSRF
     { method: 'post', path: '/api/auth/login', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } }, // CSRF protectMutation
-    { method: 'post', path: '/api/auth/refresh-token', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } }, // CSRF protectMutation
+    {
+      method: 'post',
+      path: '/api/auth/refresh-token',
+      expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 },
+    }, // CSRF protectMutation
     { method: 'post', path: '/api/auth/logout', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } }, // CSRF protectMutation
-    { method: 'post', path: '/api/auth/logout-all', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } }, // protectMutation checked
+    {
+      method: 'post',
+      path: '/api/auth/logout-all',
+      expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 },
+    }, // protectMutation checked
     { method: 'get', path: '/api/auth/me', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'put', path: '/api/auth/update-password', expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 } },
+    {
+      method: 'put',
+      path: '/api/auth/update-password',
+      expected: { 'no-token': 403, viewer: 403, analyst: 403, admin: 403 },
+    },
 
     // 3. Threat Routes
-    { method: 'get', path: '/api/threats/analytics/summary', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/threats/vector-trend', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/threats/recent', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/threats/settings', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/threats/settings', body: { autoBlockEnabled: true }, expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'get', path: '/api/threats/blocked-ips', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/threats/block-ip', body: { ip: '198.51.100.99' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/threats/unblock-ip', body: { ip: '198.51.100.99' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/threats/analytics/summary',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/threats/vector-trend',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/threats/recent',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/threats/settings',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/threats/settings',
+      body: { autoBlockEnabled: true },
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/threats/blocked-ips',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/threats/block-ip',
+      body: { ip: '198.51.100.99' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/threats/unblock-ip',
+      body: { ip: '198.51.100.99' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
     { method: 'get', path: '/api/threats', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/threats', body: { sourceIP: '198.51.100.99', attackType: 'SSH Brute Force' }, expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 } },
+    {
+      method: 'post',
+      path: '/api/threats',
+      body: { sourceIP: '198.51.100.99', attackType: 'SSH Brute Force' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 },
+    },
     { method: 'get', path: '/api/threats/:id', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'put', path: '/api/threats/:id', body: { triageNotes: 'Note' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'delete', path: '/api/threats/:id', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'post', path: '/api/threats/:id/block', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'patch', path: '/api/threats/:id/triage', body: { status: 'INVESTIGATING', triageNotes: 'Note' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
+    {
+      method: 'put',
+      path: '/api/threats/:id',
+      body: { triageNotes: 'Note' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'delete',
+      path: '/api/threats/:id',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/threats/:id/block',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'patch',
+      path: '/api/threats/:id/triage',
+      body: { status: 'INVESTIGATING', triageNotes: 'Note' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
 
     // 4. Containment Routes
-    { method: 'get', path: '/api/containment/status', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/containment/actions', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/containment/actions', body: { target: '198.51.100.99' }, expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 } },
-    { method: 'get', path: '/api/containment/actions/:id', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/containment/actions/:id/rollback', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/containment/status',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/containment/actions',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/containment/actions',
+      body: { target: '198.51.100.99' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 },
+    },
+    {
+      method: 'get',
+      path: '/api/containment/actions/:id',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/containment/actions/:id/rollback',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
 
     // 5. Honeypot Ingest (internalAuth) - 401 without X-API-KEY
-    { method: 'get', path: '/api/honeypot/ingest/check-block', expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
-    { method: 'post', path: '/api/honeypot/ingest', expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
-    { method: 'post', path: '/api/honeypot/ingest/match-session', expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
-    { method: 'post', path: '/api/honeypot/ingest/command', expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
-    { method: 'post', path: '/api/honeypot/ingest/download', expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
-    { method: 'post', path: '/api/honeypot/ingest/close', expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
+    {
+      method: 'get',
+      path: '/api/honeypot/ingest/check-block',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/match-session',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/command',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/download',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/close',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/flow',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
 
     // 6. Honeypot Sessions & Analytics
-    { method: 'get', path: '/api/honeypot/status', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/honeypot/analytics', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/honeypot/nodes', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/honeypot/deception/profile', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/honeypot/status',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/analytics',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/nodes',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/deception/profile',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/deception/recommendation',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
     {
       method: 'put',
       path: '/api/honeypot/deception/profile',
       body: { profile: 'debian_11' },
       expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
     },
-    { method: 'get', path: '/api/honeypot/sessions', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/honeypot/sessions', body: { sourceIP: '198.51.100.99', sourcePort: 2222, honeypotNode: 'SSH-01' }, expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 } },
-    { method: 'get', path: '/api/honeypot/sessions/:id', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/honeypot/sessions/:id/commands', body: { commands: [{ command: 'id' }] }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'put', path: '/api/honeypot/sessions/:id/close', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/honeypot/sessions',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/sessions',
+      body: { sourceIP: '198.51.100.99', sourcePort: 2222, honeypotNode: 'SSH-01' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/sessions/:id',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/sessions/:id/commands',
+      body: { commands: [{ command: 'id' }] },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'put',
+      path: '/api/honeypot/sessions/:id/close',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
 
     // 7. Campaigns
     { method: 'get', path: '/api/campaigns', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/campaigns/:id', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
 
     // 8. Alerts
-    { method: 'get', path: '/api/alerts/unread-count', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'put', path: '/api/alerts/mark-all-read', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/alerts/unread-count',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'put',
+      path: '/api/alerts/mark-all-read',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
     { method: 'get', path: '/api/alerts', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/alerts', body: { title: 'New Alert', message: 'Alert msg', severity: 'HIGH' }, expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 201 } },
-    { method: 'put', path: '/api/alerts/:id/read', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'post',
+      path: '/api/alerts',
+      body: { title: 'New Alert', message: 'Alert msg', severity: 'HIGH' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 201 },
+    },
+    {
+      method: 'put',
+      path: '/api/alerts/:id/read',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
     { method: 'delete', path: '/api/alerts/:id', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
 
     // 9. Users (Admin Only)
     { method: 'get', path: '/api/users/stats', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
     { method: 'get', path: '/api/users', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
     { method: 'get', path: '/api/users/:id', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'put', path: '/api/users/:id', body: { role: 'analyst' }, expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
+    {
+      method: 'put',
+      path: '/api/users/:id',
+      body: { role: 'analyst' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
     { method: 'delete', path: '/api/users/:id', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'post', path: '/api/users/:id/force-logout', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
+    {
+      method: 'post',
+      path: '/api/users/:id/force-logout',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
 
     // 10. AI Engine
-    { method: 'get', path: '/api/ai/engine/health', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/ai/engine/model-info', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/ai/engine/stats', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/ai/analyze', body: { features: [1, 2, 3] }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/ai/predictions', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/ai/engine/health',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/ai/engine/model-info',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/ai/engine/stats',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/ai/engine/drift',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/ai/engine/reload',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/ai/analyze',
+      body: { features: [1, 2, 3] },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/ai/predictions',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
     // AI engine callback only: user sessions cannot record model output
-    { method: 'post', path: '/api/ai/predictions', body: { sourceIP: '198.51.100.99', predictedClass: 'BRUTE_FORCE' }, expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 } },
+    {
+      method: 'post',
+      path: '/api/ai/predictions',
+      body: { sourceIP: '198.51.100.99', predictedClass: 'BRUTE_FORCE' },
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
     { method: 'get', path: '/api/ai/stats', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
-    { method: 'put', path: '/api/ai/predictions/:id/verify', body: { actualClass: 'SSH Brute Force' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
+    {
+      method: 'put',
+      path: '/api/ai/predictions/:id/verify',
+      body: { actualClass: 'SSH Brute Force' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
 
     // 11. Training Samples
-    { method: 'get', path: '/api/training-samples', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/training-samples/:id', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/training-samples/ingest/:id', expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 } },
-    { method: 'post', path: '/api/training-samples/:id/validate', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'post', path: '/api/training-samples/:id/reject', body: { reason: 'False positive' }, expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'post', path: '/api/training-samples/:id/promote', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'post', path: '/api/training-samples/:id/supersede', body: { reason: 'Superseded' }, expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/training-samples',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/training-samples/:id',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/training-samples/ingest/:id',
+      expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 },
+    },
+    {
+      method: 'post',
+      path: '/api/training-samples/:id/validate',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/training-samples/:id/reject',
+      body: { reason: 'False positive' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/training-samples/:id/promote',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/training-samples/:id/supersede',
+      body: { reason: 'Superseded' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
 
     // 12. System Outbox
-    { method: 'get', path: '/api/system/outbox/status', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },
-    { method: 'get', path: '/api/system/outbox/failed', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
-    { method: 'post', path: '/api/system/outbox/redrive', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/system/outbox/status',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/system/outbox/failed',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/system/outbox/redrive',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
 
     // 13. Audit
     { method: 'get', path: '/api/audit', expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 } },
@@ -541,9 +825,9 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       .filter((ep) => !matrixKeys.has(`${ep.method.toUpperCase()} ${ep.path}`))
       .map((ep) => `${ep.method.toUpperCase()} ${ep.path}`)
 
-    const extraInMatrix = MATRIX
-      .filter((m) => !extractedKeys.has(`${m.method.toUpperCase()} ${m.path}`))
-      .map((m) => `${m.method.toUpperCase()} ${m.path}`)
+    const extraInMatrix = MATRIX.filter((m) => !extractedKeys.has(`${m.method.toUpperCase()} ${m.path}`)).map(
+      (m) => `${m.method.toUpperCase()} ${m.path}`
+    )
 
     if (unmappedInMatrix.length > 0) {
       throw new Error(`Unmapped routes in Express router stack missing from MATRIX: ${unmappedInMatrix.join(', ')}`)

@@ -1,10 +1,9 @@
 'use strict'
 
 const crypto = require('crypto')
-const mongoose = require('mongoose')
 const TrainingSample = require('../models/TrainingSample')
 const AIPrediction = require('../models/AIPrediction')
-const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonicalClasses')
+const { isValidCanonicalClass } = require('../utils/canonicalClasses')
 const logger = require('../utils/logger')
 
 const SUPPORTED_SCHEMA_VERSION = 'v2.1_53feat'

@@ -1,6 +1,5 @@
 const reportTime = require('../utils/reportingTime')
 const ThreatLog = require('../models/ThreatLog')
-const BlockedIP = require('../models/BlockedIP')
 const SystemSetting = require('../models/SystemSetting')
 const Alert = require('../models/Alert')
 const logger = require('../utils/logger')
@@ -86,7 +85,7 @@ const findThreatById = (id) => ThreatLog.findById(id).populate('handledBy', 'nam
 
 const createThreat = async (data) => {
   const isAiGenerated = Boolean(data.isAiGenerated)
-  const score = isAiGenerated ? (data.aiScore || 0) : 0
+  const score = isAiGenerated ? data.aiScore || 0 : 0
   const aiEngineService = require('./aiEngineService')
   const containmentService = require('./containmentService')
 
@@ -111,7 +110,7 @@ const createThreat = async (data) => {
   const threat = await ThreatLog.create({
     ...data,
     aiScore: score,
-    confidence: isAiGenerated ? (data.confidence || 0) : 0,
+    confidence: isAiGenerated ? data.confidence || 0 : 0,
     status,
     preBlockStatus: shouldBlock ? (score >= 0.7 ? 'MONITORING' : 'DETECTED') : null,
     autonomousAction: {

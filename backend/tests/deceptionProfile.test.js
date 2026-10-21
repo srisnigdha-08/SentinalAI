@@ -11,6 +11,7 @@ jest.mock('../services/aiEngineService', () => ({
   predictHoneypotSession: jest.fn().mockResolvedValue({ success: false }),
   getDeceptionScore: (...a) => mockGetDeceptionScore(...a),
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
 }))
 jest.mock('../models/SystemSetting', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }))
 jest.mock('../services/campaignService', () => ({ clusterSession: jest.fn() }))

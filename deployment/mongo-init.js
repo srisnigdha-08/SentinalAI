@@ -56,7 +56,14 @@ const operationalCollections = [
   'authsessions',
   'aipredictions',
   'users',
+  'campaigns',
+  'trainingsamples',
+  'outboxevents',
   'backups',
+  // retentionService writes archived_* (the older archive_* names are kept for existing deployments)
+  'archived_threatlogs',
+  'archived_honeypotsessions',
+  'archived_alerts',
   'archive_threatlogs',
   'archive_honeypotsessions',
   'reports'
@@ -64,10 +71,11 @@ const operationalCollections = [
 
 // Define privileges for sentinel_app_role
 const sentinelAppPrivileges = [
-  // 1. Read access on all collections in sentinel-db
+  // 1. Read access on all collections in sentinel-db, plus index management: Mongoose builds each model's
+  //    indexes (unique, TTL) at startup and fails without these.
   {
     resource: { db: targetDbName, collection: '' },
-    actions: ['find']
+    actions: ['find', 'listIndexes', 'createIndex', 'listCollections', 'createCollection']
   },
   // 2. Strict append-only privilege for auditlogs: INSERT only (no update, no remove)
   {

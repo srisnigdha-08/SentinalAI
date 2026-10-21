@@ -240,6 +240,54 @@ def run_temporal(data, n_estimators):
     return {"train_rows": len(train), "train_classes": class_counts(train), **evaluate(rf, ifo, test)}
 
 
+ALERT_FPR_TARGET = 0.001
+CANDIDATE_LINES = [round(0.70 + 0.01 * i, 2) for i in range(30)]  # 0.70 .. 0.99
+
+
+def alert_rates(rf, ifo, frame, line):
+    X, y = frame[FEATURE_NAMES].to_numpy(), frame["y"].to_numpy()
+    cls, score, unknown = production_scores(rf, ifo, X)
+    hit = ((cls != BENIGN) | unknown) & (score >= line)
+    benign = y == BENIGN
+    fp = int(hit[benign].sum())
+    return {
+        "line": line,
+        "benign_fpr": round(fp / max(1, int(benign.sum())), 6),
+        "benign_fpr_ci95": wilson(fp, int(benign.sum())),
+        "attack_detection": round(float(hit[~benign].mean()), 4) if (~benign).any() else None,
+    }
+
+
+def run_threshold(data, n_estimators, target=ALERT_FPR_TARGET):
+    """
+    Choose the alert line without touching the test rows: the chronological training portion is split
+    chronologically again (fit 80 % / validation 20 %), the lowest line whose benign alert rate on
+    validation is <= target is selected, and only then is it measured once on the held-out test rows.
+    """
+    train_all, test = chronological_split(data)
+    fit_rows, validation = chronological_split(train_all, train_fraction=0.80, purge_fraction=PURGE_FRACTION)
+    fit_rows, validation, test = cap(fit_rows, TRAIN_CAPS), cap(validation, TEST_CAPS), cap(test, TEST_CAPS)
+    rf, ifo = fit(fit_rows, n_estimators)
+    sweep = [alert_rates(rf, ifo, validation, line) for line in CANDIDATE_LINES]
+    # Point rule: validation estimate within target. Conservative rule: the 95 % Wilson upper bound on
+    # validation is within target, which leaves room for drift between validation and later traffic.
+    point = next((s["line"] for s in sweep if s["benign_fpr"] <= target), CANDIDATE_LINES[-1])
+    conservative = next((s["line"] for s in sweep if s["benign_fpr_ci95"][1] <= target), CANDIDATE_LINES[-1])
+    return {
+        "target_benign_fpr": target,
+        "fit_rows": len(fit_rows),
+        "validation_rows": len(validation),
+        "validation_sweep": sweep,
+        "chosen_line": point,
+        "test_at_chosen_line": alert_rates(rf, ifo, test, point),
+        "conservative_line": conservative,
+        "test_at_conservative_line": alert_rates(rf, ifo, test, conservative),
+        "test_at_0_70": alert_rates(rf, ifo, test, 0.70),
+        # Reported for transparency only; never used to pick a line.
+        "test_sweep_not_used_for_selection": [alert_rates(rf, ifo, test, line) for line in CANDIDATE_LINES],
+    }
+
+
 def run_lodo(pool, n_estimators):
     results = {}
     for day in [d for d in DAYS if d in set(pool["day"])]:
@@ -352,6 +400,8 @@ def main():
             report["protocols"]["lodo"] = run_lodo(pool, args.n_estimators)
         elif name == "deployed":
             report["protocols"]["deployed_on_temporal"] = run_deployed(data, ENGINE_ROOT / "models")
+        elif name == "threshold":
+            report["protocols"]["threshold"] = run_threshold(data, args.n_estimators)
         else:
             ap.error(f"unknown protocol {name}")
         print(f"  done in {time.time() - t0:.1f}s", flush=True)

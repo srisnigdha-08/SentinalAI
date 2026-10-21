@@ -52,12 +52,13 @@ jest.mock('../services/alertService', () => mockAlertService)
 
 const mockAiEngineService = {
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
 }
 jest.mock('../services/aiEngineService', () => mockAiEngineService)
 
 let mockAiPredictionCount = 0
 let mockThreatLogCount = 0
-let mockAlertCount = 0
+let _mockAlertCount = 0
 let mockBlockedIPCount = 0
 
 const mockThreatLogFindByIdAndUpdate = jest.fn()
@@ -97,7 +98,7 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
     process.env.ABUSEIPDB_API_KEY = 'test-runtime-key'
     mockAiPredictionCount = 0
     mockThreatLogCount = 0
-    mockAlertCount = 0
+    _mockAlertCount = 0
     mockBlockedIPCount = 0
   })
 

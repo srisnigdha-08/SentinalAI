@@ -62,8 +62,11 @@ def main():
 
     if not args.classifier or not args.anomaly:
         ap.error("--classifier and --anomaly are required (or use --check)")
+    import sklearn
     registry = {
         "registered_at": datetime.now(timezone.utc).isoformat(),
+        # The engine refuses to load the models under a different scikit-learn version.
+        "sklearn_version": sklearn.__version__,
         "classifier": entry(model_dir, args.classifier, args.classifier_meta, type=args.type),
         "anomaly": entry(model_dir, args.anomaly, args.anomaly_meta),
     }

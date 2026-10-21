@@ -1,0 +1,634 @@
+{
+  "generated_at": "2026-10-20T23:01:21.827131+00:00",
+  "data_dir": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\datasets\\cicids2017",
+  "rows_after_cleaning": 2827876,
+  "class_counts_after_cleaning": {
+    "BENIGN": 2271320,
+    "DDoS": 379737,
+    "Port Scan": 158804,
+    "Credential Stuffing": 9442,
+    "SSH Brute Force": 5897,
+    "Malware Beacon": 1956,
+    "XSS Attempt": 652,
+    "Lateral Movement": 36,
+    "SQL Injection": 21,
+    "RCE Attempt": 11
+  },
+  "recipe": {
+    "rf_params": {
+      "n_estimators": 200,
+      "max_depth": 20,
+      "min_samples_split": 5,
+      "min_samples_leaf": 1,
+      "class_weight": "balanced",
+      "n_jobs": -1,
+      "random_state": 42
+    },
+    "if_params": {
+      "n_estimators": 200,
+      "contamination": 0.1,
+      "max_samples": "auto",
+      "random_state": 42,
+      "n_jobs": -1
+    },
+    "train_caps_per_file": {
+      "BENIGN": 15000,
+      "Port Scan": 10000,
+      "DDoS": 10000
+    },
+    "test_caps_per_file": {
+      "BENIGN": 20000,
+      "Port Scan": 10000,
+      "DDoS": 10000
+    },
+    "chronological": {
+      "train_fraction": 0.7,
+      "purge_fraction": 0.01
+    },
+    "threat_raised_threshold": 0.7,
+    "block_threshold": 0.92,
+    "score_rule": "current = max(rf_s, 0.7*rf_s + 0.3*if_sig) for attack classes"
+  },
+  "smoke": false,
+  "protocols": {
+    "threshold": {
+      "target_benign_fpr": 0.001,
+      "fit_rows": 160082,
+      "validation_rows": 182324,
+      "validation_sweep": [
+        {
+          "line": 0.7,
+          "benign_fpr": 0.004309,
+          "benign_fpr_ci95": [
+            0.00399,
+            0.004653
+          ],
+          "attack_detection": 0.9923
+        },
+        {
+          "line": 0.71,
+          "benign_fpr": 0.003942,
+          "benign_fpr_ci95": [
+            0.003637,
+            0.004272
+          ],
+          "attack_detection": 0.992
+        },
+        {
+          "line": 0.72,
+          "benign_fpr": 0.003462,
+          "benign_fpr_ci95": [
+            0.003177,
+            0.003772
+          ],
+          "attack_detection": 0.9919
+        },
+        {
+          "line": 0.73,
+          "benign_fpr": 0.003188,
+          "benign_fpr_ci95": [
+            0.002915,
+            0.003487
+          ],
+          "attack_detection": 0.9916
+        },
+        {
+          "line": 0.74,
+          "benign_fpr": 0.002721,
+          "benign_fpr_ci95": [
+            0.00247,
+            0.002998
+          ],
+          "attack_detection": 0.9913
+        },
+        {
+          "line": 0.75,
+          "benign_fpr": 0.002315,
+          "benign_fpr_ci95": [
+            0.002084,
+            0.002571
+          ],
+          "attack_detection": 0.9909
+        },
+        {
+          "line": 0.76,
+          "benign_fpr": 0.001961,
+          "benign_fpr_ci95": [
+            0.001749,
+            0.002198
+          ],
+          "attack_detection": 0.9904
+        },
+        {
+          "line": 0.77,
+          "benign_fpr": 0.001594,
+          "benign_fpr_ci95": [
+            0.001405,
+            0.001809
+          ],
+          "attack_detection": 0.9898
+        },
+        {
+          "line": 0.78,
+          "benign_fpr": 0.001227,
+          "benign_fpr_ci95": [
+            0.001062,
+            0.001418
+          ],
+          "attack_detection": 0.9893
+        },
+        {
+          "line": 0.79,
+          "benign_fpr": 0.000934,
+          "benign_fpr_ci95": [
+            0.000791,
+            0.001102
+          ],
+          "attack_detection": 0.9888
+        },
+        {
+          "line": 0.8,
+          "benign_fpr": 0.000734,
+          "benign_fpr_ci95": [
+            0.000609,
+            0.000884
+          ],
+          "attack_detection": 0.9879
+        },
+        {
+          "line": 0.81,
+          "benign_fpr": 0.00064,
+          "benign_fpr_ci95": [
+            0.000524,
+            0.000782
+          ],
+          "attack_detection": 0.9873
+        },
+        {
+          "line": 0.82,
+          "benign_fpr": 0.0006,
+          "benign_fpr_ci95": [
+            0.000488,
+            0.000738
+          ],
+          "attack_detection": 0.9868
+        },
+        {
+          "line": 0.83,
+          "benign_fpr": 0.000574,
+          "benign_fpr_ci95": [
+            0.000465,
+            0.000708
+          ],
+          "attack_detection": 0.986
+        },
+        {
+          "line": 0.84,
+          "benign_fpr": 0.000534,
+          "benign_fpr_ci95": [
+            0.000429,
+            0.000664
+          ],
+          "attack_detection": 0.9838
+        },
+        {
+          "line": 0.85,
+          "benign_fpr": 0.00046,
+          "benign_fpr_ci95": [
+            0.000364,
+            0.000582
+          ],
+          "attack_detection": 0.983
+        },
+        {
+          "line": 0.86,
+          "benign_fpr": 0.000447,
+          "benign_fpr_ci95": [
+            0.000352,
+            0.000567
+          ],
+          "attack_detection": 0.9825
+        },
+        {
+          "line": 0.87,
+          "benign_fpr": 0.00042,
+          "benign_fpr_ci95": [
+            0.000328,
+            0.000538
+          ],
+          "attack_detection": 0.9818
+        },
+        {
+          "line": 0.88,
+          "benign_fpr": 0.000414,
+          "benign_fpr_ci95": [
+            0.000323,
+            0.00053
+          ],
+          "attack_detection": 0.9812
+        },
+        {
+          "line": 0.89,
+          "benign_fpr": 0.000414,
+          "benign_fpr_ci95": [
+            0.000323,
+            0.00053
+          ],
+          "attack_detection": 0.9805
+        },
+        {
+          "line": 0.9,
+          "benign_fpr": 0.0004,
+          "benign_fpr_ci95": [
+            0.000311,
+            0.000515
+          ],
+          "attack_detection": 0.9799
+        },
+        {
+          "line": 0.91,
+          "benign_fpr": 0.00036,
+          "benign_fpr_ci95": [
+            0.000276,
+            0.00047
+          ],
+          "attack_detection": 0.9794
+        },
+        {
+          "line": 0.92,
+          "benign_fpr": 0.00034,
+          "benign_fpr_ci95": [
+            0.000259,
+            0.000447
+          ],
+          "attack_detection": 0.9788
+        },
+        {
+          "line": 0.93,
+          "benign_fpr": 0.00032,
+          "benign_fpr_ci95": [
+            0.000242,
+            0.000424
+          ],
+          "attack_detection": 0.978
+        },
+        {
+          "line": 0.94,
+          "benign_fpr": 0.000293,
+          "benign_fpr_ci95": [
+            0.000219,
+            0.000394
+          ],
+          "attack_detection": 0.9769
+        },
+        {
+          "line": 0.95,
+          "benign_fpr": 0.000273,
+          "benign_fpr_ci95": [
+            0.000202,
+            0.000371
+          ],
+          "attack_detection": 0.9754
+        },
+        {
+          "line": 0.96,
+          "benign_fpr": 0.000247,
+          "benign_fpr_ci95": [
+            0.000179,
+            0.00034
+          ],
+          "attack_detection": 0.9728
+        },
+        {
+          "line": 0.97,
+          "benign_fpr": 0.000227,
+          "benign_fpr_ci95": [
+            0.000162,
+            0.000317
+          ],
+          "attack_detection": 0.9539
+        },
+        {
+          "line": 0.98,
+          "benign_fpr": 0.0002,
+          "benign_fpr_ci95": [
+            0.00014,
+            0.000286
+          ],
+          "attack_detection": 0.9163
+        },
+        {
+          "line": 0.99,
+          "benign_fpr": 0.000147,
+          "benign_fpr_ci95": [
+            9.7e-05,
+            0.000222
+          ],
+          "attack_detection": 0.8909
+        }
+      ],
+      "chosen_line": 0.79,
+      "test_at_chosen_line": {
+        "line": 0.79,
+        "benign_fpr": 0.001344,
+        "benign_fpr_ci95": [
+          0.001176,
+          0.001536
+        ],
+        "attack_detection": 0.8843
+      },
+      "conservative_line": 0.8,
+      "test_at_conservative_line": {
+        "line": 0.8,
+        "benign_fpr": 0.001094,
+        "benign_fpr_ci95": [
+          0.000943,
+          0.001268
+        ],
+        "attack_detection": 0.8831
+      },
+      "test_at_0_70": {
+        "line": 0.7,
+        "benign_fpr": 0.006606,
+        "benign_fpr_ci95": [
+          0.006221,
+          0.007015
+        ],
+        "attack_detection": 0.8925
+      },
+      "test_sweep_not_used_for_selection": [
+        {
+          "line": 0.7,
+          "benign_fpr": 0.006606,
+          "benign_fpr_ci95": [
+            0.006221,
+            0.007015
+          ],
+          "attack_detection": 0.8925
+        },
+        {
+          "line": 0.71,
+          "benign_fpr": 0.006137,
+          "benign_fpr_ci95": [
+            0.005766,
+            0.006532
+          ],
+          "attack_detection": 0.8918
+        },
+        {
+          "line": 0.72,
+          "benign_fpr": 0.005569,
+          "benign_fpr_ci95": [
+            0.005216,
+            0.005945
+          ],
+          "attack_detection": 0.8913
+        },
+        {
+          "line": 0.73,
+          "benign_fpr": 0.005056,
+          "benign_fpr_ci95": [
+            0.00472,
+            0.005416
+          ],
+          "attack_detection": 0.8907
+        },
+        {
+          "line": 0.74,
+          "benign_fpr": 0.004181,
+          "benign_fpr_ci95": [
+            0.003877,
+            0.00451
+          ],
+          "attack_detection": 0.8899
+        },
+        {
+          "line": 0.75,
+          "benign_fpr": 0.003725,
+          "benign_fpr_ci95": [
+            0.003438,
+            0.004036
+          ],
+          "attack_detection": 0.8888
+        },
+        {
+          "line": 0.76,
+          "benign_fpr": 0.002988,
+          "benign_fpr_ci95": [
+            0.002732,
+            0.003267
+          ],
+          "attack_detection": 0.8874
+        },
+        {
+          "line": 0.77,
+          "benign_fpr": 0.00255,
+          "benign_fpr_ci95": [
+            0.002315,
+            0.002809
+          ],
+          "attack_detection": 0.8867
+        },
+        {
+          "line": 0.78,
+          "benign_fpr": 0.001837,
+          "benign_fpr_ci95": [
+            0.001639,
+            0.00206
+          ],
+          "attack_detection": 0.8859
+        },
+        {
+          "line": 0.79,
+          "benign_fpr": 0.001344,
+          "benign_fpr_ci95": [
+            0.001176,
+            0.001536
+          ],
+          "attack_detection": 0.8843
+        },
+        {
+          "line": 0.8,
+          "benign_fpr": 0.001094,
+          "benign_fpr_ci95": [
+            0.000943,
+            0.001268
+          ],
+          "attack_detection": 0.8831
+        },
+        {
+          "line": 0.81,
+          "benign_fpr": 0.00095,
+          "benign_fpr_ci95": [
+            0.000811,
+            0.001113
+          ],
+          "attack_detection": 0.8809
+        },
+        {
+          "line": 0.82,
+          "benign_fpr": 0.000875,
+          "benign_fpr_ci95": [
+            0.000742,
+            0.001032
+          ],
+          "attack_detection": 0.8801
+        },
+        {
+          "line": 0.83,
+          "benign_fpr": 0.000856,
+          "benign_fpr_ci95": [
+            0.000724,
+            0.001012
+          ],
+          "attack_detection": 0.8792
+        },
+        {
+          "line": 0.84,
+          "benign_fpr": 0.000856,
+          "benign_fpr_ci95": [
+            0.000724,
+            0.001012
+          ],
+          "attack_detection": 0.8768
+        },
+        {
+          "line": 0.85,
+          "benign_fpr": 0.000856,
+          "benign_fpr_ci95": [
+            0.000724,
+            0.001012
+          ],
+          "attack_detection": 0.875
+        },
+        {
+          "line": 0.86,
+          "benign_fpr": 0.000812,
+          "benign_fpr_ci95": [
+            0.000684,
+            0.000965
+          ],
+          "attack_detection": 0.8724
+        },
+        {
+          "line": 0.87,
+          "benign_fpr": 0.0008,
+          "benign_fpr_ci95": [
+            0.000673,
+            0.000951
+          ],
+          "attack_detection": 0.8709
+        },
+        {
+          "line": 0.88,
+          "benign_fpr": 0.000781,
+          "benign_fpr_ci95": [
+            0.000656,
+            0.000931
+          ],
+          "attack_detection": 0.8696
+        },
+        {
+          "line": 0.89,
+          "benign_fpr": 0.000731,
+          "benign_fpr_ci95": [
+            0.00061,
+            0.000876
+          ],
+          "attack_detection": 0.8676
+        },
+        {
+          "line": 0.9,
+          "benign_fpr": 0.000681,
+          "benign_fpr_ci95": [
+            0.000565,
+            0.000822
+          ],
+          "attack_detection": 0.8664
+        },
+        {
+          "line": 0.91,
+          "benign_fpr": 0.000581,
+          "benign_fpr_ci95": [
+            0.000475,
+            0.000712
+          ],
+          "attack_detection": 0.865
+        },
+        {
+          "line": 0.92,
+          "benign_fpr": 0.000531,
+          "benign_fpr_ci95": [
+            0.00043,
+            0.000657
+          ],
+          "attack_detection": 0.864
+        },
+        {
+          "line": 0.93,
+          "benign_fpr": 0.000481,
+          "benign_fpr_ci95": [
+            0.000385,
+            0.000601
+          ],
+          "attack_detection": 0.8629
+        },
+        {
+          "line": 0.94,
+          "benign_fpr": 0.000444,
+          "benign_fpr_ci95": [
+            0.000352,
+            0.00056
+          ],
+          "attack_detection": 0.8619
+        },
+        {
+          "line": 0.95,
+          "benign_fpr": 0.000425,
+          "benign_fpr_ci95": [
+            0.000335,
+            0.000539
+          ],
+          "attack_detection": 0.8599
+        },
+        {
+          "line": 0.96,
+          "benign_fpr": 0.000394,
+          "benign_fpr_ci95": [
+            0.000308,
+            0.000504
+          ],
+          "attack_detection": 0.8576
+        },
+        {
+          "line": 0.97,
+          "benign_fpr": 0.000362,
+          "benign_fpr_ci95": [
+            0.00028,
+            0.000469
+          ],
+          "attack_detection": 0.8413
+        },
+        {
+          "line": 0.98,
+          "benign_fpr": 0.000319,
+          "benign_fpr_ci95": [
+            0.000242,
+            0.000419
+          ],
+          "attack_detection": 0.8088
+        },
+        {
+          "line": 0.99,
+          "benign_fpr": 0.000231,
+          "benign_fpr_ci95": [
+            0.000168,
+            0.000319
+          ],
+          "attack_detection": 0.7881
+        }
+      ]
+    }
+  },
+  "runtime_seconds": 764.3
+}

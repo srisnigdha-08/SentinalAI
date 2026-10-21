@@ -13,7 +13,7 @@ const {
 const { protect, restrictTo, requirePermission } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 const honeypotService = require('../services/honeypotService')
-const { sendSuccess } = require('../utils/apiResponse')
+const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { logAudit } = require('../utils/auditLogger')
 
 router.use(protect)
@@ -88,6 +88,32 @@ router.get('/nodes', getNodes)
 router.get('/deception/profile', async (req, res, next) => {
   try {
     sendSuccess(res, { ...(await honeypotService.getActiveProfile()), profiles: honeypotService.DECEPTION_PROFILES })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /honeypot/deception/recommendation:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Persona the Q-learner recommends serving next (applied by honeypot/deception_rotator.py)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Active profile and the recommended next profile
+ *       503:
+ *         description: AI engine unreachable
+ */
+router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const active = await honeypotService.getActiveProfile()
+    const rec = await require('../services/aiEngineService').getDeceptionRecommendation(active.profile)
+    if (!rec) return sendError(res, 'AI engine unreachable', 503)
+    sendSuccess(res, { activeProfile: active.profile, nextProfile: rec.nextProfile, explored: rec.explored })
   } catch (err) {
     next(err)
   }

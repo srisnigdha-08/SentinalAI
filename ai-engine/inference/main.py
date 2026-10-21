@@ -5,27 +5,41 @@ from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional, Union
 from collections import defaultdict, deque
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 import httpx, asyncio
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from inference.predictor import SentinelPredictor
-from inference.deception import get_scorer, save_scorer
-from inference.errors import ModelUnavailableError
-from utils.features import FEATURE_NAMES
-from fastapi.responses import JSONResponse
-from fastapi.exceptions import RequestValidationError
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
-log = logging.getLogger("sentinel.api")
-
 ENGINE_ROOT = Path(__file__).resolve().parent.parent
-# Load ai-engine/.env (never overriding variables already set). Skipped under pytest so a developer's
-# local .env cannot leak into the test suite's controlled environment.
+# Load ai-engine/.env before importing the predictor (its thresholds read the environment at import),
+# never overriding variables already set. Skipped under pytest so a developer's local .env cannot leak
+# into the test suite's controlled environment.
 if "pytest" not in sys.modules:
     from dotenv import load_dotenv
     load_dotenv(ENGINE_ROOT / ".env", override=False)
+from inference.predictor import SentinelPredictor
+from inference.deception import get_scorer, save_scorer
+from inference.errors import ModelUnavailableError
+from monitoring.drift import DriftMonitor
+from utils.features import FEATURE_NAMES
+from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.exceptions import RequestValidationError
+
+import contextvars, re, uuid
+# Correlation id of the request being handled (from the backend's X-Request-Id), added to every log line.
+request_id_var = contextvars.ContextVar("request_id", default="-")
+
+class _RequestIdFilter(logging.Filter):
+    def filter(self, record):
+        record.request_id = request_id_var.get()
+        return True
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] [%(request_id)s] %(name)s: %(message)s")
+for _handler in logging.getLogger().handlers:
+    _handler.addFilter(_RequestIdFilter())
+log = logging.getLogger("sentinel.api")
+_VALID_REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
+
 # Relative MODEL_DIR is resolved against ai-engine/, not the shell's CWD, so the loaded model
 # does not depend on where uvicorn was started (repo root has a different models/ copy).
 _model_dir  = Path(os.getenv("MODEL_DIR") or ENGINE_ROOT / "models")
@@ -39,7 +53,7 @@ if not API_KEY:
 THRESHOLD   = float(os.getenv("SCORE_THRESHOLD", "0.7"))
 
 predictor = None
-stats = {"total":0,"threats":0,"blocked":0,"start":datetime.now(timezone.utc).isoformat(),"scores":deque(maxlen=100),"times":deque(maxlen=100),"classes":defaultdict(int)}
+stats = {"total":0,"threats":0,"blocked":0,"start":datetime.now(timezone.utc).isoformat(),"scores":deque(maxlen=100),"times":deque(maxlen=100),"classes":defaultdict(int),"time_sum_ms":0.0}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -58,6 +72,18 @@ async def lifespan(app: FastAPI):
         log.warning(f"Failed to flush Q-table on shutdown: {e}")
 
 app = FastAPI(title="SentinelAI Inference Engine", version="2.1.0", lifespan=lifespan)
+
+@app.middleware("http")
+async def request_id_middleware(request, call_next):
+    incoming = request.headers.get("x-request-id", "")
+    request_id = incoming if _VALID_REQUEST_ID.match(incoming) else uuid.uuid4().hex
+    token = request_id_var.set(request_id)
+    try:
+        response = await call_next(request)
+    finally:
+        request_id_var.reset(token)
+    response.headers["X-Request-Id"] = request_id
+    return response
 
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request, exc):
@@ -152,8 +178,14 @@ def _upd(r):
     with _stats_lock:
         _upd_unlocked(r)
 
+drift_monitor = DriftMonitor()
+
 def _upd_unlocked(r):
+    # Only real flow vectors feed drift monitoring; honeypot results carry no featureVector.
+    if r.get("featureVector") is not None:
+        drift_monitor.record(r["featureVector"], r.get("predictedClass"))
     stats["total"]+=1; stats["scores"].append(r["threatScore"]); stats["times"].append(r.get("inferenceTimeMs",0))
+    stats["time_sum_ms"] += float(r.get("inferenceTimeMs") or 0)
     stats["classes"][r["predictedClass"]]+=1
     if r["threatScore"]>=THRESHOLD: stats["threats"]+=1
     if r["action"]=="BLOCK": stats["blocked"]+=1
@@ -185,6 +217,62 @@ async def health():
 async def model_info():
     if not predictor: raise HTTPException(503,"Not ready")
     return predictor.get_model_info()
+
+def _metrics_allowed(request) -> bool:
+    token = os.getenv("METRICS_TOKEN")
+    if token:
+        return secrets.compare_digest(request.headers.get("authorization", ""), f"Bearer {token}")
+    return (request.client.host if request.client else "") in ("127.0.0.1", "::1")
+
+@app.get("/metrics")
+def metrics(request: Request):
+    """Prometheus text format: bearer METRICS_TOKEN when set, otherwise loopback only."""
+    if not _metrics_allowed(request):
+        raise HTTPException(403, "Metrics access denied")
+    with _stats_lock:
+        total, threats, time_sum = stats["total"], stats["threats"], stats["time_sum_ms"]
+        classes = dict(stats["classes"])
+    lines = ["# HELP sentinel_ai_predictions_total Predictions served, by class", "# TYPE sentinel_ai_predictions_total counter"]
+    lines += [f'sentinel_ai_predictions_total{{class="{c.replace(chr(34), "_")}"}} {n}' for c, n in classes.items()]
+    lines += ["# HELP sentinel_ai_threat_predictions_total Predictions at or above SCORE_THRESHOLD",
+              "# TYPE sentinel_ai_threat_predictions_total counter", f"sentinel_ai_threat_predictions_total {threats}",
+              "# HELP sentinel_ai_inference_ms_sum Total inference time (ms)", "# TYPE sentinel_ai_inference_ms_sum counter",
+              f"sentinel_ai_inference_ms_sum {round(time_sum, 3)}",
+              "# HELP sentinel_ai_inference_count Inferences timed", "# TYPE sentinel_ai_inference_count counter",
+              f"sentinel_ai_inference_count {total}",
+              "# HELP sentinel_ai_model_loaded 1 when the registered models are loaded", "# TYPE sentinel_ai_model_loaded gauge",
+              f"sentinel_ai_model_loaded {1 if predictor and predictor._loaded else 0}"]
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
+
+@app.get("/model/drift", dependencies=[Depends(verify_api_key)])
+def model_drift():
+    """Drift of recently scored flows versus the training statistics stored in the model's scaler."""
+    if not predictor or not predictor._loaded:
+        raise HTTPException(503, "Not ready")
+    scaler = predictor.clf.named_steps.get("scaler") if hasattr(predictor.clf, "named_steps") else None
+    if scaler is None or not hasattr(scaler, "mean_"):
+        raise HTTPException(501, "Deployed model exposes no training statistics")
+    report = drift_monitor.report(scaler.mean_, scaler.var_, FEATURE_NAMES)
+    report["model"] = (predictor.registry or {}).get("classifier")
+    return report
+
+_reload_lock = threading.Lock()
+
+@app.post("/model/reload", dependencies=[Depends(verify_api_key)])
+def model_reload():
+    """
+    Load the models pinned in models/registry.json into a new predictor and swap it in only if it loaded
+    and verified. In-flight requests finish on the previous predictor; on failure nothing changes (409).
+    """
+    global predictor
+    with _reload_lock:
+        candidate = SentinelPredictor(model_dir=MODEL_DIR)
+        if not candidate._loaded:
+            raise HTTPException(409, "New models did not load or verify; still serving the previous model")
+        previous = predictor.get_model_info() if predictor and predictor._loaded else None
+        predictor = candidate
+    log.info("Model reloaded: %s", candidate.registry)
+    return {"success": True, "previous": previous, "current": candidate.get_model_info()}
 
 @app.get("/model/stats", dependencies=[Depends(verify_api_key)])
 async def model_stats():
@@ -253,6 +341,23 @@ def deception_score(s: SessionData):
     with _scorer_lock:
         res = get_scorer().process_session(s.model_dump())
     return {"success": True, "result": res}
+
+@app.get("/deception/recommendation", dependencies=[Depends(verify_api_key)])
+def deception_recommendation(current: str = "centos_7"):
+    """
+    The persona to serve next, chosen epsilon-greedily from the Q-table with the currently served persona
+    as state. Applying it is the honeypot host's job (honeypot/deception_rotator.py); nothing changes here.
+    """
+    from rl_engine.deception_scorer import PROFILES
+    if current not in PROFILES:
+        raise HTTPException(422, f"Unknown profile '{current}'")
+    with _scorer_lock:
+        learner = get_scorer().learner
+        next_profile = learner.choose_action(current)
+        row = learner.q_table.get(current, {})
+        greedy = max(row, key=row.get) if row else next_profile
+        return {"success": True, "current": current, "nextProfile": next_profile,
+                "explored": next_profile != greedy, "learnerStats": learner.get_stats()}
 
 class AuthTelemetryRecord(BaseModel):
     event_type: str = "AUTH_FAILURE"

@@ -641,7 +641,7 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block', 
  * Order: BlockedIP upsert -> candidate ThreatLogs update.
  * Compensation: If ThreatLog update fails, BlockedIP is restored or removed (Scenario B).
  */
-const blockIPManual = async ({ ip, reason, analystId, analystName, analystEmail }) => {
+const blockIPManual = async ({ ip, reason, analystId }) => {
   if (!ip || typeof ip !== 'string' || !isValidIP(ip.trim())) {
     throw new Error('Valid IP address is required')
   }
@@ -744,7 +744,7 @@ const blockIPManual = async ({ ip, reason, analystId, analystName, analystEmail 
  * Order: BlockedIP deletion -> scoped ThreatLogs restoration.
  * Compensation: If ThreatLog restoration fails, BlockedIP is re-inserted and threats re-blocked.
  */
-const unblockIPManual = async ({ ip, analystId, analystName, analystEmail }) => {
+const unblockIPManual = async ({ ip }) => {
   if (!ip || typeof ip !== 'string' || !isValidIP(ip.trim())) {
     throw new Error('Valid IP address is required')
   }

@@ -57,6 +57,7 @@ jest.mock('../services/containmentService', () => mockContainmentService)
 
 const mockAiEngineService = {
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
 }
 jest.mock('../services/aiEngineService', () => mockAiEngineService)
 

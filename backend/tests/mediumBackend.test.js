@@ -17,7 +17,10 @@ jest.mock('../models/ThreatLog', () => ({ create: jest.fn(), countDocuments: jes
 jest.mock('../models/SystemSetting', () => ({ findOne: jest.fn().mockResolvedValue(null) }))
 jest.mock('../models/BlockedIP', () => ({}))
 jest.mock('../services/alertService', () => ({ createAlert: jest.fn(), createAlertFromThreat: jest.fn() }))
-jest.mock('../services/aiEngineService', () => ({ getBlockThreshold: jest.fn().mockResolvedValue(0.92) }))
+jest.mock('../services/aiEngineService', () => ({
+  getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
+}))
 
 const AIPrediction = require('../models/AIPrediction')
 const ThreatLog = require('../models/ThreatLog')

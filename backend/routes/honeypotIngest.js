@@ -140,6 +140,65 @@ router.post('/', internalAuth, async (req, res, next) => {
 
 /**
  * @openapi
+ * /honeypot/ingest/flow:
+ *   post:
+ *     tags:
+ *       - Honeypot Ingest
+ *     summary: Live detection for one captured network flow (sniffer --detect)
+ *     description: >
+ *       Runs the full detection pipeline (AI engine prediction, AIPrediction, ThreatLog/alert at or above
+ *       the alert line, dashboard push). Only known numeric flow fields are forwarded.
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [sourceIP]
+ *             properties:
+ *               sourceIP: { type: string }
+ *               destinationIP: { type: string }
+ *               timestamp: { type: string, format: date-time }
+ *     responses:
+ *       200:
+ *         description: Prediction stored and pushed
+ *       400:
+ *         description: Invalid IP or too few flow fields
+ */
+router.post('/flow', internalAuth, async (req, res, next) => {
+  try {
+    const { FLOW_FIELDS, MIN_FLOW_FIELDS } = require('../utils/flowFields')
+    const body = req.body || {}
+    if (typeof body.sourceIP !== 'string' || !isValidIP(body.sourceIP.trim()))
+      return sendError(res, 'Valid sourceIP is required', 400)
+    const record = { sourceIP: body.sourceIP.trim() }
+    if (typeof body.destinationIP === 'string' && isValidIP(body.destinationIP.trim()))
+      record.destinationIP = body.destinationIP.trim()
+    if (body.timestamp && parseDate(body.timestamp)) record.timestamp = parseDate(body.timestamp).toISOString()
+    for (const field of FLOW_FIELDS) {
+      const value = Number(body[field])
+      if (body[field] !== undefined && body[field] !== null && body[field] !== '' && Number.isFinite(value))
+        record[field] = value
+    }
+    if (Object.keys(record).filter((k) => FLOW_FIELDS.includes(k)).length < MIN_FLOW_FIELDS)
+      return sendError(res, `At least ${MIN_FLOW_FIELDS} numeric flow fields are required`, 400)
+
+    const result = await require('../services/aiEngineService').runFullPipeline(record, req.app.get('io'))
+    sendSuccess(res, {
+      predictedClass: result.predictedClass,
+      threatScore: result.threatScore,
+      action: result.action,
+      predictionId: result._id,
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
  * /honeypot/ingest/match-session:
  *   post:
  *     tags:

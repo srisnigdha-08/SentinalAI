@@ -11,6 +11,7 @@ jest.mock('../services/aiEngineService', () => ({
   predictHoneypotSession: jest.fn().mockResolvedValue(null),
   getDeceptionScore: jest.fn().mockResolvedValue(null),
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
 }))
 jest.mock('../services/campaignService', () => ({ clusterSession: jest.fn() }))
 jest.mock('../websocket/socketManager', () => ({ emitHoneypotEvent: jest.fn(), emitNewThreat: jest.fn() }))

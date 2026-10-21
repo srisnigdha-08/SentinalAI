@@ -8,7 +8,6 @@ const { validateObjectId } = require('../middleware/validate')
 const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonicalClasses')
 const { redactAIPrediction } = require('../utils/redact')
 
-
 const { isHoneypotKey, isSentinelKey } = require('../utils/apiKeys')
 
 /**
@@ -74,6 +73,72 @@ router.get('/engine/stats', protect, async (req, res, next) => {
   try {
     sendSuccess(res, (await aiSvc.getModelStats()) || {})
   } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /ai/engine/drift:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: Feature and class-mix drift of recent traffic versus the model's training data
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Drift report (status ok, drift or insufficient_data)
+ *       503:
+ *         description: AI engine unreachable
+ */
+router.get('/engine/drift', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const drift = await aiSvc.getDrift()
+    if (!drift) return sendError(res, 'AI engine unreachable', 503)
+    sendSuccess(res, drift)
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /ai/engine/reload:
+ *   post:
+ *     tags:
+ *       - AI Engine
+ *     summary: Load the models pinned in the AI engine's registry without a restart (admin)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: New model serving
+ *       409:
+ *         description: New models failed to load or verify; previous model still serving
+ */
+router.post('/engine/reload', protect, restrictTo('admin'), async (req, res, next) => {
+  const { logAudit } = require('../utils/auditLogger')
+  try {
+    const result = await aiSvc.reloadModel()
+    await logAudit({
+      action: 'MODEL_RELOADED',
+      actor: req.user,
+      target: { identifier: result?.current?.registry?.classifier || 'unknown', type: 'Model' },
+      status: 'SUCCESS',
+      details: { previous: result?.previous?.registry || null, current: result?.current?.registry || null },
+      ip: req.ip,
+    })
+    sendSuccess(res, result, 'Model reloaded')
+  } catch (err) {
+    await logAudit({
+      action: 'MODEL_RELOADED',
+      actor: req.user,
+      target: { identifier: 'registry', type: 'Model' },
+      status: 'FAILED',
+      details: { error: err.message },
+      ip: req.ip,
+    }).catch(() => {})
     next(err)
   }
 })
@@ -170,7 +235,6 @@ router.get('/predictions', protect, async (req, res, next) => {
     next(err)
   }
 })
-
 
 // Fields the AI engine callback (inference/main.py _notify) may set. Verification, threat links
 // and anything else on AIPrediction are server-owned and never accepted from the request.

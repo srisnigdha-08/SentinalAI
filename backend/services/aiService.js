@@ -66,8 +66,11 @@ const storePrediction = async (data) => {
 
   const isDegraded =
     data.status === 'DEGRADED' || data.status === 'UNAVAILABLE' || data.predictedClass === 'UNINSPECTED_TRAFFIC'
+  // Alert line shared with the AI engine (its MONITOR threshold, validated on held-out data).
+  const alertThreshold = await require('./aiEngineService').getAlertThreshold()
   const willCreateThreat =
-    !data.generatedThreat && (isDegraded || (Number(data.threatScore) >= 0.7 && data.predictedClass !== 'BENIGN'))
+    !data.generatedThreat &&
+    (isDegraded || (Number(data.threatScore) >= alertThreshold && data.predictedClass !== 'BENIGN'))
   // The threat's id is chosen before either write, so the prediction is stored already linked to it and no
   // follow-up save can leave a threat whose prediction does not point back (M3).
   const threatId = willCreateThreat ? new mongoose.Types.ObjectId() : null
@@ -182,7 +185,7 @@ const storePrediction = async (data) => {
 
     // Asynchronous Threat Intelligence Enrichment (Phase 2.4B - Option B)
     // Decoupled from detection and containment; runs in background and updates ThreatLog.threatIntel
-    if (threat.aiScore >= 0.7) {
+    if (threat.aiScore >= alertThreshold) {
       try {
         const threatIntelService = require('./threatIntelService')
         setImmediate(() => {

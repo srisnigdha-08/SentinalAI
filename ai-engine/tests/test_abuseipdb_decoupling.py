@@ -130,11 +130,15 @@ def test_action_is_unchanged(predictor_instance):
       score >= 0.70 -> MONITOR
       otherwise     -> ALLOW
     """
-    # Test MONITOR (attack at 0.80 confidence, mild anomaly -> max(0.80, 0.7*0.80 + 0.3*0.3799) = 0.80)
-    predictor_instance.rf.predict_proba.return_value = [[0.20, 0.80]]
+    # Test MONITOR (attack at 0.88 confidence, IF at the anomaly boundary -> 0.88: between the 0.85 alert
+    # line and the 0.92 block line)
+    predictor_instance.rf.predict_proba.return_value = [[0.12, 0.88]]
     res = predictor_instance.predict({"sourceIP": "185.220.101.5"})
-    assert res["threatScore"] == 0.8
+    assert res["threatScore"] == 0.88
     assert res["action"] == "MONITOR"
+    # Below the alert line the flow is allowed
+    predictor_instance.rf.predict_proba.return_value = [[0.20, 0.80]]
+    assert predictor_instance.predict({"sourceIP": "185.220.101.5"})["action"] == "ALLOW"
 
     # Test BLOCK (max_p = 1.0, severe outlier)
     predictor_instance.rf.predict_proba.return_value = [[0.0, 1.0]]

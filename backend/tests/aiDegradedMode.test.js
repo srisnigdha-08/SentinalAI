@@ -18,7 +18,10 @@ jest.mock('../services/alertService', () => ({
   createAlert: jest.fn().mockResolvedValue({ _id: 'alert-1' }),
   createAlertFromThreat: jest.fn(),
 }))
-jest.mock('../services/aiEngineService', () => ({ getBlockThreshold: jest.fn().mockResolvedValue(0.92) }))
+jest.mock('../services/aiEngineService', () => ({
+  getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
+}))
 
 const AIPrediction = require('../models/AIPrediction')
 const ThreatLog = require('../models/ThreatLog')

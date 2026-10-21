@@ -107,6 +107,22 @@ const init = (io) => {
   logger.info('[WS] Socket.IO initialized')
 }
 
+// Every security event pushed to dashboards is also recorded on the SecurityEventBus (history, subscribers,
+// metrics and, with OUTBOX_STORE set, a durable DELIVERED record). Recording never affects delivery.
+const HONEYPOT_EVENT_TYPES = {
+  honeypot_session_opened: 'HONEYPOT_SESSION_OPENED',
+  honeypot_command: 'HONEYPOT_COMMAND',
+  honeypot_session_closed: 'HONEYPOT_SESSION_CLOSED',
+  malware_download: 'MALWARE_DOWNLOAD',
+}
+const recordEvent = (eventType, payload) => {
+  try {
+    require('../utils/securityEventBus').defaultSecurityEventBus.recordDelivered({ eventType, payload })
+  } catch (e) {
+    logger.debug('[WS] Event bus record failed: ' + e.message)
+  }
+}
+
 const emitNewThreat = (threat) => {
   if (!_io) return
   const rawPayload = {
@@ -128,6 +144,7 @@ const emitNewThreat = (threat) => {
 
   // Privileged operators (Admin & Analyst) receive unredacted threat data
   _io.to(['admin', 'analyst', 'threat_subscribers_privileged']).emit('new_threat', rawPayload)
+  recordEvent('THREAT_DETECTED', rawPayload)
 
   // Viewers receive redacted telemetry
   _io.to(['viewer', 'threat_subscribers_viewer']).emit('new_threat', redactedPayload)
@@ -155,6 +172,7 @@ const emitNewThreat = (threat) => {
 
 const emitThreatUpdated = (threat) => {
   if (!_io) return
+  recordEvent('THREAT_UPDATED', { id: threat._id?.toString(), status: threat.status, severity: threat.severity })
   _io.to(['admin', 'analyst', 'threat_subscribers_privileged']).emit('threat_updated', {
     id: threat._id?.toString(),
     status: threat.status,
@@ -171,6 +189,11 @@ const emitThreatUpdated = (threat) => {
 
 const emitThreatIntelUpdated = ({ threatId, sourceIP, threatIntel }) => {
   if (!_io) return
+  recordEvent('THREAT_INTEL_UPDATED', {
+    threatId: threatId?.toString?.() || threatId,
+    sourceIP,
+    status: threatIntel?.status,
+  })
   _io.to(['admin', 'analyst']).emit('threat_intel_updated', {
     threatId: threatId?.toString(),
     sourceIP,
@@ -187,6 +210,7 @@ const emitThreatIntelUpdated = ({ threatId, sourceIP, threatIntel }) => {
 
 const emitIPBlocked = (ip, by, threatId) => {
   if (!_io) return
+  recordEvent('IP_BLOCKED', { ip, blockedBy: by, threatId: threatId?.toString?.() || threatId || null })
   _io.to(['admin', 'analyst']).emit('ip_blocked', { ip, blockedBy: by, threatId, timestamp: new Date().toISOString() })
   _io.to(['admin', 'analyst']).emit('live_feed_event', {
     type: 'block',
@@ -209,6 +233,7 @@ const emitIPBlocked = (ip, by, threatId) => {
 
 const emitIPUnblocked = (ip, by) => {
   if (!_io) return
+  recordEvent('IP_UNBLOCKED', { ip, unblockedBy: by })
   _io.to(['admin', 'analyst']).emit('ip_unblocked', { ip, unblockedBy: by, timestamp: new Date().toISOString() })
   _io.to(['admin', 'analyst']).emit('live_feed_event', {
     type: 'unblock',
@@ -231,6 +256,12 @@ const emitIPUnblocked = (ip, by) => {
 
 const emitNewAlert = (alert) => {
   if (!_io) return
+  recordEvent('ALERT_CREATED', {
+    id: alert._id?.toString(),
+    title: alert.title,
+    severity: alert.severity,
+    type: alert.type,
+  })
   const p = {
     id: alert._id?.toString(),
     title: alert.title,
@@ -277,12 +308,19 @@ const emitAIPrediction = (p) => {
   }
 
   _io.to(['admin', 'analyst']).emit('ai_prediction', rawPred)
+  recordEvent('AI_PREDICTION', {
+    id: rawPred._id?.toString?.() || rawPred.id,
+    predictedClass: rawPred.predictedClass,
+    threatScore: rawPred.threatScore,
+  })
   _io.to(['viewer', 'threat_subscribers_viewer']).emit('ai_prediction', redactAIPrediction(rawPred, 'viewer'))
 }
 
 const emitHoneypotEvent = (eventType, data) => {
   if (!_io) return
   _io.to(['admin', 'analyst']).emit(eventType, { ...data, timestamp: new Date().toISOString() })
+  if (HONEYPOT_EVENT_TYPES[eventType])
+    recordEvent(HONEYPOT_EVENT_TYPES[eventType], { sessionId: data?.sessionId, sourceIP: data?.sourceIP })
   _io.to('viewer').emit(eventType, { ...redactHoneypotSession(data, 'viewer'), timestamp: new Date().toISOString() })
 
   const msgs = {

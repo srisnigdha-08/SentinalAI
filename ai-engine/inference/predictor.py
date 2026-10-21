@@ -85,8 +85,19 @@ def get_ip_reputation(ip_str: str) -> float:
         log.warning(f"AbuseIPDB query error for {ip_str}: {e}")
         return None
 
-BLOCK_THRESHOLD   = 0.92
-MONITOR_THRESHOLD = 0.70
+def _threshold_env(name, default):
+    try:
+        value = float(os.getenv(name, ""))
+    except ValueError:
+        return default
+    return value if 0.0 < value <= 1.0 else default
+
+BLOCK_THRESHOLD   = _threshold_env("BLOCK_THRESHOLD", 0.92)
+# Alert line (MONITOR): a non-BENIGN prediction at or above it becomes a threat + alert in the backend.
+# 0.85 = validation-selected line with a 2x margin for temporal drift: on the C1 validation split the
+# point (0.79) and Wilson (0.80) rules met the 0.1 % benign-alert target but exceeded it on later traffic
+# (0.134 % / 0.109 %); 0.85 had 0.046 % on validation. See docs/IMPROVEMENTS_REPORT.md.
+MONITOR_THRESHOLD = min(_threshold_env("ALERT_THRESHOLD", 0.85), BLOCK_THRESHOLD)
 ANOMALY_THRESHOLD = -0.55
 
 # Isolation Forest Boundary-Anchored Anomaly Transformation Constants
@@ -218,6 +229,15 @@ class SentinelPredictor:
                     log.error(f"Model hash mismatch for {path.name} (expected {expected[:12]}, got {actual[:12]}); "
                               "inference unavailable")
                     return
+            # Pickles are only reliable under the scikit-learn version that wrote them; another version can
+            # load silently and return wrong results. ALLOW_SKLEARN_MISMATCH=1 overrides (e.g. a deliberate upgrade).
+            pinned_sklearn = registry.get("sklearn_version")
+            import sklearn
+            if pinned_sklearn and pinned_sklearn != sklearn.__version__ and \
+                    os.getenv("ALLOW_SKLEARN_MISMATCH", "").lower() not in ("1", "true", "yes"):
+                log.error(f"Models were registered under scikit-learn {pinned_sklearn} but {sklearn.__version__} is "
+                          "installed; inference unavailable (use the pinned .venv / requirements.txt)")
+                return
             self.model_type = clf_entry.get("type", "rf")
             clf_path = pinned[0][0]
             meta_path = self.model_dir / clf_entry["meta"] if clf_entry.get("meta") else None

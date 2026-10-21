@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import csv
 import threading
@@ -6,6 +7,13 @@ import requests
 from datetime import datetime
 from scapy.all import sniff, wrpcap
 from cicflowmeter.flow_session import FlowSession
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from flow_mapping import to_detection_payload  # noqa: E402
+
+# SNIFFER_DETECT=1: also send every extracted flow to the backend for live detection
+# (POST /api/honeypot/ingest/flow: AI prediction, threat/alert at the alert line, dashboard push).
+DETECT = os.environ.get("SNIFFER_DETECT", "").lower() in ("1", "true", "yes")
 
 pcap_path = "/cowrie/logs/pcap/cowrie.pcap"
 os.makedirs(os.path.dirname(pcap_path), exist_ok=True)
@@ -105,6 +113,8 @@ def process_pcap(pcap_in, csv_out_dir):
     if not sentinel_key:
         sys.exit("Error: HONEYPOT_API_KEY environment variable not set")
     match_url = f"{sentinel_api}/honeypot/ingest/match-session"
+    flow_url = f"{sentinel_api}/honeypot/ingest/flow"
+    detected = 0
     
     labeled_rows = []
     headers = []
@@ -151,10 +161,21 @@ def process_pcap(pcap_in, csv_out_dir):
                 row["label"] = label
                 row["label_source"] = label_source
                 labeled_rows.append(row)
+
+                if DETECT:
+                    payload = to_detection_payload(row)
+                    if payload:
+                        try:
+                            r = requests.post(flow_url, headers={"x-api-key": sentinel_key}, json=payload, timeout=10)
+                            detected += r.status_code == 200
+                        except requests.RequestException as ex:
+                            print(f"Live detection post failed: {type(ex).__name__}")
     except Exception as e:
         print(f"Error processing temp CSV: {e}")
         return
         
+    if DETECT:
+        print(f"Live detection: {detected} flow(s) analysed by the backend")
     if not labeled_rows:
         return
         
