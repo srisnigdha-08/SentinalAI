@@ -445,6 +445,9 @@ def main():
     ap.add_argument("--max-rows-per-file", type=int, default=None)
     ap.add_argument("--smoke", action="store_true", help="20k rows/file, 30 trees: quick pipeline check")
     ap.add_argument("--no-dedupe", action="store_true", help="keep exact duplicate rows (reproduces pre-C2 runs)")
+    ap.add_argument("--drop-features", default="",
+                    help="comma-separated features set to 0 everywhere (ablation, e.g. init_win_bytes_forward,"
+                         "init_win_bytes_backward); constant columns are never split on, so this equals removing them")
     args = ap.parse_args()
     if args.smoke:
         args.max_rows_per_file, args.n_estimators = args.max_rows_per_file or 20000, args.n_estimators or 30
@@ -452,6 +455,13 @@ def main():
     t_start = time.time()
     print("Loading CICIDS2017 CSVs...", flush=True)
     data = load_all(Path(args.data), args.max_rows_per_file, dedupe=not args.no_dedupe)
+    dropped = [f.strip() for f in args.drop_features.split(",") if f.strip()]
+    unknown = [f for f in dropped if f not in FEATURE_NAMES]
+    if unknown:
+        ap.error(f"unknown feature(s): {', '.join(unknown)}")
+    if dropped:
+        data[dropped] = 0.0
+        print(f"  ablation: {', '.join(dropped)} set to 0", flush=True)
     pool = cap(data, TEST_CAPS)
     wanted = [p.strip() for p in args.protocols.split(",") if p.strip()]
     report = {
@@ -459,6 +469,7 @@ def main():
         "data_dir": str(Path(args.data).resolve()),
         "rows_after_cleaning": int(len(data)),
         "deduplicated": not args.no_dedupe,
+        "dropped_features": dropped,
         "duplicates_removed": int(data.attrs.get("duplicates_removed", 0)),
         "class_counts_after_cleaning": class_counts(data),
         "recipe": {"rf_params": dict(RF_PARAMS, **({"n_estimators": args.n_estimators} if args.n_estimators else {})),

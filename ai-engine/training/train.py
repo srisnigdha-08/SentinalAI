@@ -22,11 +22,18 @@ from sklearn.metrics import accuracy_score, f1_score, classification_report
 from datetime import datetime
 from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, LABEL_SOURCES, prepare_features, RAW_LABEL_TO_TARGET, CANDIDATES, log_transform_features
 from utils.data_generator import generate
+from monitoring.drift import benign_reference
 
 warnings.filterwarnings("ignore")
 
 RF_PARAMS = {"n_estimators":200,"max_depth":20,"min_samples_split":5,"min_samples_leaf":1,"class_weight":"balanced","n_jobs":-1,"random_state":42}
 IF_PARAMS  = {"n_estimators":200,"contamination":0.1,"max_samples":"auto","random_state":42,"n_jobs":-1}
+
+def smote_strategy(y):
+    """SMOTE targets for the two thin classes: Malware Beacon (7) to >= 4,000 rows, XSS Attempt (6) to >= 1,500."""
+    counts = dict(zip(*np.unique(y, return_counts=True)))
+    return {c: max(int(counts[c]) + 1, target) for c, target in ((7, 4000), (6, 1500)) if c in counts}
+
 
 def drop_duplicate_rows(X, y):
     """Keep the first occurrence of every identical (feature vector, label) row, preserving order."""
@@ -245,15 +252,12 @@ def train(args):
     class_counts = {split: {LABEL_NAMES[int(k)]: int(v) for k, v in zip(*np.unique(labels, return_counts=True))}
                     for split, labels in (("train", y_train), ("test", y_test))}
 
+    # Pre-SMOTE training rows: cross-validation resamples inside each fold instead (M8)
+    X_train_cv, y_train_cv = X_train, y_train
     if args.smote:
         unique_cls, counts_cls = np.unique(y_train, return_counts=True)
         counts_dict = dict(zip(unique_cls, counts_cls))
-        
-        sampling_strategy = {}
-        if 7 in counts_dict:
-            sampling_strategy[7] = max(counts_dict[7] + 1, 4000)
-        if 6 in counts_dict:
-            sampling_strategy[6] = max(counts_dict[6] + 1, 1500)
+        sampling_strategy = smote_strategy(y_train)
             
         print("\nOriginal class counts in y_train:")
         for k, v in counts_dict.items():
@@ -468,7 +472,7 @@ def train(args):
     # Optional K-Fold Cross Validation
     if args.cv:
         print("\n" + "="*55)
-        print("  Running 5-Fold Stratified Cross-Validation")
+        print("  Running 5-Fold Stratified Cross-Validation (training split only, same recipe per fold)")
         print("="*55)
         from sklearn.model_selection import StratifiedKFold
         skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=42)
@@ -477,12 +481,17 @@ def train(args):
         fold_f1_macros = []
         class_f1s = {i: [] for i in range(11)}
         
-        for fold, (train_idx, val_idx) in enumerate(skf.split(X, y)):
-            X_tr, X_val = X[train_idx], X[val_idx]
-            y_tr, y_val = y[train_idx], y[val_idx]
-            
-            # Ensure all 11 classes are present in training fold
-            missing_tr = set(range(11)) - set(y_tr)
+        # Folds come from the training split only, so the held-out test rows never influence CV, and each fold
+        # gets the deployed recipe: SMOTE (when --smote) is fitted on that fold's training part only (M8).
+        for fold, (train_idx, val_idx) in enumerate(skf.split(X_train_cv, y_train_cv)):
+            X_tr, X_val = X_train_cv[train_idx], X_train_cv[val_idx]
+            y_tr, y_val = y_train_cv[train_idx], y_train_cv[val_idx]
+            if args.smote:
+                from imblearn.over_sampling import SMOTE
+                X_tr, y_tr = SMOTE(sampling_strategy=smote_strategy(y_tr), random_state=42).fit_resample(X_tr, y_tr)
+
+            # Same rule as the final model: a dummy row only for a class present in validation but not in training
+            missing_tr = set(y_val) - set(y_tr)
             if missing_tr:
                 dummy_X_cv = np.zeros((len(missing_tr), X_tr.shape[1]))
                 dummy_y_cv = np.array(list(missing_tr))
@@ -568,6 +577,7 @@ def train(args):
                           and not (isinstance(v, float) and not np.isfinite(v))},
                 "smote":bool(args.smote),"deduplication":dedup,"class_counts":class_counts,
                 "label_sources":LABEL_SOURCES,
+                "drift_reference":benign_reference(X_train[y_train == 0]),
                 "provenance":provenance(args, data_path)}
         with open(model_dir / meta_name,"w") as f:
             json.dump(meta, f, indent=2)

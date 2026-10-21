@@ -31,7 +31,10 @@ SAMPLE_BENIGN_RECORD = {
     "syn_flag_count": 1.0
 }
 
+# A complete flow (every raw schema feature present): incomplete input is never allowed to BLOCK (M2).
+from utils.features import FEATURE_NAMES as _FEATURES
 SAMPLE_ATTACK_RECORD = {
+    **{f: 0.0 for f in _FEATURES if f not in ("payload_entropy", "time_of_day_sin", "time_of_day_cos")},
     "sourceIP": "192.168.10.102",
     "flow_duration": 50000.0,
     "total_fwd_packets": 5000.0,

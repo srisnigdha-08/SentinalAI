@@ -18,6 +18,37 @@ from collections import Counter, deque
 
 import numpy as np
 
+# Population Stability Index against per-feature quantile bins of the BENIGN training rows (M7). The scaler
+# mean/var reference (report) mixes in capped attack classes, and mean/variance are fragile on heavy-tailed
+# flow features; PSI on benign-predicted live flows compares like with like. PSI > 0.25 = major shift.
+PSI_LIMIT = 0.25
+PSI_BINS = 10
+_PSI_EPS = 1e-4
+
+
+def _bin_index(values, edges):
+    return np.searchsorted(np.asarray(edges, dtype=float), np.asarray(values, dtype=float), side="right")
+
+
+def benign_reference(X_benign, bins=PSI_BINS) -> dict:
+    """Per-feature interior quantile edges and the fraction of benign training rows in each bin."""
+    X = np.asarray(X_benign, dtype=float)
+    qs = np.linspace(0, 1, bins + 1)[1:-1]
+    edges, fractions = [], []
+    for j in range(X.shape[1]):
+        e = np.unique(np.quantile(X[:, j], qs))
+        counts = np.bincount(_bin_index(X[:, j], e), minlength=len(e) + 1)
+        edges.append([float(v) for v in e])
+        fractions.append([round(float(c) / len(X), 6) for c in counts])
+    return {"source": "benign training rows", "rows": int(len(X)), "bins": bins, "edges": edges, "fractions": fractions}
+
+
+def psi(expected, actual) -> float:
+    e = np.clip(np.asarray(expected, dtype=float), _PSI_EPS, None)
+    a = np.clip(np.asarray(actual, dtype=float), _PSI_EPS, None)
+    return float(np.sum((a - e) * np.log(a / e)))
+
+
 SHIFT_LIMIT = 0.5
 VAR_RATIO_LIMIT = 4.0
 DRIFT_FRACTION = 0.10
@@ -78,3 +109,29 @@ class DriftMonitor:
                 "drifted_fraction": round(fraction, 4),
                 "drifted_features": [feature_names[i] for i in np.flatnonzero(drifted)],
                 "top_shifts": rows}
+
+    def report_psi(self, reference: dict, feature_names):
+        """PSI of the benign-predicted flows in the window against the benign training reference."""
+        with self._lock:
+            pairs = [(v, c) for v, c in zip(self._vectors, self._classes)]
+        classes = Counter(c for _, c in pairs if c is not None)
+        benign = [v for v, c in pairs if c == "BENIGN"]
+        base = {"method": "psi_benign_quantiles", "window": self.window, "samples": len(pairs),
+                "benign_samples": len(benign), "min_samples": self.min_samples,
+                "limits": {"psi": PSI_LIMIT, "drift_fraction": DRIFT_FRACTION},
+                "recent_class_mix": dict(classes.most_common())}
+        if len(benign) < self.min_samples:
+            return {**base, "status": "insufficient_data", "drifted_features": [], "drifted_fraction": None}
+        live = np.vstack(benign)
+        rows = []
+        for j, name in enumerate(feature_names):
+            edges, expected = reference["edges"][j], reference["fractions"][j]
+            if max(expected) >= 0.999:  # constant in training (e.g. time of day): no reference distribution
+                continue
+            counts = np.bincount(_bin_index(live[:, j], edges), minlength=len(edges) + 1)
+            rows.append({"feature": name, "psi": round(psi(expected, counts / len(live)), 4)})
+        drifted = [r["feature"] for r in rows if r["psi"] > PSI_LIMIT]
+        fraction = len(drifted) / max(1, len(rows))
+        return {**base, "status": "drift" if fraction >= DRIFT_FRACTION else "ok",
+                "informative_features": len(rows), "drifted_fraction": round(fraction, 4),
+                "drifted_features": drifted, "top_shifts": sorted(rows, key=lambda r: -r["psi"])[:10]}

@@ -546,7 +546,14 @@ def prepare_features(df: pd.DataFrame, max_missing=None):
     if label_col:
         s_lbls = df[label_col].astype(str).str.strip()
         mapped = s_lbls.map(lambda x: RAW_LABEL_TO_TARGET.get(x, x))
-        y = mapped.map(LABEL_MAP).fillna(0).astype(int)
+        y = mapped.map(LABEL_MAP)
+        if y.isna().any():
+            # An unmapped label (e.g. a re-encoded "Web Attack – Brute Force") used to become BENIGN via
+            # fillna(0), silently training attacks as normal traffic (M5).
+            unknown = sorted(set(s_lbls[y.isna()]))
+            raise ValueError(f"{len(unknown)} unmapped label(s): "
+                             + ", ".join(u.encode("ascii", "backslashreplace").decode() for u in unknown[:10]))
+        y = y.astype(int)
     else:
         y = pd.Series(0, index=df.index).astype(int)
         

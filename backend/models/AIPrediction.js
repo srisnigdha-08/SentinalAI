@@ -28,6 +28,8 @@ const AIPredictionSchema = new mongoose.Schema(
     // Classifier said BENIGN but the anomaly tier flagged it strongly (engine action REVIEW): analyst queue,
     // never a threat or a block. Cleared by verification.
     needsReview: { type: Boolean, default: false },
+    // More than the engine's allowed number of features were filled with defaults (M2): never auto-blocked
+    incompleteInput: { type: Boolean, default: false },
     anomalyScore: { type: Number, min: -1, max: 1 },
     featureImportance: { type: Map, of: Number, select: false },
     inferenceTimeMs: Number,

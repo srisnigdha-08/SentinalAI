@@ -17,7 +17,7 @@ ENGINE_ROOT = Path(__file__).resolve().parent.parent
 if "pytest" not in sys.modules:
     from dotenv import load_dotenv
     load_dotenv(ENGINE_ROOT / ".env", override=False)
-from inference.predictor import SentinelPredictor
+from inference.predictor import SentinelPredictor, MONITOR_THRESHOLD
 from inference.deception import get_scorer, save_scorer
 from inference.errors import ModelUnavailableError
 from monitoring.drift import DriftMonitor
@@ -50,7 +50,9 @@ if not API_KEY:
     log.error("CRITICAL: SENTINEL_KEY environment variable is missing. Failing closed.")
     raise RuntimeError("Configuration error: SENTINEL_KEY environment variable is missing.")
 
-THRESHOLD   = float(os.getenv("SCORE_THRESHOLD", "0.7"))
+# Engine-side "threat" counter and backend callback line. Defaults to the alert line so /model/stats and
+# /predict callbacks count what the backend turns into threats (M1); SCORE_THRESHOLD still overrides.
+THRESHOLD   = float(os.getenv("SCORE_THRESHOLD") or MONITOR_THRESHOLD)
 
 predictor = None
 stats = {"total":0,"threats":0,"blocked":0,"start":datetime.now(timezone.utc).isoformat(),"scores":deque(maxlen=100),"times":deque(maxlen=100),"classes":defaultdict(int),"time_sum_ms":0.0}
@@ -110,6 +112,18 @@ async def verify_api_key(x_api_key: str = Header(None)):
         raise HTTPException(status_code=401, detail="Unauthorized: Missing API Key")
     if not secrets.compare_digest(x_api_key, API_KEY):
         raise HTTPException(status_code=403, detail="Forbidden: Invalid API Key")
+
+# Swapping the served model is an administrative action, so it can require a second secret that only the
+# backend's admin-gated route holds (M9). When SENTINEL_ADMIN_KEY is unset the service key alone is accepted
+# (backwards compatible) and a warning is logged at startup.
+ADMIN_KEY = os.getenv("SENTINEL_ADMIN_KEY") or None
+if ADMIN_KEY is None:
+    log.warning("SENTINEL_ADMIN_KEY not set: POST /model/reload accepts the shared service key alone")
+
+async def verify_admin_key(x_api_key: str = Header(None), x_admin_key: str = Header(None)):
+    await verify_api_key(x_api_key)
+    if ADMIN_KEY is not None and not (x_admin_key and secrets.compare_digest(x_admin_key, ADMIN_KEY)):
+        raise HTTPException(status_code=403, detail="Forbidden: model reload requires the admin key")
 
 class Record(BaseModel):
     sourceIP: str = "0.0.0.0"
@@ -183,11 +197,27 @@ def _record_payload(record: "Record") -> dict:
         payload.pop(field, None)
     return payload
 
+# Computed by the engine (entropy) or absent from CICIDS2017 (time of day): never expected from the caller.
+_NOT_SENT_BY_CALLERS = ("payload_entropy", "time_of_day_sin", "time_of_day_cos")
+# More defaulted raw features than this marks the input incomplete (M2). Training rows never had a missing
+# feature, so a defaulted feature is fabricated; such a score may still alert, but it never auto-blocks.
+MAX_DEFAULTED_FEATURES = int(os.getenv("MAX_DEFAULTED_FEATURES", "5"))
+
 def _defaulted_features(record: "Record") -> list:
-    """Raw flow fields the caller did not send under any recognised name and that were filled with schema defaults."""
-    aliased = _alias_fields(record)
-    return [f for f in Record.model_fields if f not in ("sourceIP", "timestamp")
-            and f not in record.model_fields_set and f not in aliased]
+    """Raw schema features the caller did not send under any recognised name (filled with defaults or 0)."""
+    sent = set(record.model_fields_set) | {_norm_key(k) for k in (record.model_extra or {})}
+    return [f for f in FEATURE_NAMES if f not in _NOT_SENT_BY_CALLERS and f not in sent
+            and not any(_norm_key(c) in sent for c in CANDIDATES.get(f, [f]))]
+
+def _score(record: "Record", explain: bool = False) -> dict:
+    """predictor.predict plus the input-completeness policy (M2)."""
+    r = predictor.predict(_record_payload(record), explain=explain)
+    r["defaultedFeatures"] = _defaulted_features(record)
+    r["incompleteInput"] = len(r["defaultedFeatures"]) > MAX_DEFAULTED_FEATURES
+    if r["incompleteInput"] and r.get("action") == "BLOCK":
+        r["action"] = "MONITOR"
+        r["actionCappedReason"] = "incomplete_input"
+    return r
 
 def _public_result(r: dict) -> dict:
     if not isinstance(r, dict):
@@ -274,16 +304,22 @@ def model_drift():
     """Drift of recently scored flows versus the training statistics stored in the model's scaler."""
     if not predictor or not predictor._loaded:
         raise HTTPException(503, "Not ready")
-    scaler = predictor.clf.named_steps.get("scaler") if hasattr(predictor.clf, "named_steps") else None
-    if scaler is None or not hasattr(scaler, "mean_"):
-        raise HTTPException(501, "Deployed model exposes no training statistics")
-    report = drift_monitor.report(scaler.mean_, scaler.var_, FEATURE_NAMES)
+    meta = predictor.rf_meta if isinstance(getattr(predictor, "rf_meta", None), dict) else {}
+    reference = meta.get("drift_reference")
+    if isinstance(reference, dict) and reference.get("edges"):
+        # PSI of benign-predicted flows vs. the benign training quantiles stored at train time (M7)
+        report = drift_monitor.report_psi(reference, FEATURE_NAMES)
+    else:
+        scaler = predictor.clf.named_steps.get("scaler") if hasattr(predictor.clf, "named_steps") else None
+        if scaler is None or not hasattr(scaler, "mean_"):
+            raise HTTPException(501, "Deployed model exposes no training statistics")
+        report = {"method": "scaler_mean_variance", **drift_monitor.report(scaler.mean_, scaler.var_, FEATURE_NAMES)}
     report["model"] = (predictor.registry or {}).get("classifier")
     return report
 
 _reload_lock = threading.Lock()
 
-@app.post("/model/reload", dependencies=[Depends(verify_api_key)])
+@app.post("/model/reload", dependencies=[Depends(verify_admin_key)])
 def model_reload():
     """
     Load the models pinned in models/registry.json into a new predictor and swap it in only if it loaded
@@ -308,8 +344,7 @@ async def model_stats():
 @app.post("/predict", dependencies=[Depends(verify_api_key)])
 def predict(record: Record, bg: BackgroundTasks, explain: bool = False):
     if not predictor: raise HTTPException(503,"Not ready")
-    r = predictor.predict(_record_payload(record), explain=explain); _upd(r)
-    r["defaultedFeatures"] = _defaulted_features(record)
+    r = _score(record, explain); _upd(r)
     bg.add_task(_notify, r, record.sourceIP)
     return {"success":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
@@ -317,9 +352,8 @@ def predict(record: Record, bg: BackgroundTasks, explain: bool = False):
 def predict_internal(record: Record, explain: bool = False):
     """Backend-owned persistence: returns the raw vector and never calls back."""
     if not predictor: raise HTTPException(503, "Not ready")
-    result = predictor.predict(_record_payload(record), explain=explain)
+    result = _score(record, explain)
     _upd(result)
-    result["defaultedFeatures"] = _defaulted_features(record)
     return {"success": True, "result": result}
 
 @app.post("/predict/honeypot/internal", dependencies=[Depends(verify_api_key)])
@@ -339,8 +373,7 @@ def predict_eval(record: Record, explain: bool = False):
     server-wide stats mutation, and automated containment.
     """
     if not predictor: raise HTTPException(503, "Not ready")
-    r = predictor.predict(_record_payload(record), explain=explain)
-    r["defaultedFeatures"] = _defaulted_features(record)
+    r = _score(record, explain)
     return {"success":True,"evaluation":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
 
@@ -350,7 +383,7 @@ def predict_batch(records: List[Record], bg: BackgroundTasks):
     if len(records)>500: raise HTTPException(400,"Max 500")
     results=[]
     for rec in records:
-        r=predictor.predict(_record_payload(rec)); _upd(r); results.append({"sourceIP":rec.sourceIP,"result":_public_result(r)})
+        r=_score(rec); _upd(r); results.append({"sourceIP":rec.sourceIP,"result":_public_result(r)})
         if r["threatScore"]>=THRESHOLD: bg.add_task(_notify,r,rec.sourceIP)
     return {"success":True,"total":len(results),"threatCount":sum(1 for r in results if r["result"]["threatScore"]>=THRESHOLD),"results":results}
 

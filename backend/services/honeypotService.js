@@ -306,7 +306,7 @@ const analyseClosure = async (session, telemetry) => {
 
     if (session.linkedThreatLog && !predictionCreatedThreat) {
       const ThreatLog = require('../models/ThreatLog')
-      const mappedSeverity = score >= 0.85 ? 'CRITICAL' : score >= 0.7 ? 'HIGH' : score >= 0.4 ? 'MEDIUM' : 'LOW'
+      const mappedSeverity = require('../utils/severity').severityFor(score, { alertThreshold, blockThreshold })
       const validAttackTypes = [
         'SSH Brute Force',
         'SSH Intrusion Attempt',

@@ -33,7 +33,7 @@ class DriftMonitorService {
     const socketManager = require('../websocket/socketManager')
     const top = (report.top_shifts || [])
       .slice(0, 3)
-      .map((f) => `${f.feature} (${f.mean_shift_sd} sd)`)
+      .map((f) => `${f.feature} (${f.psi !== undefined ? `PSI ${f.psi}` : `${f.mean_shift_sd} sd`})`)
       .join(', ')
     const alert = await alertService.createAlert({
       title: 'Model input drift detected',

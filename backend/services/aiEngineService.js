@@ -195,6 +195,7 @@ const runFullPipeline = async (record, _io = null) => {
       featureSchemaVersion: result.featureSchemaVersion,
       status: result.status,
       action,
+      incompleteInput: result.incompleteInput === true,
     })
   } catch (err) {
     logger.error('[AI Pipeline] Failed to persist prediction: ' + err.name)
@@ -279,7 +280,10 @@ const invalidateThresholds = () => {
 /** Ask the engine to load the models pinned in its registry; it keeps the old model if that fails. */
 const reloadModel = async () => {
   try {
-    const data = (await ai.post('/model/reload', null, { timeout: 120000 })).data
+    // Second secret for the engine's admin action (M9); omitted when not configured
+    const adminKey = process.env.AI_ENGINE_ADMIN_KEY
+    const headers = adminKey ? { 'X-Admin-Key': adminKey } : {}
+    const data = (await ai.post('/model/reload', null, { timeout: 120000, headers })).data
     invalidateThresholds()
     return data
   } catch (e) {

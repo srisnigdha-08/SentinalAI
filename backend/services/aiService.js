@@ -1,3 +1,4 @@
+const { severityFor } = require('../utils/severity')
 const reportTime = require('../utils/reportingTime')
 const mongoose = require('mongoose')
 const AIPrediction = require('../models/AIPrediction')
@@ -80,23 +81,19 @@ const storePrediction = async (data) => {
   if (threatId) payload.generatedThreat = threatId
   const pred = await AIPrediction.create(payload)
   if (willCreateThreat) {
-    const severity = isDegraded
-      ? 'MEDIUM'
-      : pred.threatScore >= 0.9
-        ? 'CRITICAL'
-        : pred.threatScore >= 0.75
-          ? 'HIGH'
-          : 'MEDIUM'
-
     // Authoritative Block Threshold & autoBlockEnabled setting
     const aiEngineService = require('./aiEngineService')
     const SystemSetting = require('../models/SystemSetting')
 
     const blockThreshold = await aiEngineService.getBlockThreshold()
+    // Same scale as the engine's severity field (M1): CRITICAL >= block line, HIGH >= alert line
+    const severity = isDegraded ? 'MEDIUM' : severityFor(pred.threatScore, { alertThreshold, blockThreshold })
     const setting = await SystemSetting.findOne({ key: 'autoBlockEnabled' })
     const autoBlockEnabled = setting ? setting.value === true : false
 
-    const shouldBlock = !isDegraded && pred.threatScore >= blockThreshold && autoBlockEnabled
+    // Incomplete input (M2): many features were filled with defaults, so the score describes a partly
+    // fabricated flow. It may still raise a threat for an analyst, but it never triggers an automatic block.
+    const shouldBlock = !isDegraded && !data.incompleteInput && pred.threatScore >= blockThreshold && autoBlockEnabled
     const status = isDegraded ? 'DEGRADED' : shouldBlock ? 'BLOCKED' : 'MONITORING'
 
     const rawEventTime = data.eventTime || data.timestamp

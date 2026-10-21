@@ -145,3 +145,12 @@ def test_shipped_registry_matches_shipped_models():
     for role in ("classifier", "anomaly"):
         assert pred_mod.file_sha256(ENGINE / "models" / reg[role]["file"]) == reg[role]["sha256"]
     assert reg["classifier"]["file"] == "rf_classifier_cicids_v3.pkl"  # C2: de-duplicated retrain
+
+
+def test_missing_registry_refuses_to_guess_the_production_model(tmp_path, monkeypatch, caplog):
+    """M4 (AI audit): without models/registry.json nothing is loaded unless explicitly allowed."""
+    monkeypatch.delenv("ALLOW_UNREGISTERED_MODELS", raising=False)
+    _write_models(tmp_path)
+    with caplog.at_level("ERROR"):
+        p = _load(tmp_path)
+    assert not p._loaded and "refusing to guess" in caplog.text

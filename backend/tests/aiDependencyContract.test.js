@@ -37,3 +37,16 @@ test('actual dependency loss still returns the existing unavailable result and o
   expect(await ai.predictRecord({})).toBeNull()
   expect(require('../utils/logger').warn).toHaveBeenCalledWith('[AI] predict failed (Error)')
 })
+
+test('model reload sends the separate admin key only when configured (M9)', async () => {
+  mockPost.mockResolvedValue({ data: { success: true } })
+  process.env.AI_ENGINE_ADMIN_KEY = 'admin-key-test'
+  try {
+    await ai.reloadModel()
+  } finally {
+    delete process.env.AI_ENGINE_ADMIN_KEY
+  }
+  await ai.reloadModel()
+  expect(mockPost.mock.calls[0][2].headers).toEqual({ 'X-Admin-Key': 'admin-key-test' })
+  expect(mockPost.mock.calls[1][2].headers).toEqual({})
+})

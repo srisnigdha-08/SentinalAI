@@ -30,6 +30,7 @@ services:
       CORS_ORIGINS: http://backend:5000
       Q_TABLE_PATH: /data/q_table.json
       ALERT_THRESHOLD: ${ALERT_THRESHOLD:-0.90}
+      SENTINEL_ADMIN_KEY: ${SENTINEL_ADMIN_KEY:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ai-data:/data # Q-learning state survives container restarts
@@ -50,6 +51,7 @@ services:
       PORT: 5000
       MONGO_URI: mongodb://mongo:27017/sentinel-db
       AI_ENGINE_URL: http://ai-engine:8000
+      AI_ENGINE_ADMIN_KEY: ${SENTINEL_ADMIN_KEY:-}
       CLIENT_URL: http://localhost:8080
       SENTINEL_KEY: ${SENTINEL_KEY:?set SENTINEL_KEY in .env}
       HONEYPOT_API_KEY: ${HONEYPOT_API_KEY:?set HONEYPOT_API_KEY in .env}

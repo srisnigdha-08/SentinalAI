@@ -143,10 +143,14 @@ def combine_threat_score(rf_s, if_sig, is_attack):
     score = np.where(is_attack, np.maximum(rf_s, blend), blend)
     return float(score) if score.ndim == 0 else score
 
+# Severity follows the operating lines, so engine and backend agree (M1; backend/utils/severity.js):
+# CRITICAL = at/above the block line, HIGH = at/above the alert line, MEDIUM = 0.50 up to the alert line.
+SEVERITY_MEDIUM = 0.50
+
 def score_to_severity(s):
-    if s >= 0.90: return "CRITICAL"
-    if s >= 0.70: return "HIGH"
-    if s >= 0.50: return "MEDIUM"
+    if s >= BLOCK_THRESHOLD: return "CRITICAL"
+    if s >= MONITOR_THRESHOLD: return "HIGH"
+    if s >= SEVERITY_MEDIUM: return "MEDIUM"
     return "LOW"
 
 # Honeypot verdicts. Nobody legitimate uses a decoy, so every class except the rule's BENIGN (logged in,
@@ -270,8 +274,14 @@ class SentinelPredictor:
                              "anomaly": if_entry["file"], "anomalySha256": if_entry["sha256"], "verified": True}
             log.info(f"Model registry: {clf_entry['file']} + {if_entry['file']} (sha256 verified)")
             model_candidates = []
+        elif os.getenv("ALLOW_UNREGISTERED_MODELS", "").lower() in ("1", "true", "yes"):
+            log.warning("No models/registry.json: ALLOW_UNREGISTERED_MODELS set, using the legacy first-match load order")
         else:
-            log.warning("No models/registry.json: using first-match load order (run training/register_model.py)")
+            # Without a registry the first matching file name would silently become production (M4), e.g. a
+            # stray or duplicate .pkl. Refuse; register the intended files with training/register_model.py.
+            log.error("No models/registry.json; refusing to guess which model is production "
+                      "(run training/register_model.py, or set ALLOW_UNREGISTERED_MODELS=1 for development)")
+            return
         for filename, mtype, meta_filename in model_candidates:
             cand_p = self.model_dir / filename
             if cand_p.exists():

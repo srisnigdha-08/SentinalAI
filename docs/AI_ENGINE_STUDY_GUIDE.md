@@ -807,7 +807,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
 
 ## Medium
 
-### M1. Thresholds and severity bands are inconsistent between the engine and the backend
+### M1. Thresholds and severity bands are inconsistent between the engine and the backend — **FIXED** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `main.py:53, 190, 194` (`SCORE_THRESHOLD=0.7` for "threats" counter and callbacks), against `predictor.py:101` (alert 0.90).
 - Severity bands also differ: the engine uses 0.9/0.7/0.5 (`predictor.py:139-143`); the backend uses 0.9/0.75 (`aiService.js:80-86`).
 - `/model/stats.totalThreats` counts flows that never become threats.
@@ -817,12 +817,12 @@ Severity is judged for this project's context: a viva/demo system, with containm
   THRESHOLD = float(os.getenv("SCORE_THRESHOLD", MONITOR_THRESHOLD))
   ```
 
-### M2. Missing fields: training uses 0, serving uses non-zero defaults
+### M2. Missing fields: training uses 0, serving uses non-zero defaults — **FIXED: incomplete input flagged, never auto-blocked** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `main.py:115-137` (`flow_duration=1000`, `syn_flag_count=1`, `flow_bytes_per_sec=60000`, …), against `features.py:449, 467`.
 - **Why it matters:** a partial payload is scored as a fabricated flow. `defaultedFeatures` reports it, but nothing acts on it.
 - **Fix:** reject when `len(defaultedFeatures) > 5` on the internal routes, or make the defaults 0.0 to match training.
 
-### M3. The served artifact is not reproducible, and the metadata is too thin
+### M3. The served artifact is not reproducible, and the metadata is too thin — **FIXED with C2** (`docs/CRITICAL_FIXES_REPORT.md`)
 - **Where:** `train.py:505-508`.
 - **What is wrong:** the metadata does not record the CLI flags (`--smote`), the parameters, a dataset hash, the row counts, the git commit, or library versions. Today's code would not produce classes 0–10.
 - **Fix:**
@@ -835,7 +835,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
                "sklearn": sklearn.__version__, "split": "stratified_random_80_20_seed42"})
   ```
 
-### M4. Duplicate and legacy artifacts, plus a silent first-match fallback
+### M4. Duplicate and legacy artifacts, plus a silent first-match fallback — **FIXED: registry mandatory; duplicates documented, not deleted (preserved assets)** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `ai-engine/models/` (identical XGB pair, `.bak` files, synthetic models), root `models/`, `predictor.py:200-259`.
 - **What is wrong:** if `registry.json` is deleted, the first file that exists becomes production, with a warning only.
 - **Fix:**
@@ -846,7 +846,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
       log.error("No models/registry.json; refusing to guess which model is production"); return
   ```
 
-### M5. Unmapped labels silently become BENIGN
+### M5. Unmapped labels silently become BENIGN — **FIXED** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `features.py:513`, `.map(LABEL_MAP).fillna(0)`.
 - **What is wrong:** a re-encoded CSV (for example `Web Attack – Brute Force` with a real en-dash) would train attacks as benign. `train.py:59-64` only prints a warning.
 - **Fix:**
@@ -857,21 +857,21 @@ Severity is judged for this project's context: a viva/demo system, with containm
   y = y.astype(int)
   ```
 
-### M6. The model leans on shortcut features that are easy to evade
+### M6. The model leans on shortcut features that are easy to evade — **MEASURED: ablation run** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** the served RF's top importance is `init_win_bytes_backward` (0.099), then `init_win_bytes_forward` (0.050). These are TCP initial window sizes, which reflect the CICIDS testbed's OS/tool fingerprints, not attack behaviour.
 - **Why it matters:** an attacker controls their own window size, and other networks differ. Shortcut features of this kind are a widely reported CICIDS2017 weakness (see Engelen, Rimmer & Joosen, 2021, on the dataset's flaws).
 - **Fix:** run an ablation (train without `init_win_*` and `Destination Port`-like features) and report the delta; consider dropping them. Look at the evaluation's feature-attribution output (SHAP).
 
-### M7. The drift reference is the capped, SMOTE-augmented training sample, and mean/variance tests on heavy tails
+### M7. The drift reference is the capped, SMOTE-augmented training sample, and mean/variance tests on heavy tails — **FIXED: PSI vs benign quantiles** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `monitoring/drift.py:57-79`, reference `scaler.mean_/var_`.
 - **What is wrong:** BENIGN is 66% of the reference, against ~80% in real traffic, and SMOTE rows are included. Mean and variance on heavy-tailed flow features flag "drift" easily.
 - **Fix:** store per-feature quantiles of the *benign* training rows at train time, and use PSI or KS on those (`evaluate_model.check_drift` already has a KS helper).
 
-### M8. `train.py --cv` evaluates a different recipe
+### M8. `train.py --cv` evaluates a different recipe — **FIXED** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `train.py:431`. CV runs on the full X, y without SMOTE, so its numbers don't describe the deployed model; it also reuses `XGB_PARAMS` from the other branch.
 - **Fix:** wrap SMOTE and the model in an `imblearn.pipeline.Pipeline` and cross-validate that pipeline with `StratifiedGroupKFold`, grouped by file/day.
 
-### M9. The engine is protected by a single static shared key
+### M9. The engine is protected by a single static shared key — **FIXED: separate admin key for reload** (`docs/AI_MEDIUM_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `main.py:108-112`; Docker binds `0.0.0.0` (`Dockerfile:27`).
 - **What is wrong:** there is no key rotation, no mTLS, and no per-caller identity. Anyone with the key can mutate the Q-table (`/deception/score`) and hot-swap models (`/model/reload`).
 - **Fix:** bind the engine to the internal Docker network only (no `ports:` mapping); use a separate admin key for `/model/reload`; rotate `SENTINEL_KEY`.
