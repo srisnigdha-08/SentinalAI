@@ -1,22 +1,29 @@
 #!/usr/bin/env python3
 """
-Builds one Cowrie honeyfs (fake file contents) per deception persona, so a persona changes what an attacker
-reads, not only the hostname and banner.
+Builds one Cowrie fake filesystem per deception persona, so a persona changes what an attacker reads and
+lists, not only the hostname and banner.
 
-Each persona tree is a copy of Cowrie's own default honeyfs with:
-  - the default demo user "phil" removed from /etc/passwd, /etc/shadow and /etc/group (a well-known Cowrie
-    fingerprint) and the distribution's usual login user added instead;
-  - /etc/os-release, /etc/issue, /etc/issue.net, /etc/hostname and /proc/version matching the persona's
-    distribution, kernel and hostname (from switch_profile.PROFILES).
+Current Cowrie (file contents stored inside fs.pickle; checked against cowrie c7773f4, 2026-10-15):
+  python build_honeyfs.py --fs-pickle ~/cowrie/src/cowrie/data/fs.pickle --out ~/cowrie/personas
+  COWRIE_PERSONA_FS=personas python switch_profile.py ubuntu_22      # writes [shell] filesystem
+writes personas/<persona>.pickle: a copy of Cowrie's tree in which
+  - the default demo user "phil" (a well-known Cowrie fingerprint) is replaced by the distribution's usual
+    login user in /etc/passwd, /etc/shadow, /etc/group and /home;
+  - /etc/os-release (stock Cowrie ships it empty), /etc/issue, /etc/issue.net, /etc/hostname and
+    /proc/version match the persona's distribution, kernel and hostname (switch_profile.PROFILES).
 
+Older Cowrie (separate honeyfs directory of file contents):
   python build_honeyfs.py --source ~/cowrie/honeyfs --out ~/cowrie/honeyfs-personas
-  COWRIE_PERSONA_HONEYFS=honeyfs-personas python switch_profile.py ubuntu_22   # then restart Cowrie
+  COWRIE_PERSONA_HONEYFS=honeyfs-personas python switch_profile.py ubuntu_22   # writes contents_path
+writes honeyfs-personas/<persona>/: a full copy with the same changes (/home is not changed: it lives in
+the pickle there).
 
-Limits: Cowrie serves a file's contents only if the path exists in its fake filesystem (fs.pickle), and
-`ls /home` still lists phil because the pickle is unchanged. windows_srv gets no tree: Cowrie only emulates
-a Linux shell, so no file set can make it look like Windows.
+windows_srv gets nothing: Cowrie only emulates a Linux shell, so no file set can make it look like Windows.
 """
 import argparse
+import copy
+import pickle
+import posixpath
 import shutil
 import sys
 from pathlib import Path
@@ -45,60 +52,151 @@ DISTROS = {
 OS_RELEASE_KEYS = ("PRETTY_NAME", "NAME", "VERSION_ID", "VERSION", "ID", "ID_LIKE")
 DEFAULT_USER = "phil"
 
+# fs.pickle node layout (cowrie.shell.fs): [name, type, uid, gid, size, mode, ctime, contents, target, realfile]
+A_NAME, A_TYPE, A_UID, A_GID, A_SIZE, A_MODE, A_CTIME, A_CONTENTS, A_TARGET = range(9)
+T_LINK, T_DIR, T_FILE = 0, 1, 2
+
 
 def _without_user(text, user):
     return "".join(line for line in text.splitlines(keepends=True) if line.split(":", 1)[0] != user)
-
-
-def _edit(path, change):
-    if path.is_file():
-        path.write_text(change(path.read_text(encoding="utf-8")), encoding="utf-8")
 
 
 def _append_line(text, line):
     return text + ("" if not text or text.endswith("\n") else "\n") + line + "\n"
 
 
-def build_persona(source: Path, out: Path, persona: str) -> Path:
+def persona_files(persona):
+    """Path -> new content (str), or a function old content -> new content."""
     distro, profile = DISTROS[persona], switch_profile.PROFILES[persona]
+    user, uid = distro["user"]
+    return {
+        "/etc/passwd": lambda t: _append_line(_without_user(t, DEFAULT_USER), f"{user}:x:{uid}:{uid}:{user}:/home/{user}:/bin/bash"),
+        "/etc/shadow": lambda t: _append_line(_without_user(t, DEFAULT_USER), f"{user}:!:19700:0:99999:7:::"),
+        "/etc/group": lambda t: _append_line(_without_user(t, DEFAULT_USER), f"{user}:x:{uid}:"),
+        "/etc/os-release": "".join(f'{k}="{distro[k]}"\n' for k in OS_RELEASE_KEYS if k in distro),
+        "/etc/issue": distro["issue"] + "\n\n",
+        "/etc/issue.net": distro["PRETTY_NAME"] + "\n",
+        "/etc/hostname": profile["hostname"] + "\n",
+        "/proc/version": (f"Linux version {profile['kernel_version']} (builder@{distro['ID']}) ({distro['gcc']}) "
+                          f"{profile['kernel_build_string']}\n"),
+    }
+
+
+# ---------------------------------------------------------------- fs.pickle mode (current Cowrie)
+
+def _child(node, name):
+    kids = node[A_CONTENTS] if isinstance(node[A_CONTENTS], list) else []
+    return next((c for c in kids if c[A_NAME] == name), None)
+
+
+def _resolve(tree, path, depth=0):
+    """(parent dir node, node or None, absolute path) for path, following symlinks; None if a parent is missing."""
+    if depth > 16:
+        return None
+    parts = [p for p in posixpath.normpath(path).split("/") if p]
+    node, walked = tree, "/"
+    for i, part in enumerate(parts):
+        nxt = _child(node, part)
+        if nxt is not None and nxt[A_TYPE] == T_LINK:
+            # Same rule as cowrie.core.honeyfs._find: a link target is a path from the tree root, even
+            # without a leading slash (/etc/os-release -> "usr/lib/os-release").
+            target = "/" + nxt[A_TARGET].lstrip("/")
+            rest = "/".join(parts[i + 1:])
+            return _resolve(tree, posixpath.join(target, rest) if rest else target, depth + 1)
+        if i == len(parts) - 1:
+            return node, nxt, posixpath.join(walked, part)
+        if nxt is None or nxt[A_TYPE] != T_DIR:
+            return None
+        node, walked = nxt, posixpath.join(walked, part)
+    return None
+
+
+def _set_file(tree, path, content):
+    found = _resolve(tree, path)
+    if found is None:
+        return False
+    parent, node, _ = found
+    if node is None:
+        node = [posixpath.basename(path), T_FILE, 0, 0, 0, 0o100644, parent[A_CTIME], b"", None, None]
+        parent[A_CONTENTS].append(node)
+    if node[A_TYPE] != T_FILE:
+        return False
+    old = node[A_CONTENTS] if isinstance(node[A_CONTENTS], bytes) else b""
+    new = content(old.decode("utf-8", "replace")) if callable(content) else content
+    node[A_CONTENTS] = new.encode("utf-8")
+    node[A_SIZE] = len(node[A_CONTENTS])
+    return True
+
+
+def build_persona_pickle(tree, out: Path, persona: str) -> Path:
+    t = copy.deepcopy(tree)
+    user, uid = DISTROS[persona]["user"]
+    missing = [p for p, c in persona_files(persona).items() if not _set_file(t, p, c)]
+    home = _resolve(t, "/home")
+    home_dir = home[1] if home else None
+    phil = _child(home_dir, DEFAULT_USER) if home_dir else None
+    if phil is not None and _child(home_dir, user) is None:
+        phil[A_NAME], phil[A_UID], phil[A_GID] = user, uid, uid
+    if missing:
+        print(f"[!] {persona}: could not place {', '.join(missing)}")
+    target = out / f"{persona}.pickle"
+    with open(target, "wb") as f:
+        pickle.dump(t, f, protocol=4)
+    return target
+
+
+def _load_tree(fs_pickle: Path):
+    with open(fs_pickle, "rb") as f:
+        try:
+            tree = pickle.load(f)
+        except UnicodeDecodeError:
+            f.seek(0)
+            tree = pickle.load(f, encoding="utf8")
+    passwd = _resolve(tree, "/etc/passwd")
+    if not passwd or passwd[1] is None or not isinstance(passwd[1][A_CONTENTS], bytes):
+        raise SystemExit(f"{fs_pickle} holds no file contents: this Cowrie uses a honeyfs directory, use --source")
+    return tree
+
+
+# ---------------------------------------------------------------- honeyfs directory mode (older Cowrie)
+
+def build_persona(source: Path, out: Path, persona: str) -> Path:
     target = out / persona
     if target.exists():
         shutil.rmtree(target)
     shutil.copytree(source, target)
-    user, uid = distro["user"]
-    etc = target / "etc"
-    etc.mkdir(exist_ok=True)
-
-    _edit(etc / "passwd", lambda t: _append_line(_without_user(t, DEFAULT_USER),
-                                                 f"{user}:x:{uid}:{uid}:{user}:/home/{user}:/bin/bash"))
-    _edit(etc / "shadow", lambda t: _append_line(_without_user(t, DEFAULT_USER), f"{user}:!:19700:0:99999:7:::"))
-    _edit(etc / "group", lambda t: _append_line(_without_user(t, DEFAULT_USER), f"{user}:x:{uid}:"))
-
-    os_release = "".join(f'{k}="{distro[k]}"\n' for k in OS_RELEASE_KEYS if k in distro)
-    (etc / "os-release").write_text(os_release, encoding="utf-8")
-    (etc / "issue").write_text(distro["issue"] + "\n\n", encoding="utf-8")
-    (etc / "issue.net").write_text(distro["PRETTY_NAME"] + "\n", encoding="utf-8")
-    (etc / "hostname").write_text(profile["hostname"] + "\n", encoding="utf-8")
-    proc = target / "proc"
-    proc.mkdir(exist_ok=True)
-    (proc / "version").write_text(
-        f"Linux version {profile['kernel_version']} (builder@{distro['ID']}) ({distro['gcc']}) "
-        f"{profile['kernel_build_string']}\n", encoding="utf-8")
+    for path, content in persona_files(persona).items():
+        f = target / path.lstrip("/")
+        if callable(content):
+            if not f.is_file():
+                continue
+            content = content(f.read_text(encoding="utf-8"))
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(content, encoding="utf-8")
     return target
 
 
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
-    ap.add_argument("--source", required=True, help="Cowrie's default honeyfs directory")
-    ap.add_argument("--out", required=True, help="directory to create one tree per persona in")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--fs-pickle", help="Cowrie's fs.pickle (current Cowrie: contents inside the pickle)")
+    src.add_argument("--source", help="Cowrie's default honeyfs directory (older Cowrie)")
+    ap.add_argument("--out", required=True, help="directory to write one filesystem per persona to")
     args = ap.parse_args(argv)
-    source, out = Path(args.source), Path(args.out)
-    if not (source / "etc").is_dir():
-        ap.error(f"{source} does not look like a Cowrie honeyfs (no etc/)")
-    out.mkdir(parents=True, exist_ok=True)
-    for persona in DISTROS:
-        print(f"[+] {build_persona(source, out, persona)}")
-    print("[i] windows_srv has no tree: Cowrie emulates a Linux shell only.")
+    out = Path(args.out)
+    if args.fs_pickle:
+        tree = _load_tree(Path(args.fs_pickle))
+        out.mkdir(parents=True, exist_ok=True)
+        for persona in DISTROS:
+            print(f"[+] {build_persona_pickle(tree, out, persona)}")
+    else:
+        source = Path(args.source)
+        if not (source / "etc").is_dir():
+            ap.error(f"{source} does not look like a Cowrie honeyfs (no etc/)")
+        out.mkdir(parents=True, exist_ok=True)
+        for persona in DISTROS:
+            print(f"[+] {build_persona(source, out, persona)}")
+    print("[i] windows_srv has none: Cowrie emulates a Linux shell only.")
 
 
 if __name__ == "__main__":

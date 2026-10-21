@@ -12,7 +12,7 @@ Run Cowrie on a separately managed Linux host. Its real JSON log is ingested wit
 | Component | Variables | Default backend URL |
 |---|---|---|
 | `parsers/log_parser.py` (the ingest path) | `SENTINEL_API`, `HONEYPOT_API_KEY` (falls back to `SENTINEL_KEY` with a warning), `COWRIE_LOG`, `SENTINEL_POST_RETRIES`, `SENTINEL_POST_BACKOFF`, `PARSER_STATE_DIR` (default `~/.sentinelai/cowrie-parser`: read offset, open sessions, delivery spool), `SENTINEL_SPOOL_MAX`, `SENTINEL_SPOOL_RETRY` | `http://localhost:5000/api` |
-| `cowrie/sentinel_blocker.py` (Cowrie output plugin, enabled in `cowrie.cfg`) | `SENTINEL_API_URL`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
+| `cowrie/sentinelblocker.py` (Cowrie output plugin `[output_sentinelblocker]`, enabled in `cowrie.cfg`; install as `src/cowrie/output/sentinelblocker.py`: Cowrie takes the module name from the section up to the next underscore, so the name must not contain one) | `SENTINEL_API_URL`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
 | `sniffer/sniffer.py` (dataset builder: labels captured flows into `flows.csv`) | `SENTINEL_API`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
 
 The parser resumes from its saved offset after a restart, finishes a rotated log before following the new
@@ -22,8 +22,13 @@ start reads from the end of the log; pass `--from-start` to ingest the existing 
 
 `docker-compose.honeypot.yml` runs Cowrie and the parser in hardened containers on their own bridge;
 `docker/egress-rules.sh` must then restrict that bridge to the SentinelAI ingest port. Both are untested
-(written without Docker). `build_honeyfs.py` builds per-persona file contents from Cowrie's default honeyfs;
-set `COWRIE_PERSONA_HONEYFS` before `switch_profile.py` to use them.
+(written without Docker). `build_honeyfs.py --fs-pickle <cowrie>/src/cowrie/data/fs.pickle --out personas`
+builds one fake filesystem per persona (no `phil` user, matching os-release/issue/hostname/kernel); set
+`COWRIE_PERSONA_FS=personas` before `switch_profile.py` to use them (`--source <honeyfs>` and
+`COWRIE_PERSONA_HONEYFS` for older Cowrie releases with a separate honeyfs directory).
+
+`deception_rotator.py` authenticates with `HONEYPOT_API_KEY` on `/api/honeypot/ingest/deception/*`; it no
+longer needs an admin login on the honeypot host.
 
 Give the honeypot host only `HONEYPOT_API_KEY`, never the AI engine's `SENTINEL_KEY`.
 Set the URL variables whenever the backend is not on the same host.

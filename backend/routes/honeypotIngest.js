@@ -53,6 +53,95 @@ router.get('/check-block', internalAuth, async (req, res, next) => {
   }
 })
 
+// The honeypot host's own key only (not the AI engine's SENTINEL_KEY): least privilege for the endpoints below.
+const honeypotOnly = (req, res, next) => {
+  const key = req.headers['x-api-key']
+  if (!key) return sendError(res, 'Missing API key', 401)
+  if (!isHoneypotKey(key)) return sendError(res, 'Invalid API key', 401)
+  next()
+}
+
+/**
+ * @openapi
+ * /honeypot/ingest/deception/recommendation:
+ *   get:
+ *     tags:
+ *       - Honeypot Ingest
+ *     summary: Persona the Q-learner recommends next, for honeypot/deception_rotator.py (honeypot key only)
+ *     description: >
+ *       Machine equivalent of GET /api/honeypot/deception/recommendation, so the rotator on the honeypot host
+ *       needs only HONEYPOT_API_KEY instead of an admin login.
+ *     security:
+ *       - ApiKeyAuth: []
+ *     responses:
+ *       200:
+ *         description: Active profile and recommended next profile
+ *       503:
+ *         description: AI engine unreachable
+ */
+router.get('/deception/recommendation', honeypotOnly, async (req, res, next) => {
+  try {
+    const honeypotService = require('../services/honeypotService')
+    const active = await honeypotService.getActiveProfile()
+    const rec = await require('../services/aiEngineService').getDeceptionRecommendation(active.profile)
+    if (!rec) return sendError(res, 'AI engine unreachable', 503)
+    sendSuccess(res, {
+      activeProfile: active.profile,
+      nextProfile: rec.nextProfile,
+      explored: rec.explored,
+      policy: rec.policy || 'q_learning',
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /honeypot/ingest/deception/profile:
+ *   put:
+ *     tags:
+ *       - Honeypot Ingest
+ *     summary: Record the persona the rotator applied (honeypot key only; one of the six profiles)
+ *     security:
+ *       - ApiKeyAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [profile]
+ *             properties:
+ *               profile:
+ *                 type: string
+ *                 enum: [ubuntu_22, debian_11, centos_7, windows_srv, aws_ec2, raspberry_pi]
+ *     responses:
+ *       200:
+ *         description: Profile recorded
+ *       400:
+ *         description: Unknown profile
+ */
+router.put('/deception/profile', honeypotOnly, async (req, res, next) => {
+  try {
+    const honeypotService = require('../services/honeypotService')
+    const profile = typeof req.body?.profile === 'string' ? req.body.profile.trim() : ''
+    const previous = await honeypotService.getActiveProfile()
+    await honeypotService.setActiveProfile(profile)
+    await require('../utils/auditLogger').logAudit({
+      action: 'SETTINGS_CHANGED',
+      actor: { id: 'honeypot-rotator', role: 'service' },
+      target: { identifier: 'deceptionActiveProfile', type: 'SystemSetting' },
+      status: 'SUCCESS',
+      details: { from: previous.profile, to: profile, via: 'honeypot ingest key' },
+      ip: req.ip,
+    })
+    sendSuccess(res, { profile, previous: previous.profile }, 'Active deception profile recorded')
+  } catch (err) {
+    next(err)
+  }
+})
+
 const getCollector = () => {
   try {
     return require('../../honeypot/collectors/session_collector')

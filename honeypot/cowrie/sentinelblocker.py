@@ -1,5 +1,7 @@
 """SentinelAI Cowrie blocker plugin: refuses connections from IPs on the SentinelAI deny-list.
-Install: copy to cowrie/src/cowrie/output/sentinel_blocker.py and enable [output_sentinel_blocker].
+Install: copy to cowrie/src/cowrie/output/sentinelblocker.py and enable [output_sentinelblocker]. The name has no
+underscore on purpose: Cowrie loads module cowrie.output.<section.split("_")[1]>, so "sentinel_blocker" would
+load "sentinel" (which does not exist) and the plugin would silently never run.
 
 A background thread pulls the full deny-list every SYNC_INTERVAL seconds; connection handling only reads
 the in-memory copy, so the Twisted reactor never blocks on the network and a connection flood cannot

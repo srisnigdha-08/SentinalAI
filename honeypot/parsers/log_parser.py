@@ -274,9 +274,18 @@ def on_kex(e):
     log.info(f"SSH client hassh: {sid} -> {hassh}")
     post("/honeypot/ingest", {"eventType": "CLIENT_KEX", "sessionId": sid, "hassh": hassh})
 
+def session_duration_seconds(e):
+    """
+    Session length from cowrie.session.closed. Current Cowrie writes duration_ms (milliseconds, checked on
+    cowrie c7773f4); older releases wrote duration (seconds). Reading only "duration" made every session 0 s.
+    """
+    if e.get("duration_ms") is not None:
+        return float(e["duration_ms"]) / 1000.0
+    return float(e.get("duration", 0))
+
 def on_closed(e):
     sid = e.get("session", "?")
-    dur = e.get("duration", 0)
+    dur = session_duration_seconds(e)
     meta = _sessions.get(sid)
     if not meta:
         # Parser restarted mid-session: its in-memory state is gone, but the backend may hold the

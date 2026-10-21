@@ -71,3 +71,84 @@ def test_switch_profile_uses_persona_contents_only_when_opted_in(tmp_path, monke
     cfg = _generate(tmp_path, monkeypatch, "ubuntu_22", "honeyfs-personas")
     assert cfg.get("honeypot", "contents_path") == "honeyfs-personas/ubuntu_22"
     assert not _generate(tmp_path, monkeypatch, "windows_srv", "honeyfs-personas").has_option("honeypot", "contents_path")
+
+
+# ---- fs.pickle mode (current Cowrie: contents inside the pickle). Shapes copied from cowrie c7773f4's
+# fs.pickle: /etc/os-release is a link with a root-relative target, its target file has no contents, and
+# /home holds the demo user's directory.
+import pickle  # noqa: E402
+
+T_LINK, T_DIR, T_FILE = 0, 1, 2
+
+
+def _f(name, data, mode=0o100644):
+    return [name, T_FILE, 0, 0, len(data), mode, 1700000000, data, None, None]
+
+
+def _d(name, children, uid=0):
+    return [name, T_DIR, uid, uid, 4096, 0o40755, 1700000000, children, None, None]
+
+
+@pytest.fixture
+def cowrie_pickle(tmp_path):
+    tree = _d("", [
+        _d("etc", [
+            _f("passwd", b"root:x:0:0:root:/root:/bin/bash\nphil:x:1000:1000:Phil California,,,:/home/phil:/bin/bash\n"),
+            _f("shadow", b"root:*:19000:0:99999:7:::\nphil:$6$x:19000:0:99999:7:::\n", 0o100640),
+            _f("group", b"root:x:0:\nphil:x:1000:\n"),
+            ["os-release", T_LINK, 0, 0, 21, 0o120777, 1700000000, [], "usr/lib/os-release", None],
+            _f("issue", b"Debian GNU/Linux 12 \n \l\n"),
+            _f("hostname", b"svr04\n"),
+        ]),
+        _d("usr", [_d("lib", [["os-release", T_FILE, 0, 0, 267, 0o100644, 1700000000, [], None, None]])]),
+        _d("proc", [_f("version", b"Linux version 6.1.0\n", 0o100444)]),
+        _d("home", [_d("phil", [], uid=1000)]),
+    ])
+    path = tmp_path / "fs.pickle"
+    path.write_bytes(pickle.dumps(tree))
+    return path
+
+
+def _find(tree, path):
+    node = tree
+    for part in [p for p in path.split("/") if p]:
+        node = next((c for c in node[7] if c[0] == part), None)
+        if node is None:
+            return None
+    return node
+
+
+def test_pickle_mode_builds_a_consistent_filesystem_per_persona(cowrie_pickle, tmp_path):
+    out = tmp_path / "personas"
+    build_honeyfs.main(["--fs-pickle", str(cowrie_pickle), "--out", str(out)])
+    for persona, distro in build_honeyfs.DISTROS.items():
+        tree = pickle.loads((out / f"{persona}.pickle").read_bytes())
+        user = distro["user"][0]
+        passwd = _find(tree, "/etc/passwd")[7].decode()
+        assert "phil" not in passwd and f"\n{user}:x:1000:1000:" in passwd
+        assert "phil" not in _find(tree, "/etc/shadow")[7].decode()
+        assert _find(tree, "/etc/shadow")[5] == 0o100640  # mode kept
+        home = [c[0] for c in _find(tree, "/home")[7]]
+        assert home == [user] and _find(tree, f"/home/{user}")[2] == 1000
+        os_release = _find(tree, "/usr/lib/os-release")  # written through the link, as Cowrie resolves it
+        assert f'PRETTY_NAME="{distro["PRETTY_NAME"]}"' in os_release[7].decode()
+        assert os_release[4] == len(os_release[7])
+        assert _find(tree, "/etc/os-release")[1] == T_LINK  # the link itself is untouched
+        assert _find(tree, "/etc/hostname")[7].decode().strip() == switch_profile.PROFILES[persona]["hostname"]
+        assert _find(tree, "/etc/issue.net") is not None  # created when missing
+    assert not (out / "windows_srv.pickle").exists()
+    assert b"phil" in cowrie_pickle.read_bytes()  # source untouched
+
+
+def test_pickle_without_contents_is_rejected(tmp_path):
+    old = tmp_path / "old.pickle"
+    old.write_bytes(pickle.dumps(_d("", [_d("etc", [["passwd", T_FILE, 0, 0, 0, 0o100644, 0, None, None, None]])])))
+    with pytest.raises(SystemExit, match="honeyfs directory"):
+        build_honeyfs.main(["--fs-pickle", str(old), "--out", str(tmp_path / "o")])
+
+
+def test_switch_profile_points_shell_filesystem_at_the_persona_pickle(tmp_path, monkeypatch):
+    monkeypatch.setenv("COWRIE_PERSONA_FS", "personas")
+    cfg = _generate(tmp_path, monkeypatch, "aws_ec2")
+    assert cfg.get("shell", "filesystem") == "personas/aws_ec2.pickle"
+    assert not _generate(tmp_path, monkeypatch, "windows_srv").has_option("shell", "filesystem")

@@ -11,12 +11,13 @@ Every --interval minutes it asks the backend for the recommended next persona
 This closes the learning loop: the learner explores (epsilon-greedy) and exploits personas that keep
 attackers engaged, instead of only scoring the one persona configured by hand.
 
-  SENTINEL_ROTATOR_EMAIL=admin@... SENTINEL_ROTATOR_PASSWORD=... \\
-    python deception_rotator.py --backend http://127.0.0.1:5000 --restart-cmd "systemctl restart cowrie"
+  HONEYPOT_API_KEY=... python deception_rotator.py --backend http://127.0.0.1:5000 --restart-cmd "systemctl restart cowrie"
   python deception_rotator.py --once --dry-run      # show what would change
 
-Needs an admin account (recording the persona requires settings:write). The password is read from the
-environment or a prompt and never logged.
+Authenticates with the honeypot host's HONEYPOT_API_KEY (recommended) against /api/honeypot/ingest/deception/*,
+which can only read the recommendation and record one of the six personas: the honeypot is the machine
+expected to be attacked, so it should hold no SentinelAI login. Without the key it falls back (deprecated)
+to an admin login from SENTINEL_ROTATOR_EMAIL / SENTINEL_ROTATOR_PASSWORD or a prompt (never logged).
 """
 import argparse
 import getpass
@@ -37,8 +38,26 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("sentinel.rotator")
 
 
+class MachineClient:
+    """HONEYPOT_API_KEY on the honeypot-scoped endpoints; no user account involved."""
+    RECOMMENDATION = "/api/honeypot/ingest/deception/recommendation"
+    PROFILE = "/api/honeypot/ingest/deception/profile"
+
+    def __init__(self, base, api_key):
+        self.base, self._key = base.rstrip("/"), api_key
+        self.http = requests.Session()
+
+    def login(self):
+        pass
+
+    def call(self, method, path, **kw):
+        return self.http.request(method, f"{self.base}{path}", headers={"X-API-Key": self._key}, timeout=30, **kw)
+
+
 class BackendClient:
-    """CSRF handshake + login, then bearer-authenticated calls; re-logs in once on 401."""
+    """Deprecated: admin login (CSRF handshake + login, bearer calls; re-logs in once on 401)."""
+    RECOMMENDATION = "/api/honeypot/deception/recommendation"
+    PROFILE = "/api/honeypot/deception/profile"
 
     def __init__(self, base, email, password, origin):
         self.base, self.email, self._password, self.origin = base.rstrip("/"), email, password, origin
@@ -75,7 +94,7 @@ def run_restart(cmd: str):
 
 
 def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run: bool) -> dict:
-    resp = client.call("GET", "/api/honeypot/deception/recommendation")
+    resp = client.call("GET", client.RECOMMENDATION)
     if resp.status_code != 200:
         raise RuntimeError(f"Recommendation unavailable (HTTP {resp.status_code})")
     data = resp.json()["data"]
@@ -90,7 +109,7 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
     switch_profile.generate_config(nxt)
     if not run_restart(restart_cmd):
         return {"changed": False, "active": active, "error": "restart failed; persona not recorded"}
-    rec = client.call("PUT", "/api/honeypot/deception/profile", json={"profile": nxt})
+    rec = client.call("PUT", client.PROFILE, json={"profile": nxt})
     if rec.status_code != 200:
         raise RuntimeError(f"Recording the persona failed (HTTP {rec.status_code})")
     return {"changed": True, "active": nxt, "previous": active}
@@ -107,11 +126,15 @@ def main():
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     args = ap.parse_args()
-    if not args.email:
-        ap.error("--email (or SENTINEL_ROTATOR_EMAIL) is required")
-    password = os.getenv("SENTINEL_ROTATOR_PASSWORD") or getpass.getpass(f"Password for {args.email}: ")
-
-    client = BackendClient(args.backend, args.email, password, args.origin)
+    api_key = os.getenv("HONEYPOT_API_KEY", "")
+    if api_key:
+        client = MachineClient(args.backend, api_key)
+    else:
+        if not args.email:
+            ap.error("set HONEYPOT_API_KEY (recommended) or --email / SENTINEL_ROTATOR_EMAIL for an admin login")
+        log.warning("No HONEYPOT_API_KEY: using an admin login, which then lives on the honeypot host (deprecated)")
+        password = os.getenv("SENTINEL_ROTATOR_PASSWORD") or getpass.getpass(f"Password for {args.email}: ")
+        client = BackendClient(args.backend, args.email, password, args.origin)
     client.login()
     while True:
         try:

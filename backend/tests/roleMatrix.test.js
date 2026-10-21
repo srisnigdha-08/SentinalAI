@@ -599,6 +599,17 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       path: '/api/honeypot/ingest/flow',
       expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
     },
+    // Rotator endpoints: honeypot key only, so even a logged-in admin gets 401 here.
+    {
+      method: 'get',
+      path: '/api/honeypot/ingest/deception/recommendation',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'put',
+      path: '/api/honeypot/ingest/deception/profile',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
 
     // 6. Honeypot Sessions & Analytics
     {

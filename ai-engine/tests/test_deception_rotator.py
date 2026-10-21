@@ -20,7 +20,7 @@ def rotator(monkeypatch):
 
 
 def _client(active, nxt, record_status=200):
-    client = MagicMock()
+    client = MagicMock(RECOMMENDATION="/api/honeypot/deception/recommendation", PROFILE="/api/honeypot/deception/profile")
     rec = MagicMock(status_code=200)
     rec.json.return_value = {"data": {"activeProfile": active, "nextProfile": nxt, "explored": True}}
     put = MagicMock(status_code=record_status)
@@ -54,3 +54,26 @@ def test_failed_restart_does_not_record_the_persona(rotator, tmp_path, monkeypat
     result = rotator.rotate_once(client, tmp_path / "cowrie.cfg", "systemctl restart cowrie", dry_run=False)
     assert result["changed"] is False and "restart failed" in result["error"]
     assert all(c.args[0] == "GET" for c in client.call.call_args_list)
+
+
+def test_machine_client_uses_only_the_honeypot_key_on_scoped_paths(rotator, monkeypatch, tmp_path):
+    # C3: no admin login on the honeypot host; the rotator talks to /api/honeypot/ingest/deception/*.
+    calls = []
+
+    def fake_request(self, method, url, **kw):
+        calls.append((method, url, kw.get("headers"), kw.get("json")))
+        resp = MagicMock(status_code=200)
+        resp.json.return_value = {"data": {"activeProfile": "centos_7", "nextProfile": "debian_11", "explored": False}}
+        return resp
+
+    monkeypatch.setattr(rotator.requests.Session, "request", fake_request)
+    monkeypatch.setattr(rotator, "run_restart", lambda cmd: True)
+    client = rotator.MachineClient("http://127.0.0.1:5000/", "hp-key")
+    result = rotator.rotate_once(client, tmp_path / "cowrie.cfg", "", dry_run=False)
+    assert result == {"changed": True, "active": "debian_11", "previous": "centos_7"}
+    assert [(m, u) for m, u, _, _ in calls] == [
+        ("GET", "http://127.0.0.1:5000/api/honeypot/ingest/deception/recommendation"),
+        ("PUT", "http://127.0.0.1:5000/api/honeypot/ingest/deception/profile"),
+    ]
+    assert all(h == {"X-API-Key": "hp-key"} for _, _, h, _ in calls)
+    assert calls[1][3] == {"profile": "debian_11"}

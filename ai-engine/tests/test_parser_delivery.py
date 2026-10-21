@@ -58,6 +58,21 @@ def test_session_open_carries_cowrie_timestamp(parser, monkeypatch):
     assert body["startTime"] == "2017-07-07T13:30:00.123Z"
 
 
+@pytest.mark.parametrize("event,seconds", [
+    ({"duration_ms": 10019}, 10),         # current Cowrie (milliseconds)
+    ({"duration": 42.7}, 42),             # older Cowrie (seconds)
+    ({"duration_ms": 900, "duration": 99}, 0),  # duration_ms wins when both are present
+    ({}, 0),
+])
+def test_close_duration_from_both_cowrie_formats(parser, monkeypatch, event, seconds):
+    sent = Mock(return_value=True)
+    monkeypatch.setattr(parser, "post", sent)
+    parser.on_connect({"session": "d1", "src_ip": "192.0.2.12"})
+    parser._sessions["d1"]["openedPosted"] = True
+    parser.on_closed({"session": "d1", **event})
+    assert sent.call_args.args[1]["durationSeconds"] == seconds
+
+
 def test_close_without_parser_state_is_still_delivered(parser, monkeypatch):
     sent = Mock(return_value=True)
     monkeypatch.setattr(parser, "post", sent)

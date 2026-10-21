@@ -43,7 +43,7 @@ Nothing was started against the network and no data was changed.
 |---|---|---|
 | `honeypot/cowrie/cowrie.cfg` | Cowrie config: hostname `centos-web-gateway`, port 2222, banner `SSH-2.0-OpenSSH_7.4`, JSON log on, blocker plugin on | Several keys are in sections Cowrie ignores (see 4.2). |
 | `honeypot/cowrie/userdb.txt` | 13 accepted logins (`root:0:root`, `root:0:123456`, `pi:1000:raspberry`, …) | Format `user:uid:password` is valid for Cowrie's UserDB. |
-| `honeypot/cowrie/sentinel_blocker.py` | Cowrie output plugin that monkey-patches the SSH/Telnet factories to refuse connections from blocked IPs | Enabled by `[output_sentinel_blocker]` (`cowrie.cfg:36-37`). |
+| `honeypot/cowrie/sentinelblocker.py` (was `sentinel_blocker.py`) | Cowrie output plugin that monkey-patches the SSH/Telnet factories to refuse connections from blocked IPs | Enabled by `[output_sentinelblocker]`. Under its old name it **never loaded** (see 3.6 status). |
 | `honeypot/cowrie/sentinel_output.py` | Alternative output plugin that POSTs events straight to the backend | **Deliberately not enabled** (would double-ingest with the parser; `honeypot/README.md:21-23`). |
 | `fs.pickle` (fake filesystem) | **NOT FOUND**: Cowrie's default filesystem would be used. |
 | `honeyfs/` (fake file contents like `/etc/passwd`, `/etc/os-release`) | **NOT FOUND**: Cowrie defaults would be used. |
@@ -125,7 +125,7 @@ log_parser.py --live ──polls every 0.5 s──► reads new lines ──HTTP
 - It **starts at the end of the file** (`log_parser.py:215`, `seek(0, 2)`): lines written while the parser was down are never read.
 - Rotation is detected by inode change or file shrink (`log_parser.py:223`).
 - Alternative push path (`sentinel_output.py`) exists but is disabled.
-- The blocker plugin is a **pull** in the other direction: Cowrie polls `GET /api/honeypot/ingest/check-block` every 2 s (`sentinel_blocker.py:37-53`).
+- The blocker plugin is a **pull** in the other direction: Cowrie polls `GET /api/honeypot/ingest/check-block` every 2 s (`sentinelblocker.py`, `sync_once`).
 
 ## 1.4 Mocked or simulated parts
 
@@ -199,7 +199,7 @@ Attacker            Cowrie (Linux host)       log_parser.py           Backend (E
 
 ### Step by step, with the code
 
-1. **Connect.** Cowrie accepts TCP on 2222. `sentinel_blocker.py:75-83` wraps `CowrieSSHFactory.buildProtocol`; if `is_ip_blocked(ip)` (line 95) the factory returns `None` and Twisted drops the connection. Cowrie logs `cowrie.session.connect` with `session`, `src_ip`, `src_port`.
+1. **Connect.** Cowrie accepts TCP on 2222. `sentinelblocker.py` (`patch_ssh`) wraps `CowrieSSHFactory.buildProtocol`; if `is_ip_blocked(ip)` (line 95) the factory returns `None` and Twisted drops the connection. Cowrie logs `cowrie.session.connect` with `session`, `src_ip`, `src_port`.
 2. **Parser sees the line.** `tail()` reads it, `process()` (`log_parser.py:193-200`) does `json.loads` and dispatches by `eventid` through `HANDLERS` (line 191). `on_connect` (line 93) only stores state in memory. *Design point:* a bare port-scan connection with no SSH activity is never sent (line 187-188), which keeps scanner noise out.
 3. **First SSH activity opens the session in the backend.** Any of kex/login/command calls `ensure_session_opened` (line 71), which POSTs `SESSION_OPENED` with Cowrie's own timestamp.
    - Backend: `internalAuth` checks the key (`honeypotIngest.js:9-14`), `telemetryError` validates `sessionId` (string ≤128) and `sourceIP` (lines 66-80).
@@ -337,7 +337,7 @@ python -m pip install --upgrade pip && python -m pip install -e . requests
 R=/mnt/c/Users/srisn/Desktop/Projects/sentinelai-complete/honeypot
 cp $R/cowrie/cowrie.cfg etc/cowrie.cfg          # fix sections first: see 4.2 / 5.1
 cp $R/cowrie/userdb.txt etc/userdb.txt
-cp $R/cowrie/sentinel_blocker.py src/cowrie/output/sentinel_blocker.py
+cp $R/cowrie/sentinelblocker.py src/cowrie/output/sentinelblocker.py
 ```
 
 **3. Start the SentinelAI services (Windows, separate terminals).** MongoDB is already running on 27017.
@@ -379,14 +379,14 @@ For the `wget` step, serve a harmless file locally first:
 mkdir -p /tmp/dummy && echo 'echo hello' > /tmp/dummy/test.sh && python3 -m http.server 8081 --bind 127.0.0.1 --directory /tmp/dummy
 ```
 
-Cowrie **really** fetches it, which is why it has to be local.
+**Correction (verified on a live Cowrie, 2026-10-22):** current Cowrie refuses to download from any address that is not globally routable (`src/cowrie/core/network.py`, SSRF protection). A local URL is therefore never fetched: step 3 produces `cowrie.command.input` but no `cowrie.session.file_download`, no download alerts and `downloadCount: 0`. Seeing a real download needs a public URL, which means outbound internet from the honeypot; only do that on an isolated host. The download ingest path itself is covered by the replayed-log test (3.6).
 
 | # | Do | Cowrie JSON (`jq -c 'select(.session=="<id>")' cowrie.json`) | Parser log | Backend log | MongoDB | AI / Q-table | Dashboard |
 |---|---|---|---|---|---|---|---|
 | 1 | `ssh -p 2222 root@127.0.0.1`, password `123456` | `cowrie.session.connect`, `cowrie.client.kex`, `cowrie.login.success` | `SSH session opening acknowledged` | `[Collector] Opened: <id>` | new `honeypotsessions` doc `status: active`; new `threatlogs` HIGH 0.75 | none yet | session appears; live feed line |
 | 2 | `whoami`, `uname -a`, `ls`, `cat /etc/passwd` | 4× `cowrie.command.input` | `Command [RECONNAISSANCE]…`, `[CREDENTIAL_HARVEST]` | 4 POST `/command` 200 | `commands[]` grows; `filesAccessed: ["/etc/passwd"]`; `deceptionScore` 3→6→9→22 | none | commands column, MITRE badges |
 | 3 | `wget http://127.0.0.1:8081/test.sh` | `cowrie.command.input`, `cowrie.session.file_download` (`url`, `shasum`, `outfile`) | `FILE DOWNLOAD` | Alert "High-Value: MALWARE_DOWNLOAD", Alert "Malware Downloaded" | `iocExtracted.urls`, `malwareDownloaded`, `downloadCount: 1` | none | 2 CRITICAL alerts in the bell |
-| 4 | `exit` | `cowrie.session.closed` (`duration`) | `Session closed: <id>` | `[HP] AI classified … RCE Attempt (0.98)`, `[HP] Q-learner scored …` | `status: closed`, `closureAnalysisState: complete`, `aiClassification`, `qDeceptionScore`, `recommendedProfile`, `servedProfile: centos_7`; credentials with `***REDACTED***` | Q-table `episode_count +1`, `saved_at` updated | `honeypot_session_closed`, threat updated |
+| 4 | `exit` | `cowrie.session.closed` (`duration_ms` on current Cowrie, `duration` on older) | `Session closed: <id>` | `[HP] AI classified … RCE Attempt (0.98)`, `[HP] Q-learner scored …` | `status: closed`, `closureAnalysisState: complete`, `aiClassification`, `qDeceptionScore`, `recommendedProfile`, `servedProfile: centos_7`; credentials with `***REDACTED***` | Q-table `episode_count +1`, `saved_at` updated | `honeypot_session_closed`, threat updated |
 | 5 | Brute force: `for i in $(seq 1 20); do sshpass -p wrong$i ssh -o StrictHostKeyChecking=no -p 2222 root@127.0.0.1 true; done` | 20× connect + several `login.failed` per connection + closed | 20 open/close pairs | 20 sessions opened/closed | 20 sessions, each `SSH Brute Force` 0.90, status MONITORING | 20 Q updates with reward ≈ 0.3 | 20 new HIGH threats |
 
 Expected numbers, computed by running the real `classify_honeypot_session` and `calc_reward`:
@@ -462,7 +462,7 @@ The table above describes the audited commit. Tests for each row: `ai-engine/tes
 | Custom fs / honeyfs / txtcmds | **Not Implemented** | NOT FOUND | — |
 | JSON log → parser tail | Unit-tested, untested live; restart/rotation/outage/duplicate losses **FIXED** (3.5) | parser contract + reliability tests | `honeypot/parsers/log_parser.py` |
 | Direct output plugin | Implemented, **disabled** | contract test passes | `honeypot/cowrie/sentinel_output.py` |
-| Blocker plugin | **Untested** live | needs running Cowrie | `honeypot/cowrie/sentinel_blocker.py` |
+| Blocker plugin | **Untested** live | needs running Cowrie | `honeypot/cowrie/sentinelblocker.py` (then `sentinel_blocker.py`) |
 | Backend ingest + validation | **Working** (tests) | 63 jest pass (mocked DB) | `backend/routes/honeypotIngest.js` |
 | Atomic session updates / MongoDB writes | **Working** | tests + 8 real docs in DB | `backend/services/honeypotService.js:112` |
 | Credential redaction | **Working** for new data; **legacy plaintext present** | session `9b21e8e00dd7`: 3,383 credential rows, all plaintext | `backend/utils/redact.js:227` |
@@ -511,6 +511,47 @@ Per-command ingest latency, Cowrie event to MongoDB: **64–887 ms**. What this 
 | GeoIP enrichment | **Not implemented** | — | No data source: no GeoLite2 database, no `ABUSEIPDB_API_KEY`. |
 | Retention | Disabled by default (design) | — | Turning on automatic deletion is a policy decision. |
 
+### Status after the live Cowrie run (working tree, 2026-10-22)
+
+WSL networking came back, so real Cowrie (git `c7773f4`, 2026-10-15; Twisted 26.4.0, Python 3.14) was installed in a user venv at `~/sentinelai-cowrie-test` in WSL Ubuntu. No sudo was used and nothing was installed system-wide; delete that folder to remove it.
+
+It ran with this repo's `cowrie.cfg`, `userdb.txt`, blocker plugin and persona filesystems. Real SSH sessions from paramiko then flowed through Cowrie's own JSON log to the parser (on Windows, over `\\wsl.localhost`, where inodes match Linux), backend, AI engine and MongoDB. That used the isolated test database again; `sentinel-db` was not touched.
+
+WSL cannot reach the Windows backend in NAT mode, and opening a firewall path was not an option, so the blocker read its deny-list from a stub at 127.0.0.1:5099. That stub is the only stand-in in this run.
+
+**Bugs the live run found (all fixed):**
+1. **The blocker plugin could never load.** Cowrie loads `[output_X]` as module `cowrie.output.<section.split("_")[1]>`, so `[output_sentinel_blocker]` asked for `sentinel` and failed with an ImportError. Every block was unenforced on the honeypot. Renamed to `sentinelblocker` (`honeypot/cowrie/sentinelblocker.py`, `[output_sentinelblocker]`), with a regression test applying Cowrie's rule to our config (`tests/test_cowrie_config_contract.py`).
+2. **Every session had duration 0.** Current Cowrie writes `duration_ms`; the parser read only `duration`. It now reads both (`session_duration_seconds`, 4 tests). Duration feeds the Q-learner's reward.
+3. **The honeyfs builder assumed a honeyfs directory that current Cowrie no longer ships.** File contents now live inside `fs.pickle`. `build_honeyfs.py --fs-pickle` writes one complete pickle per persona (`[shell] filesystem`, via `COWRIE_PERSONA_FS`), which also renames `/home/phil`. Symlinks are resolved from the tree root, as Cowrie does. The directory mode stays for older Cowrie.
+4. **Stock Cowrie's `/etc/os-release` is empty** (a fingerprint in itself); the persona pickles fill it.
+5. `max_sessions` is not read by Cowrie (dead key, removed). `interactive_timeout` is read.
+
+**Verified live:**
+
+| Check | Result |
+|---|---|
+| Our config loads; keys in the sections Cowrie reads | Yes (checked against Cowrie's `cowrie.cfg.dist`) |
+| Persona consistency (centos_7) | Banner `OpenSSH_7.4`, hostname, kernel `3.10.0-1160.el7`, CentOS `os-release`, `/home/centos`, no `phil` |
+| `userdb.txt` | `root/123456` accepted; wrong passwords rejected (5/5) |
+| `forwarding = false` | direct-tcpip channel refused |
+| Blocker plugin inside Cowrie | Loaded; blocked IP refused within one sync; allowed again after unblock |
+| Pipeline from real Cowrie events | 11 sessions, each once: commands, redacted credentials, HASSH, rule class, Q-learner score, `servedProfile` |
+| Parser restart | Session written while the parser was down was ingested after restart (3 commands, duration 7 s) |
+| Log rotation (Linux semantics) | Log renamed while the parser held it open; sessions before and after both ingested once, no duplicates |
+| Closed deception loop | Recommendation `ubuntu_22` → rotator (honeypot key only) rewrote config, Cowrie restarted (supervisor) → attacker sees Ubuntu banner, hostname, kernel, `os-release`, `/home/ubuntu` → backend recorded `ubuntu_22`, audit actor `honeypot-rotator` → next session credited `servedProfile: ubuntu_22` |
+| `wget` | Refused by Cowrie for local targets (by design, see 3.3) |
+
+**C3 fixed:** the rotator uses `HONEYPOT_API_KEY` on `GET /api/honeypot/ingest/deception/recommendation` and `PUT /api/honeypot/ingest/deception/profile`. These accept only the honeypot key (not `SENTINEL_KEY`, not a user token) and only the six persona names, and every write is audited as `honeypot-rotator`. 7 backend tests, 1 rotator test and role-matrix entries cover them. The admin-login path remains as a deprecated fallback.
+
+**Rows still open:**
+- **Docker stack:** untested; no Docker here.
+- **Blocker against the real backend:** the backend side (`check-block`) is unit-tested, but the WSL↔Windows hop wasn't run.
+- **Real downloads:** need outbound internet.
+- **Persona fidelity:** windows_srv has no filesystem; no txtcmds; command output such as `lsb_release` and the package list is still Cowrie's default.
+- **Seed `sess-*` sessions:** not badged.
+- **Not implemented:** retraining, multi-protocol decoys, GeoIP.
+- **By design:** retention, auto-block and the firewall are off or mock by default.
+
 ---
 
 # PHASE 4: Issues audit
@@ -532,7 +573,7 @@ Per-command ingest latency, Cowrie event to MongoDB: **64–887 ms**. What this 
 - *Why it matters:* Cowrie emulates the shell, but `wget`/`curl` make **real outbound requests**, downloads land on disk, and SSH `direct-tcpip` forwarding can turn the honeypot into a proxy. Check `[ssh] forwarding` in your Cowrie version's `cowrie.cfg.dist`; it defaults to enabled in common releases. The same host also holds `HONEYPOT_API_KEY` and, if you run the rotator, **an admin password** (C3).
 - *Fix (see 5.2):* run Cowrie in its own container or VM on an isolated network, as non-root, read-only image, `cap_drop: ALL`, CPU/memory/pids limits, egress denied except to the backend ingest port, `forwarding = false`, `download_limit_size` set.
 
-**C3. The rotator puts SentinelAI admin credentials on the honeypot host.**
+**C3. [FIXED 2026-10-22: rotator uses HONEYPOT_API_KEY on two honeypot-only endpoints; verified live] The rotator puts SentinelAI admin credentials on the honeypot host.**
 - *Where:* `honeypot/deception_rotator.py:14-19, 112-115` needs an admin account with `settings:write`, while `honeypot/README.md:18` says the honeypot host should hold only `HONEYPOT_API_KEY`.
 - *Why it matters:* the honeypot is the machine you *expect* to be attacked. Anyone who escapes Cowrie gets a dashboard admin login: a pivot from decoy to defence platform.
 - *Fix:* add a machine-key endpoint scoped to deception only, e.g. `PUT /api/honeypot/ingest/deception/profile` behind `internalAuth` that only accepts the 6 profile names, and change the rotator to use `HONEYPOT_API_KEY`. Or run the rotator on the SentinelAI host and push only the config file.
@@ -675,7 +716,7 @@ Per-command ingest latency, Cowrie event to MongoDB: **64–887 ms**. What this 
        volumes:
          - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
          - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
-         - ./cowrie/sentinel_blocker.py:/cowrie/cowrie-git/src/cowrie/output/sentinel_blocker.py:ro
+         - ./cowrie/sentinelblocker.py:/cowrie/cowrie-git/src/cowrie/output/sentinelblocker.py:ro
          - cowrie-var:/cowrie/cowrie-git/var
        environment: [HONEYPOT_API_KEY, SENTINEL_API_URL]
        networks: [honeynet]

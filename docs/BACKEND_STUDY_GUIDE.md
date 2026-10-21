@@ -99,7 +99,7 @@ error → `{success:false, error, code, timestamp}`; paginated → `{success, da
 ### `/api/honeypot/ingest` — `routes/honeypotIngest.js` (K-ingest, machine-to-machine)
 | Method & route | Input | Output / effect |
 |---|---|---|
-| GET `/check-block?ip=` | optional IP | `{blocked, ip}` or `{blockedIPs:[...]}` — polled by `cowrie/sentinel_blocker.py` |
+| GET `/check-block?ip=` | optional IP | `{blocked, ip}` or `{blockedIPs:[...]}` — polled by `cowrie/sentinelblocker.py` |
 | POST `/` | `{eventType ∈ SESSION_OPENED, COMMAND_INPUT, COMMAND_FAILED, FILE_DOWNLOAD, SESSION_CLOSED, CLIENT_KEX, sessionId, sourceIP, ...}` | dispatches to `honeypot/collectors/session_collector.js`; 400 unsupported type; 404 if session not found |
 | POST `/match-session` | `{sourceIP, sourcePort, startTime}` | matches a session within ±5 s → `{matched, sessionId, aiClassification}` (used by sniffer) |
 | POST `/command` | `{sessionId, sourceIP, command ≤2048}` | intent re-derived server-side; `{received, deceptionScore}` |
@@ -295,13 +295,13 @@ Attacker        Cowrie (tcp:2222)     cowrie.json      log_parser.py --live     
   |                       |                  |                    |                            |                             |                                      |<-- qDeceptionScore=min(5·reward,100), recommendedProfile         |
   |                       |                  |                    |                            |                             |                                      | session.save; campaignService.clusterSession                      | honeypot_session_closed
   |<- (nothing changes for the attacker: recommendation is never applied)            |                             |                                      |                              |
-  | next connection       | sentinel_blocker.py polls GET /check-block → drops IPs in BlockedIP                         |                                      |                              |
+  | next connection       | sentinelblocker.py polls GET /check-block → drops IPs in BlockedIP                         |                                      |                              |
 ```
 
 What to know precisely:
 - **Ingest path.** The live path is `honeypot/parsers/log_parser.py --live`.
   - The Cowrie output plugin `cowrie/sentinel_output.py` exists, but `honeypot/cowrie/cowrie.cfg`
-    has **no `[output_sentinel]` section**, so it is not enabled. Only `[output_sentinel_blocker]` is.
+    has **no `[output_sentinel]` section**, so it is not enabled. Only `[output_sentinelblocker]` is.
   - The parser holds open sessions in a Python dict (`_sessions`, line 28). It only POSTs once SSH
     activity happens: login, command, download or kex (`ensure_session_opened`, lines 54-72).
 - **Two different "deception scores".**
@@ -342,7 +342,7 @@ What to know precisely:
     in the repo produces it, so its provenance is **NOT FOUND**; treat it as pre-seeded demo state.
   - `ai-engine/runtime/q_table.json` shows 99 episodes with all-zero Q values.
 - **The "response" to the attacker.** The only thing that affects the attacker is the deny-list:
-  `BlockedIP` is polled by `cowrie/sentinel_blocker.py` via `GET /check-block`, which then drops
+  `BlockedIP` is polled by `cowrie/sentinelblocker.py` via `GET /check-block`, which then drops
   connections from those IPs. Nothing reconfigures the persona.
 - **Campaigns.** `campaignService.clusterSession` groups sessions that share a `hassh` or have
   similar command sets (threshold 0.65, 7-day window).
@@ -616,7 +616,7 @@ and frontend test and build.
 | MongoDB persistence | Working (tested with memory server) | 948 tests | `backend/models/*` |
 | Cowrie log parser → ingest | Partially (unit/contract tested; live Cowrie not verified here) | `cowrieIngest`, `test_cowrie_parser*` | `honeypot/parsers/log_parser.py` |
 | Cowrie output plugin | Untested live / not enabled | missing `[output_sentinel]` in cfg | `honeypot/cowrie/sentinel_output.py` |
-| Cowrie blocker plugin | Untested live | default URL `http://backend:5000/api` | `honeypot/cowrie/sentinel_blocker.py` |
+| Cowrie blocker plugin | Untested live | default URL `http://backend:5000/api` | `honeypot/cowrie/sentinelblocker.py` |
 | Honeypot AI classification | Partially — rule-based synthetic flow, not true ML | probe: `cat /etc/passwd` → BENIGN 0.08 | `utils/features.py:318-420` |
 | Q-learning deception scorer | Working mechanically; learning degenerate; not persisted by default | live probe; code | `rl_engine/deception_scorer.py`, `inference/deception.py` |
 | Profile switching | Mocked/manual (recommendation only) | `recommendationApplied: False` | `honeypot/switch_profile.py` |

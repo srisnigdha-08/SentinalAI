@@ -45,9 +45,10 @@ services:
     volumes:
       - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
       - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
-      - ./cowrie/sentinel_blocker.py:/cowrie/cowrie-git/src/cowrie/output/sentinel_blocker.py:ro
-      # Optional per-persona file contents (build_honeyfs.py; set COWRIE_PERSONA_HONEYFS when generating cowrie.cfg):
-      # - ./honeyfs-personas:/cowrie/cowrie-git/honeyfs-personas:ro
+      - ./cowrie/sentinelblocker.py:/cowrie/cowrie-git/src/cowrie/output/sentinelblocker.py:ro
+      # Optional per-persona filesystems (build_honeyfs.py --fs-pickle; set COWRIE_PERSONA_FS=personas when
+      # generating cowrie.cfg, which then sets [shell] filesystem = personas/<persona>.pickle):
+      # - ./personas:/cowrie/cowrie-git/personas:ro
       - cowrie-var:/cowrie/cowrie-git/var
     ports:
       - "${COWRIE_BIND:-127.0.0.1}:${COWRIE_PORT:-2222}:2222"

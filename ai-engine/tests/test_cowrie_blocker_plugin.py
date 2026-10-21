@@ -1,4 +1,4 @@
-"""Offline tests of honeypot/cowrie/sentinel_blocker.py with stand-in Cowrie factories; Cowrie is not needed."""
+"""Offline tests of honeypot/cowrie/sentinelblocker.py with stand-in Cowrie factories; Cowrie is not needed."""
 import importlib.util
 import sys
 import types
@@ -7,7 +7,7 @@ from unittest.mock import Mock
 
 import pytest
 
-PLUGIN = Path(__file__).resolve().parents[2] / "honeypot/cowrie/sentinel_blocker.py"
+PLUGIN = Path(__file__).resolve().parents[2] / "honeypot/cowrie/sentinelblocker.py"
 
 
 class FakeFactory:
@@ -29,7 +29,7 @@ def blocker(monkeypatch):
     for name, mod in modules.items():
         monkeypatch.setitem(sys.modules, name, mod)
     monkeypatch.setenv("HONEYPOT_API_KEY", "offline-blocker-key")
-    spec = importlib.util.spec_from_file_location("sentinel_blocker_offline", PLUGIN)
+    spec = importlib.util.spec_from_file_location("sentinelblocker_offline", PLUGIN)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     monkeypatch.setattr(module.threading, "Thread", Mock())  # no background loop during tests
