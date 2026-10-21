@@ -120,6 +120,19 @@ groups:
           summary: "{{ $value | humanizePercentage }} of recent flows score at or above the block line"
           description: Either a sustained attack or a broken input pipeline (e.g. all features defaulted).
 
+  - name: sentinel-honeypot
+    rules:
+      - alert: SentinelHoneypotHeartbeatStale
+        # The Cowrie blocker plugin polls check-block every 2 s; no poll for 2 minutes means Cowrie (or its
+        # route to the backend) is down. The gauge is NaN until the first poll, which never fires.
+        expr: sentinel_honeypot_heartbeat_age_seconds > 120
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Honeypot silent for {{ $value | printf \"%.0f\" }} s"
+          description: Cowrie has not polled the deny-list; sessions are not being captured and blocks are not enforced.
+
   - name: sentinel-http
     rules:
       # Ignore near-idle periods so a single failed request does not page anyone.

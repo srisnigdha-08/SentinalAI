@@ -104,6 +104,7 @@ jest.mock('../services/honeypotService', () => ({
   getDeceptionMetrics: jest.fn().mockResolvedValue({ deceptionRatio: 0.9 }),
   getFullAnalytics: jest.fn().mockResolvedValue({ totalSessions: 10 }),
   getActiveProfile: jest.fn().mockResolvedValue({ profile: 'centos_7', source: 'default' }),
+  getAttackerProfiles: jest.fn().mockResolvedValue([]),
   setActiveProfile: jest.fn().mockResolvedValue('debian_11'),
   DECEPTION_PROFILES: ['ubuntu_22', 'debian_11', 'centos_7', 'windows_srv', 'aws_ec2', 'raspberry_pi'],
   findSessions: jest.fn().mockResolvedValue({
@@ -635,6 +636,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     {
       method: 'get',
       path: '/api/honeypot/deception/recommendation',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/attackers',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
     },
     {

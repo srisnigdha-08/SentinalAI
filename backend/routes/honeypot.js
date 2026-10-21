@@ -192,6 +192,34 @@ router.put('/deception/profile', requirePermission('settings:write'), async (req
  *       201:
  *         description: Honeypot session created
  */
+/**
+ * @openapi
+ * /honeypot/attackers:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Attacker profiles grouped by SSH client fingerprint (HASSH)
+ *     description: Sessions, source IPs, client banners, usernames tried, commands and logins per HASSH.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 30
+ *     responses:
+ *       200:
+ *         description: Attacker profiles, most active first
+ */
+router.get('/attackers', restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    sendSuccess(res, { profiles: await honeypotService.getAttackerProfiles({ days: req.query.days }) })
+  } catch (err) {
+    next(err)
+  }
+})
+
 router.route('/sessions').get(getSessions).post(restrictTo('admin', 'analyst'), createSession)
 
 /**

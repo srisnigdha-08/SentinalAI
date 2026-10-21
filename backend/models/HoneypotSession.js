@@ -16,6 +16,11 @@ const HoneypotSessionSchema = new mongoose.Schema(
     sourceIP: { type: String, required: true },
     sourcePort: { type: Number },
     hassh: { type: String, default: null },
+    // SSH client banner (cowrie.client.version): with hassh, the basis of attacker profiles.
+    clientVersion: { type: String, default: null },
+    // Cowrie's TTY recording of the session (cowrie.log.closed). The file stays on the honeypot host; replay it
+    // there with Cowrie's playlog. sha256 identifies it.
+    ttylog: { sha256: String, size: Number, path: String },
     geoLocation: {
       country: String,
       countryCode: { type: String, default: 'XX' },
@@ -84,8 +89,7 @@ HoneypotSessionSchema.index({ 'commands.command': 1, createdAt: -1 })
 HoneypotSessionSchema.index({ status: 1, updatedAt: 1 })
 HoneypotSessionSchema.pre('save', function (next) {
   if (this.isModified('commands') || !this.mitreTechniques || this.mitreTechniques.length === 0) {
-    const intents = this.commands.map((c) => c.intent).filter(Boolean)
-    this.mitreTechniques = mitreMapping.getMitreTechniquesForIntents(intents)
+    this.mitreTechniques = mitreMapping.getMitreTechniquesForSession(this.commands)
   }
   next()
 })

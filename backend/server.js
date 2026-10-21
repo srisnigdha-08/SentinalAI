@@ -55,6 +55,11 @@ metrics.gauge('sentinel_socket_clients', 'Connected Socket.IO clients', () => io
 metrics.gauge('sentinel_mongo_connected', '1 when MongoDB is connected', () =>
   require('mongoose').connection.readyState === 1 ? 1 : 0
 )
+// Seconds since the Cowrie blocker plugin last polled the deny-list (the honeypot heartbeat); NaN until it has.
+metrics.gauge('sentinel_honeypot_heartbeat_age_seconds', 'Seconds since the honeypot last polled check-block', () => {
+  const { lastSeen } = require('./services/honeypotHeartbeat').status()
+  return lastSeen ? (Date.now() - new Date(lastSeen).getTime()) / 1000 : NaN
+})
 metrics.gauge('sentinel_ai_circuit_open', '1 while the AI engine circuit breaker is open', () =>
   require('./services/aiEngineService').circuitState() === 'open' ? 1 : 0
 )

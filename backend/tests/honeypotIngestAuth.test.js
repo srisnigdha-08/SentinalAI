@@ -72,3 +72,32 @@ describe('honeypot ingest authentication', () => {
     expect(node).toMatchObject({ status: 'offline', liveness: 'offline' })
   })
 })
+
+describe('Phase 5 ingest additions', () => {
+  beforeEach(() => {
+    delete process.env.HONEYPOT_ALLOWED_SOURCES
+    heartbeat.reset()
+  })
+
+  test.each([
+    ['ttylog without a sha256', { ttylog: { size: 10 } }],
+    ['ttylog with a short hash', { ttylog: { sha256: 'abc', size: 10 } }],
+    ['ttylog with a negative size', { ttylog: { sha256: 'c'.repeat(64), size: -1 } }],
+    ['an oversized clientVersion', { clientVersion: 'x'.repeat(300) }],
+  ])('rejects %s', async (_label, extra) => {
+    const res = await request(app)
+      .post('/api/honeypot/ingest/close')
+      .set('x-api-key', 'test-honeypot-api-key')
+      .send({ sessionId: 's1', sourceIP: '192.0.2.1', ...extra })
+    expect(res.status).toBe(400)
+  })
+
+  test('heartbeat age is exported on /metrics once the blocker has polled', async () => {
+    const metrics = require('../utils/metrics')
+    expect(metrics.render()).toMatch(/^sentinel_honeypot_heartbeat_age_seconds NaN$/m)
+    await checkBlock('test-honeypot-api-key')
+    const age = Number(metrics.render().match(/^sentinel_honeypot_heartbeat_age_seconds (\S+)$/m)[1])
+    expect(age).toBeGreaterThanOrEqual(0)
+    expect(age).toBeLessThan(5)
+  })
+})

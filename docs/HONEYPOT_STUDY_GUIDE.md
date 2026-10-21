@@ -683,6 +683,37 @@ WSL cannot reach the Windows backend in NAT mode, and opening a firewall path wa
 
 # PHASE 5: Improvements
 
+### Status of every item (2026-10-22)
+
+| Item | Status | Where |
+|---|---|---|
+| **5.1** Scrub legacy credentials (C1) | **Done** | DB, after backup |
+| 5.1 Fix `cowrie.cfg` sections | **Done**, verified on live Cowrie | `cowrie.cfg`, `switch_profile.py` |
+| 5.1 Customise fingerprints (os-release, issue, motd, no `phil`) | **Done**, verified live | `build_honeyfs.py` (persona `fs.pickle`) |
+| 5.1 Indexes / `syncIndexes` | **Done** (additive `createIndexes` in `sentinel-db`) | `HoneypotSession.js` |
+| 5.1 Debounce refetch (M3), M8 label, H4 Q-skip, L3 clamp | **Done** | see Phase 4 |
+| 5.1 XSS evidence test | **Done** | `frontend/tests/xssSafety.test.mjs` (no HTML sinks; hostile strings escaped in text and attributes) |
+| **5.2.1** Isolation (C2) | **Partly**: Docker stack + egress rules written, **untested** (no Docker/root here) | `docker-compose.honeypot.yml`, `docker/egress-rules.sh` |
+| 5.2.2 Reliable ingestion incl. metrics | **Done** | parser state/spool (3.5) + `--metrics-port` exporter |
+| 5.2.3 No admin creds on honeypot (C3) | **Done**, verified live | rotator + honeypot-key endpoints |
+| 5.2.4 Classifier substrings (H2) | **Done** | rules v2 |
+| 5.2.5 Honest labelling (UI and paper) | **Done** | method note on the honeypot page; `docs/PAPER_CORRECTIONS.md` §8 and Table II row |
+| 5.2.6 Run the test plan and keep evidence | **Done** (real Cowrie, local client) | `docs/HONEYPOT_LIVE_EVIDENCE.md` (Cowrie lines, Mongo docs, latency 144–490 ms, Q-table, loop) |
+| **5.3** More protocols (Dionaea / T-Pot) | **Not done** (multi-day; no sensor to test against) | — |
+| 5.3 Session replay | **Partly**: TTY recording reference (sha256, size, path) captured per session; replay with Cowrie's `playlog` on the honeypot host. No dashboard player | parser `on_log_closed`, `HoneypotSession.ttylog` |
+| 5.3 Attacker profiling | **Done** (API): client banner captured; `GET /api/honeypot/attackers` groups by HASSH with IPs, banners, usernames, commands, logins. No dashboard panel yet | `honeypotService.getAttackerProfiles` |
+| 5.3 MITRE per-command techniques | **Done** | `mitreMapping.getMitreTechniquesForCommands` (T1082, T1033, T1016, T1057, T1105, T1003.008, T1552.001, T1053.003, T1543.002, T1059.004/.006, T1222.002, T1070.003, T1098.004, T1136.001, T1562.004, T1496) |
+| 5.3 Threat intel | **Partly**: AbuseIPDB enrichment now runs for honeypot threats (needs `ABUSEIPDB_API_KEY`). GeoLite2 **not done** (no database) | `honeypotService` closure |
+| 5.3 Supervised retraining from honeypot data | **Not done** (needs analyst-labelled sessions; weeks) | — |
+| 5.3 Dynamic deception | **Partly**: per-persona filesystems + decoy credential canaries with CRITICAL alert. Not done: zero-downtime rotation (two instances), timing jitter | `build_honeyfs.py`, collector |
+| 5.3 Proper RL framing / A-B test | **Not done** (needs real attacker traffic); UCB1 already available | — |
+| 5.3 Malware sandbox | **Not done**; hashes and URLs are forwarded, downloads land on a noexec tmpfs in the Docker stack | — |
+| **5.4** Compose + parser container | **Done**, untested | see 5.2.1 |
+| 5.4 Monitoring: parser metrics + heartbeat alert | **Done**; `SentinelHoneypotHeartbeatStale` rule + promtool test (runs in CI, `promtool` not installed here) | `log_parser.py`, `alerts.yml`, `alerts.test.yml` |
+| 5.4 Structured JSON logs in the parser | **Done** | `LOG_FORMAT=json` |
+| 5.4 Parser tests (rotation, truncation, partial, restart, unknown eventid, malformed JSON, 5xx/429) | **Done** | `test_cowrie_parser_*.py`, `test_parser_delivery.py` |
+| 5.4 Human approval for honeypot blocks | **Done** | `HONEYPOT_AUTOBLOCK_MODE=approve`; also when the hourly cap is hit; one "awaiting approval" alert per threat |
+
 ## 5.1 Quick wins (under 1 hour each)
 
 | Change | Effort | Impact | Files |

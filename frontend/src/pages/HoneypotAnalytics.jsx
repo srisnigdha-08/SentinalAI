@@ -17,6 +17,10 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 ) : null
 
 const RELOAD_COALESCE_MS = 1500
+const HONEYPOT_METHOD_NOTE =
+  'Session verdicts come from rule-based classification of Cowrie sessions (login, programs run, IOCs), not from the ML models. ' +
+  'Blocks are enforced by the Cowrie blocker plugin; host firewall rules use a mock adapter unless real enforcement is enabled, ' +
+  'and honeypot-originated blocks can require analyst approval.'
 // Sessions invented by log_parser.py --demo (same convention as the backend's isSyntheticSession).
 const isSyntheticSession = (sessionId) => /^demo-/i.test(String(sessionId || ''))
 
@@ -103,6 +107,11 @@ export default function HoneypotAnalytics() {
           color:'#00ff88', border:'1px solid rgba(0,255,136,.3)', padding:'6px 14px', borderRadius:1 }}>
           {nodes.filter(n=>n.status==='active').length} NODES ACTIVE
         </span>
+      </div>
+
+      {/* Honest labelling (Phase 5): what the numbers on this page are and are not. */}
+      <div data-testid="honeypot-method-note" style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88', marginTop:'-1rem', marginBottom:'1.25rem', lineHeight:1.6 }}>
+        {HONEYPOT_METHOD_NOTE}
       </div>
 
       {error && (

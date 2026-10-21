@@ -43,6 +43,14 @@ Backend settings for the honeypot (all optional):
 | `HONEYPOT_HEARTBEAT_TIMEOUT_SECONDS` | Node shows `offline` when the blocker has not polled for this long (default 30). |
 | `RETENTION_ENABLED` + `RETENTION_INTERVAL_HOURS` | Both required to schedule archive-then-delete retention; never runs at startup. |
 | `DECEPTION_EXCLUDED_PROFILES` (AI engine) | Personas never recommended (default `windows_srv`, which Cowrie cannot serve). |
+| `HONEYPOT_AUTOBLOCK_MODE=approve` | Honeypot-originated blocks are never automatic; each raises one "Honeypot block awaiting approval" alert. |
+| `PARSER_METRICS_PORT` / `--metrics-port` (parser) | Prometheus metrics on 127.0.0.1 (events read/posted/rejected/spooled, spool depth, lag). |
+| `LOG_FORMAT=json` (parser) | One JSON object per log line. |
+
+`build_honeyfs.py` also plants decoy credentials (`/root/.aws/credentials`, `/root/.ssh/id_rsa`) and a per-distro
+`/etc/motd` in each persona. Reading a decoy raises a CRITICAL "Canary file read" alert. The backend stores each
+session's client banner and the reference to Cowrie's TTY recording (replay it on the honeypot host with Cowrie's
+`playlog`), and `GET /api/honeypot/attackers` groups sessions by HASSH.
 
 `redirect-ssh-port.sh` sends inbound port 22 to Cowrie on 2222 (move the real sshd first).
 Set the URL variables whenever the backend is not on the same host.

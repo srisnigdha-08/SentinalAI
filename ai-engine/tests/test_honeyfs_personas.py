@@ -152,3 +152,21 @@ def test_switch_profile_points_shell_filesystem_at_the_persona_pickle(tmp_path, 
     cfg = _generate(tmp_path, monkeypatch, "aws_ec2")
     assert cfg.get("shell", "filesystem") == "personas/aws_ec2.pickle"
     assert not _generate(tmp_path, monkeypatch, "windows_srv").has_option("shell", "filesystem")
+
+
+def test_pickle_mode_plants_canaries_and_motd(cowrie_pickle, tmp_path):
+    out = tmp_path / "personas"
+    build_honeyfs.main(["--fs-pickle", str(cowrie_pickle), "--out", str(out)])
+    tree = pickle.loads((out / "centos_7.pickle").read_bytes())
+    aws_dir = _find(tree, "/root/.aws")
+    assert aws_dir[1] == T_DIR and aws_dir[5] == 0o40700  # created, private
+    creds = _find(tree, "/root/.aws/credentials")
+    assert creds[5] == 0o100600 and b"aws_access_key_id = AKIA" in creds[7]
+    assert _find(tree, "/root/.ssh/id_rsa")[7].startswith(b"-----BEGIN OPENSSH PRIVATE KEY-----")
+    assert b"CentOS Linux 7" in _find(tree, "/etc/motd")[7]
+    other = pickle.loads((out / "debian_11.pickle").read_bytes())
+    assert _find(other, "/root/.aws/credentials")[7] != creds[7]  # per-persona decoys
+
+
+def test_canaries_are_deterministic():
+    assert build_honeyfs.canary_files("aws_ec2") == build_honeyfs.canary_files("aws_ec2")

@@ -7,10 +7,25 @@ Usage:
   python log_parser.py --demo          # generate fake sessions for testing
 """
 import json, time, re, argparse, os, requests, logging, random, hashlib
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+class _JsonFormatter(logging.Formatter):
+    """One JSON object per line (LOG_FORMAT=json), the same convention as the backend's structured logs."""
+    def format(self, record):
+        ts = datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(timespec="milliseconds")
+        return json.dumps({"ts": ts.replace("+00:00", "Z"), "level": record.levelname.lower(),
+                           "logger": record.name, "msg": record.getMessage()})
+
+def _configure_logging():
+    handler = logging.StreamHandler()
+    if os.getenv("LOG_FORMAT", "").lower() == "json":
+        handler.setFormatter(_JsonFormatter())
+    else:
+        handler.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s"))
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
+
+_configure_logging()
 log = logging.getLogger("sentinel.parser")
 
 API_BASE      = os.getenv("SENTINEL_API", "http://localhost:5000/api")
@@ -38,6 +53,50 @@ SPOOL_RETRY_SECONDS = float(os.getenv("SENTINEL_SPOOL_RETRY", "5"))
 _spool = []
 _spool_next_try = 0.0
 
+# Delivery metrics, served in Prometheus text format on 127.0.0.1:PARSER_METRICS_PORT when that is set.
+METRICS = {"read": 0, "posted": 0, "rejected": 0, "spooled": 0}
+_last_event_ts = None  # Cowrie timestamp of the newest processed event (for lag_seconds)
+
+def _cowrie_time(ts):
+    try:
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+def metrics_text(now=None):
+    now = time.time() if now is None else now
+    lag = (now - _last_event_ts) if _last_event_ts else float("nan")
+    rows = [("cowrie_parser_events_read_total", "counter", "Cowrie JSON lines read", METRICS["read"]),
+            ("cowrie_parser_events_posted_total", "counter", "Events delivered to the backend", METRICS["posted"]),
+            ("cowrie_parser_events_rejected_total", "counter", "Events the backend rejected (4xx, dropped)", METRICS["rejected"]),
+            ("cowrie_parser_events_spooled_total", "counter", "Events queued after a transient failure", METRICS["spooled"]),
+            ("cowrie_parser_spool_depth", "gauge", "Events waiting in the delivery spool", len(_spool)),
+            ("cowrie_parser_lag_seconds", "gauge", "Age of the newest processed Cowrie event", lag)]
+    out = []
+    for name, kind, help_, value in rows:
+        out += [f"# HELP {name} {help_}", f"# TYPE {name} {kind}", f"{name} {value if value == value else 'NaN'}"]
+    return "\n".join(out) + "\n"
+
+def start_metrics_server(port):
+    """Loopback-only HTTP exporter (GET /metrics) in a daemon thread."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_GET(self):
+            if self.path != "/metrics":
+                self.send_response(404); self.end_headers(); return
+            body = metrics_text().encode()
+            self.send_response(200); self.send_header("Content-Type", "text/plain; version=0.0.4")
+            self.end_headers(); self.wfile.write(body)
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", int(port)), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    log.info("Parser metrics on http://127.0.0.1:%s/metrics", server.server_address[1])
+    return server
+
 IP_RE   = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 URL_RE  = re.compile(r"https?://[^\s\'\"]+")
 HASH_RE = re.compile(r"\b[0-9a-fA-F]{32,64}\b")
@@ -50,6 +109,8 @@ def extract_iocs(text):
 def classify_intent(cmd):
     c=cmd.lower()
     if re.search(r"cat /etc/(passwd|shadow)",c): return "CREDENTIAL_HARVEST"
+    # Canary credentials planted by build_honeyfs.py (same rule as the backend's classifyIntent)
+    if re.search(r"\.aws/credentials|\.ssh/id_rsa\b|\.git-credentials",c): return "CREDENTIAL_HARVEST"
     if re.search(r"(wget|curl)\s+https?://",c):  return "MALWARE_DOWNLOAD"
     if re.search(r"chmod|setuid",c):              return "PRIVILEGE_ESCALATION"
     if re.search(r"crontab|systemctl enable",c):  return "PERSISTENCE"
@@ -123,6 +184,7 @@ def flush_spool(force=False):
             break
         if result == "rejected":
             log.warning("Dropping queued delivery to %s rejected by the backend", item["ep"])
+        METRICS["posted" if result == "ok" else "rejected"] += 1
         sent += 1
     if sent:
         del _spool[:sent]
@@ -137,15 +199,18 @@ def post(ep, data):
     """
     global _spool_next_try
     if _spool:
+        METRICS["spooled"] += 1
         _spool_add(ep, data)
         flush_spool()
         return True
     result = _send(ep, data)
     if result == "transient":
         log.warning("Backend unavailable: queued %s for redelivery", ep)
+        METRICS["spooled"] += 1
         _spool_add(ep, data)
         _spool_next_try = time.monotonic() + SPOOL_RETRY_SECONDS
         return True
+    METRICS["posted" if result == "ok" else "rejected"] += 1
     return result == "ok"
 
 def event_id(e, payload=""):
@@ -269,7 +334,24 @@ def on_kex(e):
     if not ensure_session_opened(sid): return
     _sessions[sid]["hassh"] = hassh
     log.info(f"SSH client hassh: {sid} -> {hassh}")
-    post("/honeypot/ingest", {"eventType": "CLIENT_KEX", "sessionId": sid, "hassh": hassh})
+    payload = {"eventType": "CLIENT_KEX", "sessionId": sid, "hassh": hassh}
+    if _sessions[sid].get("clientVersion"):
+        payload["clientVersion"] = _sessions[sid]["clientVersion"]
+    post("/honeypot/ingest", payload)
+
+def on_client_version(e):
+    """SSH client banner (cowrie.client.version); sent with the HASSH, which Cowrie logs right after it."""
+    version = str(e.get("version", ""))[:256]
+    sid = _session_for(e)
+    if version and sid:
+        _sessions[sid]["clientVersion"] = version
+
+def on_log_closed(e):
+    """TTY recording of the session (cowrie.log.closed), replayable on the honeypot host with Cowrie's playlog."""
+    sid = _session_for(e)
+    if sid and e.get("shasum"):
+        _sessions[sid]["ttylog"] = {"sha256": str(e["shasum"])[:64], "size": int(e.get("size") or 0),
+                                    "path": str(e.get("ttylog", ""))[:256]}
 
 def session_duration_seconds(e):
     """
@@ -298,7 +380,8 @@ def on_closed(e):
             "durationSeconds": int(dur),
             "commands": meta.get("commands", []),
             "credentials": meta.get("credentials", []),
-            "hassh": meta.get("hassh", "")
+            "hassh": meta.get("hassh", ""),
+            **({"ttylog": meta["ttylog"]} if meta.get("ttylog") else {})
         })
         if not acknowledged:
             log.warning("Session closure delivery was not acknowledged; retaining local state")
@@ -308,11 +391,16 @@ def on_closed(e):
         log.debug(f"Ignoring connection with zero SSH activity: {sid} from {meta.get('sourceIP', '?')}")
     _sessions.pop(sid, None)
 
-HANDLERS={"cowrie.session.connect":on_connect,"cowrie.login.failed":on_login_failed,"cowrie.login.success":on_login_ok,"cowrie.command.input":on_cmd,"cowrie.session.file_download":on_download,"cowrie.session.closed":on_closed,"cowrie.client.kex":on_kex}
+HANDLERS={"cowrie.session.connect":on_connect,"cowrie.login.failed":on_login_failed,"cowrie.login.success":on_login_ok,"cowrie.command.input":on_cmd,"cowrie.session.file_download":on_download,"cowrie.session.closed":on_closed,"cowrie.client.kex":on_kex,"cowrie.client.version":on_client_version,"cowrie.log.closed":on_log_closed}
 
 def process(line):
+    global _last_event_ts
+    METRICS["read"] += 1
     try:
         e = json.loads(line.strip())
+        ts = _cowrie_time(e.get("timestamp"))
+        if ts and (_last_event_ts is None or ts > _last_event_ts):
+            _last_event_ts = ts
         h = HANDLERS.get(e.get("eventid", ""))
         if h:
             h(e)
@@ -450,9 +538,11 @@ if __name__=="__main__":
     p.add_argument("--demo",action="store_true"); p.add_argument("--sessions",type=int,default=5)
     p.add_argument("--delay",type=float,default=0.0); p.add_argument("--log",type=str,default=COWRIE_LOG)
     p.add_argument("--from-start",action="store_true",help="with no saved state, read the log from the beginning instead of its end")
+    p.add_argument("--metrics-port",type=int,default=int(os.getenv("PARSER_METRICS_PORT", "0")),help="serve Prometheus metrics on 127.0.0.1:<port>")
     a=p.parse_args()
     if a.demo: demo(a.sessions)
     elif a.live:
+        if a.metrics_port: start_metrics_server(a.metrics_port)
         try: tail(a.log, a.from_start)
         except KeyboardInterrupt: log.info("Stopped")
     elif a.file: replay(a.file,a.delay)

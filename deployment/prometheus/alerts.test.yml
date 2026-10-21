@@ -104,3 +104,20 @@ tests:
             exp_annotations:
               summary: Live traffic has drifted from the model's training data
               description: Re-evaluate the model and consider retraining (ai-engine/training/retrain_from_samples.py).
+
+  - name: honeypot heartbeat stale fires after the 1-minute hold, not while fresh
+    interval: 15s
+    input_series:
+      - series: 'sentinel_honeypot_heartbeat_age_seconds{job="sentinel-backend", instance="backend:5000"}'
+        values: '2 2 2 2 200 215 230 245 260 275 290 305 320 335'
+    alert_rule_test:
+      - eval_time: 45s
+        alertname: SentinelHoneypotHeartbeatStale
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: SentinelHoneypotHeartbeatStale
+        exp_alerts:
+          - exp_labels: { severity: warning, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: "Honeypot silent for 320 s"
+              description: Cowrie has not polled the deny-list; sessions are not being captured and blocks are not enforced.

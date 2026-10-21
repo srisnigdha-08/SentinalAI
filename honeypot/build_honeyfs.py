@@ -21,6 +21,7 @@ the pickle there).
 windows_srv gets nothing: Cowrie only emulates a Linux shell, so no file set can make it look like Windows.
 """
 import argparse
+import hashlib
 import copy
 import pickle
 import posixpath
@@ -79,6 +80,37 @@ def persona_files(persona):
         "/etc/hostname": profile["hostname"] + "\n",
         "/proc/version": (f"Linux version {profile['kernel_version']} (builder@{distro['ID']}) ({distro['gcc']}) "
                           f"{profile['kernel_build_string']}\n"),
+        "/etc/motd": distro.get("motd", f"\nWelcome to {distro['PRETTY_NAME']}\n\n"),
+        **canary_files(persona),
+    }
+
+
+# Decoy credentials (honeytokens) an intruder is likely to read. They are fake, derived deterministically from
+# the persona so builds are reproducible, and grant nothing anywhere. Reading them is classified as
+# CREDENTIAL_HARVEST and raises a "Canary file read" alert (backend collector). They are local decoys, not
+# remote-alerting canarytokens.
+CANARY_PATHS = ("/root/.aws/credentials", "/root/.ssh/id_rsa")
+
+
+def _fake(persona, label, alphabet, n):
+    out, counter = "", 0
+    while len(out) < n:
+        digest = hashlib.sha256(f"sentinelai-canary:{persona}:{label}:{counter}".encode()).digest()
+        out += "".join(alphabet[b % len(alphabet)] for b in digest)
+        counter += 1
+    return out[:n]
+
+
+def canary_files(persona):
+    upper = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+    b64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+    key_body = "\n".join(_fake(persona, f"ssh{i}", b64, 70) for i in range(6))
+    return {
+        "/root/.aws/credentials": ("[default]\n"
+                                   f"aws_access_key_id = AKIA{_fake(persona, 'akid', upper, 16)}\n"
+                                   f"aws_secret_access_key = {_fake(persona, 'secret', b64, 40)}\n"
+                                   "region = us-east-1\n"),
+        "/root/.ssh/id_rsa": f"-----BEGIN OPENSSH PRIVATE KEY-----\n{key_body}\n-----END OPENSSH PRIVATE KEY-----\n",
     }
 
 
@@ -111,13 +143,30 @@ def _resolve(tree, path, depth=0):
     return None
 
 
+def _ensure_dirs(tree, path):
+    """Create missing directories of path's parent (root-owned, 0700 for dot-directories such as .aws)."""
+    node = tree
+    for part in [p for p in posixpath.dirname(path).split("/") if p]:
+        nxt = _child(node, part)
+        if nxt is None:
+            mode = 0o40700 if part.startswith(".") else 0o40755
+            nxt = [part, T_DIR, 0, 0, 4096, mode, node[A_CTIME], [], None, None]
+            node[A_CONTENTS].append(nxt)
+        if nxt[A_TYPE] != T_DIR:
+            return
+        node = nxt
+
+
 def _set_file(tree, path, content):
+    if path.startswith("/root/"):
+        _ensure_dirs(tree, path)
     found = _resolve(tree, path)
     if found is None:
         return False
     parent, node, _ = found
     if node is None:
-        node = [posixpath.basename(path), T_FILE, 0, 0, 0, 0o100644, parent[A_CTIME], b"", None, None]
+        mode = 0o100600 if path in CANARY_PATHS else 0o100644
+        node = [posixpath.basename(path), T_FILE, 0, 0, 0, mode, parent[A_CTIME], b"", None, None]
         parent[A_CONTENTS].append(node)
     if node[A_TYPE] != T_FILE:
         return False

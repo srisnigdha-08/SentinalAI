@@ -166,6 +166,10 @@ router.put('/deception/profile', internalAuth, async (req, res, next) => {
   }
 })
 
+// Accepted honeypot events by type, on the backend's /metrics (Phase 5 monitoring).
+const countEvent = (type) =>
+  require('../utils/metrics').inc('sentinel_honeypot_events_total', 'Honeypot events accepted by type', { type })
+
 const getCollector = () => {
   try {
     return require('../../honeypot/collectors/session_collector')
@@ -184,6 +188,21 @@ const telemetryError = (data, eventType) => {
   // Optional de-duplication id of the Cowrie event (log_parser.event_id / sentinel_output.event_id)
   if (data.eventId !== undefined && (typeof data.eventId !== 'string' || !/^[0-9a-f]{8,64}$/.test(data.eventId)))
     return 'eventId must be a hex string'
+  if (data.clientVersion !== undefined && (typeof data.clientVersion !== 'string' || data.clientVersion.length > 256))
+    return 'clientVersion must be a string of at most 256 characters'
+  if (data.ttylog !== undefined) {
+    const t = data.ttylog
+    if (
+      !t ||
+      typeof t !== 'object' ||
+      typeof t.sha256 !== 'string' ||
+      !/^[0-9a-f]{64}$/.test(t.sha256) ||
+      !Number.isFinite(t.size) ||
+      t.size < 0 ||
+      (t.path !== undefined && (typeof t.path !== 'string' || t.path.length > 256))
+    )
+      return 'ttylog must be {sha256 (64 hex), size, path}'
+  }
   if (['COMMAND_INPUT', 'COMMAND_FAILED'].includes(eventType)) {
     if (typeof data.command !== 'string' || !data.command) return 'Nonempty command is required'
     if (data.command.length > 2048) return 'Command length exceeds maximum of 2048 characters'
@@ -248,6 +267,7 @@ router.post('/', internalAuth, async (req, res, next) => {
       else if (eventType === 'CLIENT_KEX') result = await c.onClientKex(data, io)
     }
     if (!result) return sendError(res, 'Honeypot session not found or event not persisted', 404)
+    countEvent(eventType)
     sendSuccess(res, { received: true, eventType })
   } catch (err) {
     next(err)
@@ -423,6 +443,7 @@ router.post('/command', internalAuth, async (req, res, next) => {
     const data = { ...req.body, intent, isMalware: intent === 'MALWARE_DOWNLOAD' }
     const s = c ? await c.onCommandReceived(data, req.app.get('io')) : null
     if (!s) return sendError(res, 'Honeypot session not found', 404)
+    countEvent('COMMAND_INPUT')
     sendSuccess(res, { received: true, deceptionScore: s?.deceptionScore })
   } catch (err) {
     next(err)
@@ -449,6 +470,7 @@ router.post('/download', internalAuth, async (req, res, next) => {
     const c = getCollector()
     const session = await c.onFileDownload(req.body, req.app.get('io'))
     if (!session) return sendError(res, 'Honeypot session not found', 404)
+    countEvent('FILE_DOWNLOAD')
     sendSuccess(res, { received: true })
   } catch (err) {
     next(err)
@@ -475,6 +497,7 @@ router.post('/close', internalAuth, async (req, res, next) => {
     const c = getCollector()
     const s = c ? await c.onSessionClosed(req.body, req.app.get('io')) : null
     if (!s) return sendError(res, 'Honeypot session not found', 404)
+    countEvent('SESSION_CLOSED')
     sendSuccess(res, { received: true, durationSeconds: s?.durationSeconds })
   } catch (err) {
     next(err)

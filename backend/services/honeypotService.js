@@ -121,7 +121,32 @@ const honeypotAutoBlockBudgetSpent = async (now = new Date()) => {
   }
 }
 
-const SENSITIVE_FILES = ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/']
+/**
+ * One "awaiting approval" alert per threat for a honeypot block the policy withheld; the analyst blocks it
+ * (or not) through the normal manual containment flow. Failures are logged, never thrown into the closure.
+ */
+const requestBlockApproval = async (threat, session, score, reason) => {
+  try {
+    const Alert = require('../models/Alert')
+    const title = 'Honeypot block awaiting approval'
+    if (await Alert.exists({ title, 'sourceRef.refId': threat._id })) return null
+    const alert = await require('./alertService').createAlert({
+      title,
+      message: `${session.sourceIP} scored ${Math.round(score * 100)}% in the honeypot; not blocked (${reason}). Review the threat and block it manually if warranted.`,
+      severity: 'HIGH',
+      type: 'AUTONOMOUS_ACTION',
+      sourceRef: { refModel: 'ThreatLog', refId: threat._id },
+      targetRoles: ['admin', 'analyst'],
+    })
+    require('../websocket/socketManager').emitNewAlert?.(alert)
+    return alert
+  } catch (err) {
+    logger.error('[HP] Block approval alert failed: ' + err.message)
+    return null
+  }
+}
+
+const SENSITIVE_FILES = ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/', '/.aws/credentials']
 const sensitiveFilesIn = (text) => SENSITIVE_FILES.filter((f) => text.includes(f))
 const urlsIn = (text) => text.match(/https?:\/\/[^\s]+/g) || []
 const validDate = (value) => {
@@ -146,7 +171,8 @@ const recordSessionActivity = async (
   { commands = [], files = [], ips = [], urls = [], hashes = [], malware = [], downloads = 0, eventId } = {}
 ) => {
   // pre('save') does not run for updates; MITRE techniques are derived from intents and only ever grow.
-  const techniques = mitreMapping.getMitreTechniquesForIntents(commands.map((c) => c.intent).filter(Boolean))
+  // Intent-level and per-command techniques (e.g. T1003.008 for /etc/shadow); the set only ever grows.
+  const techniques = mitreMapping.getMitreTechniquesForSession(commands)
   const guarded = eventId ? { ...filter, ingestEventIds: { $ne: eventId } } : filter
   const max = limits()
   const updated = await HoneypotSession.findOneAndUpdate(
@@ -338,7 +364,12 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
       // M4: a brute-force session can carry thousands of attempts; keep the first ones, count all of them.
       session.credentials.push(...creds.slice(0, Math.max(0, limits().credentials - session.credentials.length)))
     }
-    if (typeof telemetry.hassh === 'string') session.hassh = telemetry.hassh
+    // An empty hassh (no kex seen by the sender) must not erase one stored from the CLIENT_KEX event.
+    if (typeof telemetry.hassh === 'string' && telemetry.hassh) session.hassh = telemetry.hassh
+    if (telemetry.ttylog && typeof telemetry.ttylog.sha256 === 'string') {
+      const { sha256, size, path } = telemetry.ttylog
+      session.ttylog = { sha256, size, path: typeof path === 'string' ? path : undefined }
+    }
   }
   session.status = 'closed'
   // Credit the reward to the persona actually served, and give the learner the persona served in the
@@ -413,13 +444,17 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
     const blockThreshold = await aiSvc.getBlockThreshold()
     const alertThreshold = await aiSvc.getAlertThreshold()
     let shouldBlock = score >= blockThreshold && autoBlockEnabled
-    // H3: anyone holding HONEYPOT_API_KEY can fabricate high-scoring sessions, so honeypot-originated
-    // auto-blocks are capped per hour; past the cap the threat stays for an analyst to block by hand.
-    if (shouldBlock && (await honeypotAutoBlockBudgetSpent())) {
+    // Honeypot-originated blocks can need a human (Phase 5): always with HONEYPOT_AUTOBLOCK_MODE=approve, and
+    // (H3) once the hourly cap is reached, since anyone holding HONEYPOT_API_KEY can fabricate high scores.
+    let approvalReason = null
+    if (shouldBlock && String(process.env.HONEYPOT_AUTOBLOCK_MODE || '').toLowerCase() === 'approve') {
+      approvalReason = 'HONEYPOT_AUTOBLOCK_MODE=approve'
+    } else if (shouldBlock && (await honeypotAutoBlockBudgetSpent())) {
+      approvalReason = 'hourly honeypot auto-block cap reached'
+    }
+    if (approvalReason) {
       shouldBlock = false
-      logger.warn(
-        `[AI Auto-Block Session] Hourly honeypot auto-block cap reached; ${session.sourceIP} left for manual review`
-      )
+      logger.warn(`[AI Auto-Block Session] ${session.sourceIP} left for approval: ${approvalReason}`)
     }
 
     if (session.linkedThreatLog && !predictionCreatedThreat) {
@@ -493,6 +528,20 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
           socketManager.emitThreatUpdated(existingThreat)
         } catch (e) {
           logger.debug('[HP] Threat update emission failed: ' + e.message)
+        }
+        if (approvalReason) await requestBlockApproval(existingThreat, session, score, approvalReason)
+        // Phase 5: honeypot threats get the same background AbuseIPDB enrichment as flow threats
+        // (threatIntelService applies its own score/key/cache policy; a no-op without ABUSEIPDB_API_KEY).
+        if (raise && score >= alertThreshold) {
+          setImmediate(() => {
+            try {
+              require('./threatIntelService')
+                .enrichThreat(existingThreat)
+                .catch((e) => logger.debug('[HP] Threat intel enrichment error: ' + e.message))
+            } catch (e) {
+              logger.debug('[HP] Threat intel enrichment unavailable: ' + e.message)
+            }
+          })
         }
       }
     } else if (!predictionCreatedThreat && shouldBlock) {
@@ -656,6 +705,55 @@ const getFullAnalytics = async (now = new Date()) => {
   }
 }
 
+const topCounts = (values, n = 5) => {
+  const counts = new Map()
+  for (const v of values) if (v) counts.set(v, (counts.get(v) || 0) + 1)
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || String(a[0]).localeCompare(String(b[0])))
+    .slice(0, n)
+    .map(([value, count]) => ({ value, count }))
+}
+
+/**
+ * Attacker profiles (Phase 5): sessions grouped by SSH client fingerprint (HASSH) over the last `days`,
+ * with the client banners, source IPs, usernames tried, commands run and how many sessions logged in.
+ * One HASSH is one client implementation/configuration, so a botnet's members usually share it.
+ */
+const getAttackerProfiles = async ({ days = 30, limit = 50, now = new Date() } = {}) => {
+  const safeDays = Math.min(Math.max(parseInt(days, 10) || 30, 1), 365)
+  const safeLimit = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200)
+  const groups = await HoneypotSession.aggregate([
+    { $match: { createdAt: { $gte: new Date(now.getTime() - safeDays * 86400000) }, hassh: { $nin: [null, ''] } } },
+    {
+      $group: {
+        _id: '$hassh',
+        sessions: { $sum: 1 },
+        ips: { $addToSet: '$sourceIP' },
+        clientVersions: { $addToSet: '$clientVersion' },
+        usernames: { $push: '$credentials.username' },
+        commands: { $push: '$commands.command' },
+        loggedInSessions: { $sum: { $cond: [{ $in: [true, { $ifNull: ['$credentials.success', []] }] }, 1, 0] } },
+        firstSeen: { $min: '$createdAt' },
+        lastSeen: { $max: '$createdAt' },
+      },
+    },
+    { $sort: { sessions: -1, lastSeen: -1 } },
+    { $limit: safeLimit },
+  ])
+  return groups.map((g) => ({
+    hassh: g._id,
+    sessions: g.sessions,
+    distinctIPs: g.ips.length,
+    ips: g.ips.slice(0, 10),
+    clientVersions: g.clientVersions.filter(Boolean),
+    topUsernames: topCounts(g.usernames.flat()),
+    topCommands: topCounts(g.commands.flat()),
+    loggedInSessions: g.loggedInSessions,
+    firstSeen: g.firstSeen,
+    lastSeen: g.lastSeen,
+  }))
+}
+
 const getNodeStatus = async (now = new Date()) => {
   const today = reportTime.filter(1, now)
   // Only nodes that exist in this repository. HTTP/FTP/SMTP decoys were listed here previously but
@@ -687,6 +785,7 @@ module.exports = {
   retryDeferredAnalysis,
   getFullAnalytics,
   getNodeStatus,
+  getAttackerProfiles,
   getActiveProfile,
   setActiveProfile,
   DECEPTION_PROFILES,
