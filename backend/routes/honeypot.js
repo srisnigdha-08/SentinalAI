@@ -118,6 +118,8 @@ router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (r
       nextProfile: rec.nextProfile,
       explored: rec.explored,
       policy: rec.policy || 'q_learning',
+      // Seed episodes (synthetic warm start) vs sessions scored here; null from engines without the field.
+      provenance: rec.learnerStats?.provenance || null,
     })
   } catch (err) {
     next(err)

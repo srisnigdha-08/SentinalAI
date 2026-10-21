@@ -187,6 +187,9 @@ class DeceptionQLearner:
         # Together they let save() merge with another process's writes instead of overwriting them (M5).
         self._pending = []
         self._disk_signature = None
+        # Where the table's starting values came from (written by inference.deception.get_scorer when it
+        # copies the shipped seed); None for tables that predate the field.
+        self.seed_provenance = None
         self._load()
 
     def _load(self):
@@ -202,9 +205,20 @@ class DeceptionQLearner:
                 for a, st in (data.get("arm_stats") or {}).items():
                     if a in self.arm_stats:
                         self.arm_stats[a] = {"n": int(st.get("n", 0)), "mean": float(st.get("mean", 0.0))}
+                self.seed_provenance=data.get("seed_provenance")
+                self._fill_missing(self.q_table)
                 self._disk_signature=_file_signature(p)
             except (OSError, ValueError) as e:
                 log.warning("Q-table at %s could not be read (%s); starting from defaults", p, type(e).__name__)
+
+    @staticmethod
+    def _fill_missing(table):
+        """Every persona row and action present (0.0 when never updated), whatever the file on disk held."""
+        for s_ in PROFILES_LIST:
+            row = table.setdefault(s_, {})
+            for a in PROFILES_LIST:
+                row.setdefault(a, 0.0)
+        return table
 
     def _td_update(self, table, state, action, reward, next_state):
         for s_ in (state, next_state):
@@ -232,7 +246,8 @@ class DeceptionQLearner:
         self.arm_stats = arms
         for _, action, reward, _ in self._pending:
             self._record_arm(action, reward)
-        self.q_table = table
+        self.q_table = self._fill_missing(table)
+        self.seed_provenance = disk.get("seed_provenance", self.seed_provenance)
         self.episode_count = disk.get("episode_count", 0) + len(self._pending)
         self.total_reward = disk.get("total_reward", 0.0) + sum(r for _, _, r, _ in self._pending)
         self.reward_history = (disk.get("reward_history", []) + [round(r, 2) for _, _, r, _ in self._pending])[-100:]
@@ -306,6 +321,8 @@ class DeceptionQLearner:
                 "arm_stats": self.arm_stats,
                 "saved_at": datetime.now(timezone.utc).isoformat(),
             }
+            if self.seed_provenance is not None:
+                payload["seed_provenance"] = self.seed_provenance
             try:
                 with open(tmp_target, "w", encoding="utf-8") as f:
                     json.dump(payload, f, indent=2)
@@ -370,9 +387,21 @@ class DeceptionQLearner:
         return {"window": CONVERGENCE_WINDOW, "updates": n, "meanAbsTdError": round(mean, 4) if mean is not None else None,
                 "tolerance": CONVERGENCE_TOL, "converged": n >= CONVERGENCE_WINDOW and mean < CONVERGENCE_TOL}
 
+    def provenance(self) -> dict:
+        """
+        How much of the table was learned from sessions scored here versus inherited from its starting seed.
+        The shipped seed (models/q_table.json) is a synthetic warm start, not attacker data.
+        """
+        seed = self.seed_provenance
+        if not seed:
+            return {"seed": "unknown", "seedEpisodes": None, "sessionEpisodes": None, "synthetic": None}
+        seed_n = int(seed.get("episodes", 0))
+        return {"seed": seed.get("source", "unknown"), "seedEpisodes": seed_n,
+                "sessionEpisodes": max(0, self.episode_count - seed_n), "synthetic": bool(seed.get("synthetic"))}
+
     def get_stats(self):
         recent=self.reward_history[-20:]
-        return {"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.current_epsilon(),3),"epsilonMin":EPSILON_MIN,"convergence":self.convergence(),"policy":self.policy,
+        return {"provenance":self.provenance(),"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.current_epsilon(),3),"epsilonMin":EPSILON_MIN,"convergence":self.convergence(),"policy":self.policy,
                 "armStats":{a: {"n": st["n"], "meanNormalisedReward": round(st["mean"], 4)} for a, st in self.arm_stats.items()},"profileRankings":self.get_profile_rankings()}
 
 class SessionScorer:

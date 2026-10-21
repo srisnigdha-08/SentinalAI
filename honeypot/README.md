@@ -20,6 +20,11 @@ one, and queues deliveries on disk while the backend is unreachable. The state d
 credentials (as `cowrie.json` does): keep it private to the parser's user. With no saved state, the first
 start reads from the end of the log; pass `--from-start` to ingest the existing file.
 
+`docker-compose.honeypot.yml` runs Cowrie and the parser in hardened containers on their own bridge;
+`docker/egress-rules.sh` must then restrict that bridge to the SentinelAI ingest port. Both are untested
+(written without Docker). `build_honeyfs.py` builds per-persona file contents from Cowrie's default honeyfs;
+set `COWRIE_PERSONA_HONEYFS` before `switch_profile.py` to use them.
+
 Give the honeypot host only `HONEYPOT_API_KEY`, never the AI engine's `SENTINEL_KEY`.
 Set the URL variables whenever the backend is not on the same host.
 

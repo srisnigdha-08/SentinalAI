@@ -37,11 +37,15 @@ def test_client_errors_are_not_retried(parser, monkeypatch):
     assert calls.call_count == 1
 
 
-def test_gives_up_after_configured_retries(parser, monkeypatch):
+def test_exhausted_retries_queue_the_event_for_redelivery(parser, monkeypatch):
+    # After the configured retries a transient failure is no longer dropped: it is spooled to disk
+    # (accepted, so post() returns True) and redelivered in order later (test_cowrie_parser_reliability.py).
     calls = Mock(side_effect=requests.Timeout())
     monkeypatch.setattr(parser.requests, "post", calls)
-    assert parser.post("/honeypot/ingest/command", {}) is False
+    assert parser.post("/honeypot/ingest/command", {"sessionId": "s1"}) is True
     assert calls.call_count == parser.POST_RETRIES + 1
+    assert parser._spool == [{"ep": "/honeypot/ingest/command", "data": {"sessionId": "s1"}}]
+    assert parser._spool_path().parent == parser.STATE_DIR and "cowrie-parser-state" in str(parser.STATE_DIR)
 
 
 def test_session_open_carries_cowrie_timestamp(parser, monkeypatch):

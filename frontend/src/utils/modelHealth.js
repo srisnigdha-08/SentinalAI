@@ -59,6 +59,14 @@ export function classMixRows(report) {
     .map(r => ({ ...r, pct: total ? ((r.count / total) * 100).toFixed(1) : '0.0' }))
 }
 
+/** How much of the Q-learner's table came from real scored sessions versus its starting seed. */
+export function learnerProvenanceSummary(prov) {
+  if (!prov || prov.seedEpisodes == null) return 'Training data origin unknown (Q-table predates provenance tracking).'
+  const sessions = `${prov.sessionEpisodes} update${prov.sessionEpisodes === 1 ? '' : 's'} from scored sessions`
+  if (!prov.synthetic) return `${sessions}; started from an empty table.`
+  return `${sessions}; ${prov.seedEpisodes} inherited from a synthetic warm start, not attacker data.`
+}
+
 export function recommendationSummary(rec) {
   if (!rec?.nextProfile) return null
   if (rec.nextProfile === rec.activeProfile) {

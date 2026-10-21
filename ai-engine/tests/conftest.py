@@ -15,6 +15,15 @@ def isolate_q_table_runtime_globally(tmp_path, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def isolate_cowrie_parser_state(tmp_path, monkeypatch):
+    """
+    honeypot/parsers/log_parser.py reads PARSER_STATE_DIR when it is imported and otherwise persists its
+    offset and delivery spool under the user's home directory. Every test gets its own directory instead.
+    """
+    monkeypatch.setenv("PARSER_STATE_DIR", str(tmp_path / "cowrie-parser-state"))
+
+
+@pytest.fixture(autouse=True)
 def allow_unregistered_test_models(monkeypatch):
     """
     Many tests build throwaway model directories without models/registry.json. Production refuses to load

@@ -1,4 +1,4 @@
-import os, sys
+import json, os, sys
 from pathlib import Path
 
 # Add parent directory of inference to sys.path (so it can import from rl_engine)
@@ -84,18 +84,38 @@ def get_scorer():
                 except OSError:
                     pass
 
-        # Initialize separate writable state from the shipped learning artifact.
-        # Existing runtime state and the original model file are never overwritten.
-        # Direct seed-copy is strictly guarded: exclusive creation ("xb") ensures no existing file is ever overwritten.
-        if not target.exists() and seed.is_file():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            try:
-                with target.open("xb") as output:
-                    output.write(seed.read_bytes())
-            except FileExistsError:
-                pass
+        # Initialize separate writable state from the shipped learning artifact, stamped with where it came
+        # from so learner stats can separate inherited episodes from sessions scored here. The seed is a
+        # synthetic warm start; DECEPTION_COLD_START=1 starts from an empty table instead.
+        # Existing runtime state and the original model file are never overwritten: exclusive creation ("x").
+        cold_start = os.getenv("DECEPTION_COLD_START", "").lower() in ("1", "true", "yes")
+        if not target.exists():
+            initial = _initial_table(seed, cold_start)
+            if initial is not None:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                try:
+                    with target.open("x", encoding="utf-8") as output:
+                        json.dump(initial, output, indent=2)
+                except FileExistsError:
+                    pass
         _scorer = SessionScorer(q_table_path=q_table_path)
     return _scorer
+
+
+def _initial_table(seed: Path, cold_start: bool):
+    """Starting content for a new runtime Q-table, or None to let the learner start from defaults."""
+    if cold_start:
+        return {"q_table": {}, "episode_count": 0, "seed_provenance":
+                {"source": "cold start (empty table)", "episodes": 0, "synthetic": False}}
+    if not seed.is_file():
+        return None
+    try:
+        data = json.loads(seed.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    data["seed_provenance"] = {"source": "models/q_table.json (synthetic warm start)",
+                               "episodes": int(data.get("episode_count", 0)), "synthetic": True}
+    return data
 
 
 def save_scorer():

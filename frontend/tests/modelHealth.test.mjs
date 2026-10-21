@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { driftSummary, topShiftRows, classMixRows, recommendationSummary, globalShapRows } from '../src/utils/modelHealth.js'
+import { driftSummary, topShiftRows, classMixRows, recommendationSummary, globalShapRows, learnerProvenanceSummary } from '../src/utils/modelHealth.js'
 
 test('missing drift report is shown as unavailable, never as healthy', () => {
   for (const report of [null, undefined, 'x']) assert.equal(driftSummary(report).label, 'UNAVAILABLE')
@@ -48,4 +48,12 @@ test('global SHAP rows scale bars to the largest contribution', () => {
 
 test('UCB1 recommendations are not described as Q-values', () => {
   assert.match(recommendationSummary({ activeProfile: 'centos_7', nextProfile: 'aws_ec2', explored: false, policy: 'ucb1' }), /upper confidence bound/)
+})
+
+test('learner provenance never presents the synthetic seed as attacker data', () => {
+  assert.equal(learnerProvenanceSummary(null), 'Training data origin unknown (Q-table predates provenance tracking).')
+  assert.equal(learnerProvenanceSummary({ seedEpisodes: 12087, sessionEpisodes: 1, synthetic: true }),
+    '1 update from scored sessions; 12087 inherited from a synthetic warm start, not attacker data.')
+  assert.equal(learnerProvenanceSummary({ seedEpisodes: 0, sessionEpisodes: 4, synthetic: false }),
+    '4 updates from scored sessions; started from an empty table.')
 })

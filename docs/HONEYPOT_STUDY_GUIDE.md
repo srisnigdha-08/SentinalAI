@@ -29,7 +29,7 @@ Nothing was started against the network and no data was changed.
 > now resolved in the working tree: Cowrie config sections (H5 partly, L1, L2), classifier substrings and duration
 > rule (H2, rules now `honeypot_rules_v2`), dashboard refetch storm (M3), mislabelled note (M8), and demo sessions
 > training the Q-learner (H4 partly). Each one is marked **FIXED** where it appears below. The legacy plaintext
-> credentials (C1) are still in the database.
+> credentials (C1) were redacted later the same day, after a backup.
 
 ---
 
@@ -480,13 +480,44 @@ The table above describes the audited commit. Tests for each row: `ai-engine/tes
 | HTTP/FTP/SMTP decoys | **Not Implemented** | enum only; comment confirms | `HoneypotSession.js:29`, `honeypotService.js:527-529` |
 | Retention | Implemented, **disabled by default**, manual | — | `backend/services/retentionService.js:1-17` |
 
+### Status after the verdict-table fixes (working tree, 2026-10-21)
+
+**Live end-to-end run (no Cowrie).** WSL's networking failed to start on this machine (`E_UNEXPECTED`, fallen back to no network) and sudo needs a password, so Cowrie could not be installed. Instead the real parser tailed a Cowrie-format JSON log written with live timestamps, feeding the real backend, AI engine, MongoDB and dashboard. It used an isolated database (`sentinel-honeypot-verify`), a scratch Q-table and a test admin; `sentinel-db` and the real Q-tables were not touched. Results: 19/19 pipeline checks passed, plus:
+- a backend outage: 4 events queued on disk, all delivered in order after restart
+- the dashboard refreshing live
+- a 6-event burst causing exactly 1 reload
+- a DEMO badge, with the Q-table unchanged by a demo session
+
+Per-command ingest latency, Cowrie event to MongoDB: **64–887 ms**. What this does **not** cover is Cowrie itself: SSH, the fake shell, its log writer and the blocker plugin inside a running Cowrie.
+
+| Component | Now | What changed / evidence | Still open |
+|---|---|---|---|
+| Cowrie install / runtime | **Untested** (blocked) | — | Needs working WSL networking or a Linux host; then run section 3.3. |
+| Cowrie Docker/compose | **Implemented, untested** | `honeypot/docker-compose.honeypot.yml` (non-root, read-only, no capabilities, CPU/memory/pids limits, own bridge), `honeypot/parsers/Dockerfile`, `honeypot/docker/egress-rules.sh` (bridge may reach only the ingest port) | Docker not available here; image paths and that the image has `requests` must be checked. |
+| `cowrie.cfg` / `userdb.txt` | Untested live | — | Needs Cowrie. |
+| Custom fs / honeyfs / txtcmds | **Partially implemented** | `honeypot/build_honeyfs.py`: one honeyfs per Linux persona (no `phil`, distro user, matching os-release/issue/hostname/proc/version); opt-in `COWRIE_PERSONA_HONEYFS` in `switch_profile.py`; 4 tests | `fs.pickle` unchanged (`ls /home` still shows phil); no txtcmds; windows_srv has none. |
+| JSON log → parser tail | **Working** (live tail, no Cowrie) | E2E: ordering, redaction, partial line, duplicate, outage spool | Rotation not exercised live (Windows cannot rename an open file; covered by unit tests). |
+| Direct output plugin | Disabled by design | — | — |
+| Blocker plugin | **Unit-tested**, bug fixed | Each connection from an IP not yet cached started a thread + HTTP request (flood → unbounded threads); now an in-memory lookup of the list synced every 2 s. 7 tests with stand-in Cowrie factories | Not run inside a real Cowrie. |
+| Backend ingest, MongoDB writes, socket events | **Working** (live) | E2E | — |
+| Credential redaction | Working for new data (live); **legacy session FIXED** | E2E: stored as `***REDACTED***`; 2026-10-21: all 3,383 entries of `9b21e8e00dd7` redacted after a full backup (`backups/sentinel-db-2026-10-21T18-13-22-733Z`, git-ignored) | The 14 fake passwords in the 7 `demo-*` sessions were redacted too: no plaintext password remains in `honeypotsessions`. The backup keeps the original plaintext: delete it once no longer needed. |
+| Session classification | Working (live, v2 rules) | E2E: RCE Attempt 0.98, brute force 0.90 | Rule-based by design. |
+| Q-learner trained on real attackers | **Labelled honestly** (still synthetic seed) | Runtime table records `seed_provenance`; stats and dashboard say "N updates from scored sessions; 12087 inherited from a synthetic warm start, not attacker data"; `DECEPTION_COLD_START=1` starts empty; 4 tests; E2E shows 8 session updates | Only real attacker traffic can change this. |
+| Deception adaptation applied to Cowrie | Partially (now can change file contents) | honeyfs personas above | Rotator still needs admin credentials (C3) and restarts Cowrie. |
+| Auto-block / real firewall | Off / mock by design | E2E: 0 blocks | Design choice, not a defect. |
+| Dashboard page | **Working** (live) | Logged in, honeypot page renders, live refresh, provenance line, DEMO badge, no console errors | — |
+| Demo/seed generators | Synthetic, now **labelled** | DEMO badge; demo sessions skip the Q-learner (E2E: episodes unchanged) | Seed `sess-*` sessions are not badged. |
+| Honeypot → retraining, HTTP/FTP/SMTP decoys | **Not implemented** | — | Multi-day features (section 5.3). |
+| GeoIP enrichment | **Not implemented** | — | No data source: no GeoLite2 database, no `ABUSEIPDB_API_KEY`. |
+| Retention | Disabled by default (design) | — | Turning on automatic deletion is a policy decision. |
+
 ---
 
 # PHASE 4: Issues audit
 
 ## Critical
 
-**C1. Plaintext captured passwords still in MongoDB.**
+**C1. [FIXED 2026-10-21: session `9b21e8e00dd7` (3,383 entries) and 7 `demo-*` sessions (14 fake entries) redacted after a backup; 0 plaintext left] Plaintext captured passwords still in MongoDB.**
 - *Where:* local `sentinel-db.honeypotsessions`, session `9b21e8e00dd7` (3,383 rows, none redacted). Written before redaction existed.
 - *Why it matters:* the code and paper say passwords are redacted. Your own database contradicts that, and an examiner or demo could show it.
 - *Fix:* read `scratch/scrub_honeypot_credentials.mjs`, back up (`scratch/backup_sentinel_db.mjs`), run the scrub, then re-query. Equivalent one-off:
