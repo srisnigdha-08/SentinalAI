@@ -31,10 +31,6 @@ beforeEach(() => {
 
 afterEach(() => auth.setAvailability(null))
 
-async function csrf(agent) {
-  return (await agent.get('/api/auth/csrf').set('Origin', process.env.CLIENT_URL)).body.data.csrfToken
-}
-
 describe('Phase 6B — Session Inactivity Timeout Tests', () => {
   describe('Configuration & Parsing', () => {
     test('parseInactivityTimeout returns default 900 for undefined, null, or empty string', () => {
@@ -98,7 +94,6 @@ describe('Phase 6B — Session Inactivity Timeout Tests', () => {
 
     test('refresh cannot revive an idle-expired session', async () => {
       const issued = await auth.issue(memory.user)
-      const sid = jwt.decode(issued.refreshToken).sid
       const idleTime = Date.now() + 16 * 60 * 1000 // 16 minutes later
 
       await expect(auth.rotate(issued.refreshToken, { now: idleTime })).rejects.toMatchObject({

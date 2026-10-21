@@ -419,4 +419,3 @@ describe('WebSocket Authentication & Role-Based Access Control', () => {
     })
   })
 })
-

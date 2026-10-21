@@ -73,21 +73,23 @@ describe('AI Engine routes authentication', () => {
 
   test('POST /api/ai/predictions drops server-owned fields (no mass assignment)', async () => {
     const aiService = require('../services/aiService')
-    await request(app)
-      .post('/api/ai/predictions')
-      .set('X-API-Key', 'test-sentinel-key-12345')
-      .send({
-        sourceIP: '203.0.113.9',
-        predictedClass: 'DDoS',
-        threatScore: 0.5,
-        verified: true,
-        actualClass: 'BENIGN',
-        generatedThreat: '123456789012345678901234',
-        inputSource: 'manual',
-      })
+    await request(app).post('/api/ai/predictions').set('X-API-Key', 'test-sentinel-key-12345').send({
+      sourceIP: '203.0.113.9',
+      predictedClass: 'DDoS',
+      threatScore: 0.5,
+      verified: true,
+      actualClass: 'BENIGN',
+      generatedThreat: '123456789012345678901234',
+      inputSource: 'manual',
+    })
 
     const stored = aiService.storePrediction.mock.calls[0][0]
-    expect(stored).toMatchObject({ sourceIP: '203.0.113.9', predictedClass: 'DDoS', threatScore: 0.5, inputSource: 'network_traffic' })
+    expect(stored).toMatchObject({
+      sourceIP: '203.0.113.9',
+      predictedClass: 'DDoS',
+      threatScore: 0.5,
+      inputSource: 'network_traffic',
+    })
     expect(stored).not.toHaveProperty('verified')
     expect(stored).not.toHaveProperty('actualClass')
     expect(stored).not.toHaveProperty('generatedThreat')

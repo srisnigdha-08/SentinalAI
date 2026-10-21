@@ -6,6 +6,8 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { honeypotAPI, threatAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import toast from 'react-hot-toast'
+import { useAuth } from '../hooks/useAuth.js'
+import { recommendationSummary } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -20,7 +22,21 @@ export default function HoneypotAnalytics() {
   const [nodes,     setNodes]     = useState([])
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
+  const [profile,   setProfile]   = useState(null)
+  const [recommendation, setRecommendation] = useState(null)
+  const [recError,  setRecError]  = useState(false)
   const { connected, on } = useSocket()
+  const { user } = useAuth()
+  const canSeeRecommendation = user?.role === 'admin' || user?.role === 'analyst'
+
+  // The Q-learner's pick is applied on the honeypot host by honeypot/deception_rotator.py; this view is read-only.
+  const loadDeception = () => {
+    honeypotAPI.deceptionProfile().then(r => setProfile(r.data?.data || null)).catch(() => setProfile(null))
+    if (!canSeeRecommendation) return
+    honeypotAPI.deceptionRecommendation()
+      .then(r => { setRecommendation(r.data?.data || null); setRecError(false) })
+      .catch(() => { setRecommendation(null); setRecError(true) })
+  }
 
   const load = async () => {
     setError(null)
@@ -42,6 +58,7 @@ export default function HoneypotAnalytics() {
 
   useEffect(() => {
     load()
+    loadDeception()
   }, [])
 
   useEffect(() => {
@@ -215,6 +232,32 @@ export default function HoneypotAnalytics() {
             </LineChart>
           </ResponsiveContainer>
         )}
+      </Panel>
+
+      {/* Adaptive deception: persona being served and the Q-learner's next pick */}
+      <Panel title="Adaptive Deception" badge={profile?.profile ? profile.profile.toUpperCase() : 'UNKNOWN'} badgeType="info" style={{ marginBottom:'1rem' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, fontFamily:'Share Tech Mono,monospace', fontSize:12, color:'#7ab3cc' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+            <span>Serving persona: <strong style={{ color:'#00d4ff' }}>{profile?.profile || '—'}</strong>
+              {profile?.source && <span style={{ color:'#3a6a88', fontSize:10 }}> (from {profile.source})</span>}</span>
+            {canSeeRecommendation && (
+              recError
+                ? <span style={{ color:'#ffaa00' }}>Recommendation unavailable: AI engine unreachable.</span>
+                : <span>Q-learner recommends: <strong style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
+            )}
+          </div>
+          {canSeeRecommendation && (
+            <button
+              onClick={loadDeception}
+              style={{ background:'transparent', border:'1px solid #00d4ff', color:'#00d4ff', padding:'3px 10px', borderRadius:2, fontSize:10, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}
+            >
+              ASK AGAIN
+            </button>
+          )}
+        </div>
+        <div style={{ marginTop:10, fontSize:10, color:'#3a6a88' }}>
+          The recommendation is epsilon-greedy, so asking again can return a different exploration pick. It is applied to Cowrie by the deception rotator on the honeypot host, not from this dashboard.
+        </div>
       </Panel>
 
       {/* Node status grid */}

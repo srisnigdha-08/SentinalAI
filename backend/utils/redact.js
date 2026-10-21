@@ -54,9 +54,7 @@ function redactIP(ip) {
 
 function redactTextWithIPs(text) {
   if (typeof text !== 'string') return text
-  return text
-    .replace(IPV4_REGEX, '$1xxx')
-    .replace(IPV6_REGEX, '$1:xxxx')
+  return text.replace(IPV4_REGEX, '$1xxx').replace(IPV6_REGEX, '$1:xxxx')
 }
 
 function toPlainObject(doc) {

@@ -30,21 +30,23 @@ describe('destructive script guard (seed/clean)', () => {
 
   test('blocks when the confirmation names a different database', () => {
     expect(() =>
-      requireDatabaseConfirmation('mongodb://localhost:27017/sentinel-db', 'seed', ['users'], [
-        'node',
-        'seed.js',
-        '--confirm=sentinelai_test',
-      ])
+      requireDatabaseConfirmation(
+        'mongodb://localhost:27017/sentinel-db',
+        'seed',
+        ['users'],
+        ['node', 'seed.js', '--confirm=sentinelai_test']
+      )
     ).toThrow('exit:1')
   })
 
   test('allows when the confirmation matches the target database', () => {
     expect(
-      requireDatabaseConfirmation('mongodb://localhost:27017/sentinel-db', 'seed', ['users'], [
-        'node',
-        'seed.js',
-        '--confirm=sentinel-db',
-      ])
+      requireDatabaseConfirmation(
+        'mongodb://localhost:27017/sentinel-db',
+        'seed',
+        ['users'],
+        ['node', 'seed.js', '--confirm=sentinel-db']
+      )
     ).toBe('sentinel-db')
     expect(exitSpy).not.toHaveBeenCalled()
   })

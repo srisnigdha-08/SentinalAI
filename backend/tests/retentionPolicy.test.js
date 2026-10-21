@@ -22,12 +22,7 @@ const ThreatLog = require('../models/ThreatLog')
 const HoneypotSession = require('../models/HoneypotSession')
 const Alert = require('../models/Alert')
 const AIPrediction = require('../models/AIPrediction')
-const AuditLog = require('../models/AuditLog')
-const {
-  dryRunRetention,
-  applyRetention,
-  restoreFromArchive,
-} = require('../services/retentionService')
+const { dryRunRetention, applyRetention, restoreFromArchive } = require('../services/retentionService')
 
 describe('Task 8: Data Retention Policy & Archival Engine', () => {
   let mongoServer
@@ -188,7 +183,7 @@ describe('Task 8: Data Retention Policy & Archival Engine', () => {
 
   test('1. Disabled by default: nothing deleted when disabled', async () => {
     delete process.env.RETENTION_ENABLED
-    const fixture = await seedTestData()
+    await seedTestData()
 
     const result = await applyRetention({ force: false })
 
@@ -208,7 +203,7 @@ describe('Task 8: Data Retention Policy & Archival Engine', () => {
   })
 
   test('2. Dry-run simulation: counts match exactly without deleting records', async () => {
-    const fixture = await seedTestData()
+    await seedTestData()
 
     const simulation = await dryRunRetention({ daysThreats: 90, daysSessions: 90 })
 

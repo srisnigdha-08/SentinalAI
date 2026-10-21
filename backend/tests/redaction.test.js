@@ -8,7 +8,6 @@ const {
   redactCampaign,
   redactAIPrediction,
   redactAlert,
-  redactSystemHealth,
 } = require('../utils/redact')
 
 describe('Unified Redaction Utility (backend/utils/redact.js)', () => {

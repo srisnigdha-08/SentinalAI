@@ -93,17 +93,13 @@ describe('Phase 3B: Real Role Separation & Governance', () => {
     })
 
     test('Viewer access to GET /api/audit is denied with 403', async () => {
-      const res = await request(app)
-        .get('/api/audit')
-        .set('Authorization', `Bearer ${viewerToken}`)
+      const res = await request(app).get('/api/audit').set('Authorization', `Bearer ${viewerToken}`)
       expect(res.status).toBe(403)
       expect(res.body.error).toMatch(/insufficient permissions|Access denied/i)
     })
 
     test('Analyst access to GET /api/audit is denied with 403', async () => {
-      const res = await request(app)
-        .get('/api/audit')
-        .set('Authorization', `Bearer ${analystToken}`)
+      const res = await request(app).get('/api/audit').set('Authorization', `Bearer ${analystToken}`)
       expect(res.status).toBe(403)
       expect(res.body.error).toMatch(/insufficient permissions|Access denied/i)
     })
@@ -131,9 +127,7 @@ describe('Phase 3B: Real Role Separation & Governance', () => {
       })
       AuditLog.countDocuments = jest.fn().mockResolvedValue(1)
 
-      const res = await request(app)
-        .get('/api/audit')
-        .set('Authorization', `Bearer ${adminToken}`)
+      const res = await request(app).get('/api/audit').set('Authorization', `Bearer ${adminToken}`)
 
       expect(res.status).toBe(200)
       expect(res.body.success).toBe(true)

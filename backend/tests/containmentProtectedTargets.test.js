@@ -33,7 +33,11 @@ describe('operator-protected containment targets (CONTAINMENT_PROTECTED_TARGETS)
   })
 
   test('a CIDR target overlapping a protected host is refused by the full policy', () => {
-    const res = evaluatePolicy({ target: '192.168.56.0/24', requester: { ...analyst, role: 'admin' }, durationSeconds: 3600 })
+    const res = evaluatePolicy({
+      target: '192.168.56.0/24',
+      requester: { ...analyst, role: 'admin' },
+      durationSeconds: 3600,
+    })
     expect(res.decision).toBe('DENIED')
     expect(res.reason).toMatch(/operator-protected/)
   })

@@ -2,11 +2,7 @@
 
 const fs = require('fs')
 const path = require('path')
-const {
-  SecurityEventBus,
-  FileOutboxStore,
-  InMemoryOutboxStore,
-} = require('../utils/securityEventBus')
+const { SecurityEventBus, FileOutboxStore, InMemoryOutboxStore } = require('../utils/securityEventBus')
 
 describe('Phase 7 — Outbox Architecture Stress & Reliability Suite', () => {
   const tmpDir = path.join(__dirname, '..', 'logs', `stress_test_${Date.now()}`)
@@ -120,10 +116,7 @@ describe('Phase 7 — Outbox Architecture Stress & Reliability Suite', () => {
     })
 
     // Attempt 1
-    await bus.publishDurable(
-      { eventType: 'THREAT_DETECTED', payload: { badData: true } },
-      async () => {}
-    )
+    await bus.publishDurable({ eventType: 'THREAT_DETECTED', payload: { badData: true } }, async () => {})
 
     // Replay 1 (Attempt 2)
     await bus.replayPendingOutbox()
@@ -154,12 +147,7 @@ describe('Phase 7 — Outbox Architecture Stress & Reliability Suite', () => {
     // Publish 20 events concurrently
     const promises = []
     for (let i = 0; i < 20; i++) {
-      promises.push(
-        bus.publishDurable(
-          { eventType: 'ALERT_CREATED', payload: { index: i } },
-          async () => {}
-        )
-      )
+      promises.push(bus.publishDurable({ eventType: 'ALERT_CREATED', payload: { index: i } }, async () => {}))
     }
 
     const results = await Promise.all(promises)
@@ -218,10 +206,7 @@ describe('Phase 7 — Outbox Architecture Stress & Reliability Suite', () => {
       throw new Error('Power failure simulation')
     })
 
-    await bus1.publishDurable(
-      { eventType: 'IP_UNBLOCKED', payload: { ip: '10.0.0.1' } },
-      async () => {}
-    )
+    await bus1.publishDurable({ eventType: 'IP_UNBLOCKED', payload: { ip: '10.0.0.1' } }, async () => {})
     expect(process1Handled).toBe(true)
 
     // Restart process
@@ -241,7 +226,9 @@ describe('Phase 7 — Outbox Architecture Stress & Reliability Suite', () => {
     const bus = new SecurityEventBus({ outboxStore: store })
 
     bus.subscribe('ALERT_CREATED', () => {}) // succeeds
-    bus.subscribe('THREAT_DETECTED', () => { throw new Error('fail') }) // fails
+    bus.subscribe('THREAT_DETECTED', () => {
+      throw new Error('fail')
+    }) // fails
 
     await bus.publishDurable({ eventType: 'ALERT_CREATED', payload: { a: 1 } }, async () => {})
     await bus.publishDurable({ eventType: 'THREAT_DETECTED', payload: { b: 2 } }, async () => {})

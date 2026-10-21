@@ -545,7 +545,7 @@ describe('Phase 3.1: OBS-01 aiService.storePrediction Bi-directional Linking', (
       return createdThreatPayload
     })
 
-    const result = await aiService.storePrediction({
+    await aiService.storePrediction({
       sourceIP: '185.220.101.5',
       predictedClass: 'DDoS',
       threatScore: 0.92,

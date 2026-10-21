@@ -58,6 +58,9 @@ metrics.gauge('sentinel_mongo_connected', '1 when MongoDB is connected', () =>
 metrics.gauge('sentinel_ai_circuit_open', '1 while the AI engine circuit breaker is open', () =>
   require('./services/aiEngineService').circuitState() === 'open' ? 1 : 0
 )
+metrics.gauge('sentinel_ai_drift_status', 'Last drift check: 1 drift, 0 ok, -1 not assessed', () =>
+  require('./services/driftMonitorService').defaultDriftMonitorService.statusValue()
+)
 app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: false }))
 app.use(
   cors({

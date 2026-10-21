@@ -121,7 +121,7 @@ describe('Task 9: Transaction Support & Atomic Rollback', () => {
             // Simulate audit failure
             try {
               throw new Error('Audit service unreachable')
-            } catch (auditErr) {
+            } catch {
               await User.findByIdAndDelete(newUser._id)
               const err = new Error('Security audit logging failed; account provision rolled back')
               err.statusCode = 500
@@ -142,14 +142,18 @@ describe('Task 9: Transaction Support & Atomic Rollback', () => {
 
   describe('Part A.3: Replica Set Transaction Path (Separate Port 27030)', () => {
     let rsConnection
-    const RS_URI = process.env.TEST_RS_URI || 'mongodb://root_admin:TestAdminPassword123!@127.0.0.1:27030/sentinel-db-test?replicaSet=rs0&authSource=admin'
+    const RS_URI =
+      process.env.TEST_RS_URI ||
+      'mongodb://root_admin:TestAdminPassword123!@127.0.0.1:27030/sentinel-db-test?replicaSet=rs0&authSource=admin'
 
     beforeAll(async () => {
       try {
-        rsConnection = await mongoose.createConnection(RS_URI, {
-          serverSelectionTimeoutMS: 1500,
-          connectTimeoutMS: 1500,
-        }).asPromise()
+        rsConnection = await mongoose
+          .createConnection(RS_URI, {
+            serverSelectionTimeoutMS: 1500,
+            connectTimeoutMS: 1500,
+          })
+          .asPromise()
       } catch {
         rsConnection = null
       }
@@ -249,11 +253,7 @@ describe('Task 9: Transaction Support & Atomic Rollback', () => {
       try {
         await session.withTransaction(async () => {
           // 1. Transition threat to BLOCKED within transaction
-          await TestThreat.findByIdAndUpdate(
-            threat._id,
-            { status: 'BLOCKED', preBlockStatus: 'DETECTED' },
-            { session }
-          )
+          await TestThreat.findByIdAndUpdate(threat._id, { status: 'BLOCKED', preBlockStatus: 'DETECTED' }, { session })
 
           // 2. Create BlockedIP within transaction
           await TestBlockedIP.create(

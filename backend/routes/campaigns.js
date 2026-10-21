@@ -9,7 +9,6 @@ const { redactCampaign } = require('../utils/redact')
 
 router.use(protect)
 
-
 /**
  * @openapi
  * /campaigns:
@@ -94,6 +93,5 @@ router.get('/:id', validateObjectId, async (req, res, next) => {
     next(err)
   }
 })
-
 
 module.exports = router

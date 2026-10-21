@@ -139,3 +139,31 @@ jobs:
           r = p.predict({'flow_duration': 1000.0, 'total_fwd_packets': 2.0})
           print(p.registry['classifier'], r['predictedClass'], r['threatScore'])
           "
+
+  monitoring-config:
+    name: Prometheus rules + Grafana dashboard
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prometheus config and alert rules are valid
+        run: |
+          echo ci-metrics-token > "$RUNNER_TEMP/metrics_token"
+          docker run --rm --entrypoint promtool \
+            -v "$PWD/deployment/prometheus.yml:/etc/prometheus/prometheus.yml:ro" \
+            -v "$PWD/deployment/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro" \
+            -v "$RUNNER_TEMP/metrics_token:/etc/prometheus/metrics_token:ro" \
+            prom/prometheus:v2.53.0 check config /etc/prometheus/prometheus.yml
+      - name: Alert rule unit tests
+        run: |
+          docker run --rm --entrypoint promtool -w /rules \
+            -v "$PWD/deployment/prometheus:/rules:ro" \
+            prom/prometheus:v2.53.0 test rules alerts.test.yml
+      - name: Grafana dashboard is valid JSON and uses the provisioned datasource
+        run: |
+          python3 -c "
+          import json
+          d = json.load(open('deployment/grafana/dashboards/sentinelai-overview.json'))
+          uids = {p['datasource']['uid'] for p in d['panels'] if 'datasource' in p}
+          assert uids == {'sentinel-prometheus'}, uids
+          print(d['title'], len(d['panels']), 'panels')
+          "

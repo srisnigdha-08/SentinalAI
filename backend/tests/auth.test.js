@@ -104,4 +104,3 @@ test('deactivated or force-logged-out user cannot refresh token', async () => {
     .set('X-CSRF-Token', csrf)
   expect(refreshRes.status).toBe(403)
 })
-

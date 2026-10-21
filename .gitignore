@@ -74,3 +74,4 @@ test-results/
 
 # Prometheus scrape credential for the compose monitoring profile
 deployment/metrics_token
+deployment/grafana_admin_password

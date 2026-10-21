@@ -51,8 +51,6 @@ router.get('/', protect, restrictTo('admin', 'analyst'), async (req, res, next) 
  *         description: Training sample not found
  */
 router.get('/:id', protect, validateObjectId, restrictTo('admin', 'analyst'), async (req, res, next) => {
-
-
   try {
     const sample = await trainingSampleService.getSampleById(req.params.id)
     if (!sample) return sendError(res, 'Training sample not found', 404)

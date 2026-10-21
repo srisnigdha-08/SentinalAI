@@ -1,0 +1,112 @@
+# Alert rules for SentinelAI, loaded by deployment/prometheus.yml.
+# Prometheus evaluates these and shows them under Alerts; no Alertmanager is configured, so nothing is
+# sent anywhere until you add one with your own receiver (email, Slack, PagerDuty...).
+# Unit tests: deployment/prometheus/alerts.test.yml (`promtool test rules`, run in CI).
+groups:
+  - name: sentinel-availability
+    rules:
+      - alert: SentinelBackendDown
+        expr: up{job="sentinel-backend"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend /metrics unreachable for 2 minutes
+          description: Prometheus cannot scrape the backend (down, or METRICS_TOKEN mismatch).
+
+      - alert: SentinelAIEngineDown
+        expr: up{job="sentinel-ai-engine"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: AI engine /metrics unreachable for 2 minutes
+          description: Detection runs in degraded mode (MONITOR, no auto-block) while the engine is down.
+
+      - alert: SentinelMongoDisconnected
+        expr: sentinel_mongo_connected == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Backend has lost its MongoDB connection
+          description: Threats, alerts, sessions and audit logs cannot be stored.
+
+      - alert: SentinelAIModelNotLoaded
+        expr: sentinel_ai_model_loaded == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: AI engine is up but its registered models are not loaded
+          description: Check registry hashes and the scikit-learn version pin (engine logs).
+
+  - name: sentinel-ai-path
+    rules:
+      # The breaker opens for AI_CIRCUIT_RESET_MS (30 s) at a time and then goes half-open, so the gauge flaps
+      # while the engine keeps failing. Alert when it was open for over a quarter of the last 5 minutes.
+      - alert: SentinelAICircuitOpen
+        expr: avg_over_time(sentinel_ai_circuit_open[5m]) > 0.25
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: Backend circuit breaker to the AI engine keeps opening
+          description: AI calls are failing fast; predictions fall back to degraded MONITOR mode.
+
+      - alert: SentinelAIEngineCallFailures
+        expr: |
+          sum(rate(sentinel_ai_engine_calls_total{outcome!="ok"}[5m]))
+            / sum(rate(sentinel_ai_engine_calls_total[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of backend calls to the AI engine are failing"
+
+      - alert: SentinelSlowInference
+        expr: rate(sentinel_ai_inference_ms_sum[5m]) / rate(sentinel_ai_inference_count[5m]) > 200
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average model inference time is {{ $value | printf \"%.0f\" }} ms (over 200 ms)"
+
+      # The backend checks drift every 30 minutes (driftMonitorService); 1 means the last check reported drift.
+      - alert: SentinelModelInputDrift
+        expr: sentinel_ai_drift_status == 1
+        for: 5m
+        labels:
+          severity: info
+        annotations:
+          summary: Live traffic has drifted from the model's training data
+          description: Re-evaluate the model and consider retraining (ai-engine/training/retrain_from_samples.py).
+
+  - name: sentinel-http
+    rules:
+      # Ignore near-idle periods so a single failed request does not page anyone.
+      - alert: SentinelHighErrorRate
+        expr: |
+          (
+            sum(rate(sentinel_http_requests_total{status=~"5.."}[5m]))
+              / sum(rate(sentinel_http_requests_total[5m]))
+          ) > 0.05
+          and sum(rate(sentinel_http_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of backend requests return 5xx"
+
+      - alert: SentinelSlowRequests
+        expr: |
+          (
+            sum(rate(sentinel_http_request_duration_seconds_sum[5m]))
+              / sum(rate(sentinel_http_requests_total[5m]))
+          ) > 1
+          and sum(rate(sentinel_http_requests_total[5m])) > 0.1
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Average backend request time is {{ $value | printf \"%.2f\" }} s"

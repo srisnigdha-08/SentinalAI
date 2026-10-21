@@ -5,7 +5,9 @@ const isBlocked =
   (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_SEED !== 'true' && !process.argv.includes('--force'))
 if (isBlocked) {
   console.warn('\n[BLOCKED] Synthetic database seeding is disabled in production without explicit confirmation.')
-  console.warn('To explicitly seed fake/demo data, run: npm run seed -- --force --confirm=<database-name> or set ALLOW_MOCK_SEED=true\n')
+  console.warn(
+    'To explicitly seed fake/demo data, run: npm run seed -- --force --confirm=<database-name> or set ALLOW_MOCK_SEED=true\n'
+  )
   process.exit(0)
 }
 

@@ -1,0 +1,106 @@
+# promtool test rules deployment/prometheus/alerts.test.yml  (run from deployment/prometheus/)
+rule_files:
+  - alerts.yml
+
+evaluation_interval: 15s
+
+tests:
+  - name: backend down fires after 2 minutes, not before
+    interval: 15s
+    input_series:
+      - series: 'up{job="sentinel-backend", instance="backend:5000"}'
+        values: '0x20'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SentinelBackendDown
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: SentinelBackendDown
+        exp_alerts:
+          - exp_labels: { severity: critical, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: Backend /metrics unreachable for 2 minutes
+              description: Prometheus cannot scrape the backend (down, or METRICS_TOKEN mismatch).
+
+  - name: mongo disconnect
+    interval: 15s
+    input_series:
+      - series: 'sentinel_mongo_connected{job="sentinel-backend", instance="backend:5000"}'
+        values: '1 1 0x10'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: SentinelMongoDisconnected
+        exp_alerts:
+          - exp_labels: { severity: critical, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: Backend has lost its MongoDB connection
+              description: Threats, alerts, sessions and audit logs cannot be stored.
+
+  - name: circuit flapping open/half-open still alerts; a single blip does not
+    interval: 15s
+    input_series:
+      - series: 'sentinel_ai_circuit_open{job="sentinel-backend", instance="backend:5000"}'
+        values: '1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0 1 1 0'
+      - series: 'sentinel_ai_circuit_open{job="sentinel-backend", instance="other:5000"}'
+        values: '0 1 0x22'
+    alert_rule_test:
+      - eval_time: 1m
+        alertname: SentinelAICircuitOpen
+        exp_alerts: []
+      - eval_time: 3m
+        alertname: SentinelAICircuitOpen
+        exp_alerts:
+          - exp_labels: { severity: warning, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: Backend circuit breaker to the AI engine keeps opening
+              description: AI calls are failing fast; predictions fall back to degraded MONITOR mode.
+      - eval_time: 5m
+        alertname: SentinelAICircuitOpen
+        exp_alerts:
+          - exp_labels: { severity: warning, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: Backend circuit breaker to the AI engine keeps opening
+              description: AI calls are failing fast; predictions fall back to degraded MONITOR mode.
+
+  - name: high 5xx rate fires; idle traffic does not
+    interval: 1m
+    input_series:
+      # 60 requests/min, 10 of them 5xx (~16.7 %)
+      - series: 'sentinel_http_requests_total{route="/api/x", status="200", method="GET"}'
+        values: '0+50x15'
+      - series: 'sentinel_http_requests_total{route="/api/x", status="500", method="GET"}'
+        values: '0+10x15'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: SentinelHighErrorRate
+        exp_alerts:
+          - exp_labels: { severity: warning }
+            exp_annotations:
+              summary: "16.67% of backend requests return 5xx"
+
+  - name: idle traffic with one error does not fire
+    interval: 1m
+    input_series:
+      - series: 'sentinel_http_requests_total{route="/api/x", status="500", method="GET"}'
+        values: '0 1 1 1 1 1 1 1 1 1 1 1 1 1 1'
+    alert_rule_test:
+      - eval_time: 12m
+        alertname: SentinelHighErrorRate
+        exp_alerts: []
+
+  - name: drift status only alerts on drift
+    interval: 1m
+    input_series:
+      - series: 'sentinel_ai_drift_status{job="sentinel-backend", instance="backend:5000"}'
+        values: '-1 -1 0 0 1x10'
+    alert_rule_test:
+      - eval_time: 3m
+        alertname: SentinelModelInputDrift
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: SentinelModelInputDrift
+        exp_alerts:
+          - exp_labels: { severity: info, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: Live traffic has drifted from the model's training data
+              description: Re-evaluate the model and consider retraining (ai-engine/training/retrain_from_samples.py).

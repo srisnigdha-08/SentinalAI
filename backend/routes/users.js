@@ -13,7 +13,6 @@ const { validateObjectId } = require('../middleware/validate')
 
 router.use(protect, restrictTo('admin'))
 
-
 /**
  * @openapi
  * /users/stats:
@@ -115,4 +114,3 @@ router
 router.post('/:id/force-logout', validateObjectId, forceLogoutUser)
 
 module.exports = router
-

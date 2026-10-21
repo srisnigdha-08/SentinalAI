@@ -49,7 +49,6 @@ const SystemSetting = require('../models/SystemSetting')
 const HoneypotSession = require('../models/HoneypotSession')
 const Alert = require('../models/Alert')
 const Campaign = require('../models/Campaign')
-const BlockedIP = require('../models/BlockedIP')
 const AuthSession = require('../models/AuthSession')
 
 const { accessToken } = require('./helpers/accessFixture')
@@ -133,9 +132,7 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
       honeypotNode: 'SSH-COWRIE-01',
       protocol: 'SSH',
       status: 'active',
-      commands: [
-        { command: 'cat /etc/shadow', output: 'root:$6$xyz:18000:0:99999:7:::', timestamp: new Date() },
-      ],
+      commands: [{ command: 'cat /etc/shadow', output: 'root:$6$xyz:18000:0:99999:7:::', timestamp: new Date() }],
       credentials: [{ username: 'root', password: 'SuperSecretPassword!', success: false }],
       iocExtracted: {
         ips: ['198.51.100.77'],
@@ -220,8 +217,12 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
 
     test('2. GET /api/threats/:id: Admin and Analyst receive identical unredacted single threat', async () => {
       const adminRes = await request(app).get(`/api/threats/${dummyId}`).set('Authorization', `Bearer ${tokens.admin}`)
-      const analystRes = await request(app).get(`/api/threats/${dummyId}`).set('Authorization', `Bearer ${tokens.analyst}`)
-      const viewerRes = await request(app).get(`/api/threats/${dummyId}`).set('Authorization', `Bearer ${tokens.viewer}`)
+      const analystRes = await request(app)
+        .get(`/api/threats/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.analyst}`)
+      const viewerRes = await request(app)
+        .get(`/api/threats/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.viewer}`)
 
       expect(adminRes.status).toBe(200)
       expect(analystRes.status).toBe(200)
@@ -236,9 +237,15 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
     })
 
     test('3. GET /api/honeypot/sessions/:id: Admin and Analyst receive raw commands & credentials, Viewer receives redacted', async () => {
-      const adminRes = await request(app).get(`/api/honeypot/sessions/${dummyId}`).set('Authorization', `Bearer ${tokens.admin}`)
-      const analystRes = await request(app).get(`/api/honeypot/sessions/${dummyId}`).set('Authorization', `Bearer ${tokens.analyst}`)
-      const viewerRes = await request(app).get(`/api/honeypot/sessions/${dummyId}`).set('Authorization', `Bearer ${tokens.viewer}`)
+      const adminRes = await request(app)
+        .get(`/api/honeypot/sessions/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.admin}`)
+      const analystRes = await request(app)
+        .get(`/api/honeypot/sessions/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.analyst}`)
+      const viewerRes = await request(app)
+        .get(`/api/honeypot/sessions/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.viewer}`)
 
       expect(adminRes.status).toBe(200)
       expect(analystRes.status).toBe(200)
@@ -257,9 +264,15 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
     })
 
     test('4. GET /api/campaigns/:id: Admin and Analyst receive raw sourceIPs, Viewer receives masked sourceIPs', async () => {
-      const adminRes = await request(app).get(`/api/campaigns/${dummyId}`).set('Authorization', `Bearer ${tokens.admin}`)
-      const analystRes = await request(app).get(`/api/campaigns/${dummyId}`).set('Authorization', `Bearer ${tokens.analyst}`)
-      const viewerRes = await request(app).get(`/api/campaigns/${dummyId}`).set('Authorization', `Bearer ${tokens.viewer}`)
+      const adminRes = await request(app)
+        .get(`/api/campaigns/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.admin}`)
+      const analystRes = await request(app)
+        .get(`/api/campaigns/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.analyst}`)
+      const viewerRes = await request(app)
+        .get(`/api/campaigns/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.viewer}`)
 
       expect(adminRes.status).toBe(200)
       expect(analystRes.status).toBe(200)
@@ -308,9 +321,7 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
 
   describe('Item 7: Audit Log Completeness & Governance Integrity', () => {
     test('1. AuditLog model has NO update or delete routes in the router stack', () => {
-      const routerMap = new Map([
-        [require('../routes/audit'), '/api/audit'],
-      ])
+      const routerMap = new Map([[require('../routes/audit'), '/api/audit']])
       const auditRoutes = []
       for (const layer of app.router.stack) {
         if (layer.handle && routerMap.has(layer.handle)) {
@@ -319,7 +330,10 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
             if (sub.route) {
               const methods = Object.keys(sub.route.methods)
               for (const m of methods) {
-                auditRoutes.push({ method: m.toUpperCase(), path: `${prefix}${sub.route.path === '/' ? '' : sub.route.path}` })
+                auditRoutes.push({
+                  method: m.toUpperCase(),
+                  path: `${prefix}${sub.route.path === '/' ? '' : sub.route.path}`,
+                })
               }
             }
           }
@@ -348,9 +362,7 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
       AuditLog.find = jest.fn(() => createChainableQuery(sampleLogs))
       AuditLog.countDocuments = jest.fn().mockResolvedValue(45)
 
-      const res = await request(app)
-        .get('/api/audit?page=2&limit=10')
-        .set('Authorization', `Bearer ${tokens.admin}`)
+      const res = await request(app).get('/api/audit?page=2&limit=10').set('Authorization', `Bearer ${tokens.admin}`)
 
       expect(res.status).toBe(200)
       expect(res.body.success).toBe(true)
@@ -532,7 +544,7 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
       // Sub-case A: Real Session Layer Revocation
       // When an admin changes role, updateUser increments authVersion and revokes active sessions.
       // The session layer rejects the old token with HTTP 401 Unauthorized.
-      User.findById = jest.fn((id) => ({
+      User.findById = jest.fn(() => ({
         select: jest.fn().mockResolvedValue({
           _id: analystId,
           name: 'Demoted Analyst',
@@ -557,7 +569,7 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
       // Sub-case B: DB Role Re-read Authorization Gate
       // If a token's session version remains valid but the database role is 'viewer',
       // req.user.role is populated from MongoDB as 'viewer', and the RBAC guard returns 403 Forbidden.
-      User.findById = jest.fn((id) => ({
+      User.findById = jest.fn(() => ({
         select: jest.fn().mockResolvedValue({
           _id: analystId,
           name: 'Demoted Analyst',
@@ -604,7 +616,9 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
       }
 
       const adminRes = await request(app).get(`/api/threats/${dummyId}`).set('Authorization', `Bearer ${tokens.admin}`)
-      const analystRes = await request(app).get(`/api/threats/${dummyId}`).set('Authorization', `Bearer ${tokens.analyst}`)
+      const analystRes = await request(app)
+        .get(`/api/threats/${dummyId}`)
+        .set('Authorization', `Bearer ${tokens.analyst}`)
 
       expect(adminRes.status).toBe(200)
       expect(analystRes.status).toBe(200)
@@ -631,7 +645,12 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
         tokenVersion: 0,
         comparePassword: jest.fn().mockResolvedValue(true),
         save: jest.fn().mockResolvedValue(true),
-        toJSON: () => ({ _id: testUserId, email: 'analyst.login@sentinel.io', name: 'Analyst Login User', role: 'analyst' }),
+        toJSON: () => ({
+          _id: testUserId,
+          email: 'analyst.login@sentinel.io',
+          name: 'Analyst Login User',
+          role: 'analyst',
+        }),
       }
 
       const originalUserFindById = User.findById
@@ -657,7 +676,8 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
       })
       User.findById = jest.fn((id) => ({
         select: jest.fn().mockResolvedValue(String(id) === testUserId ? mockLoginUser : null),
-        then: (resolve, reject) => Promise.resolve(String(id) === testUserId ? mockLoginUser : null).then(resolve, reject),
+        then: (resolve, reject) =>
+          Promise.resolve(String(id) === testUserId ? mockLoginUser : null).then(resolve, reject),
       }))
 
       try {
@@ -693,7 +713,6 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
         AuthSession.create = originalSessionCreate
       }
     })
-
 
     test('9. Audit Failure Policy: admin mutation fails with 500 and change is rolled back when AuditLog.create rejects', async () => {
       // 1. Test updateSettings rollback when AuditLog.create rejects
@@ -862,5 +881,3 @@ describe('Phase 3.5: Shape Guarantee & Audit Completeness Verification', () => {
     })
   })
 })
-
-

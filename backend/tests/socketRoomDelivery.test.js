@@ -31,7 +31,11 @@ describe('socket room delivery: one copy per role', () => {
 
   test('honeypot_command: raw to admin/analyst, redacted only to viewer', () => {
     const emits = captureEmits(() =>
-      socketManager.emitHoneypotEvent('honeypot_command', { sessionId: 's1', sourceIP: '203.0.113.5', command: 'uname -a' })
+      socketManager.emitHoneypotEvent('honeypot_command', {
+        sessionId: 's1',
+        sourceIP: '203.0.113.5',
+        command: 'uname -a',
+      })
     )
     const deliveries = roomsFor(emits, 'honeypot_command')
     expect(deliveries).toEqual([['admin', 'analyst'], ['viewer']])

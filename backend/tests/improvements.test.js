@@ -168,6 +168,27 @@ describe('drift monitor alerting', () => {
     expect(createAlert).toHaveBeenCalledTimes(2)
     expect(createAlert.mock.calls[0][0]).toMatchObject({ type: 'SYSTEM_HEALTH', title: 'Model input drift detected' })
   })
+
+  test('gauge value: -1 before any check or when not assessed, 0 ok, 1 drift', async () => {
+    jest.resetModules()
+    const getDrift = jest.fn()
+    jest.doMock('../services/aiEngineService', () => ({ getDrift }))
+    jest.doMock('../services/alertService', () => ({ createAlert: jest.fn().mockResolvedValue({}) }))
+    jest.doMock('../websocket/socketManager', () => ({ emitNewAlert: jest.fn() }))
+    const { DriftMonitorService } = require('../services/driftMonitorService')
+    const svc = new DriftMonitorService()
+    expect(svc.statusValue()).toBe(-1)
+    for (const [report, value] of [
+      [null, -1],
+      [{ status: 'insufficient_data' }, -1],
+      [{ status: 'ok' }, 0],
+      [{ status: 'drift', top_shifts: [] }, 1],
+    ]) {
+      getDrift.mockResolvedValue(report)
+      await svc.check()
+      expect(svc.statusValue()).toBe(value)
+    }
+  })
 })
 
 describe('training sample export', () => {

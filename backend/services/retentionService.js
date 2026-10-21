@@ -42,10 +42,7 @@ function getRetentionConfig() {
  * Retrieves ObjectIds of all threats that must be protected (demo-linked threats).
  */
 async function getProtectedThreatIds() {
-  const demoSessions = await HoneypotSession.find(
-    { sessionId: { $regex: /^demo-/i } },
-    { linkedThreatLog: 1 }
-  ).lean()
+  const demoSessions = await HoneypotSession.find({ sessionId: { $regex: /^demo-/i } }, { linkedThreatLog: 1 }).lean()
 
   const protectedIds = []
   for (const s of demoSessions) {
@@ -55,10 +52,7 @@ async function getProtectedThreatIds() {
   }
 
   // Also protect known demo threats by IP
-  const demoIPThreats = await ThreatLog.find(
-    { sourceIP: { $in: DEMO_THREAT_IPS } },
-    { _id: 1 }
-  ).lean()
+  const demoIPThreats = await ThreatLog.find({ sourceIP: { $in: DEMO_THREAT_IPS } }, { _id: 1 }).lean()
 
   for (const t of demoIPThreats) {
     protectedIds.push(t._id)
@@ -123,10 +117,7 @@ async function dryRunRetention(options = {}) {
 
   // 5. Query dependent AIPrediction references to unlink
   const candidatePredictions = await AIPrediction.find({
-    $or: [
-      { threatId: { $in: candidateThreatIds } },
-      { generatedThreat: { $in: candidateThreatIds } },
-    ],
+    $or: [{ threatId: { $in: candidateThreatIds } }, { generatedThreat: { $in: candidateThreatIds } }],
   }).lean()
 
   return {
@@ -357,11 +348,9 @@ async function restoreFromArchive(options = {}) {
   for (const doc of archivedThreats) {
     const { _id, _originalId, _archivedAt, _retentionBatch, ...threatData } = doc
     const targetId = _originalId || _id
-    await db.collection('threatlogs').updateOne(
-      { _id: targetId },
-      { $setOnInsert: { _id: targetId, ...threatData } },
-      { upsert: true }
-    )
+    await db
+      .collection('threatlogs')
+      .updateOne({ _id: targetId }, { $setOnInsert: { _id: targetId, ...threatData } }, { upsert: true })
     restoredThreats++
   }
 
@@ -370,11 +359,9 @@ async function restoreFromArchive(options = {}) {
   for (const doc of archivedSessions) {
     const { _id, _originalId, _archivedAt, _retentionBatch, ...sessionData } = doc
     const targetId = _originalId || _id
-    await db.collection('honeypotsessions').updateOne(
-      { _id: targetId },
-      { $setOnInsert: { _id: targetId, ...sessionData } },
-      { upsert: true }
-    )
+    await db
+      .collection('honeypotsessions')
+      .updateOne({ _id: targetId }, { $setOnInsert: { _id: targetId, ...sessionData } }, { upsert: true })
     restoredSessions++
   }
 
@@ -383,11 +370,9 @@ async function restoreFromArchive(options = {}) {
   for (const doc of archivedAlerts) {
     const { _id, _originalId, _archivedAt, _retentionBatch, ...alertData } = doc
     const targetId = _originalId || _id
-    await db.collection('alerts').updateOne(
-      { _id: targetId },
-      { $setOnInsert: { _id: targetId, ...alertData } },
-      { upsert: true }
-    )
+    await db
+      .collection('alerts')
+      .updateOne({ _id: targetId }, { $setOnInsert: { _id: targetId, ...alertData } }, { upsert: true })
     restoredAlerts++
   }
 

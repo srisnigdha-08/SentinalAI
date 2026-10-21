@@ -49,6 +49,14 @@ class DriftMonitorService {
     return { alerted: true, status: 'drift' }
   }
 
+  /** Last check as a gauge value: 1 drift, 0 ok, -1 not assessed (no check yet, too few samples, engine down). */
+  statusValue() {
+    const status = this.lastReport?.status
+    if (status === 'drift') return 1
+    if (status === 'ok') return 0
+    return -1
+  }
+
   start() {
     if (this.isRunning) return
     this.isRunning = true

@@ -8,6 +8,7 @@ import { BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
 import { aiAPI, CANONICAL_CLASSES, trainingSampleAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
+import { driftSummary, topShiftRows, classMixRows } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -32,7 +33,35 @@ export default function AIAnalytics() {
   const [verifyingId, setVerifyingId] = useState(null)
   const [selectedClass, setSelectedClass] = useState('')
   const [verifyLoading, setVerifyLoading] = useState(false)
+  const [drift,     setDrift]     = useState(null)
+  const [driftLoaded, setDriftLoaded] = useState(false)
+  const [reloading, setReloading] = useState(false)
   const { connected, on } = useSocket()
+
+  // Drift is admin/analyst only on the backend; viewers never request it.
+  const refreshDrift = () => {
+    if (!canVerify) return
+    aiAPI.drift()
+      .then(r => setDrift(r.data?.data || null))
+      .catch(() => setDrift(null))
+      .finally(() => setDriftLoaded(true))
+  }
+
+  const handleReloadModel = async () => {
+    if (!window.confirm('Load the models pinned in the AI engine registry? The current model keeps serving if the new one fails to load or verify.')) return
+    setReloading(true)
+    try {
+      const res = await aiAPI.reloadModel()
+      const current = res.data?.data?.current
+      if (current) setModelInfo(current)
+      toast.success(`Model reloaded: ${current?.rfVersion || 'registry models'}`)
+      refreshDrift()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Model reload failed; previous model still serving')
+    } finally {
+      setReloading(false)
+    }
+  }
 
   const refreshSamples = () => {
     if (user?.role === 'viewer') return
@@ -101,6 +130,7 @@ export default function AIAnalytics() {
       setPreds(predictionList)
       setModelInfo(mRes.data?.data || mRes.data)
       refreshSamples()
+      refreshDrift()
     } catch {
       setError('AI analytics telemetry is unavailable. Retry to load model metrics.')
       toast.error('Failed to load AI analytics')
@@ -134,6 +164,11 @@ export default function AIAnalytics() {
 
   const summary = stats?.summary || {}
   const charts  = stats?.charts  || {}
+
+  const driftInfo   = driftSummary(drift)
+  const shiftRows   = topShiftRows(drift)
+  const mixRows     = classMixRows(drift).slice(0, 5)
+  const thresholds  = modelInfo?.thresholds || {}
 
   // Class performance for bar chart
   const classData = (charts.byClass||[]).slice(0,7).map(c=>({
@@ -214,6 +249,67 @@ export default function AIAnalytics() {
         <KpiCard label="Anomaly Rate"      value={loading?'—':`${summary.anomalyRate||0}%`}              delta="isolation forest" color="#ffaa00" />
         <KpiCard label="Avg Inference"     value={loading?'—':`${summary.avgInferenceMs||0}ms`}         delta="per request"      color="#ff2d55" />
       </div>
+
+      {/* Model health: serving model, decision lines, input drift and admin hot reload */}
+      {canVerify && (
+        <Panel title="Model Health & Input Drift" badge={driftLoaded ? driftInfo.label : 'LOADING'} badgeType={driftLoaded ? driftInfo.badgeType : 'info'} style={{ marginBottom:'1rem' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:12, fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
+            <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+              <span>Model: <strong style={{ color:'#e2f1ff' }}>{modelInfo?.rfVersion || '—'}</strong></span>
+              <span>Alert line: <strong style={{ color:'#ffaa00' }}>{typeof thresholds.monitor === 'number' ? thresholds.monitor.toFixed(2) : '—'}</strong></span>
+              <span>Block line: <strong style={{ color:'#ff2d55' }}>{typeof thresholds.block === 'number' ? thresholds.block.toFixed(2) : '—'}</strong></span>
+              <span>Registry: <strong style={{ color: modelInfo?.registry ? '#00ff88' : '#3a6a88' }}>{modelInfo?.registry ? 'PINNED' : '—'}</strong></span>
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button
+                onClick={refreshDrift}
+                style={{ background:'transparent', border:'1px solid #00d4ff', color:'#00d4ff', padding:'3px 10px', borderRadius:2, fontSize:10, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}
+              >
+                REFRESH
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={handleReloadModel}
+                  disabled={reloading}
+                  style={{ background:'transparent', border:'1px solid #ffaa00', color:'#ffaa00', padding:'3px 10px', borderRadius:2, fontSize:10, cursor: reloading ? 'wait' : 'pointer', fontFamily:'Share Tech Mono,monospace' }}
+                >
+                  {reloading ? 'RELOADING...' : 'RELOAD MODEL'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ fontSize:12, color: driftInfo.color, marginBottom:12 }}>{driftLoaded ? driftInfo.detail : 'Loading drift report...'}</div>
+
+          {(shiftRows.length > 0 || mixRows.length > 0) && (
+            <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem' }}>
+              <div>
+                <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>LARGEST FEATURE SHIFTS (SD FROM TRAINING MEAN · VARIANCE RATIO)</div>
+                {shiftRows.map(r => (
+                  <div key={r.feature} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'3px 0', borderBottom:'1px solid #0d335244', fontFamily:'Share Tech Mono,monospace', fontSize:11, color: r.flagged ? '#ffaa00' : '#7ab3cc' }}>
+                    <span>{r.flagged ? '▲ ' : ''}{r.feature}</span>
+                    <span>{r.shift} · {r.ratio}×</span>
+                  </div>
+                ))}
+                {shiftRows.length === 0 && <div style={{ color:'#3a6a88', fontSize:11 }}>Not enough samples yet.</div>}
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>RECENT PREDICTED-CLASS MIX</div>
+                {mixRows.map(r => (
+                  <div key={r.cls} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'3px 0', borderBottom:'1px solid #0d335244', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
+                    <span>{r.cls}</span>
+                    <span>{r.count} ({r.pct}%)</span>
+                  </div>
+                ))}
+                {mixRows.length === 0 && <div style={{ color:'#3a6a88', fontSize:11 }}>No live predictions recorded yet.</div>}
+              </div>
+            </div>
+          )}
+          <div style={{ marginTop:10, fontSize:10, color:'#3a6a88' }}>
+            Screening statistics against the deployed scaler&apos;s training statistics; drift is a cue to re-evaluate or retrain, not proof of model failure.
+          </div>
+        </Panel>
+      )}
 
       <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
         {/* Class volume chart */}

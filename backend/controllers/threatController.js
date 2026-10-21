@@ -156,8 +156,10 @@ const createThreat = async (req, res, next) => {
       sourceIP: sourceIP.trim(),
       attackType: attackType.trim(),
       severity: severity ? severity.toUpperCase() : 'MEDIUM',
-      destinationIP: typeof req.body.destinationIP === 'string' ? req.body.destinationIP.trim().slice(0, 100) : 'INTERNAL',
-      targetService: typeof req.body.targetService === 'string' ? req.body.targetService.trim().slice(0, 100) : 'UNKNOWN',
+      destinationIP:
+        typeof req.body.destinationIP === 'string' ? req.body.destinationIP.trim().slice(0, 100) : 'INTERNAL',
+      targetService:
+        typeof req.body.targetService === 'string' ? req.body.targetService.trim().slice(0, 100) : 'UNKNOWN',
       notes: typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 1000) : '',
       handledBy: req.user?._id || null,
       aiScore: 0,
@@ -177,7 +179,8 @@ const createThreat = async (req, res, next) => {
 
     if (req.body.geoLocation && typeof req.body.geoLocation === 'object') {
       cleanData.geoLocation = {
-        country: typeof req.body.geoLocation.country === 'string' ? req.body.geoLocation.country.slice(0, 100) : 'Unknown',
+        country:
+          typeof req.body.geoLocation.country === 'string' ? req.body.geoLocation.country.slice(0, 100) : 'Unknown',
         city: typeof req.body.geoLocation.city === 'string' ? req.body.geoLocation.city.slice(0, 100) : 'Unknown',
         lat: typeof req.body.geoLocation.lat === 'number' ? req.body.geoLocation.lat : undefined,
         lon: typeof req.body.geoLocation.lon === 'number' ? req.body.geoLocation.lon : undefined,
@@ -272,7 +275,9 @@ const blockIP = async (req, res, next) => {
           const BlockedIP = require('../models/BlockedIP')
           await BlockedIP.deleteOne({ ip: blockedThreat.sourceIP })
           await ThreatLog.findByIdAndUpdate(blockedThreat._id, { status: blockedThreat.preBlockStatus || 'DETECTED' })
-          logger.error(`[AUDIT_FAILURE] Reverted threat block for ${blockedThreat._id} due to audit failure: ${auditErr.message}`)
+          logger.error(
+            `[AUDIT_FAILURE] Reverted threat block for ${blockedThreat._id} due to audit failure: ${auditErr.message}`
+          )
           const err = new Error('Security audit logging failed; change not applied')
           err.statusCode = 500
           throw err
@@ -318,7 +323,9 @@ const deleteThreat = async (req, res, next) => {
         ip: req.ip,
       })
     } catch (auditErr) {
-      logger.error(`[AUDIT_FAILURE] Threat deletion aborted for ${req.params.id} due to audit failure: ${auditErr.message}`)
+      logger.error(
+        `[AUDIT_FAILURE] Threat deletion aborted for ${req.params.id} due to audit failure: ${auditErr.message}`
+      )
       return sendError(res, 'Security audit logging failed; change not applied', 500)
     }
 
@@ -377,7 +384,9 @@ const updateSettings = async (req, res, next) => {
         { value: prevValue },
         { upsert: true, new: true }
       )
-      logger.error(`[AUDIT_FAILURE] Reverted autoBlockEnabled to ${prevValue} due to audit failure: ${auditErr.message}`)
+      logger.error(
+        `[AUDIT_FAILURE] Reverted autoBlockEnabled to ${prevValue} due to audit failure: ${auditErr.message}`
+      )
       return sendError(res, 'Security audit logging failed; change not applied', 500)
     }
 
@@ -514,7 +523,9 @@ const unblockIPManual = async (req, res, next) => {
       })
     } catch (auditErr) {
       await containmentService.blockIPManual({ ip: cleanIP, reason: 'Compensating rollback' })
-      logger.error(`[AUDIT_FAILURE] Reverted manual IP unblock for ${cleanIP} due to audit failure: ${auditErr.message}`)
+      logger.error(
+        `[AUDIT_FAILURE] Reverted manual IP unblock for ${cleanIP} due to audit failure: ${auditErr.message}`
+      )
       return sendError(res, 'Security audit logging failed; change not applied', 500)
     }
 
@@ -571,11 +582,7 @@ const triageThreat = async (req, res, next) => {
       }
       const targetStatus = status.toUpperCase()
       if (targetStatus === 'BLOCKED') {
-        return sendError(
-          res,
-          "Status 'BLOCKED' requires firewall containment flow. Use containment endpoints.",
-          400
-        )
+        return sendError(res, "Status 'BLOCKED' requires firewall containment flow. Use containment endpoints.", 400)
       }
 
       const existingThreat = await ThreatLog.findById(req.params.id)
@@ -584,11 +591,7 @@ const triageThreat = async (req, res, next) => {
       if (targetStatus !== existingThreat.status) {
         const allowed = ALLOWED_TRIAGE_TRANSITIONS[existingThreat.status] || []
         if (!allowed.includes(targetStatus)) {
-          return sendError(
-            res,
-            `Invalid status transition from ${existingThreat.status} to ${targetStatus}`,
-            400
-          )
+          return sendError(res, `Invalid status transition from ${existingThreat.status} to ${targetStatus}`, 400)
         }
       }
       updates.status = targetStatus
@@ -640,4 +643,3 @@ module.exports = {
   blockIPManual,
   unblockIPManual,
 }
-

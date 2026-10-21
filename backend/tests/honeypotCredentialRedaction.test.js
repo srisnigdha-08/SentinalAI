@@ -44,9 +44,7 @@ describe('Honeypot Credential Redaction Across Write Paths', () => {
     test('closeSession applies redactCapturedCredentials to telemetry credentials before pushing', () => {
       const telemetry = {
         durationSeconds: 120,
-        credentials: [
-          { username: 'guest', password: 'RawPlainTextPassword999', success: false },
-        ],
+        credentials: [{ username: 'guest', password: 'RawPlainTextPassword999', success: false }],
       }
       const session = {
         credentials: [],
@@ -71,9 +69,7 @@ describe('Honeypot Credential Redaction Across Write Paths', () => {
       const eventData = {
         sessionId: 'sess-test-ingest',
         sourceIP: '198.51.100.42',
-        credentials: [
-          { username: 'oracle', password: 'PlaintextDatabasePassword#1', success: false },
-        ],
+        credentials: [{ username: 'oracle', password: 'PlaintextDatabasePassword#1', success: false }],
       }
 
       if (Array.isArray(eventData.credentials)) {

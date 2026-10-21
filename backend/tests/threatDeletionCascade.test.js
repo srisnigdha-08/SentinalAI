@@ -52,7 +52,9 @@ const { logAudit } = require('../utils/auditLogger')
 
 describe('Task 6: Orphaned Alert Prevention on Threat Deletion', () => {
   const dummyThreatId = new mongoose.Types.ObjectId()
-  let req, res, next
+  let req
+  let res
+  let next
 
   beforeEach(() => {
     req = {

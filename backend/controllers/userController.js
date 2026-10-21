@@ -65,7 +65,9 @@ const provisionUser = async (req, res) => {
           })
         } catch (auditErr) {
           await User.findByIdAndDelete(newUser._id)
-          logger.error(`[AUDIT_FAILURE] Provisioned user ${newUser._id} deleted due to audit failure: ${auditErr.message}`)
+          logger.error(
+            `[AUDIT_FAILURE] Provisioned user ${newUser._id} deleted due to audit failure: ${auditErr.message}`
+          )
           const err = new Error('Security audit logging failed; account provision rolled back')
           err.statusCode = 500
           throw err
@@ -163,8 +165,7 @@ const updateUser = async (req, res, next) => {
     }
 
     // Guardrail: prevent demotion or deactivation of the last active administrator
-    const changingAdmin =
-      (updates.role && updates.role !== 'admin') || (updates.status && updates.status !== 'active')
+    const changingAdmin = (updates.role && updates.role !== 'admin') || (updates.status && updates.status !== 'active')
     if (targetUser.role === 'admin' && targetUser.status === 'active' && changingAdmin) {
       const activeAdminCount = await User.countDocuments({ role: 'admin', status: 'active' })
       if (activeAdminCount <= 1) {
@@ -225,7 +226,9 @@ const updateUser = async (req, res, next) => {
           await User.findByIdAndUpdate(req.params.id, {
             $set: { role: prevRole, status: prevStatus, authVersion: prevAuthVersion },
           })
-          logger.error(`[AUDIT_FAILURE] Reverted user ${req.params.id} mutation due to audit failure: ${auditErr.message}`)
+          logger.error(
+            `[AUDIT_FAILURE] Reverted user ${req.params.id} mutation due to audit failure: ${auditErr.message}`
+          )
           const err = new Error('Security audit logging failed; change not applied')
           err.statusCode = 500
           throw err
@@ -264,7 +267,7 @@ const deleteUser = async (req, res, next) => {
       }
     }
 
-    const targetId = (targetUser && targetUser._id) ? targetUser._id.toString() : String(req.params.id)
+    const targetId = targetUser && targetUser._id ? targetUser._id.toString() : String(req.params.id)
     const { logAudit } = require('../utils/auditLogger')
     try {
       await logAudit({
@@ -275,7 +278,9 @@ const deleteUser = async (req, res, next) => {
         ip: req.ip,
       })
     } catch (auditErr) {
-      logger.error(`[AUDIT_FAILURE] User deletion aborted for ${req.params.id} due to audit failure: ${auditErr.message}`)
+      logger.error(
+        `[AUDIT_FAILURE] User deletion aborted for ${req.params.id} due to audit failure: ${auditErr.message}`
+      )
       return sendError(res, 'Security audit logging failed; change not applied', 500)
     }
 
@@ -298,7 +303,7 @@ const forceLogoutUser = async (req, res, next) => {
     const targetUser = await User.findById(req.params.id)
     if (!targetUser) return sendError(res, 'Not found', 404)
 
-    const targetId = (targetUser && targetUser._id) ? targetUser._id.toString() : String(req.params.id)
+    const targetId = targetUser && targetUser._id ? targetUser._id.toString() : String(req.params.id)
     const { runWithTransactionOrFallback } = require('../utils/transactionHelper')
     const { logAudit } = require('../utils/auditLogger')
 
@@ -329,7 +334,9 @@ const forceLogoutUser = async (req, res, next) => {
             ip: req.ip,
           })
         } catch (auditErr) {
-          logger.error(`[AUDIT_FAILURE] User force logout aborted for ${req.params.id} due to audit failure: ${auditErr.message}`)
+          logger.error(
+            `[AUDIT_FAILURE] User force logout aborted for ${req.params.id} due to audit failure: ${auditErr.message}`
+          )
           const err = new Error('Security audit logging failed; change not applied')
           err.statusCode = 500
           throw err
@@ -381,4 +388,3 @@ module.exports = {
   forceLogoutUser,
   getUserStats,
 }
-

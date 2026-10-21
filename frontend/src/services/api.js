@@ -49,6 +49,8 @@ export const honeypotAPI = {
   closeSession: (id)      => api.put(`/honeypot/sessions/${id}/close`),
   analytics:    ()        => api.get('/honeypot/analytics'),
   nodes:        ()        => api.get('/honeypot/nodes'),
+  deceptionProfile:        () => api.get('/honeypot/deception/profile'),
+  deceptionRecommendation: () => api.get('/honeypot/deception/recommendation'),
 }
 
 export const alertAPI = {
@@ -91,6 +93,9 @@ export const aiAPI = {
   health:     ()       => api.get('/ai/engine/health'),
   modelInfo:  ()       => api.get('/ai/engine/model-info'),
   engineStats:()       => api.get('/ai/engine/stats'),
+  drift:      ()       => api.get('/ai/engine/drift'),
+  // Loading and verifying new models can take a while; the backend allows 120 s.
+  reloadModel:()       => api.post('/ai/engine/reload', null, { timeout: 130000 }),
   predictions:(params) => api.get('/ai/predictions', { params }),
   stats:      ()       => api.get('/ai/stats'),
   verify:     (id,cls) => api.put(`/ai/predictions/${id}/verify`, { actualClass: cls }),

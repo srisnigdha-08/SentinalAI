@@ -71,9 +71,7 @@ async function logAudit({
       userAgent,
     }
 
-    const entry = session
-      ? (await AuditLog.create([docData], { session }))[0]
-      : await AuditLog.create(docData)
+    const entry = session ? (await AuditLog.create([docData], { session }))[0] : await AuditLog.create(docData)
     return entry
   } catch (err) {
     logger.error('[AuditLog] Failed to persist audit entry: ' + err.message)

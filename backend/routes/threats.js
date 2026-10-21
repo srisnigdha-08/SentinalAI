@@ -23,7 +23,6 @@ const { validateObjectId } = require('../middleware/validate')
 
 router.use(protect)
 
-
 /**
  * @openapi
  * /threats/analytics/summary:
@@ -109,7 +108,6 @@ router.get('/recent', getRecent)
  */
 router.get('/settings', requirePermission('settings:read'), getSettings)
 router.post('/settings', requirePermission('settings:write'), updateSettings)
-
 
 /**
  * @openapi
@@ -331,4 +329,3 @@ router.post('/:id/block', validateObjectId, restrictTo('admin', 'analyst'), bloc
 router.patch('/:id/triage', validateObjectId, requirePermission('threats:triage'), triageThreat)
 
 module.exports = router
-

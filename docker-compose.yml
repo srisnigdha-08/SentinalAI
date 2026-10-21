@@ -79,10 +79,31 @@ services:
       - ai-engine
     volumes:
       - ./deployment/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deployment/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
       - ./deployment/metrics_token:/etc/prometheus/metrics_token:ro
+    # Prometheus has no authentication: published on this host's loopback only.
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: ["monitoring"]
+    depends_on:
+      - prometheus
+    environment:
+      # Admin password read from a git-ignored file (see deployment/.env.compose.example); no default login.
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./deployment/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployment/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deployment/grafana_admin_password:/run/secrets/grafana_admin_password:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"
 
 volumes:
   mongo-data:
   ai-data:
+  grafana-data:
