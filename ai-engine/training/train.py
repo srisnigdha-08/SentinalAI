@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from datetime import datetime
-from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, prepare_features, RAW_LABEL_TO_TARGET, CANDIDATES, log_transform_features
+from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, LABEL_SOURCES, prepare_features, RAW_LABEL_TO_TARGET, CANDIDATES, log_transform_features
 from utils.data_generator import generate
 
 warnings.filterwarnings("ignore")
@@ -567,6 +567,7 @@ def train(args):
                 "params":{k: v for k, v in pipe.get_params().items() if "__" in k and isinstance(v, (int, float, str, bool, type(None)))
                           and not (isinstance(v, float) and not np.isfinite(v))},
                 "smote":bool(args.smote),"deduplication":dedup,"class_counts":class_counts,
+                "label_sources":LABEL_SOURCES,
                 "provenance":provenance(args, data_path)}
         with open(model_dir / meta_name,"w") as f:
             json.dump(meta, f, indent=2)

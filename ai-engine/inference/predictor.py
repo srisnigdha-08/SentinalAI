@@ -100,6 +100,12 @@ BLOCK_THRESHOLD   = _threshold_env("BLOCK_THRESHOLD", 0.92)
 # docs/CRITICAL_FIXES_REPORT.md §2.5 (experiments/c2_dedup_eval/threshold_validation).
 MONITOR_THRESHOLD = min(_threshold_env("ALERT_THRESHOLD", 0.90), BLOCK_THRESHOLD)
 ANOMALY_THRESHOLD = -0.55
+# Analyst review (H5): a flow the classifier calls BENIGN but the Isolation Forest finds anomalous is
+# labelled "Unknown"; when its anomaly signal is at least this level the action is REVIEW (no threat, no
+# block). 0.55 = lowest level with <= 0.5 % of benign flows queued on the de-duplicated chronological
+# validation split (`day_holdout_eval.py --protocols review`); on later traffic it queued 0.033 % of benign
+# flows but recovered only 2 of 2,254 attacks the classifier missed. The anomaly tier is a weak signal.
+REVIEW_MIN_SIGNAL = _threshold_env("REVIEW_MIN_ANOMALY_SIGNAL", 0.55)
 
 # Isolation Forest Boundary-Anchored Anomaly Transformation Constants
 # Default 10th-percentile contamination decision boundary offset from isolation_forest_cicids training
@@ -201,6 +207,7 @@ class SentinelPredictor:
         self._loaded = False
         self.explainer = None
         self.registry = None
+        self._low_data_classes = set()
         self.load()
 
     def load(self):
@@ -315,6 +322,8 @@ class SentinelPredictor:
             print(f"[STARTUP] Loaded classification model: {clf_path.name}")
             self.init_explainer()
             self._init_shadow_detectors()
+            self._low_data_classes = {name for name, v in self.class_provenance().items()
+                                      if v.get("sufficientTrainingData") is False}
         except Exception as e:
             log.error(f"Load error: {e}")
 
@@ -464,8 +473,10 @@ class SentinelPredictor:
         rf_s   = max_p if cname != "BENIGN" else (1 - max_p)
         if_sig = self.calculate_if_anomaly_signal(if_score)
         score  = round(combine_threat_score(rf_s, if_sig, cname != "BENIGN"), 4)
+        review = False
         if cname == "BENIGN" and is_anomaly:
             cname = "Unknown"; score = max(score, 0.55)
+            review = if_sig >= REVIEW_MIN_SIGNAL
             
         explanation = []
         if explain:
@@ -487,6 +498,9 @@ class SentinelPredictor:
 
         ms = round((time.perf_counter()-t0)*1000, 2)
         action = "BLOCK" if score>=BLOCK_THRESHOLD else "MONITOR" if score>=MONITOR_THRESHOLD else "ALLOW"
+        if review and action == "ALLOW":
+            # The anomaly tier cannot raise an alert; it can only ask an analyst to look (never auto-block).
+            action = "REVIEW"
         ret = {
             "predictedClass":cname,
             "threatScore":score,
@@ -501,7 +515,9 @@ class SentinelPredictor:
             "featureImportance":explanation,
             "ipReputationScore": rep_score,
             "featureVector": raw_vector,
-            "featureSchemaVersion": FEATURE_SCHEMA_VERSION
+            "featureSchemaVersion": FEATURE_SCHEMA_VERSION,
+            # True when the predicted class had too few training rows for its verdicts to be trusted (H2)
+            "lowTrainingDataClass": cname in self._low_data_classes,
         }
         if shadow_b2_eval is not None:
             ret["shadowB2"] = shadow_b2_eval
@@ -555,6 +571,21 @@ class SentinelPredictor:
             res["shadowE2"] = shadow_e2_eval
         return res
 
+    def class_provenance(self) -> dict:
+        """Per class the deployed classifier can output: what it was trained on and whether that is enough (H2)."""
+        from utils.features import LABEL_SOURCES, MIN_TRAINING_ROWS
+        classes = getattr(self.rf, "classes_", None) if self._loaded else None
+        if classes is None:
+            return {}
+        counts = (self.rf_meta.get("class_counts") or {}).get("train", {})
+        out = {}
+        for c in classes:
+            name = LABEL_NAMES.get(int(c), f"c{int(c)}")
+            rows = counts.get(name)
+            out[name] = {**LABEL_SOURCES.get(name, {}), "trainingRows": rows,
+                         "sufficientTrainingData": None if rows is None else rows >= MIN_TRAINING_ROWS}
+        return out
+
     def get_model_info(self):
         from utils.features import LABEL_MAP
-        return {"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD},"registry":self.registry}
+        return {"classProvenance":self.class_provenance(),"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD,"reviewMinAnomalySignal":REVIEW_MIN_SIGNAL},"registry":self.registry}

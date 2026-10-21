@@ -4,7 +4,7 @@ SentinelAI Q-Learning Deception Engine
 Adapts honeypot OS profile based on attacker engagement.
 Run demo: python deception_scorer.py
 """
-import json, math, random, logging, os, sys, tempfile, secrets, time
+import json, math, random, logging, os, re, sys, tempfile, secrets, time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -82,6 +82,24 @@ PROFILES_LIST = list(PROFILES.keys())
 
 INTENT_BONUSES = {"CREDENTIAL_HARVEST":1.5,"MALWARE_DOWNLOAD":3.0,"REVERSE_SHELL":2.5,"PERSISTENCE":2.0,"PRIVILEGE_ESCALATION":1.5}
 
+# Commands attackers run to tell a honeypot/VM from a real host. A persona that gets checked like this has
+# been (or is about to be) identified, which the reward must penalise rather than count as engagement (H6).
+FINGERPRINT_PATTERNS = [re.compile(p) for p in (
+    r"\b(systemd-detect-virt|virt-what|dmidecode|imvirt)\b",
+    r"/proc/1/(cgroup|sched|environ)",
+    r"\bhypervisor\b",
+    r"\bcowrie\b",
+    r"/sys/class/dmi/id/",
+)]
+FINGERPRINT_PENALTY = 5.0
+REWARD_MIN, REWARD_MAX = -10.0, 20.0
+
+
+def is_fingerprint_command(command) -> bool:
+    text = str(command or "").lower()
+    return any(p.search(text) for p in FINGERPRINT_PATTERNS)
+
+
 def calc_reward(session: dict) -> float:
     r = 0.0
     dur = session.get("durationSeconds", 0)
@@ -91,7 +109,16 @@ def calc_reward(session: dict) -> float:
     for cmd in cmds: r += INTENT_BONUSES.get(cmd.get("intent",""), 0)
     r += session.get("iocCount", 0) * 0.5
     if session.get("loginSucceeded", False): r += 2.0
-    return min(r, 20.0)
+    if any(is_fingerprint_command(c.get("command")) for c in cmds): r -= FINGERPRINT_PENALTY
+    return max(min(r, REWARD_MAX), REWARD_MIN)
+
+# Exploration never decays below this, so a persona that looked bad early is still re-tried and a change in
+# attacker behaviour can be noticed (rewards are non-stationary). The decayed value alone reached ~0.002.
+EPSILON_MIN = 0.05
+# Convergence signal: mean |TD error| over the last CONVERGENCE_WINDOW updates below CONVERGENCE_TOL reward
+# units (2.5 % of the reward range's upper end) means the estimates have stopped moving.
+CONVERGENCE_WINDOW = 100
+CONVERGENCE_TOL = 0.5
 
 LOCK_TIMEOUT_S = 5.0
 LOCK_STALE_S = 30.0
@@ -138,7 +165,7 @@ def _exclusive_lock(target: Path):
 class DeceptionQLearner:
     def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.2, q_table_path="rl_engine/q_table.json"):
         self.alpha=alpha; self.gamma=gamma; self.epsilon=epsilon; self.q_table_path=q_table_path
-        self.episode_count=0; self.total_reward=0.0; self.reward_history=[]
+        self.episode_count=0; self.total_reward=0.0; self.reward_history=[]; self.td_errors=[]
         self.q_table={s:{a:0.0 for a in PROFILES_LIST} for s in PROFILES_LIST}
         # TD updates applied since the last save, and the state of the file when it was last read or written.
         # Together they let save() merge with another process's writes instead of overwriting them (M5).
@@ -155,6 +182,7 @@ class DeceptionQLearner:
                 self.episode_count=data.get("episode_count",0)
                 self.total_reward=data.get("total_reward",0.0)
                 self.reward_history=data.get("reward_history",[])
+                self.td_errors=data.get("td_errors",[])
                 self._disk_signature=_file_signature(p)
             except (OSError, ValueError) as e:
                 log.warning("Q-table at %s could not be read (%s); starting from defaults", p, type(e).__name__)
@@ -166,15 +194,18 @@ class DeceptionQLearner:
                 row.setdefault(a, 0.0)
         cur = table[state][action]
         max_n = max(table.get(next_state, {}).values(), default=0.0)
-        table[state][action] = round(cur + self.alpha * (reward + self.gamma * max_n - cur), 4)
+        td_error = reward + self.gamma * max_n - cur
+        table[state][action] = round(cur + self.alpha * td_error, 4)
+        return abs(td_error)
 
     def _merge_foreign_writes(self, target: Path):
         """Another process saved since we last read/wrote: adopt its state, replay our pending updates."""
         with open(target, encoding="utf-8") as f:
             disk = json.load(f)
         table = disk.get("q_table", {})
-        for state, action, reward, next_state in self._pending:
-            self._td_update(table, state, action, reward, next_state)
+        errors = [self._td_update(table, state, action, reward, next_state)
+                  for state, action, reward, next_state in self._pending]
+        self.td_errors = (disk.get("td_errors", []) + [round(e, 4) for e in errors])[-CONVERGENCE_WINDOW:]
         self.q_table = table
         self.episode_count = disk.get("episode_count", 0) + len(self._pending)
         self.total_reward = disk.get("total_reward", 0.0) + sum(r for _, _, r, _ in self._pending)
@@ -245,6 +276,7 @@ class DeceptionQLearner:
                 "episode_count": self.episode_count,
                 "total_reward": round(self.total_reward, 2),
                 "reward_history": self.reward_history[-100:],
+                "td_errors": self.td_errors[-CONVERGENCE_WINDOW:],
                 "saved_at": datetime.now(timezone.utc).isoformat(),
             }
             try:
@@ -263,13 +295,16 @@ class DeceptionQLearner:
             self._disk_signature = _file_signature(target)
             self._pending = []
 
+    def current_epsilon(self) -> float:
+        return max(EPSILON_MIN, self.epsilon / (1 + self.episode_count * 0.01))
+
     def choose_action(self, state: str) -> str:
-        eps=self.epsilon/(1+self.episode_count*0.01)
-        if random.random()<eps: return random.choice(PROFILES_LIST)
+        if random.random()<self.current_epsilon(): return random.choice(PROFILES_LIST)
         q=self.q_table.get(state,{}); return max(q,key=q.get)
 
     def update(self, state, action, reward, next_state):
-        self._td_update(self.q_table, state, action, reward, next_state)
+        td_error = self._td_update(self.q_table, state, action, reward, next_state)
+        self.td_errors = (self.td_errors + [round(td_error, 4)])[-CONVERGENCE_WINDOW:]
         self._pending.append((state, action, reward, next_state))
         self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
         # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
@@ -279,9 +314,15 @@ class DeceptionQLearner:
         avg={p:sum(self.q_table[s].get(p,0) for s in PROFILES_LIST)/len(PROFILES_LIST) for p in PROFILES_LIST}
         return sorted([{"profile":p,"avgQ":round(q,3),"config":PROFILES[p]} for p,q in avg.items()],key=lambda x:x["avgQ"],reverse=True)
 
+    def convergence(self) -> dict:
+        n = len(self.td_errors)
+        mean = sum(self.td_errors) / n if n else None
+        return {"window": CONVERGENCE_WINDOW, "updates": n, "meanAbsTdError": round(mean, 4) if mean is not None else None,
+                "tolerance": CONVERGENCE_TOL, "converged": n >= CONVERGENCE_WINDOW and mean < CONVERGENCE_TOL}
+
     def get_stats(self):
         recent=self.reward_history[-20:]
-        return {"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.epsilon/(1+self.episode_count*0.01),3),"profileRankings":self.get_profile_rankings()}
+        return {"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.current_epsilon(),3),"epsilonMin":EPSILON_MIN,"convergence":self.convergence(),"profileRankings":self.get_profile_rankings()}
 
 class SessionScorer:
     """
@@ -295,6 +336,7 @@ class SessionScorer:
 
     def process_session(self, session: dict) -> dict:
         reward=calc_reward(session)
+        fingerprinted=any(is_fingerprint_command(c.get("command")) for c in session.get("commands", []))
         active=session.get("deceptionProfile")
         if active not in PROFILES: active=self.current
         state=session.get("previousProfile")
@@ -305,7 +347,7 @@ class SessionScorer:
         self.learner.update(state,active,reward,active)
         self.last_active=active; self.current=active
         next_p=self.learner.choose_action(active)
-        return {"sessionId":session.get("sessionId"),"deceptionScore":round(min(reward*5,100),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"learnerStats":self.learner.get_stats()}
+        return {"sessionId":session.get("sessionId"),"deceptionScore":round(min(reward*5,100),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learnerStats":self.learner.get_stats()}
 
     def get_current_profile(self): return {"name":self.current,"config":PROFILES[self.current]}
 

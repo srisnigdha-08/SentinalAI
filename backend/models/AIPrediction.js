@@ -25,6 +25,9 @@ const AIPredictionSchema = new mongoose.Schema(
       default: 'random_forest',
     },
     isAnomaly: { type: Boolean, default: false },
+    // Classifier said BENIGN but the anomaly tier flagged it strongly (engine action REVIEW): analyst queue,
+    // never a threat or a block. Cleared by verification.
+    needsReview: { type: Boolean, default: false },
     anomalyScore: { type: Number, min: -1, max: 1 },
     featureImportance: { type: Map, of: Number, select: false },
     inferenceTimeMs: Number,

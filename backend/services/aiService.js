@@ -14,7 +14,7 @@ const resetDegradedAlertCooldown = () => {
   lastDegradedAlertAt = 0
 }
 
-const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}) => {
+const findPredictions = async ({ page = 1, limit = 20, minScore, verified, review } = {}) => {
   const {
     page: safePage,
     limit: safeLimit,
@@ -33,6 +33,8 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}
     }
   }
   if (verified !== undefined) filter.verified = verified === true || verified === 'true'
+  // Analyst-review queue: anomalous flows the classifier called BENIGN, not yet verified
+  if (review === true || review === 'true') Object.assign(filter, { needsReview: true, verified: false })
   const total = await AIPrediction.countDocuments(filter)
   const data = await AIPrediction.find(filter)
     .sort({ createdAt: -1 })
@@ -46,6 +48,7 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}
 
 const storePrediction = async (data) => {
   const payload = { ...data }
+  payload.needsReview = data.action === 'REVIEW'
 
   if (data.featureVector !== undefined && data.featureVector !== null) {
     const isArr = Array.isArray(data.featureVector)
@@ -234,6 +237,7 @@ const verifyPrediction = async (id, userId, actualClass) => {
         verifiedBy: userId,
         actualClass: trimmed,
         verifiedAt,
+        needsReview: false,
       },
       $push: {
         verificationHistory: historyEntry,

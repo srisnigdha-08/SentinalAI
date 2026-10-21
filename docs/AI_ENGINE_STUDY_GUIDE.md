@@ -641,14 +641,14 @@ What to do (Phase 5, M-1):
 | RF generalisation to unseen days | **Broken / weak** | LODO detection ≤ 0.4% (deduplicated) | `experiments/c2_dedup_eval/` |
 | XGBoost | **Partially** (trained, better, not served) | 0.9913 / macro 0.907 reproduced; not in the registry | `models/xgb_classifier_cicids.pkl` |
 | Stacking | **Partially** (trained, not served, no SHAP) | macro F1 0.795 | `models/stacking_classifier_cicids.pkl` |
-| IsolationForest anomaly tier | **Partially** | Loads and scores; flags 16% of attacks; cannot raise an alert alone | `predictor.py:444-452` |
+| IsolationForest anomaly tier | **Partially** (now feeds an analyst REVIEW queue; measured as weak, H5) | Loads and scores; flags 16% of attacks; cannot raise an alert alone | `predictor.py:444-452` |
 | Score fusion and thresholds | **Working** (as designed) | Matches `day_holdout_eval` numbers at 0.70/0.85/0.92 | `predictor.py:110-137` |
 | SHAP explanations | **Working** | `TreeExplainer` initialised; `?explain=true` | `predictor.py:337-422` |
-| Train/serve feature consistency | **Working** for schema-named input; **Broken** for CSV-named input | 110/110 equal; CSV test FAIL | `utils/features.py:240-319`, `main.py:114-139` |
+| Train/serve feature consistency | **Working** (CSV-named input fixed by H4) | 110/110 equal; CSV test FAIL | `utils/features.py:240-319`, `main.py:114-139` |
 | Time-of-day leakage fix | **Working** (and moot for deployed models) | (0,0) fallback; importance 0; 24-hour invariance | `utils/features.py:146-238` |
 | Honeypot session classification | **Working** (rule-based, since the C1 fix) | Live: failed login → SSH Brute Force 0.86 MONITOR; `tests/test_honeypot_rules.py` | `predictor.py` `predict_from_honeypot`, `features.py` `classify_honeypot_session` |
 | Q-learning scorer (update + persistence) | **Working** | Worked example reproduced; atomic save; lock and merge | `rl_engine/deception_scorer.py` |
-| Q-learning as a *learning* policy | **Partially** | ε ≈ 0.0016; 4/6 rows explored one action; no convergence check | same |
+| Q-learning as a *learning* policy | **Partially** (ε floor 0.05, fingerprint penalty and convergence signal added, H6; seed table unchanged) | ε ≈ 0.0016; 4/6 rows explored one action; no convergence check | same |
 | Recommendation applied to Cowrie | **Untested** (code exists, optional) | No live-run evidence | `honeypot/deception_rotator.py` |
 | Drift monitor | **Working** (screening statistic) | `/model/drift` reports; needs 200 samples | `monitoring/drift.py` |
 | Supervised retraining + gated promotion | **Untested** (implemented, never run) | No `experiments/retraining/` | `training/retrain_from_samples.py` |
@@ -698,7 +698,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
 
 ## High
 
-### H1. The paper contradicts the code in several checkable places
+### H1. The paper contradicts the code in several checkable places — **ADDRESSED:** replacement text in `docs/PAPER_CORRECTIONS.md` (the PDF is yours to edit)
 | Paper says | Code / artifact says |
 |---|---|
 | "SMOTE … has not yet been applied" | The served RF has exactly the SMOTE-added rows (121,827 = 118,412 + 2,435 + 979 + 1) |
@@ -714,7 +714,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
 
 **Fix:** correct the paper (Phase 6 has the wording), or retrain without SMOTE. Don't defend a sentence the artifact disproves.
 
-### H2. The label taxonomy merges different attacks and invents classes the data can't support
+### H2. The label taxonomy merges different attacks and invents classes the data can't support — **FIXED without a rename** (provenance published, low-data classes flagged; see `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `utils/features.py:47-63`.
 - **What is wrong:**
   - Five DoS/DDoS tools are merged into "DDoS". DoS slowloris is a slow, low-rate attack, the opposite of a flood.
@@ -742,7 +742,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
   X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
   ```
 
-### H4. Train/serve skew: CSV-named fields are silently replaced by schema defaults
+### H4. Train/serve skew: CSV-named fields are silently replaced by schema defaults — **FIXED** (`docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `inference/main.py:114-139` + `utils/features.py:244-252`.
 - **What is wrong:** `Record` gives every snake_case field a default, and `model_dump()` always includes them. `g()` checks the exact snake_case key first, so a caller that sends `"Flow Duration": 24` gets `flow_duration = 1000.0` (verified live). Only the sniffer and the replay script use snake_case today; any CICFlowMeter-native integration would get wrong predictions with no error.
 - **Fix:** let explicitly sent extras win over untouched defaults.
@@ -760,7 +760,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
   ```
   Simpler and stricter alternative: reject requests in which more than N schema fields are defaulted (`defaultedFeatures` already computes this).
 
-### H5. The IsolationForest cannot raise an alert on its own, so the "zero-day" story does not hold
+### H5. The IsolationForest cannot raise an alert on its own, so the "zero-day" story does not hold — **FIXED** (REVIEW action + analyst queue, measured; `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `inference/predictor.py:448-452`, `backend/services/aiService.js:71-73`.
 - **What is wrong:**
   - If the RF says BENIGN, then `threatScore = 0.7·(1−max_p) + 0.3·if_sig`. With max_p ≥ 0.5 that is at most 0.65, and "Unknown" is pinned at 0.55. Both are below the 0.85 alert line.
@@ -776,7 +776,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
   ```
   Tune `ANOMALY_THRESHOLD` on a validation split for a target review rate, and report IF-alone precision/recall honestly.
 
-### H6. The Q-learning design is a near-degenerate MDP with collapsed exploration
+### H6. The Q-learning design is a near-degenerate MDP with collapsed exploration — **FIXED** (ε floor, fingerprint penalty, convergence signal; `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`)
 - **Where:** `rl_engine/deception_scorer.py:139, 266-269, 296-308`.
 - **What is wrong:**
   - **s′ = a always.** There are no environment dynamics; the "state" is just the last action, so this is effectively a bandit.

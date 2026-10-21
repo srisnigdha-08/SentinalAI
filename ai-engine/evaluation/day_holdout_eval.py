@@ -47,7 +47,7 @@ sys.path.insert(0, str(ENGINE_ROOT))
 from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, RAW_LABEL_TO_TARGET, prepare_features  # noqa: E402
 from training.train import IF_PARAMS, RF_PARAMS  # noqa: E402
 from inference.predictor import (  # noqa: E402
-    ANOMALY_THRESHOLD, BLOCK_THRESHOLD, MONITOR_THRESHOLD, anomaly_signal, combine_threat_score)
+    ANOMALY_THRESHOLD, BLOCK_THRESHOLD, MONITOR_THRESHOLD, REVIEW_MIN_SIGNAL, anomaly_signal, combine_threat_score)
 
 BENIGN = LABEL_MAP["BENIGN"]
 DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -204,12 +204,13 @@ def evaluate(rf, ifo, test: pd.DataFrame, trained_classes=None) -> dict:
     p, r, f, s = precision_recall_fscore_support(y, cls, labels=labels, zero_division=0)
     per_class = {
         LABEL_NAMES[int(l)]: {"precision": round(float(pi), 4), "recall": round(float(ri), 4),
-                              "f1": round(float(fi), 4), "support": int(si),
+                              "f1": round(float(fi), 4), "support": int(si), "reliable": bool(si >= MIN_RELIABLE_SUPPORT),
                               **({"seen_in_training": bool(int(l) in trained_classes)} if trained_classes is not None else {})}
         for l, pi, ri, fi, si in zip(labels, p, r, f, s) if si > 0
     }
     benign = y == BENIGN
     attacks = ~benign
+    if_sig = anomaly_signals(ifo, X)
     threat = score >= MONITOR_THRESHOLD  # backend creates a ThreatLog at >= 0.70 for non-BENIGN classes
     raised = threat & ((cls != BENIGN) | unknown)
     fp_cls = int((cls[benign] != BENIGN).sum())
@@ -227,6 +228,7 @@ def evaluate(rf, ifo, test: pd.DataFrame, trained_classes=None) -> dict:
                     "detection_rate_classifier": round(float((cls[attacks] != BENIGN).mean()), 4) if attacks.any() else None,
                     "detection_rate_threat_raised": round(float(raised[attacks].mean()), 4) if attacks.any() else None},
         "per_class": per_class,
+        "isolation_forest": isolation_forest_report(y, cls, if_sig, REVIEW_MIN_SIGNAL),
         "score_rules": {"current": operational(y, cls, score, unknown),
                         "legacy_blend": operational(y, cls, legacy_score, unknown)},
     }
@@ -256,6 +258,62 @@ def run_temporal(data, n_estimators):
     return {"train_rows": len(train), "train_classes": class_counts(train), **evaluate(rf, ifo, test)}
 
 
+def anomaly_signals(ifo, X):
+    """The live predictor's bounded anomaly signal (0 = not anomalous) for every row."""
+    return anomaly_signal(ifo.named_steps["if"].score_samples(ifo.named_steps["scaler"].transform(X)))
+
+
+def isolation_forest_report(y, cls, if_sig, review_level) -> dict:
+    """
+    What the Isolation Forest contributes on its own (H5): its flag rate on benign and attack flows, and the
+    analyst-review queue = flows the classifier calls BENIGN whose anomaly signal is >= review_level
+    (inference/predictor.py: predictedClass "Unknown", action "REVIEW"). Attack flows in that queue are the
+    only attacks the anomaly tier recovers; it never raises an alert by itself.
+    """
+    benign, attacks = y == BENIGN, y != BENIGN
+    flagged = if_sig > 0
+    review = (cls == BENIGN) & (if_sig >= review_level) & flagged
+    missed = attacks & (cls == BENIGN)
+    return {
+        "flag_rate_benign": round(float(flagged[benign].mean()), 6) if benign.any() else None,
+        "flag_rate_attack": round(float(flagged[attacks].mean()), 6) if attacks.any() else None,
+        "review_level": review_level,
+        "review_rate_benign": round(float(review[benign].mean()), 6) if benign.any() else None,
+        "review_queue_size": int(review.sum()),
+        "review_queue_attack_share": round(float(attacks[review].mean()), 6) if review.any() else None,
+        "attacks_missed_by_classifier": int(missed.sum()),
+        "missed_attacks_sent_to_review": int((missed & review).sum()),
+    }
+
+
+REVIEW_BENIGN_TARGET = 0.005  # at most 0.5 % of benign flows may enter the analyst-review queue
+REVIEW_LEVELS = [round(0.05 * i, 2) for i in range(21)]  # anomaly signal 0.00 .. 1.00
+
+
+def run_review(data, n_estimators, target=REVIEW_BENIGN_TARGET):
+    """
+    Choose the anomaly signal at which a BENIGN-classified flow is sent to analyst review, without touching the
+    test rows: same fit / validation / test split as run_threshold; the lowest level whose benign review rate
+    on validation is <= target is selected, then measured once on test.
+    """
+    train_all, test = chronological_split(data)
+    fit_rows, validation = chronological_split(train_all, train_fraction=0.80, purge_fraction=PURGE_FRACTION)
+    fit_rows, validation, test = cap(fit_rows, TRAIN_CAPS), cap(validation, TEST_CAPS), cap(test, TEST_CAPS)
+    rf, ifo = fit(fit_rows, n_estimators)
+
+    def at(frame, level):
+        X, y = frame[FEATURE_NAMES].to_numpy(), frame["y"].to_numpy()
+        cls, _, _ = production_scores(rf, ifo, X)
+        return isolation_forest_report(y, cls, anomaly_signals(ifo, X), level)
+
+    sweep = [at(validation, level) for level in REVIEW_LEVELS]
+    chosen = next((s["review_level"] for s in sweep if s["review_rate_benign"] <= target), REVIEW_LEVELS[-1])
+    return {"target_benign_review_rate": target, "validation_sweep": sweep, "chosen_level": chosen,
+            "test_at_chosen_level": at(test, chosen),
+            "test_sweep_not_used_for_selection": [at(test, level) for level in REVIEW_LEVELS]}
+
+
+MIN_RELIABLE_SUPPORT = 30  # per-class test rows below this: metric reported but marked unreliable (H2)
 ALERT_FPR_TARGET = 0.001
 CANDIDATE_LINES = [round(0.70 + 0.01 * i, 2) for i in range(30)]  # 0.70 .. 0.99
 
@@ -425,6 +483,8 @@ def main():
             report["protocols"]["deployed_on_temporal"] = run_deployed(data, ENGINE_ROOT / "models")
         elif name == "threshold":
             report["protocols"]["threshold"] = run_threshold(data, args.n_estimators)
+        elif name == "review":
+            report["protocols"]["review"] = run_review(data, args.n_estimators)
         else:
             ap.error(f"unknown protocol {name}")
         print(f"  done in {time.time() - t0:.1f}s", flush=True)

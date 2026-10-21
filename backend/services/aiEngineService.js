@@ -156,7 +156,8 @@ const runFullPipeline = async (record, _io = null) => {
     result.predictedClass === 'UNINSPECTED_TRAFFIC'
   ) {
     action = 'MONITOR'
-  } else if (result.action === 'MONITOR' || result.action === 'BLOCK') {
+  } else if (result.action === 'MONITOR' || result.action === 'BLOCK' || result.action === 'REVIEW') {
+    // REVIEW: anomalous but classified BENIGN; stored for analyst review, never a threat or a block
     action = result.action
   } else {
     action = score >= blockThreshold ? 'BLOCK' : score >= alertThreshold ? 'MONITOR' : 'ALLOW'

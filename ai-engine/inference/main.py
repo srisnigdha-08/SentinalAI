@@ -21,7 +21,7 @@ from inference.predictor import SentinelPredictor
 from inference.deception import get_scorer, save_scorer
 from inference.errors import ModelUnavailableError
 from monitoring.drift import DriftMonitor
-from utils.features import FEATURE_NAMES
+from utils.features import FEATURE_NAMES, CANDIDATES
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.exceptions import RequestValidationError
 
@@ -143,13 +143,16 @@ class Record(BaseModel):
     def finite_features(cls, values):
         if isinstance(values, dict):
             for name in FEATURE_NAMES:
-                if name in values:
+                # Aliases too: a CSV-named NaN/Infinity must be rejected, not silently replaced by a default.
+                for key in dict.fromkeys([name, *CANDIDATES.get(name, [])]):
+                    if key not in values:
+                        continue
                     try:
-                        finite = math.isfinite(float(values[name]))
+                        finite = math.isfinite(float(values[key]))
                     except (TypeError, ValueError, OverflowError):
                         finite = False
                     if not finite:
-                        raise ValueError(f"{name} must be a finite number")
+                        raise ValueError(f"{key} must be a finite number")
         return values
 
 class SessionData(BaseModel):
@@ -160,9 +163,31 @@ class SessionData(BaseModel):
     timestamp: Optional[Union[str, float, int]] = None
     model_config = ConfigDict(extra="allow")
 
+def _norm_key(k) -> str:
+    return str(k).strip().lower().replace("_", "").replace(" ", "").replace("/", "")
+
+def _alias_fields(record: "Record") -> set:
+    """Schema fields the caller sent under another recognised name (e.g. CICFlowMeter's "Flow Duration")."""
+    sent = {_norm_key(k) for k in (record.model_extra or {})}
+    return {f for f in Record.model_fields if f not in record.model_fields_set
+            and any(_norm_key(c) in sent for c in CANDIDATES.get(f, []) if c != f)}
+
+def _record_payload(record: "Record") -> dict:
+    """
+    Feature payload for the predictor. A Record default (flow_duration=1000, ...) must not shadow a value the
+    caller sent under an alias: extract_features_from_record tries the snake_case key first, so the default is
+    dropped and the alias is used (H4, docs/AI_ENGINE_STUDY_GUIDE.md).
+    """
+    payload = record.model_dump()
+    for field in _alias_fields(record):
+        payload.pop(field, None)
+    return payload
+
 def _defaulted_features(record: "Record") -> list:
-    """Raw flow fields the caller did not send and that were filled with schema defaults."""
-    return [f for f in Record.model_fields if f not in ("sourceIP", "timestamp") and f not in record.model_fields_set]
+    """Raw flow fields the caller did not send under any recognised name and that were filled with schema defaults."""
+    aliased = _alias_fields(record)
+    return [f for f in Record.model_fields if f not in ("sourceIP", "timestamp")
+            and f not in record.model_fields_set and f not in aliased]
 
 def _public_result(r: dict) -> dict:
     if not isinstance(r, dict):
@@ -283,7 +308,7 @@ async def model_stats():
 @app.post("/predict", dependencies=[Depends(verify_api_key)])
 def predict(record: Record, bg: BackgroundTasks, explain: bool = False):
     if not predictor: raise HTTPException(503,"Not ready")
-    r = predictor.predict(record.model_dump(), explain=explain); _upd(r)
+    r = predictor.predict(_record_payload(record), explain=explain); _upd(r)
     r["defaultedFeatures"] = _defaulted_features(record)
     bg.add_task(_notify, r, record.sourceIP)
     return {"success":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
@@ -292,7 +317,7 @@ def predict(record: Record, bg: BackgroundTasks, explain: bool = False):
 def predict_internal(record: Record, explain: bool = False):
     """Backend-owned persistence: returns the raw vector and never calls back."""
     if not predictor: raise HTTPException(503, "Not ready")
-    result = predictor.predict(record.model_dump(), explain=explain)
+    result = predictor.predict(_record_payload(record), explain=explain)
     _upd(result)
     result["defaultedFeatures"] = _defaulted_features(record)
     return {"success": True, "result": result}
@@ -314,7 +339,7 @@ def predict_eval(record: Record, explain: bool = False):
     server-wide stats mutation, and automated containment.
     """
     if not predictor: raise HTTPException(503, "Not ready")
-    r = predictor.predict(record.model_dump(), explain=explain)
+    r = predictor.predict(_record_payload(record), explain=explain)
     r["defaultedFeatures"] = _defaulted_features(record)
     return {"success":True,"evaluation":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
@@ -325,7 +350,7 @@ def predict_batch(records: List[Record], bg: BackgroundTasks):
     if len(records)>500: raise HTTPException(400,"Max 500")
     results=[]
     for rec in records:
-        r=predictor.predict(rec.model_dump()); _upd(r); results.append({"sourceIP":rec.sourceIP,"result":_public_result(r)})
+        r=predictor.predict(_record_payload(rec)); _upd(r); results.append({"sourceIP":rec.sourceIP,"result":_public_result(r)})
         if r["threatScore"]>=THRESHOLD: bg.add_task(_notify,r,rec.sourceIP)
     return {"success":True,"total":len(results),"threatCount":sum(1 for r in results if r["result"]["threatScore"]>=THRESHOLD),"results":results}
 

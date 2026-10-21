@@ -62,6 +62,32 @@ RAW_LABEL_TO_TARGET = {
     "Web Attack \ufffd Sql Injection": "SQL Injection"
 }
 
+# What each class actually is (H2). The names are the platform's API/database contract and are kept, but
+# several are broader or narrower than they sound; /model/info and model metadata publish this so nobody
+# reads "Credential Stuffing" as breached-credential replay or "RCE Attempt" as general code execution.
+LABEL_SOURCES = {
+    "BENIGN":              {"cicids": ["BENIGN"], "meaning": "normal traffic"},
+    "SSH Brute Force":     {"cicids": ["SSH-Patator"], "meaning": "SSH password guessing"},
+    "SQL Injection":       {"cicids": ["Web Attack � Sql Injection"], "meaning": "HTTP SQL injection attempts"},
+    "Port Scan":           {"cicids": ["PortScan"], "meaning": "TCP port scanning (nmap)"},
+    "DDoS":                {"cicids": ["DDoS", "DoS Hulk", "DoS GoldenEye", "DoS slowloris", "DoS Slowhttptest"],
+                            "meaning": "denial of service: HTTP floods, LOIC DDoS and slow-rate DoS (slowloris/slowhttptest)"},
+    "RCE Attempt":         {"cicids": ["Heartbleed"],
+                            "meaning": "exploit of a public-facing service (MITRE T1190); the only flow data is Heartbleed, "
+                                       "a memory disclosure, not remote code execution"},
+    "XSS Attempt":         {"cicids": ["Web Attack � XSS"], "meaning": "HTTP cross-site scripting attempts"},
+    "Malware Beacon":      {"cicids": ["Bot"], "meaning": "Ares botnet command-and-control traffic"},
+    "Credential Stuffing": {"cicids": ["FTP-Patator", "Web Attack � Brute Force"],
+                            "meaning": "password brute force against FTP and an HTTP login form (MITRE T1110), "
+                                       "not replay of breached credentials"},
+    "Lateral Movement":    {"cicids": ["Infiltration"], "meaning": "CICIDS 'Infiltration': internal activity from a compromised host"},
+    "Data Exfiltration":   {"cicids": [], "meaning": "no flow training data; produced only by honeypot session rules"},
+}
+assert set(LABEL_SOURCES) == set(LABEL_MAP)
+assert {raw for v in LABEL_SOURCES.values() for raw in v["cicids"]} == set(RAW_LABEL_TO_TARGET)
+# Below this many training rows a class's flow verdicts and per-class metrics are not statistically meaningful.
+MIN_TRAINING_ROWS = 100
+
 CANDIDATES = {
     "flow_duration": ["flow_duration", "Flow Duration"],
     "total_fwd_packets": ["total_fwd_packets", "Total Fwd Packets", "tot_fwd_pkts"],
