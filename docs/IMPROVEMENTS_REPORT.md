@@ -7,7 +7,7 @@ Date: 2026-10-21 · Branch `db-fixes` · **Uncommitted.** Builds on the fixes in
 
 | # | Improvement | Status | Where |
 |---|---|---|---|
-| 1 | Alert line validated on a validation split; one configurable threshold shared by engine and backend | Done (0.85) | `ai-engine/evaluation/day_holdout_eval.py --protocols threshold`, `inference/predictor.py`, `backend/services/aiEngineService.js`, `aiService.js`, `honeypotService.js` |
+| 1 | Alert line validated on a validation split; one configurable threshold shared by engine and backend | Done (0.85). **Superseded:** re-validated on de-duplicated data, now 0.90 (`docs/CRITICAL_FIXES_REPORT.md` §2.5) | `ai-engine/evaluation/day_holdout_eval.py --protocols threshold`, `inference/predictor.py`, `backend/services/aiEngineService.js`, `aiService.js`, `honeypotService.js` |
 | 2 | Supervised retraining pipeline with gated, human-approved promotion | Done | `backend/utils/exportTrainingSamples.js`, `ai-engine/training/retrain_from_samples.py` |
 | 3 | Model hot reload | Done | `POST /model/reload` (engine), `POST /api/ai/engine/reload` (admin, audited) |
 | 4 | Input-drift detection and alerting | Done | `ai-engine/monitoring/drift.py`, `GET /model/drift`, `GET /api/ai/engine/drift`, `backend/services/driftMonitorService.js` |

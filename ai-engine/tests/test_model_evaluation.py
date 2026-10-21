@@ -24,11 +24,15 @@ def test_model_metadata_verification(evaluator):
     assert meta["expectedFeatureCount"] == 53
     assert meta["featureSchemaVersion"] == FEATURE_SCHEMA_VERSION
     assert meta["rfClassifier"]["exists"] is True
-    assert meta["rfClassifier"]["sha256"].startswith("CA0EFB1F")
+    # The registered (served) artifacts: models/registry.json pins their hashes
+    import json
+    reg = json.loads((Path(__file__).parent.parent / "models" / "registry.json").read_text())
+    assert meta["rfClassifier"]["file"] == reg["classifier"]["file"]
+    assert meta["rfClassifier"]["sha256"] == reg["classifier"]["sha256"].upper()
     assert meta["isolationForest"]["exists"] is True
-    assert meta["isolationForest"]["sha256"].startswith("17BD08FF")
+    assert meta["isolationForest"]["sha256"] == reg["anomaly"]["sha256"].upper()
     assert meta["thresholds"]["block"] == 0.92
-    assert meta["thresholds"]["monitor"] == 0.85  # validated alert line (docs/IMPROVEMENTS_REPORT.md)
+    assert meta["thresholds"]["monitor"] == 0.90  # validated alert line (docs/CRITICAL_FIXES_REPORT.md §2.5)
     assert meta["thresholds"]["anomaly"] == -0.55
 
 

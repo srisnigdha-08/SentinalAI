@@ -94,10 +94,11 @@ def _threshold_env(name, default):
 
 BLOCK_THRESHOLD   = _threshold_env("BLOCK_THRESHOLD", 0.92)
 # Alert line (MONITOR): a non-BENIGN prediction at or above it becomes a threat + alert in the backend.
-# 0.85 = validation-selected line with a 2x margin for temporal drift: on the C1 validation split the
-# point (0.79) and Wilson (0.80) rules met the 0.1 % benign-alert target but exceeded it on later traffic
-# (0.134 % / 0.109 %); 0.85 had 0.046 % on validation. See docs/IMPROVEMENTS_REPORT.md.
-MONITOR_THRESHOLD = min(_threshold_env("ALERT_THRESHOLD", 0.85), BLOCK_THRESHOLD)
+# 0.90 = lowest line meeting the 0.1 % benign-alert target on the de-duplicated chronological validation
+# split (0.097 %); on later traffic it measured 0.154 % with 78.6 % attack detection. The earlier 0.85 was
+# chosen on duplicate-inflated data and measured 0.306 % once duplicates were removed. See
+# docs/CRITICAL_FIXES_REPORT.md §2.5 (experiments/c2_dedup_eval/threshold_validation).
+MONITOR_THRESHOLD = min(_threshold_env("ALERT_THRESHOLD", 0.90), BLOCK_THRESHOLD)
 ANOMALY_THRESHOLD = -0.55
 
 # Isolation Forest Boundary-Anchored Anomaly Transformation Constants
@@ -150,7 +151,7 @@ HONEYPOT_RULES_VERSION = "honeypot_rules_v1"
 HONEYPOT_RULE_SCORES = {
     "BENIGN":            0.40,
     "Port Scan":         0.75,
-    "SSH Brute Force":   0.86,
+    "SSH Brute Force":   0.90,
     "Lateral Movement":  0.90,
     "RCE Attempt":       0.93,
     "Data Exfiltration": 0.95,

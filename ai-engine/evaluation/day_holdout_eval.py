@@ -19,6 +19,9 @@ backend would raise a threat; see backend/services/aiService.js storePrediction)
 (>= 0.92, auto-block when enabled). Both score rules are reported on the same trained models:
 "current" = inference/predictor.py::combine_threat_score, "legacy_blend" = 0.7*rf + 0.3*if (pre-C3).
 
+Exact duplicate rows (same features and label) are dropped before any split, keeping the copy from the
+earliest day, so no test row has an identical twin in train (C2); --no-dedupe reproduces the older runs.
+
 Nothing here writes to models/ or touches the running services. Usage:
   python evaluation/day_holdout_eval.py --data datasets/cicids2017 --out experiments/c1_day_holdout_eval
   python evaluation/day_holdout_eval.py --smoke   # small, fast run to check the pipeline
@@ -76,8 +79,8 @@ def load_file(path: Path, max_rows=None) -> pd.DataFrame:
     return out
 
 
-def load_all(data_dir: Path, max_rows=None) -> pd.DataFrame:
-    files = sorted(data_dir.glob("*.csv"))
+def load_all(data_dir: Path, max_rows=None, dedupe=True) -> pd.DataFrame:
+    files = sorted(data_dir.glob("*.csv"), key=lambda f: (DAYS.index(day_of(f)) if day_of(f) in DAYS else 99, f.name))
     if not files:
         raise FileNotFoundError(f"No CSV files in {data_dir}")
     frames = []
@@ -85,7 +88,20 @@ def load_all(data_dir: Path, max_rows=None) -> pd.DataFrame:
         t0 = time.time()
         frames.append(load_file(f, max_rows))
         print(f"  loaded {f.name}: {len(frames[-1]):,} rows ({time.time() - t0:.1f}s)", flush=True)
-    return pd.concat(frames, ignore_index=True)
+    data = pd.concat(frames, ignore_index=True)
+    if dedupe:
+        data = drop_duplicates(data)
+    return data
+
+
+def drop_duplicates(data: pd.DataFrame) -> pd.DataFrame:
+    """Drop rows whose features and label repeat an earlier row; files are loaded Monday..Friday, so the
+    earliest capture keeps its copy and a later day never re-tests a flow already seen in training."""
+    before = len(data)
+    data = data.drop_duplicates(subset=FEATURE_NAMES + ["y"], keep="first").reset_index(drop=True)
+    data.attrs["duplicates_removed"] = before - len(data)
+    print(f"  removed {before - len(data):,} exact duplicate rows ({(before - len(data)) / max(1, before):.1%})", flush=True)
+    return data
 
 
 def cap(df: pd.DataFrame, caps: dict, seed=42) -> pd.DataFrame:
@@ -303,10 +319,14 @@ def run_lodo(pool, n_estimators):
 
 
 def run_deployed(data, model_dir: Path):
-    """The shipped artifact on the temporal test rows. Its training rows are unknown and were drawn
-    from these same files, so this is NOT an independent estimate; reported for comparison only."""
+    """The registered (served) artifact on the temporal test rows. It was trained on a random split of
+    these same files, so this is NOT an independent estimate; reported for comparison only."""
     import joblib
-    rf_path, if_path = model_dir / "rf_classifier_cicids_v2.pkl", model_dir / "isolation_forest_cicids.pkl"
+    from inference.predictor import load_registry
+    reg = load_registry(model_dir)
+    if reg is None:
+        return {"skipped": "no models/registry.json"}
+    rf_path, if_path = model_dir / reg["classifier"]["file"], model_dir / reg["anomaly"]["file"]
     if not (rf_path.exists() and if_path.exists()):
         return {"skipped": "deployed model files not found"}
     _, test = chronological_split(data)
@@ -366,19 +386,22 @@ def main():
     ap.add_argument("--n-estimators", type=int, default=None, help="override RF/IF trees (default: production 200)")
     ap.add_argument("--max-rows-per-file", type=int, default=None)
     ap.add_argument("--smoke", action="store_true", help="20k rows/file, 30 trees: quick pipeline check")
+    ap.add_argument("--no-dedupe", action="store_true", help="keep exact duplicate rows (reproduces pre-C2 runs)")
     args = ap.parse_args()
     if args.smoke:
         args.max_rows_per_file, args.n_estimators = args.max_rows_per_file or 20000, args.n_estimators or 30
 
     t_start = time.time()
     print("Loading CICIDS2017 CSVs...", flush=True)
-    data = load_all(Path(args.data), args.max_rows_per_file)
+    data = load_all(Path(args.data), args.max_rows_per_file, dedupe=not args.no_dedupe)
     pool = cap(data, TEST_CAPS)
     wanted = [p.strip() for p in args.protocols.split(",") if p.strip()]
     report = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "data_dir": str(Path(args.data).resolve()),
         "rows_after_cleaning": int(len(data)),
+        "deduplicated": not args.no_dedupe,
+        "duplicates_removed": int(data.attrs.get("duplicates_removed", 0)),
         "class_counts_after_cleaning": class_counts(data),
         "recipe": {"rf_params": dict(RF_PARAMS, **({"n_estimators": args.n_estimators} if args.n_estimators else {})),
                    "if_params": dict(IF_PARAMS, **({"n_estimators": args.n_estimators} if args.n_estimators else {})),

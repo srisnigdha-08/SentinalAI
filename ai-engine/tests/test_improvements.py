@@ -62,7 +62,7 @@ def _fake_predictor(loaded=True, registry=None):
     p.registry = registry or {"classifier": "rf_x.pkl"}
     scaler = MagicMock(mean_=np.zeros(len(FEATURE_NAMES)), var_=np.ones(len(FEATURE_NAMES)))
     p.clf.named_steps = {"scaler": scaler}
-    p.get_model_info.return_value = {"registry": p.registry, "thresholds": {"monitor": 0.85}}
+    p.get_model_info.return_value = {"registry": p.registry, "thresholds": {"monitor": 0.90}}
     return p
 
 

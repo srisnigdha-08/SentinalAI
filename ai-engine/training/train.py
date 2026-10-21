@@ -4,8 +4,13 @@ SentinelAI Model Training
 Usage:
   python training/train.py --synthetic --rows 20000
   python training/train.py --data datasets/cicids.csv
+  python training/train.py --data datasets/cicids2017 --model-dir models --version rf_cicids_v3   # deployed recipe
+
+Exact duplicate rows (same 53 features and label) are removed before the split, so no test row has an
+identical copy in train (C2, docs/CRITICAL_FIXES_REPORT.md). The metadata records the CLI arguments,
+parameters, split, row/class counts, dataset hashes and git commit needed to rebuild the artifact.
 """
-import sys, os, time, json, joblib, argparse, warnings
+import sys, os, time, json, joblib, argparse, warnings, hashlib, subprocess
 import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -23,6 +28,43 @@ warnings.filterwarnings("ignore")
 RF_PARAMS = {"n_estimators":200,"max_depth":20,"min_samples_split":5,"min_samples_leaf":1,"class_weight":"balanced","n_jobs":-1,"random_state":42}
 IF_PARAMS  = {"n_estimators":200,"contamination":0.1,"max_samples":"auto","random_state":42,"n_jobs":-1}
 
+def drop_duplicate_rows(X, y):
+    """Keep the first occurrence of every identical (feature vector, label) row, preserving order."""
+    rows = np.column_stack([X, y])
+    _, first = np.unique(rows, axis=0, return_index=True)
+    keep = np.sort(first)
+    _, vec_first = np.unique(X[keep], axis=0, return_index=True)
+    stats = {"rows_before": int(len(X)), "rows_after": int(len(keep)), "removed": int(len(X) - len(keep)),
+             "conflicting_label_vectors": int(len(keep) - len(vec_first))}
+    return X[keep], y[keep], stats
+
+
+def file_sha256(path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def provenance(args, data_path):
+    """What is needed to rebuild an artifact: CLI, code revision, libraries, input file hashes."""
+    import sklearn
+    try:
+        git = lambda *a: subprocess.run(["git", *a], capture_output=True, text=True, cwd=Path(__file__).parent,
+                                        timeout=10).stdout.strip()
+        commit = git("rev-parse", "HEAD") or None
+        dirty = bool(git("status", "--porcelain", "--", ".")) if commit else None
+    except (OSError, subprocess.SubprocessError):
+        commit = dirty = None
+    files = []
+    if data_path is not None:
+        files = sorted(data_path.glob("*.csv")) if data_path.is_dir() else [data_path]
+    return {"cli_args": {k: v for k, v in vars(args).items()}, "git_commit": commit, "git_dirty": dirty,
+            "python": sys.version.split()[0], "sklearn": sklearn.__version__, "numpy": np.__version__,
+            "data_sha256": {f.name: file_sha256(f) for f in files}}
+
+
 def train(args):
     model_dir = Path(args.model_dir)
     model_dir.mkdir(parents=True, exist_ok=True)
@@ -31,6 +73,7 @@ def train(args):
     print("=" * 55)
 
     suffix = ""
+    data_path = None
     if args.synthetic or not args.data:
         print(f"Generating {args.rows:,} synthetic samples...")
         df = generate(args.rows)
@@ -191,10 +234,16 @@ def train(args):
             print(f"  {k_safe}: {v:,}")
         print(f"Total Rows: {len(df):,}")
 
-    # Fail instead of training on silently zero-filled columns (renamed/missing CSV headers)
-    X, y = prepare_features(df, max_missing=0)
+    # Fail instead of training on silently zero-filled columns (renamed/missing CSV headers). The synthetic
+    # generator has no init-window/active/idle/down-up columns by design, so the check applies to real data.
+    X, y = prepare_features(df, max_missing=0 if suffix else None)
+    X, y, dedup = drop_duplicate_rows(X, y)
+    print(f"Removed {dedup['removed']:,} exact duplicate rows ({dedup['removed'] / max(1, dedup['rows_before']):.1%}); "
+          f"{dedup['conflicting_label_vectors']:,} feature vectors carry more than one label and are kept")
     X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
     print(f"Train: {len(X_train):,} | Test: {len(X_test):,}")
+    class_counts = {split: {LABEL_NAMES[int(k)]: int(v) for k, v in zip(*np.unique(labels, return_counts=True))}
+                    for split, labels in (("train", y_train), ("test", y_test))}
 
     if args.smote:
         unique_cls, counts_cls = np.unique(y_train, return_counts=True)
@@ -499,13 +548,26 @@ def train(args):
             c_f1s = class_f1s[c]
             print(f"  {c_name}: {np.mean(c_f1s):.4f} ± {np.std(c_f1s):.4f}")
 
+    if args.version:
+        prefix = {"XGBClassifier": "xgb_classifier", "StackingClassifier": "stacking_classifier"}.get(model_type_str, "rf_classifier")
+        pkl_name, meta_name, version_str = f"{prefix}_{args.version}.pkl", f"{prefix}_{args.version}_meta.json", args.version
+        if (model_dir / pkl_name).exists():
+            raise SystemExit(f"Refusing to overwrite existing model file {model_dir / pkl_name}")
+
     if should_save:
         model_path = model_dir / pkl_name
         joblib.dump(pipe, model_path)
         meta = {"model_type":model_type_str,"version":version_str,"trained_at":datetime.utcnow().isoformat(),
                 "n_features":len(FEATURE_NAMES),"feature_names":FEATURE_NAMES,
                 "classes":{str(k):v for k,v in LABEL_MAP.items()},
-                "metrics":{"accuracy":round(acc,4),"f1_weighted":round(f1_weighted,4),"f1_macro":round(f1_macro,4)}}
+                "metrics":{"accuracy":round(acc,4),"f1_weighted":round(f1_weighted,4),"f1_macro":round(f1_macro,4)},
+                "evaluation":{"split":"stratified_random_80_20","random_state":42,"deduplicated":True,
+                              "independent_holdout":False,
+                              "note":"Random row split; see evaluation/day_holdout_eval.py for chronological and leave-one-day-out results"},
+                "params":{k: v for k, v in pipe.get_params().items() if "__" in k and isinstance(v, (int, float, str, bool, type(None)))
+                          and not (isinstance(v, float) and not np.isfinite(v))},
+                "smote":bool(args.smote),"deduplication":dedup,"class_counts":class_counts,
+                "provenance":provenance(args, data_path)}
         with open(model_dir / meta_name,"w") as f:
             json.dump(meta, f, indent=2)
         print(f"\nModel saved to {model_path}")
@@ -547,7 +609,12 @@ def train(args):
     ifo.fit(X_benign)
     print(f"  Trained on {len(X_benign):,} benign samples | Time: {time.time()-t0:.1f}s")
 
-    if suffix:
+    if args.version:
+        if_path = model_dir / f"isolation_forest_{args.version}.pkl"
+        if_meta_path = model_dir / f"isolation_forest_{args.version}_meta.json"
+        if if_path.exists():
+            raise SystemExit(f"Refusing to overwrite existing model file {if_path}")
+    elif suffix:
         if_path = model_dir / "isolation_forest_cicids.pkl"
         if_meta_path = model_dir / "isolation_forest_cicids_meta.json"
     else:
@@ -556,7 +623,9 @@ def train(args):
 
     joblib.dump(ifo, if_path)
     with open(if_meta_path,"w") as f:
-        json.dump({"model_type":"IsolationForest","version":"v1.4_cicids" if suffix else "v1.4","trained_at":datetime.utcnow().isoformat(),"n_features":len(FEATURE_NAMES)},f,indent=2)
+        json.dump({"model_type":"IsolationForest","version":args.version or ("v1.4_cicids" if suffix else "v1.4"),"trained_at":datetime.utcnow().isoformat(),
+                   "n_features":len(FEATURE_NAMES),"feature_names":FEATURE_NAMES,"params":IF_PARAMS,"benign_training_rows":int(len(X_benign)),
+                   "provenance":provenance(args, data_path)},f,indent=2)
 
     print(f"\nModels saved to {model_dir}/")
     print("=" * 55)
@@ -571,4 +640,6 @@ if __name__ == "__main__":
     p.add_argument("--cv", action="store_true", help="Run 5-Fold Stratified Cross-Validation")
     p.add_argument("--tune", action="store_true", help="Run hyperparameter tuning (RF only)")
     p.add_argument("--smote", action="store_true", help="Apply SMOTE to rare classes in training data")
+    p.add_argument("--version", type=str, default=None,
+                   help="Write <model>_<version>.pkl / isolation_forest_<version>.pkl (never overwrites); register with training/register_model.py")
     train(p.parse_args())

@@ -8,10 +8,13 @@ code unchanged, intercepts that split call (nothing is trained or written), and 
 files in models/ (plus the root models/ copy) on the captured X_test. It also measures how many test
 rows are exact duplicates of training rows, which a random row split does not prevent.
 
-  python evaluation/reproduce_reported_metrics.py            # from ai-engine/, ~2-3 min, ~3 GB RAM
+  python evaluation/reproduce_reported_metrics.py                 # as reported (duplicates kept), ~2-3 min
+  python evaluation/reproduce_reported_metrics.py --deduplicated  # train.py's current, de-duplicated split
 
-The split is random and row-level, so these numbers are the paper's numbers, not an independent
-estimate; evaluation/day_holdout_eval.py gives the chronological and leave-one-day-out estimates.
+By default train.py's de-duplication (C2) is switched off so the August split that produced the paper's
+numbers is rebuilt exactly. With --deduplicated only the registered model is a fair comparison: the older
+artifacts were trained on rows that land in the de-duplicated test set. The split is random and row-level
+either way; evaluation/day_holdout_eval.py gives the chronological and leave-one-day-out estimates.
 """
 import argparse
 import sys
@@ -33,22 +36,26 @@ from inference.predictor import (  # noqa: E402
     ANOMALY_THRESHOLD, BLOCK_THRESHOLD, MONITOR_THRESHOLD, anomaly_signal, combine_threat_score)
 
 MODELS = {
-    "deployed RF  models/rf_classifier_cicids_v2.pkl": ENGINE_ROOT / "models" / "rf_classifier_cicids_v2.pkl",
+    "registered   (models/registry.json)": None,
+    "Aug RF       models/rf_classifier_cicids_v2.pkl": ENGINE_ROOT / "models" / "rf_classifier_cicids_v2.pkl",
     "root copy    ../models/rf_classifier_cicids_v2.pkl": ENGINE_ROOT.parent / "models" / "rf_classifier_cicids_v2.pkl",
     "RF v1        models/rf_classifier_cicids.pkl": ENGINE_ROOT / "models" / "rf_classifier_cicids.pkl",
     "XGBoost      models/xgb_classifier_cicids.pkl": ENGINE_ROOT / "models" / "xgb_classifier_cicids.pkl",
     "Stacking     models/stacking_classifier_cicids.pkl": ENGINE_ROOT / "models" / "stacking_classifier_cicids.pkl",
 }
-DETAILED = ("deployed RF", "XGBoost")
+DETAILED = ("registered", "XGBoost")
 
 
 class _Captured(Exception):
     pass
 
 
-def capture_split(data_dir: Path):
+def capture_split(data_dir: Path, deduplicated: bool):
     captured = {}
-    real_split = T.train_test_split
+    real_split, real_dedupe = T.train_test_split, T.drop_duplicate_rows
+    if not deduplicated:
+        T.drop_duplicate_rows = lambda X, y: (X, y, {"rows_before": len(X), "rows_after": len(X), "removed": 0,
+                                                     "conflicting_label_vectors": 0})
 
     def spy(X, y, **kw):
         captured["split"] = real_split(X, y, **kw)
@@ -61,7 +68,7 @@ def capture_split(data_dir: Path):
     except _Captured:
         pass
     finally:
-        T.train_test_split = real_split
+        T.train_test_split, T.drop_duplicate_rows = real_split, real_dedupe
     return captured["split"]
 
 
@@ -72,9 +79,13 @@ def row_keys(X):
 def main():
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[1])
     ap.add_argument("--data", default=str(ENGINE_ROOT / "datasets" / "cicids2017"))
+    ap.add_argument("--deduplicated", action="store_true", help="use train.py's current de-duplicated split")
     args = ap.parse_args()
 
-    X_train, X_test, y_train, y_test = capture_split(Path(args.data))
+    from inference.predictor import load_registry
+    reg = load_registry(ENGINE_ROOT / "models")
+    MODELS["registered   (models/registry.json)"] = ENGINE_ROOT / "models" / reg["classifier"]["file"] if reg else None
+    X_train, X_test, y_train, y_test = capture_split(Path(args.data), args.deduplicated)
     print(f"\ntrain={len(X_train):,} test={len(X_test):,}")
     train_keys = set(row_keys(X_train))
     dup = np.array([k in train_keys for k in row_keys(X_test)])
@@ -84,10 +95,10 @@ def main():
         print(f"  {LABEL_NAMES[c]:<20} {dup[m].mean():6.1%} of {m.sum():,}")
 
     benign = y_test == 0
-    ifo = joblib.load(ENGINE_ROOT / "models" / "isolation_forest_cicids.pkl")
+    ifo = joblib.load(ENGINE_ROOT / "models" / (reg["anomaly"]["file"] if reg else "isolation_forest_cicids.pkl"))
     preds = {}
     for name, path in MODELS.items():
-        if not path.exists():
+        if path is None or not path.exists():
             print(f"\n{name}: missing, skipped")
             continue
         model = joblib.load(path)
@@ -106,7 +117,7 @@ def main():
                                     digits=4, zero_division=0))
         print(pd.DataFrame(confusion_matrix(y_test, cls, labels=labels),
                            index=[LABEL_NAMES[i][:12] for i in labels], columns=[LABEL_NAMES[i][:6] for i in labels]))
-        if name.startswith("deployed RF"):
+        if name.startswith("registered"):
             max_p = proba.max(1)
             if_score = ifo.named_steps["if"].score_samples(ifo.named_steps["scaler"].transform(X_test))
             score = combine_threat_score(np.where(cls != 0, max_p, 1 - max_p), anomaly_signal(if_score), cls != 0)
@@ -121,9 +132,9 @@ def main():
             imp = model.named_steps["rf"].feature_importances_
             print("  top features:", ", ".join(f"{FEATURE_NAMES[i]}={imp[i]:.3f}" for i in np.argsort(-imp)[:8]))
             print("  zero-importance:", ", ".join(FEATURE_NAMES[i] for i in np.flatnonzero(imp == 0)))
-    a, b = (preds.get(k) for k in list(MODELS)[:2])
+    a, b = (preds.get(k) for k in list(MODELS)[1:3])
     if a is not None and b is not None:
-        print(f"\nDeployed RF vs root copy disagree on {np.sum(a != b):,} of {len(a):,} test rows ({np.mean(a != b):.3%})")
+        print(f"\nAug RF vs root copy disagree on {np.sum(a != b):,} of {len(a):,} test rows ({np.mean(a != b):.3%})")
 
 
 if __name__ == "__main__":

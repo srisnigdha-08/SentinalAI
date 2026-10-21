@@ -146,9 +146,11 @@ so each figure says which split it comes from (full method and results:
 The XGBoost candidate (99.13% accuracy) was measured on the same random split and is not deployed.
 
 ### Alerting (backend threat/alert creation)
-The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.85**, chosen on a
-validation split with a safety margin for drift (`ALERT_THRESHOLD`). On the later, held-out traffic of the
-chronological split it alerts on **87.5% of attacks** with **0.085% of benign flows** raising an alert.
+The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),
+the lowest line meeting a 0.1% benign-alert target on a chronological validation split of the de-duplicated
+data. On the later, held-out traffic it alerts on **78.6% of attacks** with **0.154% of benign flows** raising
+an alert (95% CI 0.136–0.174%). Attacks from a capture day never seen in training are essentially not
+detected. See `docs/CRITICAL_FIXES_REPORT.md`.
 
 ### 🔍 Scientific Transparency: Addressing Real-World Class Imbalance
 In alignment with academic honesty and scientific rigor, SentinelAI documents performance boundaries when deploying models into live networks:

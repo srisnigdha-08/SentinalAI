@@ -95,7 +95,8 @@ def run(port, key, q_path):
         check(c.get("/model/info").status_code == 401, "GET /model/info without key -> 401")
         check(c.get("/model/info", headers={"X-API-Key": "wrong"}).status_code == 403, "wrong key -> 403")
         info = c.get("/model/info", headers=H).json()
-        check(info["modelsLoaded"] and info["registry"]["classifier"] == "rf_classifier_cicids_v2.pkl",
+        pinned = json.loads((AI / "models" / "registry.json").read_text())["classifier"]["file"]
+        check(info["modelsLoaded"] and info["registry"]["classifier"] == pinned,
               f"GET /model/info serves {info['registry']['classifier']} + {info['registry']['anomaly']} (sha256 verified={info['registry']['verified']})")
         print(f"       thresholds={info['thresholds']}  rfVersion={info['rfVersion']}  metrics={info['rfMetrics']}")
         check(c.get("/metrics").status_code == 200, "GET /metrics from loopback -> 200")

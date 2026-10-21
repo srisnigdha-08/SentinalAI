@@ -29,7 +29,7 @@ services:
       SENTINEL_API: http://backend:5000/api
       CORS_ORIGINS: http://backend:5000
       Q_TABLE_PATH: /data/q_table.json
-      ALERT_THRESHOLD: ${ALERT_THRESHOLD:-0.85}
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD:-0.90}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ai-data:/data # Q-learning state survives container restarts

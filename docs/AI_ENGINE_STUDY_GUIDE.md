@@ -96,7 +96,7 @@ scripts/ai_engine_endpoint_check.py   NEW — live HTTP check of every endpoint
 | `MODEL_DIR` | `ai-engine/models` | `main.py:45`, `deception.py:21` | Where registry + pickles live |
 | `SENTINEL_API` | `http://localhost:5000/api` | `main.py:47` | Backend URL for `_notify` callbacks |
 | `SCORE_THRESHOLD` | `0.7` | `main.py:53` | Engine-side "threat" counter + callback line (≠ the alert line; see M1) |
-| `ALERT_THRESHOLD` | `0.85` | `predictor.py:100` | MONITOR line |
+| `ALERT_THRESHOLD` | `0.90` (0.85 before C2) | `predictor.py:101` | MONITOR line |
 | `BLOCK_THRESHOLD` | `0.92` | `predictor.py:95` | BLOCK line |
 | `CORS_ORIGINS` | `http://localhost:5000` | `main.py:95-99` | CORS allow-list |
 | `METRICS_TOKEN` | unset → loopback only | `main.py:221-225` | `/metrics` access |
@@ -359,7 +359,7 @@ Every route except `/health`, `/ready` and `/metrics` requires `X-API-Key == SEN
                = blend              for BENIGN
    if class == BENIGN and isAnomaly:  class = "Unknown", threatScore = max(threatScore, 0.55)
    ```
-6. **Decide.** `BLOCK` if score ≥ 0.92, `MONITOR` if ≥ 0.85, else `ALLOW` (`:473`). Severity: ≥0.90 CRITICAL, ≥0.70 HIGH, ≥0.50 MEDIUM, else LOW (`:139-143`).
+6. **Decide.** `BLOCK` if score ≥ 0.92, `MONITOR` if ≥ 0.90 (0.85 before C2), else `ALLOW` (`:473`). Severity: ≥0.90 CRITICAL, ≥0.70 HIGH, ≥0.50 MEDIUM, else LOW (`:139-143`).
 7. **Explain (optional).** `?explain=true` gives the top-5 SHAP contributions for the predicted class (`:388-422`).
 
 **Response** (`/predict/internal`; the public routes strip `featureVector` and `featureSchemaVersion`, `main.py:167-170`):
@@ -373,7 +373,7 @@ Every route except `/health`, `/ready` and `/metrics` requires `X-API-Key == SEN
   "defaultedFeatures": ["...fields the caller did not send..."]}}
 ```
 
-The backend creates a threat when `threatScore ≥ alert line (0.85)` **and** `predictedClass ≠ "BENIGN"` (`backend/services/aiService.js:71-73`). It auto-blocks at ≥ 0.92 only when the `autoBlockEnabled` setting is true (`:92-97`).
+The backend creates a threat when `threatScore ≥ alert line (0.90; 0.85 before C2)` **and** `predictedClass ≠ "BENIGN"` (`backend/services/aiService.js:71-73`). It auto-blocks at ≥ 0.92 only when the `autoBlockEnabled` setting is true (`:92-97`).
 
 **The honeypot path**, `predict_from_honeypot` (`predictor.py`, after the C1 fix):
 - Cowrie sessions contain no packet statistics, so **no model runs**.
@@ -453,7 +453,7 @@ An attacker logs in to the **centos_7** persona; the previous persona was **ubun
                                                          │  stats + DriftMonitor.record(vector)              │
                                                          └──────────────┬────────────────────────────────────┘
    backend aiService.storePrediction ◄──── JSON {predictedClass, threatScore, action, featureVector, ...} ┘
-     ├─ score ≥ 0.85 and class ≠ BENIGN → ThreatLog (+ auto-block ≥ 0.92 if autoBlockEnabled)
+     ├─ score ≥ 0.90 and class ≠ BENIGN → ThreatLog (+ auto-block ≥ 0.92 if autoBlockEnabled)
      └─ analyst labels → TrainingSample → exportTrainingSamples.js → retrain_from_samples.py (offline)
 
  Cowrie session ─► backend ─► /predict/honeypot/internal (rules → class + score; no model)  [C1 fixed]
@@ -619,7 +619,7 @@ What to do (Phase 5, M-1):
 6. `POST /model/reload` hot-swaps the new model.
 7. `GET /model/drift` (`monitoring/drift.py`) is the trigger signal.
 
-**But:** it has **never been run** (no `experiments/retraining/`, and `registry.json` still points at the August files). It is **manual**: a human runs a CLI and passes `--promote`. The SGD `partial_fit` "online learner" your paper describes is **NOT FOUND** in code (only an unused root `models/sgd_classifier_cicids.pkl`).
+**But:** it has **never been run** (no `experiments/retraining/`; the registry was later re-pinned to `cicids_v3` by the C2 retrain, not by this pipeline). It is **manual**: a human runs a CLI and passes `--promote`. The SGD `partial_fit` "online learner" your paper describes is **NOT FOUND** in code (only an unused root `models/sgd_classifier_cicids.pkl`).
 
 ## 3.6 Which RF copy is loaded, and do the copies differ?
 
@@ -637,8 +637,8 @@ What to do (Phase 5, M-1):
 |---|---|---|---|
 | FastAPI service, auth, validation | **Working** | 393 tests; live 401/403/422/400 checks | `inference/main.py` |
 | Model registry + SHA-256 + sklearn pin | **Working** | `/model/info` verified=true; `register_model.py --check` | `inference/predictor.py:157-249`, `training/register_model.py` |
-| RF flow classifier | **Working** (on known attack types) | 0.9843 reproduced; 109/110 real rows sensible | `models/rf_classifier_cicids_v2.pkl` |
-| RF generalisation to unseen days | **Broken / weak** | LODO detection ≈ 0%, chronological macro F1 0.739 | `experiments/c1_day_holdout_eval/` |
+| RF flow classifier | **Working** (on known attack types) | August v2: 0.9843 reproduced. **Served since C2: `cicids_v3`**, deduplicated: random 0.9847 / macro 0.842; chronological macro 0.750, 79.5% detection | `models/rf_classifier_cicids_v3.pkl` |
+| RF generalisation to unseen days | **Broken / weak** | LODO detection ≤ 0.4% (deduplicated) | `experiments/c2_dedup_eval/` |
 | XGBoost | **Partially** (trained, better, not served) | 0.9913 / macro 0.907 reproduced; not in the registry | `models/xgb_classifier_cicids.pkl` |
 | Stacking | **Partially** (trained, not served, no SHAP) | macro F1 0.795 | `models/stacking_classifier_cicids.pkl` |
 | IsolationForest anomaly tier | **Partially** | Loads and scores; flags 16% of attacks; cannot raise an alert alone | `predictor.py:444-452` |
@@ -673,7 +673,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
   - In a viva demo, an examiner who runs the brute-force scenario sees "BENIGN".
 - **Fix applied:** `predict_from_honeypot` now returns the rule verdict and runs no model.
   - `classify_honeypot_session` was factored out of `extract_features_from_honeypot`. That function is kept but no longer used for serving.
-  - `HONEYPOT_RULE_SCORES` puts every attack class at or above the 0.85 alert line, and RCE and exfiltration at or above the 0.92 block line. Auto-block still needs `autoBlockEnabled`. BENIGN (0.40) and Port Scan (0.75) stay below the alert line.
+  - `HONEYPOT_RULE_SCORES` puts every attack class at or above the alert line (0.90 since C2; SSH Brute Force raised from 0.86 to 0.90), and RCE and exfiltration at or above the 0.92 block line. Auto-block still needs `autoBlockEnabled`. BENIGN (0.40) and Port Scan (0.75) stay below the alert line.
   - The engine still answers 503 when the models aren't loaded, so the service stays fail-closed as a whole.
   - Backend: `modelType: 'rules'` (enum extended in `AIPrediction.js`) and `classificationMethod` fallback `'honeypot_rules'`. The frontend tooltip was corrected.
   - Tests: `ai-engine/tests/test_honeypot_rules.py` (17 tests). It covers the rule classes, that no model is called, the thresholds, the command cap, fail-closed behaviour, the HTTP route, and a regression on the registered artifacts.
@@ -682,14 +682,19 @@ Severity is judged for this project's context: a viva/demo system, with containm
   - The keyword rules match substrings: `nc` matches `once`, `sh` matches `/etc/shadow`. Whole-word matching would be the next step.
   - The rule order puts duration and IOCs first, so a long `wget` session reports as Data Exfiltration.
 
-### C2. The headline metrics come from a contaminated random split; the independent results are much weaker and are not in the paper
+### C2. The headline metrics come from a contaminated random split; the independent results are much weaker and are not in the paper — **FIXED in code and model 2026-10-21** (see `docs/CRITICAL_FIXES_REPORT.md`; the paper text is still yours to edit)
 - **Where:** `training/train.py:196`; paper Table IV.
 - **What is wrong:**
   - Rows are split at random. 15.9% of rows are exact duplicates, and 17.3% of test rows have an identical twin in train (Port Scan 98.4%, SSH 45%).
   - Chronologically split, macro F1 is 0.739 and Malware Beacon recall falls to 0.13.
   - Leave-one-day-out, detection is ≈ 0%.
 - **Why it matters:** "98.43%" will be challenged in any viva. It is a statement about *in-distribution, near-duplicate* recognition, not about operational detection.
-- **Fix:** see M-1 in Phase 5 (dedupe, chronological evaluation, report both). The wording to use is in Phase 6.
+- **Fix applied:**
+  - `train.py` and `day_holdout_eval.py` now deduplicate, and the metadata records provenance.
+  - `rf_classifier_cicids_v3` (no SMOTE) is retrained and registered.
+  - The random, chronological and leave-one-day-out results were re-run in `experiments/c2_dedup_eval/`.
+  - The numbers and the replacement paper wording are in `docs/CRITICAL_FIXES_REPORT.md`.
+  - The Phase 6 answers that quote 98.43% / 0.74 still describe the August model. Use the report's numbers.
 
 ## High
 
@@ -725,7 +730,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
   ```
   This is a schema change. Bump `FEATURE_SCHEMA_VERSION`/`LABEL_MAP` together and retrain.
 
-### H3. No de-duplication, so test rows have exact copies in train
+### H3. No de-duplication, so test rows have exact copies in train — **FIXED with C2**
 - **Where:** `training/train.py:111-196`.
 - **Fix** (before the split):
   ```python
@@ -803,7 +808,7 @@ Severity is judged for this project's context: a viva/demo system, with containm
 ## Medium
 
 ### M1. Thresholds and severity bands are inconsistent between the engine and the backend
-- **Where:** `main.py:53, 190, 194` (`SCORE_THRESHOLD=0.7` for "threats" counter and callbacks), against `predictor.py:100` (alert 0.85).
+- **Where:** `main.py:53, 190, 194` (`SCORE_THRESHOLD=0.7` for "threats" counter and callbacks), against `predictor.py:101` (alert 0.90).
 - Severity bands also differ: the engine uses 0.9/0.7/0.5 (`predictor.py:139-143`); the backend uses 0.9/0.75 (`aiService.js:80-86`).
 - `/model/stats.totalThreats` counts flows that never become threats.
 - **Fix:** derive `THRESHOLD` from `MONITOR_THRESHOLD`.
@@ -918,7 +923,7 @@ What is already done well (examiners like hearing this):
 
 | # | Change | Effort | Impact | Files |
 |---|---|---|---|---|
-| M-1 | **Retrain honestly.** Dedupe (H3), record full metadata (M3), one documented command, register the result, and quote **random and chronological and LODO** results with macro F1 and benign FPR (C2) | 3–4 h (CPU time included) | Removes the biggest viva risk | `training/train.py`, `models/registry.json`, `docs/` |
+| M-1 | **Done (C2):** ~~Retrain honestly.~~ Dedupe (H3), record full metadata (M3), one documented command, register the result, and quote **random and chronological and LODO** results with macro F1 and benign FPR (C2) | 3–4 h (CPU time included) | Removes the biggest viva risk | `training/train.py`, `models/registry.json`, `docs/` |
 | M-2 | ~~Fix honeypot classification (C1)~~ **Done** | 1–2 h | The demo stops showing BENIGN for attackers | `inference/predictor.py`, `utils/features.py`, tests |
 | M-3 | **Fix the CSV-name skew** (H4) and reject heavily defaulted payloads (M2) | 1 h | Silent wrong predictions become explicit 422s | `inference/main.py`, tests |
 | M-4 | **Correct the paper** (H1, H2): SMOTE, 53 features, 8 files, XGB real-data result, SGD, class names | 2 h | No contradictions an examiner can find | paper |
@@ -959,16 +964,17 @@ CICIDS2017, all eight MachineLearningCVE CSVs, Monday to Friday.
 - I coerce every feature to numeric and drop rows with NaN or infinity. Those come from zero-duration flows in Flow Bytes/s.
 - I cap the dominant classes: benign at 100k, and DoS and port scan at 10k per file.
 - I map the 15 raw labels onto my taxonomy.
-- That leaves 148,015 rows, split 80/20 stratified.
+- I remove exact duplicate rows before splitting. 22% of CICIDS2017 is duplicated, and 98.8% of the PortScan rows are copies.
+- That leaves 124,534 unique rows from 148,015, split 80/20 stratified.
 
 **2. Why is your accuracy so high? Isn't CICIDS2017 known to be easy?**
-Yes. 98.43% is a random row-level split, and 17% of the test rows have an identical twin in training. When I split chronologically within each capture, macro F1 drops to 0.74. When I hold out a whole day, attacks from that day are essentially not detected. So 98.43% means "recognises known attack types from the same testbed", not "detects attacks in the wild".
+Yes. My original 98.43% was a random row-level split in which 17% of the test rows had an identical twin in training. I now remove duplicates first. The random split still gives 98.47% accuracy, but macro F1 is 0.84. Split chronologically within each capture, macro F1 is 0.75 and about 80% of attack flows raise an alert. Hold out a whole day and attacks from that day are essentially not detected. So the accuracy figure means "recognises known attack types from the same testbed", not "detects attacks in the wild".
 
 **3. Why report macro F1?**
-Accuracy is dominated by benign traffic, which is 68% of the test set. Macro F1 averages over classes equally, so the 0.53 F1 on XSS and 0.29 on SQL injection show up. Mine is 0.845, against a weighted F1 of 0.986. That gap *is* the class-imbalance story.
+Accuracy is dominated by benign traffic, which is 68% of the test set. Macro F1 averages over classes equally, so the 0.56 F1 on XSS and 0.40 on SQL injection (4 test rows) show up. Mine is 0.842 on the deduplicated random split (0.750 chronologically), against a weighted F1 of 0.986. That gap *is* the class-imbalance story.
 
 **4. What is the benign false-positive rate?**
-1.22% of benign flows get an attack label, mostly Malware Beacon. But an alert needs a threat score of at least 0.85, and at that line the benign alert rate is 0.115% with 95.7% attack detection on the random split. On the chronological split it is about 0.5% at 0.70. I chose the 0.85 line on a validation split, not the test set.
+About 0.9% of benign flows get an attack label, mostly Malware Beacon. An alert needs a threat score of at least 0.90. I chose that line on a chronological validation split of the deduplicated data, as the lowest line with a benign alert rate of at most 0.1%. On later traffic it measures 0.15%, with 78.6% attack detection. My earlier 0.85 line had been chosen before I removed duplicates; it measured 0.31% once they were gone. I picked the line on validation data, never on the test set.
 
 **5. What was the time-of-day leakage, and did fixing it change your results?**
 - At inference, a missing timestamp used to fall back to the server's clock, while in training the time features were always zero (the CSVs have no timestamp). That is train/serve skew.
@@ -994,7 +1000,7 @@ It is trained only on benign flows and scores how easily a flow is isolated by r
 With a fixed rule, not a learned meta-learner:
 - For attack classes, the score is the maximum of the classifier confidence and 0.7·confidence + 0.3·anomaly.
 - For benign, it is the blend.
-- Then two thresholds: monitor at 0.85, block at 0.92. Blocking happens only if an administrator has enabled auto-block.
+- Then two thresholds: monitor at 0.90, block at 0.92. Blocking happens only if an administrator has enabled auto-block.
 
 **10. Explain your Q-learning formulation.**
 - States and actions are the six honeypot personas.
@@ -1062,12 +1068,14 @@ See the table below. Never claim deep learning, PPO, DQN, BERT, GAN or EWC.
 > The classifier is a Random Forest — two hundred trees, balanced class weights — trained on all eight
 > CICIDS2017 capture files. Next to it, an Isolation Forest trained only on benign traffic measures how unusual
 > each flow is. I combine them with a fixed rule: for attacks, the classifier's confidence is a floor and the
-> anomaly score can only raise it. Above 0.85 the backend opens a threat; above 0.92 it can block, if an
+> anomaly score can only raise it. Above 0.90 the backend opens a threat; above 0.92 it can block, if an
 > administrator has enabled auto-block.
 >
-> On a random split the Random Forest reaches 98.4 percent accuracy, but macro F1 is 0.84, and when I
-> evaluate chronologically, or hold out whole days, performance drops sharply. So I present it as a strong
-> detector of *known* attack types, not of novel ones.
+> I removed exact duplicate flows first — twenty-two percent of CICIDS2017 is duplicated. On a random split
+> the Random Forest then reaches 98.5 percent accuracy, but macro F1 is 0.84. Evaluated chronologically it
+> catches about eighty percent of attack flows at a benign alert rate of about a third of a percent, and
+> when I hold out whole days it misses those days' attacks. So I present it as a strong detector of
+> *known* attack types, not of novel ones.
 >
 > Every deployed model is pinned by SHA-256 in a registry, with its scikit-learn version, and can be
 > hot-swapped. A drift monitor compares live inputs with the training statistics.
@@ -1083,7 +1091,7 @@ See the table below. Never claim deep learning, PPO, DQN, BERT, GAN or EWC.
 
 | Say this | Never say this |
 |---|---|
-| "A Random Forest trained on CICIDS2017 achieves 98.43% accuracy and 0.986 weighted F1 **on a stratified random split**; macro F1 is 0.845, and chronological evaluation gives macro F1 0.74." | "98.43% detection accuracy." / "Detects 98% of attacks." |
+| "After removing duplicate flows, a Random Forest trained on CICIDS2017 achieves 98.47% accuracy and 0.986 weighted F1 **on a stratified random split**; macro F1 is 0.842. Chronological evaluation gives macro F1 0.75 and 79.5% attack detection at a 0.33% benign alert rate." | "98.43% detection accuracy." / "Detects 98% of attacks." |
 | "XGBoost and a stacking model were trained and evaluated; the Random Forest is the deployed model." | "An RF + XGBoost ensemble." |
 | "An Isolation Forest provides an anomaly signal that raises scores and flags unusual benign traffic for review." | "Detects zero-day attacks." |
 | "Fusion is a fixed weighted rule." | "A meta-learner fuses the tiers." |

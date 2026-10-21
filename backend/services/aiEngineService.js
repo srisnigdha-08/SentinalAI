@@ -238,7 +238,7 @@ const getDeceptionScore = async (session) => {
 // Thresholds come from the AI engine (/model/info) so the engine and the backend use one alert line and
 // one block line. Fallbacks apply only until the first successful fetch.
 const DEFAULT_BLOCK_THRESHOLD = 0.92
-const DEFAULT_ALERT_THRESHOLD = 0.85
+const DEFAULT_ALERT_THRESHOLD = 0.9
 let cachedBlockThreshold = DEFAULT_BLOCK_THRESHOLD
 let cachedAlertThreshold = DEFAULT_ALERT_THRESHOLD
 let lastFetchedTime = 0
