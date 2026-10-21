@@ -2,11 +2,11 @@
 """
 SentinelAI Cowrie Log Parser
 Usage:
-  python log_parser.py --live          # watch cowrie.json in real time
+  python log_parser.py --live          # watch cowrie.json in real time (resumes from PARSER_STATE_DIR)
   python log_parser.py --file f.json   # replay existing log
   python log_parser.py --demo          # generate fake sessions for testing
 """
-import json, time, re, argparse, os, requests, logging, random
+import json, time, re, argparse, os, requests, logging, random, hashlib
 from datetime import datetime
 from pathlib import Path
 
@@ -31,6 +31,16 @@ POST_BACKOFF  = float(os.getenv("SENTINEL_POST_BACKOFF", "0.5"))
 HEADERS = {"Content-Type":"application/json","X-API-Key":API_KEY,"X-Source":"cowrie-parser"}
 _sessions = {}
 
+# Durable parser state, so a restart, backend outage or log rotation does not lose events:
+#   state.json  - read position (inode + byte offset) in cowrie.json and the open sessions
+#   spool.jsonl - deliveries that failed transiently, replayed in order once the backend answers
+# The session state holds captured credentials (as cowrie.json itself does), so the directory is private.
+STATE_DIR          = Path(os.getenv("PARSER_STATE_DIR", Path.home() / ".sentinelai" / "cowrie-parser"))
+SPOOL_MAX          = int(os.getenv("SENTINEL_SPOOL_MAX", "50000"))
+SPOOL_RETRY_SECONDS = float(os.getenv("SENTINEL_SPOOL_RETRY", "5"))
+_spool = []
+_spool_next_try = 0.0
+
 IP_RE   = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 URL_RE  = re.compile(r"https?://[^\s\'\"]+")
 HASH_RE = re.compile(r"\b[0-9a-fA-F]{32,64}\b")
@@ -52,21 +62,118 @@ def classify_intent(cmd):
     if re.search(r"rm -rf|dd if=",c):             return "DESTRUCTION"
     return "UNKNOWN"
 
-def post(ep, data):
-    for attempt in range(POST_RETRIES + 1):
+def _send(ep, data, retries=POST_RETRIES):
+    """One delivery with backoff. Returns "ok", "rejected" (4xx: final) or "transient" (retry later)."""
+    for attempt in range(retries + 1):
         try:
             r = requests.post(f"{API_BASE}{ep}", json=data, headers=HEADERS, timeout=5)
             if r.status_code < 400:
-                return True
+                return "ok"
             if r.status_code != 429 and r.status_code < 500:
                 log.warning("Backend rejected %s (HTTP %s)", ep, r.status_code)
-                return False
+                return "rejected"
         except requests.RequestException as ex:
-            if attempt == POST_RETRIES:
+            if attempt == retries:
                 log.warning("Delivery to %s failed (%s)", ep, type(ex).__name__)
-        if attempt < POST_RETRIES:
+        if attempt < retries:
             time.sleep(POST_BACKOFF * (2 ** attempt))
-    return False
+    return "transient"
+
+def _private_write(path, text):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(path.name + ".tmp")
+    tmp.write_text(text, encoding="utf-8")
+    try: os.chmod(tmp, 0o600)
+    except OSError: pass
+    os.replace(tmp, path)
+
+def _spool_path(): return STATE_DIR / "spool.jsonl"
+
+def _spool_add(ep, data):
+    _spool.append({"ep": ep, "data": data})
+    if len(_spool) > SPOOL_MAX:
+        del _spool[0]
+        log.error("Delivery spool full (%d): oldest queued event dropped", SPOOL_MAX)
+        _spool_persist()
+        return
+    _spool_path().parent.mkdir(parents=True, exist_ok=True)
+    with open(_spool_path(), "a", encoding="utf-8") as f:
+        f.write(json.dumps(_spool[-1]) + "\n")
+
+def _spool_persist():
+    _private_write(_spool_path(), "".join(json.dumps(item) + "\n" for item in _spool))
+
+def load_spool():
+    """Queued deliveries from a previous run (empty when there are none)."""
+    _spool.clear()
+    if _spool_path().exists():
+        for line in _spool_path().read_text(encoding="utf-8").splitlines():
+            try: _spool.append(json.loads(line))
+            except ValueError: log.error("Discarding unreadable spool entry")
+    if _spool: log.info("Resuming %d queued deliveries", len(_spool))
+
+def flush_spool(force=False):
+    """Send queued deliveries in order; stops at the first transient failure. Rejected entries are dropped."""
+    global _spool_next_try
+    if not _spool or (not force and time.monotonic() < _spool_next_try):
+        return
+    sent = 0
+    while sent < len(_spool):
+        item = _spool[sent]
+        result = _send(item["ep"], item["data"], retries=0)
+        if result == "transient":
+            _spool_next_try = time.monotonic() + SPOOL_RETRY_SECONDS
+            break
+        if result == "rejected":
+            log.warning("Dropping queued delivery to %s rejected by the backend", item["ep"])
+        sent += 1
+    if sent:
+        del _spool[:sent]
+        _spool_persist()
+        log.info("Delivered %d queued events (%d still queued)", sent, len(_spool))
+
+def post(ep, data):
+    """
+    Deliver an event, or queue it durably when the backend is unreachable/overloaded (connection error,
+    timeout, 429, 5xx). Returns False only when the backend rejected the event (4xx); queued counts as
+    accepted. While anything is queued, new events queue behind it so the backend sees them in order.
+    """
+    global _spool_next_try
+    if _spool:
+        _spool_add(ep, data)
+        flush_spool()
+        return True
+    result = _send(ep, data)
+    if result == "transient":
+        log.warning("Backend unavailable: queued %s for redelivery", ep)
+        _spool_add(ep, data)
+        _spool_next_try = time.monotonic() + SPOOL_RETRY_SECONDS
+        return True
+    return result == "ok"
+
+def event_id(e, payload=""):
+    """
+    Stable id of one Cowrie event, from fields Cowrie itself writes (session, eventid, timestamp with
+    microseconds, command/URL). The backend ignores an id it has already applied, so replays, parser
+    restarts and running the parser next to the output plugin cannot duplicate commands or downloads.
+    The same derivation lives in honeypot/cowrie/sentinel_output.py.
+    """
+    ts = e.get("timestamp")
+    if not ts:
+        return None
+    raw = f"{e.get('session', '')}|{e.get('eventid', '')}|{ts}|{payload}"
+    return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:32]
+
+def _session_for(e):
+    """
+    Parser state for the event's session. If it was lost (parser restarted without saved state), it is
+    rebuilt from the event: every Cowrie session event carries src_ip. Reopening is idempotent on the backend.
+    """
+    sid = e.get("session", "?")
+    if sid not in _sessions and sid != "?" and e.get("src_ip"):
+        on_connect({"session": sid, "src_ip": e["src_ip"], "src_port": e.get("src_port", 0)})
+        log.info("Rebuilt parser state for session %s from a %s event", sid, e.get("eventid", "event"))
+    return sid if sid in _sessions else None
 
 def ensure_session_opened(sid):
     meta = _sessions.get(sid)
@@ -105,56 +212,63 @@ def on_connect(e):
     }
 
 def on_login_failed(e):
-    sid = e.get("session", "?")
-    if sid not in _sessions: return
+    sid = _session_for(e)
+    if not sid: return
     if not ensure_session_opened(sid): return
     _sessions[sid]["credentials"].append({"username": e.get("username"), "password": e.get("password"), "success": False})
 
 def on_login_ok(e):
-    sid = e.get("session", "?")
-    if sid not in _sessions: return
+    sid = _session_for(e)
+    if not sid: return
     if not ensure_session_opened(sid): return
     log.warning(f"Login SUCCESS: {_sessions[sid]['sourceIP']} (credentials omitted)")
     _sessions[sid]["credentials"].append({"username": e.get("username"), "password": e.get("password"), "success": True})
 
+def _with_event_id(payload, eid):
+    if eid: payload["eventId"] = eid
+    return payload
+
 def on_cmd(e):
-    sid = e.get("session", "?")
     cmd = (e.get("input", "")).strip()
-    if not cmd or sid not in _sessions: return
+    if not cmd: return
+    sid = _session_for(e)
+    if not sid: return
     if not ensure_session_opened(sid): return
     ip = _sessions[sid]["sourceIP"]
     intent = classify_intent(cmd)
     iocs = extract_iocs(cmd)
     log.info("Command [%s]: %s (content omitted)", intent, ip)
     _sessions[sid]["commands"].append({"command": cmd, "intent": intent})
-    post("/honeypot/ingest/command", {
+    post("/honeypot/ingest/command", _with_event_id({
         "sessionId": sid,
         "sourceIP": ip,
         "command": cmd,
         "intent": intent,
         "iocs": iocs,
         "isMalware": bool(URL_RE.search(cmd) and "wget" in cmd.lower())
-    })
+    }, event_id(e, e.get("input", ""))))
 
 def on_download(e):
-    sid = e.get("session", "?")
     url = e.get("url", "")
-    if not url or sid not in _sessions: return
+    if not url: return
+    sid = _session_for(e)
+    if not sid: return
     if not ensure_session_opened(sid): return
     ip = _sessions[sid]["sourceIP"]
     log.warning("FILE DOWNLOAD: %s (URL omitted)", ip)
-    post("/honeypot/ingest/download", {
+    post("/honeypot/ingest/download", _with_event_id({
         "sessionId": sid,
         "sourceIP": ip,
         "url": url,
         "sha256": e.get("shasum", ""),
         "filename": e.get("outfile", "")
-    })
+    }, event_id(e, url)))
 
 def on_kex(e):
-    sid = e.get("session", "?")
     hassh = e.get("hassh", "")
-    if not hassh or sid not in _sessions: return
+    if not hassh: return
+    sid = _session_for(e)
+    if not sid: return
     if not ensure_session_opened(sid): return
     _sessions[sid]["hassh"] = hassh
     log.info(f"SSH client hassh: {sid} -> {hassh}")
@@ -199,41 +313,104 @@ def process(line):
     except Exception as ex:
         log.error("Error processing log event (%s)", type(ex).__name__)
 
-def tail(filepath):
+def _state_path(): return STATE_DIR / "state.json"
+
+def load_state():
+    try:
+        return json.loads(_state_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+
+def save_state(ino, pos):
+    _private_write(_state_path(), json.dumps({"ino": ino, "pos": pos, "sessions": _sessions}))
+
+def read_lines(f, pos, ino, final=False):
+    """
+    Process every complete line from byte offset pos and persist the new offset after each one. A trailing
+    line without its newline is still being written: it is left for the next poll, never half-parsed,
+    unless final (a rotated-away file that will not grow any more).
+    """
+    f.seek(pos)
+    while True:
+        line = f.readline()
+        if not line:
+            break
+        if not line.endswith(b"\n") and not final:
+            break
+        process(line.decode("utf-8", errors="replace"))
+        pos = f.tell()
+        save_state(ino, pos)
+    return pos
+
+def _rotated_sibling(path, ino):
+    """The renamed file (cowrie.json.YYYY-MM-DD, ...) that still has inode ino, if any."""
+    for p in path.parent.glob(path.name + "*"):
+        try:
+            if p != path and p.stat().st_ino == ino:
+                return p
+        except OSError:
+            continue
+    return None
+
+def resume_position(path, state, from_start=False):
+    """
+    Byte offset to continue from in path. With saved state: the saved offset if the file is the same one;
+    if Cowrie rotated it while the parser was down, the rest of the rotated file is processed first and
+    the new file is read from the start. Without state: the end of the file (or 0 with --from-start).
+    """
+    st = path.stat()
+    if not state:
+        return 0 if from_start else st.st_size
+    _sessions.update(state.get("sessions") or {})
+    if state.get("ino") == st.st_ino:
+        pos = int(state.get("pos", 0))
+        if pos <= st.st_size:
+            return pos
+        log.info("Log truncated since last run: reading from the start")
+        return 0
+    old = _rotated_sibling(path, state.get("ino"))
+    if old:
+        log.info("Log rotated while stopped: finishing %s", old.name)
+        with open(old, "rb") as f:
+            read_lines(f, int(state.get("pos", 0)), state.get("ino"), final=True)
+    else:
+        log.warning("Log rotated while stopped and the previous file is gone: its unread lines are lost")
+    return 0
+
+def tail(filepath, from_start=False):
     path = Path(filepath)
     if not path.exists():
         log.warning(f"Waiting for {filepath}...")
         while not path.exists():
             time.sleep(2)
-    log.info(f"Tailing {filepath} -> {API_BASE}")
+    log.info(f"Tailing {filepath} -> {API_BASE} (state in {STATE_DIR})")
+    load_spool()
+    flush_spool(force=True)
     current_file = None
-    current_ino = None
-    last_pos = 0
     try:
-        current_file = open(filepath, "r", encoding="utf-8", errors="ignore")
-        current_ino = os.stat(filepath).st_ino
-        current_file.seek(0, 2)
-        last_pos = current_file.tell()
+        last_pos = resume_position(path, load_state(), from_start)
+        current_file = open(path, "rb")
+        current_ino = os.fstat(current_file.fileno()).st_ino
+        save_state(current_ino, last_pos)
         while True:
             try:
-                if not os.path.exists(filepath):
-                    time.sleep(POLL_INTERVAL)
-                    continue
-                stat = os.stat(filepath)
-                if stat.st_ino != current_ino or stat.st_size < last_pos:
-                    log.info(f"Log rotated/recreated: {filepath}")
-                    current_file.close()
-                    current_file = open(filepath, "r", encoding="utf-8", errors="ignore")
-                    current_ino = stat.st_ino
-                    last_pos = 0
-                if stat.st_size > last_pos:
-                    current_file.seek(last_pos)
-                    while True:
-                        line = current_file.readline()
-                        if not line:
-                            break
-                        process(line)
-                        last_pos = current_file.tell()
+                flush_spool()
+                if path.exists():
+                    stat = path.stat()
+                    if stat.st_ino != current_ino:
+                        # Renamed away: the still-open handle reads the old file to its end before switching.
+                        read_lines(current_file, last_pos, current_ino, final=True)
+                        log.info(f"Log rotated: {filepath}")
+                        current_file.close()
+                        current_file = open(path, "rb")
+                        current_ino = os.fstat(current_file.fileno()).st_ino
+                        last_pos = 0
+                        save_state(current_ino, last_pos)
+                    elif stat.st_size < last_pos:
+                        log.info(f"Log truncated: {filepath}")
+                        last_pos = 0
+                    if stat.st_size > last_pos:
+                        last_pos = read_lines(current_file, last_pos, current_ino)
             except Exception as ex:
                 log.error("Tail error (%s)", type(ex).__name__)
             time.sleep(POLL_INTERVAL)
@@ -266,10 +443,11 @@ if __name__=="__main__":
     p.add_argument("--live",action="store_true"); p.add_argument("--file",type=str)
     p.add_argument("--demo",action="store_true"); p.add_argument("--sessions",type=int,default=5)
     p.add_argument("--delay",type=float,default=0.0); p.add_argument("--log",type=str,default=COWRIE_LOG)
+    p.add_argument("--from-start",action="store_true",help="with no saved state, read the log from the beginning instead of its end")
     a=p.parse_args()
     if a.demo: demo(a.sessions)
     elif a.live:
-        try: tail(a.log)
+        try: tail(a.log, a.from_start)
         except KeyboardInterrupt: log.info("Stopped")
     elif a.file: replay(a.file,a.delay)
     else: p.print_help()

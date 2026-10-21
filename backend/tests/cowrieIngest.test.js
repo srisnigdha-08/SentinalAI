@@ -58,6 +58,20 @@ describe('Phase 6E — Cowrie Telemetry Ingest & Hardening Tests', () => {
       expect(res.body.error).toBe('Unsupported honeypot eventType')
     })
 
+    test.each([{ $ne: null }, 'not-hex!', 'abc', 12345])('rejects a malformed eventId (%p)', async (eventId) => {
+      const res = await request(app)
+        .post('/api/honeypot/ingest/command')
+        .set('x-api-key', 'test-honeypot-api-key')
+        .send({
+          sessionId: 'cowrie-sess-1',
+          sourceIP: '192.0.2.1',
+          command: 'id',
+          eventId,
+        })
+      expect(res.status).toBe(400)
+      expect(res.body.error).toBe('eventId must be a hex string')
+    })
+
     test('rejects oversized commands exceeding 2048 chars', async () => {
       const hugeCommand = 'cat ' + 'a'.repeat(2500)
       const res = await request(app).post('/api/honeypot/ingest').set('x-api-key', 'test-honeypot-api-key').send({

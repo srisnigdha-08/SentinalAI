@@ -58,6 +58,14 @@ const HoneypotSessionSchema = new mongoose.Schema(
     // Persona Cowrie actually served for this session: the Q-learner's action for its reward.
     servedProfile: { type: String, default: null },
     mitreTechniques: [{ id: { type: String, required: true }, name: { type: String, required: true }, _id: false }],
+    // Ids of Cowrie command/download events already applied (parser/plugin eventId), so a replayed or
+    // doubly delivered event is a no-op. Internal: never returned by default.
+    ingestEventIds: { type: [String], default: undefined, select: false },
+    // Closure finished while the AI engine was unavailable: classification and/or the Q-learner update
+    // are retried by the sweep (honeypotSweepService.retryDeferredAnalysis), at most a few times.
+    aiAnalysisPending: { type: Boolean, default: false },
+    deceptionScoringPending: { type: Boolean, default: false },
+    deferredAnalysisAttempts: { type: Number, default: 0 },
   },
   { timestamps: true }
 )
@@ -68,6 +76,8 @@ HoneypotSessionSchema.index({ hassh: 1 })
 HoneypotSessionSchema.index({ linkedThreatLog: 1 })
 // Campaign clustering looks up recent sessions that share a command
 HoneypotSessionSchema.index({ 'commands.command': 1, createdAt: -1 })
+// Stale-session sweep and deferred-analysis retry
+HoneypotSessionSchema.index({ status: 1, updatedAt: 1 })
 HoneypotSessionSchema.pre('save', function (next) {
   if (this.isModified('commands') || !this.mitreTechniques || this.mitreTechniques.length === 0) {
     const intents = this.commands.map((c) => c.intent).filter(Boolean)

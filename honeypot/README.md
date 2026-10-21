@@ -11,9 +11,14 @@ Run Cowrie on a separately managed Linux host. Its real JSON log is ingested wit
 
 | Component | Variables | Default backend URL |
 |---|---|---|
-| `parsers/log_parser.py` (the ingest path) | `SENTINEL_API`, `HONEYPOT_API_KEY` (falls back to `SENTINEL_KEY` with a warning), `COWRIE_LOG`, `SENTINEL_POST_RETRIES`, `SENTINEL_POST_BACKOFF` | `http://localhost:5000/api` |
+| `parsers/log_parser.py` (the ingest path) | `SENTINEL_API`, `HONEYPOT_API_KEY` (falls back to `SENTINEL_KEY` with a warning), `COWRIE_LOG`, `SENTINEL_POST_RETRIES`, `SENTINEL_POST_BACKOFF`, `PARSER_STATE_DIR` (default `~/.sentinelai/cowrie-parser`: read offset, open sessions, delivery spool), `SENTINEL_SPOOL_MAX`, `SENTINEL_SPOOL_RETRY` | `http://localhost:5000/api` |
 | `cowrie/sentinel_blocker.py` (Cowrie output plugin, enabled in `cowrie.cfg`) | `SENTINEL_API_URL`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
 | `sniffer/sniffer.py` (dataset builder: labels captured flows into `flows.csv`) | `SENTINEL_API`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
+
+The parser resumes from its saved offset after a restart, finishes a rotated log before following the new
+one, and queues deliveries on disk while the backend is unreachable. The state directory holds captured
+credentials (as `cowrie.json` does): keep it private to the parser's user. With no saved state, the first
+start reads from the end of the log; pass `--from-start` to ingest the existing file.
 
 Give the honeypot host only `HONEYPOT_API_KEY`, never the AI engine's `SENTINEL_KEY`.
 Set the URL variables whenever the backend is not on the same host.

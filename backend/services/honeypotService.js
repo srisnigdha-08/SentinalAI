@@ -107,19 +107,25 @@ const unionWith = (path, values) => ({ $setUnion: [{ $ifNull: [path, []] }, { $l
  * Atomically records honeypot activity and recomputes the derived scores in the same update, so
  * concurrent command/download events for one session cannot overwrite each other (read-modify-save
  * lost updates). deceptionScore = min(100, 3*commands + 10*sensitiveFiles + 8*urls + 15*downloads).
- * Returns the updated document, or null when no session matches `filter`.
+ * With an eventId, an event already applied to the session matches nothing and changes nothing: the
+ * existing document is returned with $locals.duplicateEvent = true (replays, parser restarts, parser and
+ * output plugin both delivering). Returns null when no session matches `filter`.
  */
 const recordSessionActivity = async (
   filter,
-  { commands = [], files = [], ips = [], urls = [], hashes = [], malware = [], downloads = 0 } = {}
+  { commands = [], files = [], ips = [], urls = [], hashes = [], malware = [], downloads = 0, eventId } = {}
 ) => {
   // pre('save') does not run for updates; MITRE techniques are derived from intents and only ever grow.
   const techniques = mitreMapping.getMitreTechniquesForIntents(commands.map((c) => c.intent).filter(Boolean))
-  return HoneypotSession.findOneAndUpdate(
-    filter,
+  const guarded = eventId ? { ...filter, ingestEventIds: { $ne: eventId } } : filter
+  const updated = await HoneypotSession.findOneAndUpdate(
+    guarded,
     [
       {
         $set: {
+          ...(eventId && {
+            ingestEventIds: { $concatArrays: [{ $ifNull: ['$ingestEventIds', []] }, { $literal: [eventId] }] },
+          }),
           commands: { $concatArrays: [{ $ifNull: ['$commands', []] }, { $literal: commands }] },
           filesAccessed: unionWith('$filesAccessed', files),
           'iocExtracted.ips': unionWith('$iocExtracted.ips', ips),
@@ -161,6 +167,10 @@ const recordSessionActivity = async (
     ],
     { new: true }
   )
+  if (updated || !eventId) return updated
+  const already = await HoneypotSession.findOne({ ...filter, ingestEventIds: eventId })
+  if (already) already.$locals.duplicateEvent = true
+  return already
 }
 
 const appendCommands = async (id, commands) => {
@@ -220,7 +230,54 @@ const closeSession = async (id, { reclassify = false, telemetry = {} } = {}) => 
   }
 }
 
-const analyseClosure = async (session, telemetry) => {
+/**
+ * classify / score select the AI classification and the Q-learner update (both on a normal closure; only
+ * the pending ones on a deferred retry). Either one that could not reach the AI engine is flagged pending
+ * (aiAnalysisPending / deceptionScoringPending) for retryDeferredAnalysis instead of being silently lost.
+ */
+/**
+ * Re-runs only the AI steps a completed closure could not finish because the AI engine was unreachable
+ * (aiAnalysisPending / deceptionScoringPending). Claimed with the same compare-and-set as closeSession, so
+ * it cannot overlap a closure or reclassification; each claim counts one attempt. Returns null when there
+ * is nothing pending or another attempt holds the session.
+ */
+const retryDeferredAnalysis = async (id) => {
+  const attemptId = require('node:crypto').randomUUID()
+  const session = await HoneypotSession.findOneAndUpdate(
+    {
+      _id: id,
+      closureAnalysisState: 'complete',
+      $or: [{ aiAnalysisPending: true }, { deceptionScoringPending: true }],
+    },
+    {
+      $set: { closureAnalysisState: 'processing', closureAttemptId: attemptId, closureAnalysisStartedAt: new Date() },
+      $inc: { deferredAnalysisAttempts: 1 },
+    },
+    { new: true }
+  )
+  if (!session) return null
+  try {
+    const result = await analyseClosure(
+      session,
+      {},
+      { classify: session.aiAnalysisPending, score: session.deceptionScoringPending, retry: true }
+    )
+    await HoneypotSession.updateOne(
+      { _id: id, closureAttemptId: attemptId, closureAnalysisState: 'processing' },
+      { $set: { closureAnalysisState: 'complete', closureAnalysisCompletedAt: new Date() } }
+    )
+    result.closureAnalysisState = 'complete'
+    return result
+  } catch (error) {
+    await HoneypotSession.updateOne(
+      { _id: id, closureAttemptId: attemptId, closureAnalysisState: 'processing' },
+      { $set: { closureAnalysisState: 'failed' } }
+    ).catch(() => {})
+    throw error
+  }
+}
+
+const analyseClosure = async (session, telemetry, { classify = true, score: scoreQ = true, retry = false } = {}) => {
   if (!session.endTime) {
     session.endTime = new Date()
     session.durationSeconds =
@@ -256,7 +313,9 @@ const analyseClosure = async (session, telemetry) => {
       payload.startTime = parsedStart.toISOString()
     }
   }
-  const aiRes = await aiSvc.predictHoneypotSession(payload)
+  const finishOptions = { score: scoreQ, retry }
+  const aiRes = classify ? await aiSvc.predictHoneypotSession(payload) : null
+  if (classify) session.aiAnalysisPending = !(aiRes?.success && aiRes?.result)
   if (aiRes?.success && aiRes?.result) {
     session.aiClassification = aiRes.result.predictedClass || null
     session.aiThreatScore = aiRes.result.threatScore || 0
@@ -379,7 +438,7 @@ const analyseClosure = async (session, telemetry) => {
       try {
         if (!safety.isSafe) {
           logger.warn(`[AI Auto-Block Session] Refused for ${session.sourceIP}: ${safety.reason}`)
-          return finishClosure(session, payload)
+          return finishClosure(session, payload, finishOptions)
         }
         const block = await BlockedIP.findOneAndUpdate(
           { ip: session.sourceIP },
@@ -413,17 +472,19 @@ const analyseClosure = async (session, telemetry) => {
       }
     }
   }
-  return finishClosure(session, payload)
+  return finishClosure(session, payload, finishOptions)
 }
 
 // Sessions invented by `log_parser.py --demo` travel the real ingest path. They must not train the deception
 // Q-learner, whose table is meant to reflect attackers. Same convention as retentionService (demo-*).
 const isSyntheticSession = (sessionId) => /^demo-/i.test(String(sessionId || ''))
 
-const finishClosure = async (session, payload) => {
+const finishClosure = async (session, payload, { score = true, retry = false } = {}) => {
   const synthetic = isSyntheticSession(session.sessionId)
   if (synthetic) logger.info(`[HP] Synthetic session ${session.sessionId}: Q-learner update skipped`)
-  const decRes = synthetic ? null : await aiSvc.getDeceptionScore(payload)
+  const decRes = synthetic || !score ? null : await aiSvc.getDeceptionScore(payload)
+  if (synthetic) session.deceptionScoringPending = false
+  else if (score) session.deceptionScoringPending = !(decRes?.success && decRes?.result)
   if (decRes?.success && decRes?.result) {
     session.qDeceptionScore = decRes.result.deceptionScore || 0
     session.recommendedProfile = decRes.result.nextProfile || 'ubuntu_22'
@@ -433,6 +494,8 @@ const finishClosure = async (session, payload) => {
   }
   await session.save()
   logger.info(`[HP] Session ${session.sessionId} closed. Duration: ${session.durationSeconds}s`)
+  // A deferred retry re-runs only the AI steps; the session was clustered when it closed.
+  if (retry) return session
 
   try {
     const campaignSvc = require('./campaignService')
@@ -554,6 +617,7 @@ module.exports = {
   recordSessionActivity,
   sensitiveFilesIn,
   closeSession,
+  retryDeferredAnalysis,
   getFullAnalytics,
   getNodeStatus,
   getActiveProfile,

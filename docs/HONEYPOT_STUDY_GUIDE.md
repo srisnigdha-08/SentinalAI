@@ -434,6 +434,23 @@ Compare with the `timestamp` of the matching `cowrie.command.input` lines. Socke
 | **Both plugin and parser enabled** | Every event twice (`honeypot/README.md:21-23`) | No | **Yes** |
 | **Close event never arrives** | Sweeper closes after 6 h of inactivity, measuring duration to last activity (`honeypotSweepService.js:24-50`) | No | No |
 
+### Status after the reliability fixes (working tree, 2026-10-21)
+
+The table above describes the audited commit. Tests for each row: `ai-engine/tests/test_cowrie_parser_reliability.py` (9), `backend/tests/mediumHoneypot.test.js` (3 new, real in-memory MongoDB), `backend/tests/honeypotService.test.js` (3 new), `backend/tests/cowrieIngest.test.js` (4 new). None of it has been run against a live Cowrie.
+
+| Scenario | Status | How | What is still not covered |
+|---|---|---|---|
+| Parser restarts | **FIXED** | `state.json` in `PARSER_STATE_DIR` holds inode, byte offset and open sessions, saved after every line; restart resumes there (`resume_position`). A session with no saved state is rebuilt from the event's `src_ip` (`_session_for`). | The very first start (no state) still begins at the end of the log unless `--from-start`. A crash between processing a line and saving state replays that one line (commands/downloads de-duplicated; a login could be recorded twice). |
+| Cowrie restarts | No fix needed | — | The rotator's restart still drops live attacker sessions. |
+| Log rotation | **FIXED** | The open handle reads the renamed file to its end before switching; after downtime the rotated file is found by inode and finished first. | If the rotated file was deleted or compressed while the parser was down, its unread lines are lost (logged as a warning). |
+| Partial line | **FIXED** | `read_lines` never advances past a line without `\n`; it is read on the next poll. | — |
+| Backend down | **FIXED** (parser path) | Transient failures (connection error, timeout, 429, 5xx) go to a durable `spool.jsonl`, replayed in order every 5 s; new events queue behind it; 4xx is still final. | Spool capped at 50,000 events (oldest dropped, logged). The disabled `sentinel_output.py` plugin has no spool. |
+| MongoDB down | **FIXED** for delivery (same spool) | — | A closure that fails *during* analysis is still parked as `failed` for manual review: deliberate, so containment side effects are never repeated automatically. |
+| AI engine down | **FIXED** | Closure sets `aiAnalysisPending` / `deceptionScoringPending`; the sweep retries only the pending step (`retryDeferredAnalysis`), at least 5 min apart, at most 5 times (`HONEYPOT_ANALYSIS_RETRY_MINUTES`, `HONEYPOT_ANALYSIS_MAX_RETRIES`). | After the last attempt the session stays flagged (visible, not analysed). The sweep runs every 15 min, so the first retry is up to ~15 min later. |
+| Replay of an ingested log | **FIXED** | Each command/download carries `eventId` = hash of Cowrie's session, eventid, microsecond timestamp and payload; the backend's atomic update skips an id it has applied and raises no second alert or broadcast. | Demo-mode events have no timestamp, so no id (they are synthetic anyway). |
+| Plugin and parser both enabled | **FIXED** for duplicates | The plugin computes the same `eventId`; session open/close were already idempotent. | Still not recommended: two delivery paths, only one with a spool. |
+| Close event never arrives | Already handled | Sweep (unchanged). | — |
+
 ## 3.6 Verdict table
 
 | Component | Status | Evidence | File |
@@ -443,7 +460,7 @@ Compare with the `timestamp` of the matching `cowrie.command.input` lines. Socke
 | `cowrie.cfg` | Untested live; sections **FIXED** | keys moved to `[ssh]`/`[shell]`, dead keys removed, `forwarding = false`, download size limit; generated from `switch_profile.py` | `honeypot/cowrie/cowrie.cfg` |
 | `userdb.txt` | Working format; Untested live | 13 valid entries | `honeypot/cowrie/userdb.txt` |
 | Custom fs / honeyfs / txtcmds | **Not Implemented** | NOT FOUND | — |
-| JSON log → parser tail | **Partially** (unit-tested, untested live; loses events on restart/outage) | 75 pytest pass incl. parser contract | `honeypot/parsers/log_parser.py` |
+| JSON log → parser tail | Unit-tested, untested live; restart/rotation/outage/duplicate losses **FIXED** (3.5) | parser contract + reliability tests | `honeypot/parsers/log_parser.py` |
 | Direct output plugin | Implemented, **disabled** | contract test passes | `honeypot/cowrie/sentinel_output.py` |
 | Blocker plugin | **Untested** live | needs running Cowrie | `honeypot/cowrie/sentinel_blocker.py` |
 | Backend ingest + validation | **Working** (tests) | 63 jest pass (mocked DB) | `backend/routes/honeypotIngest.js` |
@@ -491,7 +508,7 @@ Compare with the `timestamp` of the matching `cowrie.command.input` lines. Socke
 
 ## High
 
-**H1. Ingestion loses events silently.** `log_parser.py:215` (seek to end), 123 (post-restart commands dropped), 130/146 (result ignored), 231-236 (partial lines), 55-69 (give up after ~3.5 s).
+**H1. [FIXED: state file, rotation drain, partial-line check, durable spool; see 3.5] Ingestion loses events silently.** `log_parser.py:215` (seek to end), 123 (post-restart commands dropped), 130/146 (result ignored), 231-236 (partial lines), 55-69 (give up after ~3.5 s).
 - *Fix:* persist `(inode, offset)` to a state file after each acknowledged line; on start resume from it; only advance past a line once it ends with `\n`; spool failed POSTs to a local JSONL queue and retry. Sketch:
   ```python
   STATE = Path(os.getenv("PARSER_STATE", "parser_state.json"))
@@ -547,7 +564,7 @@ Compare with the `timestamp` of the matching `cowrie.command.input` lines. Socke
 
 **M5. No retention or TTL for honeypot data.** `retentionService.js` is opt-in and manual. *Fix:* schedule it weekly with `RETENTION_ENABLED=true`, or add a TTL to raw commands if you split them out. Keep aggregates.
 
-**M6. Duplicate commands on replay; no event id.** `$concatArrays` in `honeypotService.js:123`. *Fix:* send Cowrie's `(session, timestamp, input)` hash as `eventId` and add `{ $not: { $in: [eventId, '$eventIds'] } }` guarding, or a separate collection with a unique index.
+**M6. [FIXED: eventId, see 3.5] Duplicate commands on replay; no event id.** `$concatArrays` in `honeypotService.js:123`. *Fix:* send Cowrie's `(session, timestamp, input)` hash as `eventId` and add `{ $not: { $in: [eventId, '$eventIds'] } }` guarding, or a separate collection with a unique index.
 
 **M7. Q-learner state ignores the attacker; credit can be misattributed.** State = previous persona only. `servedProfile` is read at **close** time (`honeypotService.js:238`), so a session that spans a persona switch is credited to the new persona. *Fix:* stamp `servedProfile` at session open in `onSessionOpened`; describe the method as a contextual bandit.
 

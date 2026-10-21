@@ -1,11 +1,20 @@
 """SentinelAI Cowrie Output Plugin
 Install: copy to cowrie/src/cowrie/output/sentinel.py
 """
-import time, datetime, requests, logging
+import time, datetime, hashlib, requests, logging
 from cowrie.core import output
 from cowrie.core.config import CowrieConfig
 
 log = logging.getLogger("sentinel.cowrie.output")
+
+def event_id(entry, payload=""):
+    """Same id as honeypot/parsers/log_parser.event_id, so the backend applies each event once even if
+    this plugin and the parser both deliver it."""
+    ts = entry.get("timestamp")
+    if not ts:
+        return None
+    raw = f"{entry.get('session', '')}|{entry.get('eventid', '')}|{ts}|{payload}"
+    return hashlib.sha256(raw.encode("utf-8", "replace")).hexdigest()[:32]
 
 class Output(output.Output):
     def start(self):
@@ -39,13 +48,13 @@ class Output(output.Output):
     def loginSucceeded(self, session, username, password, **kw):
         if session in self.sessions:
             self.sessions[session]["credentials"].append({"username":username,"password":password,"success":True})
-    def command_input(self, session, command, **kw):
+    def command_input(self, session, command, event_id=None, **kw):
         src=self.sessions.get(session,{}).get("sourceIP","?")
         if session in self.sessions: self.sessions[session]["commands"].append(command)
-        self._post("COMMAND_INPUT",{"sessionId":session,"sourceIP":src,"command":command})
-    def file_download(self, session, duplicate, url, outfile, **kw):
+        self._post("COMMAND_INPUT",{"sessionId":session,"sourceIP":src,"command":command,**({"eventId":event_id} if event_id else {})})
+    def file_download(self, session, duplicate, url, outfile, event_id=None, **kw):
         src=self.sessions.get(session,{}).get("sourceIP","?")
-        self._post("FILE_DOWNLOAD",{"sessionId":session,"sourceIP":src,"url":url,"filename":outfile,"isDuplicate":duplicate})
+        self._post("FILE_DOWNLOAD",{"sessionId":session,"sourceIP":src,"url":url,"filename":outfile,"isDuplicate":duplicate,**({"eventId":event_id} if event_id else {})})
     def write(self, entry):
         """Cowrie delivers normalized event dictionaries through this method."""
         event = entry.get("eventid")
@@ -59,8 +68,8 @@ class Output(output.Output):
             elif event == "cowrie.login.success":
                 self.loginSucceeded(sid, entry.get("username", ""), entry.get("password", ""))
             elif event == "cowrie.command.input":
-                self.command_input(sid, entry.get("input", ""))
+                self.command_input(sid, entry.get("input", ""), event_id(entry, entry.get("input", "")))
             elif event == "cowrie.session.file_download":
-                self.file_download(sid, entry.get("duplicate", False), entry.get("url", ""), entry.get("outfile", ""))
+                self.file_download(sid, entry.get("duplicate", False), entry.get("url", ""), entry.get("outfile", ""), event_id(entry, entry.get("url", "")))
             elif event == "cowrie.session.closed":
                 self.sessionClosed(sid)

@@ -68,6 +68,9 @@ const telemetryError = (data, eventType) => {
     return 'Valid sessionId is required'
   if (eventType !== 'CLIENT_KEX' && (typeof data.sourceIP !== 'string' || !isValidIP(data.sourceIP)))
     return 'Valid sourceIP is required'
+  // Optional de-duplication id of the Cowrie event (log_parser.event_id / sentinel_output.event_id)
+  if (data.eventId !== undefined && (typeof data.eventId !== 'string' || !/^[0-9a-f]{8,64}$/.test(data.eventId)))
+    return 'eventId must be a hex string'
   if (['COMMAND_INPUT', 'COMMAND_FAILED'].includes(eventType)) {
     if (typeof data.command !== 'string' || !data.command) return 'Nonempty command is required'
     if (data.command.length > 2048) return 'Command length exceeds maximum of 2048 characters'

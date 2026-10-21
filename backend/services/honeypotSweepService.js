@@ -17,6 +17,9 @@ class HoneypotSweepService {
     this.intervalMs = options.intervalMs || 15 * 60 * 1000
     this.staleMs = (options.staleHours || parseFloat(process.env.HONEYPOT_STALE_SESSION_HOURS) || 6) * 3600 * 1000
     this.batchSize = options.batchSize || 50
+    // Closures that could not reach the AI engine are retried after this delay, a bounded number of times.
+    this.retryDelayMs = (options.retryMinutes || parseFloat(process.env.HONEYPOT_ANALYSIS_RETRY_MINUTES) || 5) * 60000
+    this.maxAnalysisAttempts = options.maxAnalysisAttempts || parseInt(process.env.HONEYPOT_ANALYSIS_MAX_RETRIES) || 5
     this.timer = null
     this.isRunning = false
   }
@@ -49,12 +52,51 @@ class HoneypotSweepService {
     return { found: stale.length, closed, failed }
   }
 
+  /**
+   * Retries the AI classification / Q-learner update of closed sessions whose closure ran while the AI
+   * engine was unavailable. Waits retryDelayMs after the last attempt; gives up after maxAnalysisAttempts
+   * (the session keeps its pending flag so an operator can see it was never analysed).
+   */
+  async retryDeferredAnalysis(now = new Date()) {
+    const honeypotService = require('./honeypotService')
+    const pending = await HoneypotSession.find({
+      status: 'closed',
+      closureAnalysisState: 'complete',
+      $or: [{ aiAnalysisPending: true }, { deceptionScoringPending: true }],
+      deferredAnalysisAttempts: { $lt: this.maxAnalysisAttempts },
+      updatedAt: { $lt: new Date(now.getTime() - this.retryDelayMs) },
+    })
+      .sort({ updatedAt: 1 })
+      .limit(this.batchSize)
+      .select('_id sessionId')
+      .lean()
+
+    let completed = 0
+    let stillPending = 0
+    for (const s of pending) {
+      try {
+        const result = await honeypotService.retryDeferredAnalysis(s._id)
+        if (result && !result.aiAnalysisPending && !result.deceptionScoringPending) completed++
+        else stillPending++
+      } catch (err) {
+        stillPending++
+        logger.warn(`[HoneypotSweep] Deferred analysis failed for ${s.sessionId}: ${err.message}`)
+      }
+    }
+    if (pending.length)
+      logger.info(
+        `[HoneypotSweep] Deferred analyses: ${pending.length}, completed: ${completed}, pending: ${stillPending}`
+      )
+    return { found: pending.length, completed, stillPending }
+  }
+
   start() {
     if (this.isRunning) return
     this.isRunning = true
     this.timer = setInterval(async () => {
       try {
         await this.sweepStaleSessions()
+        await this.retryDeferredAnalysis()
       } catch (err) {
         logger.error(`[HoneypotSweep] Unexpected error in interval: ${err.message}`)
       }

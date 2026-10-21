@@ -90,7 +90,7 @@ jest.mock('../models/HoneypotSession', () => ({
 }))
 
 const HoneypotSession = require('../models/HoneypotSession')
-const { closeSession, findSessions } = require('../services/honeypotService')
+const { closeSession, findSessions, retryDeferredAnalysis } = require('../services/honeypotService')
 const aiService = require('../services/aiService')
 const SystemSetting = require('../models/SystemSetting')
 const ThreatLog = require('../models/ThreatLog')
@@ -110,6 +110,8 @@ describe('honeypotService.closeSession()', () => {
       linkedThreatLog: null,
       closureAnalysisState: 'idle',
       credentials: [{ success: true }],
+      aiAnalysisPending: false,
+      deceptionScoringPending: false,
     })
     aiService.storePrediction.mockResolvedValue({})
     SystemSetting.findOne.mockResolvedValue({ key: 'autoBlockEnabled', value: false })
@@ -353,6 +355,46 @@ describe('honeypotService.closeSession()', () => {
     } finally {
       mockSession.sessionId = 'sess-TEST-0001'
     }
+  })
+
+  test('AI engine unavailable: the closure completes with both AI steps flagged for retry', async () => {
+    const result = await closeSession('session-doc-id')
+    expect(result.status).toBe('closed')
+    expect(result.aiAnalysisPending).toBe(true)
+    expect(result.deceptionScoringPending).toBe(true)
+  })
+
+  test('retryDeferredAnalysis re-runs only the pending step and does not re-cluster', async () => {
+    Object.assign(mockSession, {
+      status: 'closed',
+      endTime: new Date(),
+      durationSeconds: 60,
+      closureAnalysisState: 'complete',
+      aiAnalysisPending: false,
+      deceptionScoringPending: true,
+    })
+    HoneypotSession.findOneAndUpdate.mockImplementationOnce(async (filter, update) => {
+      expect(filter).toMatchObject({ closureAnalysisState: 'complete' })
+      Object.assign(mockSession, update.$set)
+      return mockSession
+    })
+    mockGetDeceptionScore.mockResolvedValue({ success: true, result: { deceptionScore: 72, nextProfile: 'debian_11' } })
+
+    const result = await retryDeferredAnalysis('session-doc-id')
+
+    expect(mockPredictHoneypot).not.toHaveBeenCalled()
+    expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
+    expect(result.qDeceptionScore).toBe(72)
+    expect(result.deceptionScoringPending).toBe(false)
+    expect(result.closureAnalysisState).toBe('complete')
+    expect(mockClusterSession).not.toHaveBeenCalled()
+  })
+
+  test('retryDeferredAnalysis does nothing when the claim finds no pending work', async () => {
+    HoneypotSession.findOneAndUpdate.mockResolvedValueOnce(null)
+    expect(await retryDeferredAnalysis('session-doc-id')).toBeNull()
+    expect(mockPredictHoneypot).not.toHaveBeenCalled()
+    expect(mockGetDeceptionScore).not.toHaveBeenCalled()
   })
 
   test('calls campaignService.clusterSession with the updated session', async () => {
