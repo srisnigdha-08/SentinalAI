@@ -568,7 +568,7 @@ WSL cannot reach the Windows backend in NAT mode, and opening a firewall path wa
   ```
   Also delete or restrict raw `cowrie.json` on the honeypot host: it always holds plaintext.
 
-**C2. No honeypot isolation exists in the repository.**
+**C2. [PARTLY FIXED: `docker-compose.honeypot.yml` (non-root, read-only, no capabilities, resource limits, own bridge, noexec downloads tmpfs) + `docker/egress-rules.sh`; `forwarding = false` and `download_limit_size` verified on live Cowrie. Docker stack and egress rules UNTESTED: no Docker/root here] No honeypot isolation exists in the repository.**
 - *Where:* no Cowrie container, network policy, egress rule or resource limit anywhere (`docker-compose.yml:7-9` defers it to "a separate host").
 - *Why it matters:* Cowrie emulates the shell, but `wget`/`curl` make **real outbound requests**, downloads land on disk, and SSH `direct-tcpip` forwarding can turn the honeypot into a proxy. Check `[ssh] forwarding` in your Cowrie version's `cowrie.cfg.dist`; it defaults to enabled in common releases. The same host also holds `HONEYPOT_API_KEY` and, if you run the rotator, **an admin password** (C3).
 - *Fix (see 5.2):* run Cowrie in its own container or VM on an isolated network, as non-root, read-only image, `cap_drop: ALL`, CPU/memory/pids limits, egress denied except to the backend ingest port, `forwarding = false`, `download_limit_size` set.
@@ -607,24 +607,24 @@ WSL cannot reach the Windows backend in NAT mode, and opening a firewall path wa
   ```
   Add tests for `sync`, `history`, `start`, and long idle sessions.
 
-**H3. A leaked `HONEYPOT_API_KEY` can make SentinelAI block arbitrary IPs and pollute the Q-table.** `honeypotIngest.js:9-14` accepts any well-formed `sourceIP`. `/close` with fake commands drives `analyseClosure` → `executeAutoBlock` (if enabled) and `/deception/score`. Private IPs are not protected by default (`containmentPolicyService.js:11-17`).
+**H3. [FIXED: optional `HONEYPOT_ALLOWED_SOURCES` binds the key to the honeypot host's address/CIDR (403 otherwise); honeypot-originated auto-blocks capped per hour (`HONEYPOT_AUTOBLOCK_MAX_PER_HOUR`, default 20, fails closed); `SENTINEL_KEY` no longer accepted (L8). Still set `CONTAINMENT_PROTECTED_TARGETS` to your LAN] A leaked `HONEYPOT_API_KEY` can make SentinelAI block arbitrary IPs and pollute the Q-table.** `honeypotIngest.js:9-14` accepts any well-formed `sourceIP`. `/close` with fake commands drives `analyseClosure` → `executeAutoBlock` (if enabled) and `/deception/score`. Private IPs are not protected by default (`containmentPolicyService.js:11-17`).
 - *Fix:* bind the key to the honeypot host's IP (check `req.ip`); set `CONTAINMENT_PROTECTED_TARGETS` to your LAN and gateway; require human approval for honeypot-originated blocks; rotate the key; keep the 20,000/15 min service rate limit (`server.js:91-98`) but alert on bursts.
 
-**H4. [PARTLY FIXED: `demo-*` sessions no longer reach `/deception/score` (`honeypotService.finishClosure`); the seed table is unchanged] Shipped Q-table and demo sessions misrepresent "learning from attackers".** `ai-engine/models/q_table.json` has 12,087 episodes with repeating rewards. `log_parser.py --demo` posts through the real path, so demo sessions update the live Q-table.
+**H4. [FIXED: demo and seed sessions never train the learner; the seed table is labelled "synthetic warm start" in stats, API and dashboard; `DECEPTION_COLD_START=1` learns from real sessions only. The seed file itself stays (hash-protected asset)] Shipped Q-table and demo sessions misrepresent "learning from attackers".** `ai-engine/models/q_table.json` has 12,087 episodes with repeating rewards. `log_parser.py --demo` posts through the real path, so demo sessions update the live Q-table.
 - *Fix:* reset to a zero table (or label the seed "synthetic warm-start" in the paper); skip Q updates for `sessionId` starting `demo-`, `sess-` or `test-` in `honeypotService.finishClosure`:
   ```js
   const SYNTHETIC = /^(demo|sess|test)-/i
   const decRes = SYNTHETIC.test(session.sessionId) ? null : await aiSvc.getDeceptionScore(payload)
   ```
 
-**H5. [PARTLY FIXED: keys now in `[shell]`/`[ssh]`; personas are still cosmetic] Personas are cosmetic and partly not applied.** `switch_profile.py:80-117` writes `kernel_*`/`hardware_platform` and `listen_endpoints` under `[honeypot]`; in Cowrie 2.x these live under `[shell]` and `[ssh]` (verify against your Cowrie's `cowrie.cfg.dist`). `windows_srv` advertises a Windows OpenSSH banner over a Linux bash shell. The default fake filesystem (and its tell-tale files) is the same for all six personas.
+**H5. [FIXED: keys in the sections Cowrie reads; one fs.pickle per persona (files, accounts, /home) verified live; windows_srv is never recommended (`DECEPTION_EXCLUDED_PROFILES`). Remaining: command output such as `lsb_release` is Cowrie's default] Personas are cosmetic and partly not applied.** `switch_profile.py:80-117` writes `kernel_*`/`hardware_platform` and `listen_endpoints` under `[honeypot]`; in Cowrie 2.x these live under `[shell]` and `[ssh]` (verify against your Cowrie's `cowrie.cfg.dist`). `windows_srv` advertises a Windows OpenSSH banner over a Linux bash shell. The default fake filesystem (and its tell-tale files) is the same for all six personas.
 - *Fix:* move keys to the right sections; drop `windows_srv` or make it a separate honeypot; give each persona its own `honeyfs` (`/etc/os-release`, `/etc/issue`, `/proc/version`) and `txtcmds/` (`uname`, `lsb_release`), and point `[shell] filesystem` at a per-persona pickle made with Cowrie's `createfs`.
 
 ## Medium
 
-**M1. Every connection creates a HIGH ThreatLog before analysis.** `session_collector.js:12` writes a fixed `HIGH, 0.75, "SSH Brute Force"`. A bot hitting you 1,000 times/day produces 1,000 HIGH threats. *Fix:* create the ThreatLog at close (or with severity `LOW`/status `DETECTED`, then raise), and aggregate by IP per hour.
+**M1. [FIXED: connections from one IP within `HONEYPOT_THREAT_WINDOW_MINUTES` (default 60) share one open threat, announced once; a later milder session never downgrades it] Every connection creates a HIGH ThreatLog before analysis.** `session_collector.js:12` writes a fixed `HIGH, 0.75, "SSH Brute Force"`. A bot hitting you 1,000 times/day produces 1,000 HIGH threats. *Fix:* create the ThreatLog at close (or with severity `LOW`/status `DETECTED`, then raise), and aggregate by IP per hour.
 
-**M2. Per-command CRITICAL alerts with no de-duplication.** `session_collector.js:15-16`. *Fix:* one alert per `(sessionId, intent)`: check for an existing alert, or use a unique key.
+**M2. [FIXED: one alert per session and intent, one per downloaded URL] Per-command CRITICAL alerts with no de-duplication.** `session_collector.js:15-16`. *Fix:* one alert per `(sessionId, intent)`: check for an existing alert, or use a unique key.
 
 **M3. [FIXED: events coalesced into at most one reload per 1.5 s] Dashboard refetch storm.** `HoneypotAnalytics.jsx:64-70` makes 3 REST calls per socket event per open browser. A 200-command session = 600 calls per tab, and the per-IP limit is 1,000 / 15 min (`server.js:85-89`). *Fix:* debounce:
   ```js
@@ -632,30 +632,30 @@ WSL cannot reach the Windows backend in NAT mode, and opening a firewall path wa
   const unsubOpen = on('honeypot_session_opened', reload) // same for the others
   ```
 
-**M4. Unbounded arrays → 16 MB document limit.** `credentials` (3,383 already), `commands` (no count cap; each ≤ 2,048 chars). *Fix:* `$slice` the arrays in `recordSessionActivity` (keep the last N, count the rest), or move commands to their own collection keyed by `(sessionId, seq)`.
+**M4. [FIXED: `commands` ≤ `HONEYPOT_MAX_COMMANDS` (2000, first kept), `credentials` ≤ `HONEYPOT_MAX_CREDENTIALS` (500), `ingestEventIds` ≤ 5000 (latest kept); totals in `commandCount` / `credentialCount`, which also drive score and engagement] Unbounded arrays → 16 MB document limit.** `credentials` (3,383 already), `commands` (no count cap; each ≤ 2,048 chars). *Fix:* `$slice` the arrays in `recordSessionActivity` (keep the last N, count the rest), or move commands to their own collection keyed by `(sessionId, seq)`.
 
-**M5. No retention or TTL for honeypot data.** `retentionService.js` is opt-in and manual. *Fix:* schedule it weekly with `RETENTION_ENABLED=true`, or add a TTL to raw commands if you split them out. Keep aggregates.
+**M5. [FIXED, opt-in: `RETENTION_ENABLED=true` + `RETENTION_INTERVAL_HOURS` schedule archive-then-delete retention (never at startup). Default stays off: automatic deletion is a policy decision] No retention or TTL for honeypot data.** `retentionService.js` is opt-in and manual. *Fix:* schedule it weekly with `RETENTION_ENABLED=true`, or add a TTL to raw commands if you split them out. Keep aggregates.
 
 **M6. [FIXED: eventId, see 3.5] Duplicate commands on replay; no event id.** `$concatArrays` in `honeypotService.js:123`. *Fix:* send Cowrie's `(session, timestamp, input)` hash as `eventId` and add `{ $not: { $in: [eventId, '$eventIds'] } }` guarding, or a separate collection with a unique index.
 
-**M7. Q-learner state ignores the attacker; credit can be misattributed.** State = previous persona only. `servedProfile` is read at **close** time (`honeypotService.js:238`), so a session that spans a persona switch is credited to the new persona. *Fix:* stamp `servedProfile` at session open in `onSessionOpened`; describe the method as a contextual bandit.
+**M7. [FIXED for credit: `servedProfile` stamped at session open; the learner's state is the persona of the session that started before. NOT changed: the state still holds no attacker features (a contextual bandit is future work)] Q-learner state ignores the attacker; credit can be misattributed.** State = previous persona only. `servedProfile` is read at **close** time (`honeypotService.js:238`), so a session that spans a persona switch is credited to the new persona. *Fix:* stamp `servedProfile` at session open in `onSessionOpened`; describe the method as a contextual bandit.
 
 **M8. [FIXED: new marker `[HONEYPOT_RULES_RECLASSIFIED]`; the UI shows "Rule-reclassified" for both new and legacy markers] Mislabelled provenance note.** `honeypotService.js:335-339` rewrites the ThreatLog note to `[RF_IF_RECLASSIFIED] RF/IF inference replaced …`, but honeypot classification is rules (`predictor.py:529-575`). *Fix:* use `[HONEYPOT_RULES_RECLASSIFIED]`.
 
-**M9. Missing index in live DB; sweeper query not indexed.** `commands.command+createdAt` is not built. Sweeper filters `{status, updatedAt}` (`honeypotSweepService.js:27`). *Fix:* `HoneypotSession.syncIndexes()` once; add `HoneypotSessionSchema.index({ status: 1, updatedAt: 1 })`.
+**M9. [FIXED: `{status, updatedAt}` index in the schema; both missing indexes created in `sentinel-db` on 2026-10-22 (`createIndexes`, additive)] Missing index in live DB; sweeper query not indexed.** `commands.command+createdAt` is not built. Sweeper filters `{status, updatedAt}` (`honeypotSweepService.js:27`). *Fix:* `HoneypotSession.syncIndexes()` once; add `HoneypotSessionSchema.index({ status: 1, updatedAt: 1 })`.
 
-**M10. Downloaded malware stored with no handling policy.** `download_path` on the Cowrie host (`cowrie.cfg:12`), no size limit, no quarantine, no hashing pipeline beyond Cowrie's `shasum`. *Fix:* `download_limit_size = 10485760`, a separate non-executable volume (`noexec`), hash-only forwarding, optional VirusTotal hash lookup (never upload without consent).
+**M10. [PARTLY FIXED: 10 MB per-file limit (verified config); downloads on a size-capped noexec/nosuid/nodev tmpfs in the Docker stack (untested); hashes and URLs forwarded. No sandbox or VirusTotal lookup] Downloaded malware stored with no handling policy.** `download_path` on the Cowrie host (`cowrie.cfg:12`), no size limit, no quarantine, no hashing pipeline beyond Cowrie's `shasum`. *Fix:* `download_limit_size = 10485760`, a separate non-executable volume (`noexec`), hash-only forwarding, optional VirusTotal hash lookup (never upload without consent).
 
 ## Low
 
 **L1. [FIXED]** `cowrie.cfg:29-31` `[userdb]` section and `auth_class_parameters` (line 11) are ignored by Cowrie's UserDB. Remove them to avoid confusion.
 **L2. [FIXED: PCAP off in both]** `switch_profile.py:105` enables PCAP output while the shipped `cowrie.cfg:26` disables it: inconsistent and fills disk.
-**L3.** `qDeceptionScore` can be negative (e.g. −6.6 for a fingerprinting session): `deception_scorer.py:401` clamps only the top. Clamp at 0 or document it.
-**L4.** `/api/honeypot/nodes` reports "active" based on sessions, not liveness (`honeypotService.js:536`). Add a Cowrie heartbeat (e.g. the blocker's 2 s poll updates `lastSeen`).
-**L5.** Seed sessions `sess-…` are not excluded by retention/demo filters (only `demo-`), so seeded data looks real (`seed.js:133`, `retentionService.js:45`).
-**L6.** Default persona fallback differs: backend `centos_7` (`honeypotService.js:23`), Q-learner `ubuntu_22` (`deception_scorer.py:385`), schema default `ubuntu_22` (`HoneypotSession.js:57`).
-**L7.** Port 2222 with no 22 redirect: internet bots mostly hit 22. Use `iptables -t nat -A PREROUTING -p tcp --dport 22 -j REDIRECT --to-port 2222` (and move real SSH elsewhere).
-**L8.** `internalAuth` also accepts `SENTINEL_KEY` on honeypot routes (`honeypotIngest.js:12`), which widens the AI engine key's powers.
+**L3. [FIXED: clamped at 0]** `qDeceptionScore` can be negative (e.g. −6.6 for a fingerprinting session): `deception_scorer.py:401` clamps only the top. Clamp at 0 or document it.
+**L4. [FIXED: the blocker's 2 s deny-list poll is the heartbeat; nodes report `online`/`offline`/`unknown` with `lastSeen`; `/status` uses it]** `/api/honeypot/nodes` reports "active" based on sessions, not liveness (`honeypotService.js:536`). Add a Cowrie heartbeat (e.g. the blocker's 2 s poll updates `lastSeen`).
+**L5. [FIXED: seeded sessions are `demo-seed-…`, so retention, the DEMO badge and the Q-learner treat them as synthetic]** Seed sessions `sess-…` are not excluded by retention/demo filters (only `demo-`), so seeded data looks real (`seed.js:133`, `retentionService.js:45`).
+**L6. [FIXED: `centos_7` everywhere; `recommendedProfile` is null until scored]** Default persona fallback differs: backend `centos_7` (`honeypotService.js:23`), Q-learner `ubuntu_22` (`deception_scorer.py:385`), schema default `ubuntu_22` (`HoneypotSession.js:57`).
+**L7. [FIXED, untested: `honeypot/redirect-ssh-port.sh` (refuses while something still listens on 22); Docker stack can publish 22 directly]** Port 2222 with no 22 redirect: internet bots mostly hit 22. Use `iptables -t nat -A PREROUTING -p tcp --dport 22 -j REDIRECT --to-port 2222` (and move real SSH elsewhere).
+**L8. [FIXED: honeypot key only; parser and sniffer no longer fall back to `SENTINEL_KEY`]** `internalAuth` also accepts `SENTINEL_KEY` on honeypot routes (`honeypotIngest.js:12`), which widens the AI engine key's powers.
 
 ## Security checks that passed
 

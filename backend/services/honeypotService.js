@@ -34,12 +34,13 @@ const setActiveProfile = async (profile) => {
   return profile
 }
 
-const findPreviousServedProfile = async (excludeId) => {
+// The persona served in the session that started before this one (the learner's state). Bounded by this
+// session's start, so a closure that is analysed late (or retried) is not given a later session's persona.
+const findPreviousServedProfile = async (excludeId, before) => {
   try {
-    return await HoneypotSession.findOne({ _id: { $ne: excludeId }, servedProfile: { $ne: null } })
-      .sort({ createdAt: -1 })
-      .select('servedProfile')
-      .lean()
+    const filter = { _id: { $ne: excludeId }, servedProfile: { $ne: null } }
+    if (before instanceof Date && !Number.isNaN(before.getTime())) filter.createdAt = { $lt: before }
+    return await HoneypotSession.findOne(filter).sort({ createdAt: -1 }).select('servedProfile').lean()
   } catch (err) {
     // Without a previous session the learner falls back to its in-memory last state.
     logger.debug('[HP] Previous served profile lookup failed: ' + err.message)
@@ -91,6 +92,35 @@ const createSession = async (data) => {
   return session
 }
 
+// M4: per-session array caps, so one long or brute-force session cannot approach MongoDB's 16 MB document
+// limit (commands are ≤ 2048 chars each). Totals are kept in commandCount / credentialCount.
+const limits = () => ({
+  commands: parseInt(process.env.HONEYPOT_MAX_COMMANDS, 10) || 2000,
+  credentials: parseInt(process.env.HONEYPOT_MAX_CREDENTIALS, 10) || 500,
+  eventIds: parseInt(process.env.HONEYPOT_MAX_EVENT_IDS, 10) || 5000,
+})
+
+/**
+ * H3: true once this hour's honeypot-originated auto-blocks reach HONEYPOT_AUTOBLOCK_MAX_PER_HOUR (default
+ * 20). Counts deny-list entries written by the honeypot closure paths ("AI Classifier" via executeAutoBlock,
+ * "AI Honeypot Session Block" via the direct path). Fails closed: an unreadable count blocks nothing.
+ */
+const honeypotAutoBlockBudgetSpent = async (now = new Date()) => {
+  const cap = parseInt(process.env.HONEYPOT_AUTOBLOCK_MAX_PER_HOUR, 10)
+  const max = Number.isInteger(cap) && cap >= 0 ? cap : 20
+  try {
+    const BlockedIP = require('../models/BlockedIP')
+    const recent = await BlockedIP.countDocuments({
+      blockedAt: { $gte: new Date(now.getTime() - 3600 * 1000) },
+      reason: { $regex: /^(AI Classifier|AI Honeypot Session Block)/ },
+    })
+    return recent >= max
+  } catch (err) {
+    logger.warn('[HP] Auto-block budget unreadable, not blocking: ' + err.message)
+    return true
+  }
+}
+
 const SENSITIVE_FILES = ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/']
 const sensitiveFilesIn = (text) => SENSITIVE_FILES.filter((f) => text.includes(f))
 const urlsIn = (text) => text.match(/https?:\/\/[^\s]+/g) || []
@@ -118,15 +148,33 @@ const recordSessionActivity = async (
   // pre('save') does not run for updates; MITRE techniques are derived from intents and only ever grow.
   const techniques = mitreMapping.getMitreTechniquesForIntents(commands.map((c) => c.intent).filter(Boolean))
   const guarded = eventId ? { ...filter, ingestEventIds: { $ne: eventId } } : filter
+  const max = limits()
   const updated = await HoneypotSession.findOneAndUpdate(
     guarded,
     [
       {
         $set: {
           ...(eventId && {
-            ingestEventIds: { $concatArrays: [{ $ifNull: ['$ingestEventIds', []] }, { $literal: [eventId] }] },
+            // Most recent ids only (M4): replays of very old events are rare and bounded by the parser offset.
+            ingestEventIds: {
+              $slice: [
+                { $concatArrays: [{ $ifNull: ['$ingestEventIds', []] }, { $literal: [eventId] }] },
+                -max.eventIds,
+              ],
+            },
           }),
-          commands: { $concatArrays: [{ $ifNull: ['$commands', []] }, { $literal: commands }] },
+          // First max.commands kept (an attacker's opening commands are the most telling); all are counted.
+          // Field references in this stage still see the pre-update document.
+          commands: {
+            $slice: [{ $concatArrays: [{ $ifNull: ['$commands', []] }, { $literal: commands }] }, max.commands],
+          },
+          // max(): documents created with commands (seed, older records) may carry a zero or missing count.
+          commandCount: {
+            $add: [
+              { $max: [{ $ifNull: ['$commandCount', 0] }, { $size: { $ifNull: ['$commands', []] } }] },
+              commands.length,
+            ],
+          },
           filesAccessed: unionWith('$filesAccessed', files),
           'iocExtracted.ips': unionWith('$iocExtracted.ips', ips),
           'iocExtracted.urls': unionWith('$iocExtracted.urls', urls),
@@ -143,7 +191,7 @@ const recordSessionActivity = async (
               100,
               {
                 $add: [
-                  { $multiply: [{ $size: '$commands' }, 3] },
+                  { $multiply: ['$commandCount', 3] },
                   { $multiply: [{ $size: '$filesAccessed' }, 10] },
                   { $multiply: [{ $size: '$iocExtracted.urls' }, 8] },
                   { $multiply: ['$downloadCount', 15] },
@@ -154,10 +202,10 @@ const recordSessionActivity = async (
           engagementLevel: {
             $switch: {
               branches: [
-                { case: { $gte: [{ $size: '$commands' }, 20] }, then: 'deep' },
-                { case: { $gte: [{ $size: '$commands' }, 10] }, then: 'high' },
-                { case: { $gte: [{ $size: '$commands' }, 5] }, then: 'medium' },
-                { case: { $gte: [{ $size: '$commands' }, 2] }, then: 'low' },
+                { case: { $gte: ['$commandCount', 20] }, then: 'deep' },
+                { case: { $gte: ['$commandCount', 10] }, then: 'high' },
+                { case: { $gte: ['$commandCount', 5] }, then: 'medium' },
+                { case: { $gte: ['$commandCount', 2] }, then: 'low' },
               ],
               default: 'minimal',
             },
@@ -285,7 +333,10 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
         ? telemetry.durationSeconds
         : Math.floor((session.endTime - session.startTime) / 1000)
     if (Array.isArray(telemetry.credentials)) {
-      session.credentials.push(...redactCapturedCredentials(telemetry.credentials))
+      const creds = redactCapturedCredentials(telemetry.credentials)
+      session.credentialCount = Math.max(session.credentialCount || 0, session.credentials.length) + creds.length
+      // M4: a brute-force session can carry thousands of attempts; keep the first ones, count all of them.
+      session.credentials.push(...creds.slice(0, Math.max(0, limits().credentials - session.credentials.length)))
     }
     if (typeof telemetry.hassh === 'string') session.hassh = telemetry.hassh
   }
@@ -293,7 +344,7 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
   // Credit the reward to the persona actually served, and give the learner the persona served in the
   // previous session as its state, so a recorded profile switch becomes a real state transition.
   if (!session.servedProfile) session.servedProfile = (await getActiveProfile()).profile
-  const previous = await findPreviousServedProfile(session._id)
+  const previous = await findPreviousServedProfile(session._id, session.createdAt)
   const payload = {
     sessionId: session.sessionId,
     sourceIP: session.sourceIP,
@@ -361,7 +412,15 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
     const autoBlockEnabled = setting ? setting.value === true : false
     const blockThreshold = await aiSvc.getBlockThreshold()
     const alertThreshold = await aiSvc.getAlertThreshold()
-    const shouldBlock = score >= blockThreshold && autoBlockEnabled
+    let shouldBlock = score >= blockThreshold && autoBlockEnabled
+    // H3: anyone holding HONEYPOT_API_KEY can fabricate high-scoring sessions, so honeypot-originated
+    // auto-blocks are capped per hour; past the cap the threat stays for an analyst to block by hand.
+    if (shouldBlock && (await honeypotAutoBlockBudgetSpent())) {
+      shouldBlock = false
+      logger.warn(
+        `[AI Auto-Block Session] Hourly honeypot auto-block cap reached; ${session.sourceIP} left for manual review`
+      )
+    }
 
     if (session.linkedThreatLog && !predictionCreatedThreat) {
       const ThreatLog = require('../models/ThreatLog')
@@ -388,10 +447,15 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
 
       const existingThreat = await ThreatLog.findById(session.linkedThreatLog)
       if (existingThreat) {
-        existingThreat.attackType = resolvedAttackType
-        existingThreat.aiScore = score
-        existingThreat.severity = mappedSeverity
-        if (existingThreat.notes?.startsWith('[SESSION_OPEN_HEURISTIC]')) {
+        // M1: sessions from one IP share a threat, so a later, milder session must not downgrade it.
+        const heuristic = Boolean(existingThreat.notes?.startsWith('[SESSION_OPEN_HEURISTIC]'))
+        const raise = heuristic || !(score < (existingThreat.aiScore || 0))
+        if (raise) {
+          existingThreat.attackType = resolvedAttackType
+          existingThreat.aiScore = score
+          existingThreat.severity = mappedSeverity
+        }
+        if (heuristic) {
           existingThreat.notes = existingThreat.notes.replace(
             /^\[SESSION_OPEN_HEURISTIC\][^\r\n]*/,
             // Honeypot sessions are classified by rules (predictor.predict_from_honeypot), never RF/IF.
@@ -418,7 +482,7 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
           }
         } else {
           // Reclassification must not undo an existing containment decision.
-          if (existingThreat.status !== 'BLOCKED') {
+          if (existingThreat.status !== 'BLOCKED' && raise) {
             existingThreat.status = score >= alertThreshold ? 'MONITORING' : 'DETECTED'
           }
           await existingThreat.save()
@@ -487,7 +551,7 @@ const finishClosure = async (session, payload, { score = true, retry = false } =
   else if (score) session.deceptionScoringPending = !(decRes?.success && decRes?.result)
   if (decRes?.success && decRes?.result) {
     session.qDeceptionScore = decRes.result.deceptionScore || 0
-    session.recommendedProfile = decRes.result.nextProfile || 'ubuntu_22'
+    session.recommendedProfile = decRes.result.nextProfile || null
     logger.info(
       `[HP] Q-learner scored session ${session.sessionId}: ${session.qDeceptionScore} (Next Profile: ${session.recommendedProfile})`
     )
@@ -603,7 +667,10 @@ const getNodeStatus = async (now = new Date()) => {
         HoneypotSession.countDocuments({ honeypotNode: node.name, createdAt: today }),
         HoneypotSession.countDocuments({ honeypotNode: node.name, status: 'active' }),
       ])
-      return { ...node, sessionsToday, activeSessions, status: sessionsToday > 0 ? 'active' : 'idle' }
+      // L4: liveness comes from the blocker plugin's polls, not from whether an attacker connected today.
+      const { liveness, lastSeen } = require('./honeypotHeartbeat').status(now)
+      const status = liveness === 'online' ? 'active' : liveness
+      return { ...node, sessionsToday, activeSessions, status, liveness, lastSeen }
     })
   )
 }

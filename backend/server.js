@@ -290,6 +290,12 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
         logger.warn('[HoneypotSweep] Failed to start stale-session sweep: ' + sweepErr.message)
       }
       try {
+        // Opt-in only (RETENTION_ENABLED=true and RETENTION_INTERVAL_HOURS); never runs at startup.
+        require('./services/retentionScheduler').defaultRetentionScheduler.start()
+      } catch (retErr) {
+        logger.warn('[RetentionScheduler] Failed to start: ' + retErr.message)
+      }
+      try {
         require('./services/driftMonitorService').defaultDriftMonitorService.start()
       } catch (driftErr) {
         logger.warn('[Drift] Failed to start drift monitor: ' + driftErr.message)
@@ -314,6 +320,10 @@ defaultShutdownManager.registerService({
 defaultShutdownManager.registerService({
   name: 'driftMonitor',
   stop: () => require('./services/driftMonitorService').defaultDriftMonitorService.stop(),
+})
+defaultShutdownManager.registerService({
+  name: 'retentionScheduler',
+  stop: () => require('./services/retentionScheduler').defaultRetentionScheduler.stop(),
 })
 defaultShutdownManager.registerService({
   name: 'honeypotSweep',

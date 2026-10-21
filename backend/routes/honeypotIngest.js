@@ -4,12 +4,42 @@ const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { isValidIP, parseDate } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
 
-const { isHoneypotKey, isSentinelKey } = require('../utils/apiKeys')
+const { isHoneypotKey } = require('../utils/apiKeys')
 
+/**
+ * H3: optional binding of the honeypot key to the honeypot host(s). With HONEYPOT_ALLOWED_SOURCES set
+ * ("203.0.113.5,10.0.66.0/24"), a request carrying the key from any other address is refused, so a leaked
+ * key cannot be replayed from elsewhere. req.ip honours the backend's trust-proxy setting.
+ */
+const allowedSources = () =>
+  String(process.env.HONEYPOT_ALLOWED_SOURCES || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+
+const ipv4ToInt = (ip) => ip.split('.').reduce((n, o) => (n << 8) + (parseInt(o, 10) & 255), 0) >>> 0
+const sourceMatches = (ip, rule) => {
+  const addr = String(ip || '').replace(/^::ffff:/, '')
+  if (!rule.includes('/')) return addr === rule.replace(/^::ffff:/, '')
+  const [base, bits] = rule.split('/')
+  const prefix = parseInt(bits, 10)
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(addr) || !/^\d+\.\d+\.\d+\.\d+$/.test(base) || !(prefix >= 0 && prefix <= 32))
+    return false
+  const mask = prefix === 0 ? 0 : (~0 << (32 - prefix)) >>> 0
+  return (ipv4ToInt(addr) & mask) === (ipv4ToInt(base) & mask)
+}
+const sourceAllowed = (ip) => {
+  const rules = allowedSources()
+  return rules.length === 0 || rules.some((rule) => sourceMatches(ip, rule))
+}
+
+// The honeypot host's own key only (L8): the AI engine's SENTINEL_KEY never needs these routes, and accepting
+// it here widened what a leaked AI-engine key could do.
 const internalAuth = (req, res, next) => {
   const key = req.headers['x-api-key']
   if (!key) return sendError(res, 'Missing API key', 401)
-  if (!isHoneypotKey(key) && !isSentinelKey(key)) return sendError(res, 'Invalid API key', 401)
+  if (!isHoneypotKey(key)) return sendError(res, 'Invalid API key', 401)
+  if (!sourceAllowed(req.ip)) return sendError(res, 'Honeypot key not accepted from this address', 403)
   next()
 }
 
@@ -36,6 +66,8 @@ const internalAuth = (req, res, next) => {
  */
 router.get('/check-block', internalAuth, async (req, res, next) => {
   try {
+    // The Cowrie blocker plugin polls this every 2 s: its pulls are the node's liveness signal (L4).
+    require('../services/honeypotHeartbeat').beat()
     const { ip } = req.query
     const BlockedIP = require('../models/BlockedIP')
     if (ip !== undefined && ip !== null && ip !== '') {
@@ -52,14 +84,6 @@ router.get('/check-block', internalAuth, async (req, res, next) => {
     next(err)
   }
 })
-
-// The honeypot host's own key only (not the AI engine's SENTINEL_KEY): least privilege for the endpoints below.
-const honeypotOnly = (req, res, next) => {
-  const key = req.headers['x-api-key']
-  if (!key) return sendError(res, 'Missing API key', 401)
-  if (!isHoneypotKey(key)) return sendError(res, 'Invalid API key', 401)
-  next()
-}
 
 /**
  * @openapi
@@ -79,7 +103,7 @@ const honeypotOnly = (req, res, next) => {
  *       503:
  *         description: AI engine unreachable
  */
-router.get('/deception/recommendation', honeypotOnly, async (req, res, next) => {
+router.get('/deception/recommendation', internalAuth, async (req, res, next) => {
   try {
     const honeypotService = require('../services/honeypotService')
     const active = await honeypotService.getActiveProfile()
@@ -122,7 +146,7 @@ router.get('/deception/recommendation', honeypotOnly, async (req, res, next) => 
  *       400:
  *         description: Unknown profile
  */
-router.put('/deception/profile', honeypotOnly, async (req, res, next) => {
+router.put('/deception/profile', internalAuth, async (req, res, next) => {
   try {
     const honeypotService = require('../services/honeypotService')
     const profile = typeof req.body?.profile === 'string' ? req.body.profile.trim() : ''

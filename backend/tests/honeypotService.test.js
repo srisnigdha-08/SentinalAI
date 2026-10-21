@@ -33,6 +33,7 @@ jest.mock('../models/SystemSetting', () => ({
 jest.mock('../models/BlockedIP', () => ({
   findOne: jest.fn().mockResolvedValue(null),
   findOneAndUpdate: jest.fn().mockResolvedValue({}),
+  countDocuments: jest.fn().mockResolvedValue(0), // honeypot auto-block budget (H3)
 }))
 
 jest.mock('../models/ThreatLog', () => ({
@@ -314,6 +315,39 @@ describe('honeypotService.closeSession()', () => {
     expect(threat.aiScore).toBe(0.6)
     expect(threat.status).toBe('DETECTED')
     expect(containmentService.executeAutoBlock).not.toHaveBeenCalled()
+  })
+
+  test('M1: a shared threat is not downgraded by a later, milder session from the same IP', async () => {
+    mockSession.linkedThreatLog = 'shared-threat'
+    const threat = {
+      notes: '[HONEYPOT_RULES_RECLASSIFIED] earlier session',
+      attackType: 'RCE Attempt',
+      aiScore: 0.98,
+      severity: 'CRITICAL',
+      status: 'MONITORING',
+      save: jest.fn().mockResolvedValue(true),
+    }
+    ThreatLog.findById.mockResolvedValue(threat)
+    mockPredictHoneypot.mockResolvedValue({
+      success: true,
+      result: { predictedClass: 'SSH Brute Force', threatScore: 0.9 },
+    })
+    await closeSession('session-doc-id')
+    expect(threat).toMatchObject({
+      attackType: 'RCE Attempt',
+      aiScore: 0.98,
+      severity: 'CRITICAL',
+      status: 'MONITORING',
+    })
+
+    // A stronger later session still raises it.
+    Object.assign(mockSession, { closureAnalysisState: 'idle', endTime: null })
+    mockPredictHoneypot.mockResolvedValue({
+      success: true,
+      result: { predictedClass: 'Data Exfiltration', threatScore: 0.99 },
+    })
+    await closeSession('session-doc-id')
+    expect(threat).toMatchObject({ attackType: 'Data Exfiltration', aiScore: 0.99 })
   })
 
   test('unavailable inference leaves the fixed heuristic annotation and score unchanged', async () => {

@@ -129,19 +129,25 @@ const getHoneypotStatus = async (req, res, next) => {
     const latest = await HoneypotSession.findOne().sort({ createdAt: -1 })
     const now = Date.now()
     const lastIngestTime = latest ? new Date(latest.createdAt).getTime() : null
-    const isLive = lastIngestTime ? now - lastIngestTime < 15 * 60 * 1000 : false
+    const recentTelemetry = lastIngestTime ? now - lastIngestTime < 15 * 60 * 1000 : false
+    // L4: the Cowrie blocker's deny-list polls show the daemon is up even when no attacker is connecting.
+    const daemon = require('../services/honeypotHeartbeat').status()
+    const isLive = recentTelemetry || daemon.liveness === 'online'
 
     sendSuccess(res, {
       collector: 'available',
       liveTelemetry: isLive,
       status: isLive ? 'active' : 'idle',
-      reason: isLive
+      daemon,
+      reason: recentTelemetry
         ? 'Live honeypot telemetry stream detected within last 15 minutes'
-        : 'No active Cowrie daemon connected on host',
+        : daemon.liveness === 'online'
+          ? 'Cowrie connected (blocker plugin polling); no sessions in the last 15 minutes'
+          : 'No active Cowrie daemon connected on host',
       lastIngestTimestamp: latest ? latest.createdAt : null,
       totalSessionsIngested: total,
       liveTelemetryBlocked: !isLive,
-      blockReason: isLive ? null : 'Cowrie honeypot daemon is not provisioned on Windows host environment',
+      blockReason: isLive ? null : 'No Cowrie heartbeat and no telemetry in the last 15 minutes',
     })
   } catch (err) {
     next(err)

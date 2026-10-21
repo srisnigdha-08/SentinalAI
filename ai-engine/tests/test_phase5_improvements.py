@@ -139,18 +139,20 @@ def test_ucb1_tries_every_persona_then_prefers_the_best(tmp_path, monkeypatch):
     learner = ds.DeceptionQLearner(q_table_path=str(tmp_path / "q.json"))
     learner.policy = "ucb1"
     seen = []
-    for _ in range(len(ds.PROFILES_LIST)):
+    servable = ds.servable_profiles()  # windows_srv is never recommended (H5): Cowrie cannot serve it
+    for _ in range(len(servable)):
         a = learner.choose_action("ubuntu_22")
         seen.append(a)
         learner.update("ubuntu_22", a, 18.0 if a == "centos_7" else 1.0, a)
-    assert sorted(seen) == sorted(ds.PROFILES_LIST)  # each persona once before any repeat
+    assert sorted(seen) == sorted(servable)  # each servable persona once before any repeat
     for _ in range(200):
         a = learner.choose_action("ubuntu_22")
         learner.update("ubuntu_22", a, 18.0 if a == "centos_7" else 1.0, a)
     assert learner.greedy_action("ubuntu_22") == "centos_7"
     pulls = {a: st["n"] for a, st in learner.arm_stats.items()}
     assert max(pulls, key=pulls.get) == "centos_7" and pulls["centos_7"] > sum(pulls.values()) / 2  # exploitation dominates
-    assert all(st["n"] >= 2 for st in learner.arm_stats.values())  # but nothing is abandoned
+    assert all(learner.arm_stats[a]["n"] >= 2 for a in servable)  # but nothing servable is abandoned
+    assert learner.arm_stats["windows_srv"]["n"] == 0
 
 
 def test_arm_statistics_persist_and_are_reported(tmp_path, monkeypatch):

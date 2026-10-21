@@ -42,6 +42,9 @@ const HoneypotSessionSchema = new mongoose.Schema(
     deceptionScore: { type: Number, default: 0, min: 0, max: 100 },
     // Cowrie file-download events; each adds 15 to deceptionScore (see honeypotService.recordSessionActivity).
     downloadCount: { type: Number, default: 0 },
+    // Totals; the commands / credentials arrays themselves are capped (honeypotService limits()).
+    commandCount: { type: Number, default: 0 },
+    credentialCount: { type: Number, default: 0 },
     engagementLevel: { type: String, enum: ['minimal', 'low', 'medium', 'high', 'deep'], default: 'minimal' },
     status: { type: String, enum: ['active', 'closed', 'analysed'], default: 'active' },
     closureAnalysisState: { type: String, enum: ['idle', 'processing', 'complete', 'failed'], default: 'idle' },
@@ -54,7 +57,8 @@ const HoneypotSessionSchema = new mongoose.Schema(
     // keywords set class and score), never model inference. Older records may say 'rule_profile_synthetic_flow'.
     aiClassificationMethod: { type: String, default: null },
     qDeceptionScore: { type: Number, default: 0 },
-    recommendedProfile: { type: String, default: 'ubuntu_22' },
+    // The Q-learner's next pick; null until a closure has been scored (no invented default persona).
+    recommendedProfile: { type: String, default: null },
     // Persona Cowrie actually served for this session: the Q-learner's action for its reward.
     servedProfile: { type: String, default: null },
     mitreTechniques: [{ id: { type: String, required: true }, name: { type: String, required: true }, _id: false }],

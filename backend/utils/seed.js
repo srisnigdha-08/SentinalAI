@@ -130,7 +130,8 @@ async function seed() {
     const dur = randI(20, 600)
     const files = cmds.some((c) => c.command.includes('/etc/passwd')) ? ['/etc/passwd'] : []
     return {
-      sessionId: 'sess-' + uuidv4().split('-')[0],
+      // demo- prefix: retention, the dashboard's DEMO badge and the Q-learner all treat these as synthetic (L5).
+      sessionId: 'demo-seed-' + uuidv4().split('-')[0],
       sourceIP: attk.ip,
       sourcePort: randI(49152, 65535),
       honeypotNode: node.name,

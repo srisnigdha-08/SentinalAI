@@ -80,6 +80,19 @@ PROFILES = {
 }
 PROFILES_LIST = list(PROFILES.keys())
 
+# Personas the honeypot cannot actually serve are never recommended (H5). Cowrie emulates only a Linux shell,
+# so windows_srv would be a Windows banner over bash, an instant giveaway; under UCB1 its untried arm would
+# even be picked first. They stay in the table (states, history, the shipped seed) and can still be credited
+# if served by hand. DECEPTION_EXCLUDED_PROFILES (comma-separated) overrides the default; "" allows all.
+DEFAULT_EXCLUDED = "windows_srv"
+
+
+def servable_profiles():
+    raw = os.getenv("DECEPTION_EXCLUDED_PROFILES", DEFAULT_EXCLUDED)
+    excluded = {p.strip() for p in raw.split(",") if p.strip()}
+    allowed = [p for p in PROFILES_LIST if p not in excluded]
+    return allowed or PROFILES_LIST
+
 INTENT_BONUSES = {"CREDENTIAL_HARVEST":1.5,"MALWARE_DOWNLOAD":3.0,"REVERSE_SHELL":2.5,"PERSISTENCE":2.0,"PRIVILEGE_ESCALATION":1.5}
 
 # Commands attackers run to tell a honeypot/VM from a real host. A persona that gets checked like this has
@@ -354,19 +367,21 @@ class DeceptionQLearner:
                 for a, st in self.arm_stats.items()}
 
     def greedy_action(self, state: str) -> str:
-        """Best persona without exploration, under the active policy."""
+        """Best servable persona without exploration, under the active policy."""
+        actions = servable_profiles()
         if self.policy == "ucb1":
-            played = {a: st["mean"] for a, st in self.arm_stats.items() if st["n"] > 0}
-            return max(played, key=played.get) if played else PROFILES_LIST[0]
+            played = {a: self.arm_stats[a]["mean"] for a in actions if self.arm_stats.get(a, {}).get("n", 0) > 0}
+            return max(played, key=played.get) if played else actions[0]
         q = self.q_table.get(state, {})
-        return max(q, key=q.get) if q else PROFILES_LIST[0]
+        return max(actions, key=lambda a: q.get(a, 0.0))
 
     def choose_action(self, state: str) -> str:
+        actions = servable_profiles()
         if self.policy == "ucb1":
             scores = self.ucb_scores()
-            return max(PROFILES_LIST, key=lambda a: scores[a])  # list order breaks ties deterministically
-        if random.random()<self.current_epsilon(): return random.choice(PROFILES_LIST)
-        q=self.q_table.get(state,{}); return max(q,key=q.get)
+            return max(actions, key=lambda a: scores.get(a, float("inf")))  # list order breaks ties deterministically
+        if random.random()<self.current_epsilon(): return random.choice(actions)
+        return self.greedy_action(state)
 
     def update(self, state, action, reward, next_state):
         td_error = self._td_update(self.q_table, state, action, reward, next_state)
@@ -411,7 +426,8 @@ class SessionScorer:
     The returned nextProfile is only a recommendation; nothing here reconfigures Cowrie.
     """
     def __init__(self, q_table_path="rl_engine/q_table.json"):
-        self.learner=DeceptionQLearner(q_table_path=q_table_path); self.current="ubuntu_22"
+        # centos_7: the persona the shipped cowrie.cfg serves (same fallback as the backend).
+        self.learner=DeceptionQLearner(q_table_path=q_table_path); self.current="centos_7"
         self.last_active=None
 
     def process_session(self, session: dict) -> dict:
@@ -427,7 +443,7 @@ class SessionScorer:
         self.learner.update(state,active,reward,active)
         self.last_active=active; self.current=active
         next_p=self.learner.choose_action(active)
-        return {"sessionId":session.get("sessionId"),"deceptionScore":round(min(reward*5,100),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learnerStats":self.learner.get_stats()}
+        return {"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learnerStats":self.learner.get_stats()}
 
     def get_current_profile(self): return {"name":self.current,"config":PROFILES[self.current]}
 

@@ -14,12 +14,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("sentinel.parser")
 
 API_BASE      = os.getenv("SENTINEL_API", "http://localhost:5000/api")
-# The honeypot host should hold only the ingest key, not the AI-engine key (SENTINEL_KEY).
+# The honeypot host holds only the ingest key. The backend refuses the AI engine's SENTINEL_KEY on honeypot
+# routes (L8), so there is no fallback to it.
 API_KEY       = os.getenv("HONEYPOT_API_KEY")
-if not API_KEY:
-    API_KEY = os.getenv("SENTINEL_KEY")
-    if API_KEY:
-        log.warning("HONEYPOT_API_KEY not set; falling back to SENTINEL_KEY. Set HONEYPOT_API_KEY on the honeypot host.")
 if not API_KEY:
     raise RuntimeError("Configuration error: HONEYPOT_API_KEY environment variable is missing.")
 COWRIE_LOG    = os.getenv("COWRIE_LOG",  "/opt/cowrie/var/log/cowrie/cowrie.json")

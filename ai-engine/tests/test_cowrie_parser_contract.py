@@ -9,7 +9,7 @@ import pytest
 
 @pytest.fixture
 def parser(monkeypatch):
-    monkeypatch.setenv("SENTINEL_KEY", "offline-contract-key")
+    monkeypatch.setenv("HONEYPOT_API_KEY", "offline-contract-key")
     source = Path(__file__).resolve().parents[2] / "honeypot/parsers/log_parser.py"
     spec = importlib.util.spec_from_file_location("cowrie_parser_contract", source)
     module = importlib.util.module_from_spec(spec)

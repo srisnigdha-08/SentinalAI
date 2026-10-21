@@ -111,7 +111,8 @@ describe('atomic honeypot activity and stale-session sweep', () => {
     const s = await HoneypotSession.findOne({ sessionId: 'replay' }).select('+ingestEventIds')
     expect(s.commands).toHaveLength(2)
     expect(s.ingestEventIds).toHaveLength(2)
-    expect(await mongoose.connection.db.collection('alerts').countDocuments()).toBe(2)
+    // M2: a second, different MALWARE_DOWNLOAD command in the same session does not raise a second alert.
+    expect(await mongoose.connection.db.collection('alerts').countDocuments()).toBe(1)
     expect((await HoneypotSession.findOne({ sessionId: 'replay' }).lean()).ingestEventIds).toBeUndefined()
   })
 

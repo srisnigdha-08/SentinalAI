@@ -179,7 +179,7 @@ class Record(BaseModel):
 class SessionData(BaseModel):
     sessionId: str = ""; sourceIP: str = "0.0.0.0"
     durationSeconds: float = Field(default=0.0, ge=0, allow_inf_nan=False); loginSucceeded: bool = False
-    commands: List[Dict] = Field(default_factory=list, max_length=10000); iocCount: int = Field(default=0, ge=0); deceptionProfile: str = "ubuntu_22"
+    commands: List[Dict] = Field(default_factory=list, max_length=10000); iocCount: int = Field(default=0, ge=0); deceptionProfile: str = "centos_7"
     startTime: Optional[Union[str, float, int]] = None
     timestamp: Optional[Union[str, float, int]] = None
     model_config = ConfigDict(extra="allow")

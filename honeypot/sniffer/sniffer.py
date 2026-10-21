@@ -109,7 +109,8 @@ def process_pcap(pcap_in, csv_out_dir):
         return
         
     sentinel_api = os.environ.get("SENTINEL_API", "http://localhost:5000/api")
-    sentinel_key = os.environ.get("HONEYPOT_API_KEY") or os.environ.get("SENTINEL_KEY")
+    # Honeypot routes accept only the honeypot key (the backend refuses SENTINEL_KEY there).
+    sentinel_key = os.environ.get("HONEYPOT_API_KEY")
     if not sentinel_key:
         sys.exit("Error: HONEYPOT_API_KEY environment variable not set")
     match_url = f"{sentinel_api}/honeypot/ingest/match-session"

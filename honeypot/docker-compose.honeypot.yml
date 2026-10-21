@@ -31,6 +31,10 @@ services:
     read_only: true
     tmpfs:
       - /tmp
+      # M10: captured malware lands in its own size-capped, non-executable tmpfs (cowrie.cfg also caps each
+      # file at download_limit_size = 10 MB). Samples are lost on restart; SentinelAI already receives each
+      # download's URL and SHA-256. To keep samples, bind a host directory mounted noexec,nosuid,nodev here.
+      - /cowrie/cowrie-git/var/lib/cowrie/downloads:size=256m,mode=1777,noexec,nosuid,nodev
     security_opt:
       - no-new-privileges:true
     cap_drop:
