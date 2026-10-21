@@ -1,0 +1,1069 @@
+{
+  "model_type": "XGBClassifier",
+  "version": "xgb_cicids_v1",
+  "trained_at": "2026-10-21T16:03:34.831870",
+  "n_features": 53,
+  "feature_names": [
+    "flow_duration",
+    "total_fwd_packets",
+    "total_bwd_packets",
+    "total_len_fwd_packets",
+    "total_len_bwd_packets",
+    "fwd_packet_len_max",
+    "fwd_packet_len_min",
+    "fwd_packet_len_mean",
+    "fwd_packet_len_std",
+    "bwd_packet_len_max",
+    "bwd_packet_len_min",
+    "bwd_packet_len_mean",
+    "bwd_packet_len_std",
+    "flow_bytes_per_sec",
+    "flow_packets_per_sec",
+    "flow_iat_mean",
+    "flow_iat_std",
+    "flow_iat_max",
+    "flow_iat_min",
+    "fwd_iat_total",
+    "fwd_iat_mean",
+    "fwd_iat_std",
+    "fwd_iat_max",
+    "fwd_iat_min",
+    "bwd_iat_total",
+    "bwd_iat_mean",
+    "bwd_iat_std",
+    "bwd_iat_max",
+    "bwd_iat_min",
+    "fwd_psh_flags",
+    "bwd_psh_flags",
+    "fwd_urg_flags",
+    "bwd_urg_flags",
+    "fin_flag_count",
+    "syn_flag_count",
+    "rst_flag_count",
+    "psh_flag_count",
+    "ack_flag_count",
+    "urg_flag_count",
+    "fwd_header_len",
+    "bwd_header_len",
+    "fwd_avg_bytes_per_bulk",
+    "bwd_avg_bytes_per_bulk",
+    "init_win_bytes_forward",
+    "init_win_bytes_backward",
+    "active_mean",
+    "active_std",
+    "idle_mean",
+    "idle_std",
+    "down_up_ratio",
+    "payload_entropy",
+    "time_of_day_sin",
+    "time_of_day_cos"
+  ],
+  "classes": {
+    "BENIGN": 0,
+    "SSH Brute Force": 1,
+    "SQL Injection": 2,
+    "Port Scan": 3,
+    "DDoS": 4,
+    "RCE Attempt": 5,
+    "XSS Attempt": 6,
+    "Malware Beacon": 7,
+    "Credential Stuffing": 8,
+    "Lateral Movement": 9,
+    "Data Exfiltration": 10
+  },
+  "metrics": {
+    "accuracy": 0.9897,
+    "f1_weighted": 0.9907,
+    "f1_macro": 0.8738
+  },
+  "evaluation": {
+    "split": "stratified_random_80_20",
+    "random_state": 42,
+    "deduplicated": true,
+    "independent_holdout": false,
+    "note": "Random row split; see evaluation/day_holdout_eval.py for chronological and leave-one-day-out results"
+  },
+  "params": {
+    "scaler__copy": true,
+    "scaler__with_mean": true,
+    "scaler__with_std": true,
+    "xgb__objective": "multi:softprob",
+    "xgb__base_score": null,
+    "xgb__booster": null,
+    "xgb__callbacks": null,
+    "xgb__colsample_bylevel": null,
+    "xgb__colsample_bynode": null,
+    "xgb__colsample_bytree": null,
+    "xgb__device": null,
+    "xgb__early_stopping_rounds": null,
+    "xgb__enable_categorical": false,
+    "xgb__eval_metric": "mlogloss",
+    "xgb__feature_types": null,
+    "xgb__gamma": null,
+    "xgb__grow_policy": null,
+    "xgb__importance_type": null,
+    "xgb__interaction_constraints": null,
+    "xgb__learning_rate": 0.1,
+    "xgb__max_bin": null,
+    "xgb__max_cat_threshold": null,
+    "xgb__max_cat_to_onehot": null,
+    "xgb__max_delta_step": null,
+    "xgb__max_depth": 6,
+    "xgb__max_leaves": null,
+    "xgb__min_child_weight": null,
+    "xgb__monotone_constraints": null,
+    "xgb__multi_strategy": null,
+    "xgb__n_estimators": 200,
+    "xgb__n_jobs": -1,
+    "xgb__num_parallel_tree": null,
+    "xgb__random_state": 42,
+    "xgb__reg_alpha": null,
+    "xgb__reg_lambda": null,
+    "xgb__sampling_method": null,
+    "xgb__scale_pos_weight": null,
+    "xgb__subsample": null,
+    "xgb__tree_method": null,
+    "xgb__validate_parameters": null,
+    "xgb__verbosity": null
+  },
+  "smote": false,
+  "deduplication": {
+    "rows_before": 148015,
+    "rows_after": 124534,
+    "removed": 23481,
+    "conflicting_label_vectors": 33
+  },
+  "class_counts": {
+    "train": {
+      "BENIGN": 74682,
+      "SSH Brute Force": 2575,
+      "SQL Injection": 17,
+      "Port Scan": 283,
+      "DDoS": 14440,
+      "RCE Attempt": 9,
+      "XSS Attempt": 522,
+      "Malware Beacon": 1149,
+      "Credential Stuffing": 5921,
+      "Lateral Movement": 29
+    },
+    "test": {
+      "BENIGN": 18671,
+      "SSH Brute Force": 644,
+      "SQL Injection": 4,
+      "Port Scan": 71,
+      "DDoS": 3610,
+      "RCE Attempt": 2,
+      "XSS Attempt": 130,
+      "Malware Beacon": 288,
+      "Credential Stuffing": 1480,
+      "Lateral Movement": 7
+    }
+  },
+  "label_sources": {
+    "BENIGN": {
+      "cicids": [
+        "BENIGN"
+      ],
+      "meaning": "normal traffic"
+    },
+    "SSH Brute Force": {
+      "cicids": [
+        "SSH-Patator"
+      ],
+      "meaning": "SSH password guessing"
+    },
+    "SQL Injection": {
+      "cicids": [
+        "Web Attack \ufffd Sql Injection"
+      ],
+      "meaning": "HTTP SQL injection attempts"
+    },
+    "Port Scan": {
+      "cicids": [
+        "PortScan"
+      ],
+      "meaning": "TCP port scanning (nmap)"
+    },
+    "DDoS": {
+      "cicids": [
+        "DDoS",
+        "DoS Hulk",
+        "DoS GoldenEye",
+        "DoS slowloris",
+        "DoS Slowhttptest"
+      ],
+      "meaning": "denial of service: HTTP floods, LOIC DDoS and slow-rate DoS (slowloris/slowhttptest)"
+    },
+    "RCE Attempt": {
+      "cicids": [
+        "Heartbleed"
+      ],
+      "meaning": "exploit of a public-facing service (MITRE T1190); the only flow data is Heartbleed, a memory disclosure, not remote code execution"
+    },
+    "XSS Attempt": {
+      "cicids": [
+        "Web Attack \ufffd XSS"
+      ],
+      "meaning": "HTTP cross-site scripting attempts"
+    },
+    "Malware Beacon": {
+      "cicids": [
+        "Bot"
+      ],
+      "meaning": "Ares botnet command-and-control traffic"
+    },
+    "Credential Stuffing": {
+      "cicids": [
+        "FTP-Patator",
+        "Web Attack \ufffd Brute Force"
+      ],
+      "meaning": "password brute force against FTP and an HTTP login form (MITRE T1110), not replay of breached credentials"
+    },
+    "Lateral Movement": {
+      "cicids": [
+        "Infiltration"
+      ],
+      "meaning": "CICIDS 'Infiltration': internal activity from a compromised host"
+    },
+    "Data Exfiltration": {
+      "cicids": [],
+      "meaning": "no flow training data; produced only by honeypot session rules"
+    }
+  },
+  "drift_reference": {
+    "source": "benign training rows",
+    "rows": 74682,
+    "bins": 10,
+    "edges": [
+      [
+        73.0,
+        182.0,
+        274.0,
+        23877.200000000004,
+        47068.5,
+        77939.60000000003,
+        308314.1000000005,
+        5480431.800000001,
+        61311606.50000004
+      ],
+      [
+        1.0,
+        2.0,
+        3.0,
+        6.0,
+        14.0
+      ],
+      [
+        1.0,
+        2.0,
+        5.0,
+        13.0
+      ],
+      [
+        0.0,
+        12.0,
+        45.0,
+        60.0,
+        70.0,
+        84.0,
+        128.0,
+        474.0,
+        1302.0
+      ],
+      [
+        0.0,
+        6.0,
+        36.0,
+        99.0,
+        140.0,
+        194.0,
+        264.0,
+        535.8000000000029,
+        4506.0
+      ],
+      [
+        0.0,
+        6.0,
+        31.0,
+        36.0,
+        42.0,
+        46.0,
+        56.0,
+        274.0,
+        548.0
+      ],
+      [
+        0.0,
+        6.0,
+        32.0,
+        38.0,
+        44.0,
+        50.0
+      ],
+      [
+        0.0,
+        6.0,
+        26.20070126300007,
+        33.0,
+        38.0,
+        44.0,
+        48.270909090000025,
+        58.0,
+        104.45353539444008
+      ],
+      [
+        0.0,
+        4.949747468,
+        80.61761594,
+        193.74948775000004
+      ],
+      [
+        0.0,
+        6.0,
+        20.0,
+        60.0,
+        90.0,
+        114.0,
+        152.0,
+        306.0,
+        1460.0
+      ],
+      [
+        0.0,
+        6.0,
+        57.0,
+        84.0,
+        110.0,
+        142.0
+      ],
+      [
+        0.0,
+        5.0,
+        6.888888889,
+        56.0,
+        82.0,
+        105.0,
+        132.0,
+        190.5,
+        463.2844156000001
+      ],
+      [
+        0.0,
+        93.26115476400112,
+        638.4063813000001
+      ],
+      [
+        0.0,
+        44.930672764,
+        316.82238427000027,
+        1917.7974446,
+        4340.726559999999,
+        8047.445227600005,
+        37037.03704,
+        461538.4615,
+        1364161.85
+      ],
+      [
+        0.4743293151,
+        1.8754599334000004,
+        17.68679702239001,
+        44.82877108000004,
+        83.72404555,
+        166.002656,
+        12012.01201,
+        20725.3886,
+        32320.63404100061
+      ],
+      [
+        50.66666667,
+        68.0,
+        135.0,
+        7982.0,
+        16726.666665,
+        31500.733332000003,
+        91256.47686700009,
+        609024.5000000003,
+        2256834.8276000014
+      ],
+      [
+        0.0,
+        2.121320344,
+        83.4286122,
+        459.24155765,
+        18000.808346,
+        60860.096681,
+        1640262.4284000006,
+        4277369.5784
+      ],
+      [
+        66.0,
+        149.0,
+        248.0,
+        23697.0,
+        32894.5,
+        61901.20000000001,
+        207364.90000000034,
+        5191102.000000001,
+        10000000.0
+      ],
+      [
+        1.0,
+        2.0,
+        3.0,
+        4.0,
+        29.0,
+        55.0,
+        394.8000000000029,
+        37690.20000000007
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        4.0,
+        200.0,
+        86944.40000000005,
+        4715106.2000000095,
+        61000000.0
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        4.0,
+        155.0,
+        19199.10476000005,
+        679510.1333400002,
+        4304988.163000002
+      ],
+      [
+        0.0,
+        14503.392078000015,
+        288894.67464000016,
+        4226301.570500003
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        4.0,
+        193.0,
+        47995.70000000005,
+        4168014.8000000026,
+        10100000.0
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        4.0,
+        48.0,
+        112.0,
+        3689.600000000035
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        47.0,
+        148.0,
+        580349.6000000001,
+        60600000.0
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        47.0,
+        91.78500000000021,
+        84424.71666400007,
+        4108968.671100008
+      ],
+      [
+        0.0,
+        46824.969694432504,
+        4033790.6005000095
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        47.0,
+        120.0,
+        296028.60000000044,
+        10100000.0
+      ],
+      [
+        0.0,
+        1.0,
+        3.0,
+        4.0,
+        48.0,
+        179.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        20.0,
+        32.0,
+        40.0,
+        64.0,
+        80.0,
+        152.0,
+        332.0
+      ],
+      [
+        20.0,
+        32.0,
+        40.0,
+        64.0,
+        132.0,
+        328.0
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ],
+      [
+        -1.0,
+        115.0,
+        255.0,
+        1025.0,
+        8192.0,
+        29200.0
+      ],
+      [
+        -1.0,
+        0.0,
+        123.0,
+        256.0,
+        1000.0
+      ],
+      [
+        0.0,
+        99314.90000000088
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0,
+        9999008.2362
+      ],
+      [
+        0.0,
+        245.8638458800183
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.022901316446511562,
+        0.49349576433668246,
+        0.671671908573625,
+        0.7808565184480393,
+        0.8487175208792583,
+        0.9020054365905131,
+        0.951232260620996,
+        0.9852281360342515
+      ],
+      [
+        0.0
+      ],
+      [
+        0.0
+      ]
+    ],
+    "fractions": [
+      [
+        0.09981,
+        0.100078,
+        0.100037,
+        0.100078,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.253368,
+        0.39857,
+        0.12884,
+        0.114244,
+        0.104978
+      ],
+      [
+        0.098645,
+        0.276358,
+        0.39628,
+        0.128304,
+        0.100412
+      ],
+      [
+        0.0,
+        0.183083,
+        0.112156,
+        0.104068,
+        0.093717,
+        0.099341,
+        0.107402,
+        0.100051,
+        0.100024,
+        0.100158
+      ],
+      [
+        0.0,
+        0.194143,
+        0.100185,
+        0.10538,
+        0.098565,
+        0.099649,
+        0.09977,
+        0.1023,
+        0.099984,
+        0.100024
+      ],
+      [
+        0.0,
+        0.118703,
+        0.160494,
+        0.114887,
+        0.100975,
+        0.078118,
+        0.126389,
+        0.099676,
+        0.100586,
+        0.100171
+      ],
+      [
+        0.0,
+        0.393535,
+        0.187636,
+        0.11407,
+        0.103117,
+        0.101269,
+        0.100372
+      ],
+      [
+        0.0,
+        0.133914,
+        0.166091,
+        0.086634,
+        0.095954,
+        0.114793,
+        0.102608,
+        0.09586,
+        0.104135,
+        0.100011
+      ],
+      [
+        0.0,
+        0.699821,
+        0.100158,
+        0.100011,
+        0.100011
+      ],
+      [
+        0.0,
+        0.194183,
+        0.099408,
+        0.101095,
+        0.103546,
+        0.100948,
+        0.100171,
+        0.100104,
+        0.08721,
+        0.113334
+      ],
+      [
+        0.0,
+        0.426167,
+        0.170818,
+        0.101015,
+        0.101216,
+        0.099475,
+        0.10131
+      ],
+      [
+        0.0,
+        0.199392,
+        0.099596,
+        0.098551,
+        0.102448,
+        0.097667,
+        0.097975,
+        0.104336,
+        0.100024,
+        0.100011
+      ],
+      [
+        0.0,
+        0.799992,
+        0.099997,
+        0.100011
+      ],
+      [
+        4e-05,
+        0.199968,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099984,
+        0.09985,
+        0.100131,
+        0.100037
+      ],
+      [
+        0.100011,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099984,
+        0.099997,
+        0.09993,
+        0.098886,
+        0.101189,
+        0.100011
+      ],
+      [
+        0.099997,
+        0.098377,
+        0.101377,
+        0.100238,
+        0.100011,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.299791,
+        0.099944,
+        0.100265,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.099863,
+        0.09902,
+        0.101082,
+        0.099997,
+        0.100037,
+        0.099997,
+        0.099997,
+        0.099997,
+        0.063844,
+        0.136164
+      ],
+      [
+        0.026566,
+        0.150451,
+        0.037064,
+        0.239201,
+        0.146675,
+        0.098016,
+        0.102019,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.257786,
+        0.062572,
+        0.119426,
+        0.160172,
+        0.100037,
+        0.099997,
+        0.099529,
+        0.100479
+      ],
+      [
+        0.0,
+        0.257893,
+        0.068115,
+        0.119373,
+        0.154535,
+        0.100078,
+        0.099997,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.699995,
+        0.099997,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.257786,
+        0.06288,
+        0.121448,
+        0.157843,
+        0.100037,
+        0.099997,
+        0.099756,
+        0.100252
+      ],
+      [
+        0.0,
+        0.26262,
+        0.112705,
+        0.187944,
+        0.134075,
+        0.102327,
+        0.100319,
+        0.100011
+      ],
+      [
+        0.0,
+        0.376075,
+        0.034627,
+        0.185199,
+        0.104068,
+        0.100024,
+        0.099783,
+        0.100225
+      ],
+      [
+        0.0,
+        0.376195,
+        0.036528,
+        0.18469,
+        0.102582,
+        0.099997,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.799992,
+        0.099997,
+        0.100011
+      ],
+      [
+        0.0,
+        0.376075,
+        0.034814,
+        0.185038,
+        0.104055,
+        0.100011,
+        0.098551,
+        0.101457
+      ],
+      [
+        0.0,
+        0.382462,
+        0.107496,
+        0.142136,
+        0.128009,
+        0.139846,
+        0.100051
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.748159,
+        0.251841
+      ],
+      [
+        0.0,
+        0.71783,
+        0.28217
+      ],
+      [
+        0.0,
+        0.86555,
+        0.13445
+      ],
+      [
+        0.000817,
+        0.13208,
+        0.113093,
+        0.228355,
+        0.195509,
+        0.123792,
+        0.097681,
+        0.108674
+      ],
+      [
+        0.098725,
+        0.138146,
+        0.124756,
+        0.203476,
+        0.229828,
+        0.101979,
+        0.10309
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.499973,
+        0.096543,
+        0.103452,
+        0.022,
+        0.141882,
+        0.136151
+      ],
+      [
+        0.0,
+        0.556466,
+        0.142926,
+        0.073043,
+        0.127541,
+        0.100024
+      ],
+      [
+        0.0,
+        0.899989,
+        0.100011
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        0.899989,
+        0.100011
+      ],
+      [
+        0.0,
+        0.899989,
+        0.100011
+      ],
+      [
+        0.0,
+        0.315176,
+        0.684824
+      ],
+      [
+        0.0,
+        0.199392,
+        0.100613,
+        0.099984,
+        0.099984,
+        0.100024,
+        0.099596,
+        0.100386,
+        0.099167,
+        0.100854
+      ],
+      [
+        0.0,
+        1.0
+      ],
+      [
+        0.0,
+        1.0
+      ]
+    ]
+  },
+  "provenance": {
+    "cli_args": {
+      "data": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\datasets\\cicids2017",
+      "synthetic": false,
+      "rows": 20000,
+      "model_dir": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\experiments\\pipeline\\xgb_cicids_v1\\models",
+      "model": "xgboost",
+      "cv": false,
+      "tune": false,
+      "smote": false,
+      "version": "xgb_cicids_v1"
+    },
+    "git_commit": "cf667f13d603ebfdd7b1acd45584f0b57c454f8f",
+    "git_dirty": true,
+    "python": "3.11.9",
+    "sklearn": "1.4.0",
+    "numpy": "1.26.4",
+    "data_sha256": {
+      "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+      "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+      "Friday-WorkingHours-Morning.pcap_ISCX.csv": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+      "Monday-WorkingHours.pcap_ISCX.csv": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+      "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+      "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+      "Tuesday-WorkingHours.pcap_ISCX.csv": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+      "Wednesday-workingHours.pcap_ISCX.csv": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a"
+    }
+  }
+}

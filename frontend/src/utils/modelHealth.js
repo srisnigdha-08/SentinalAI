@@ -26,13 +26,26 @@ export function driftSummary(report) {
   return { ...tone, detail }
 }
 
-/** Top shifted features, largest first, for a small table. */
+/** Top shifted features, largest first, for a small table. PSI reports (benign quantiles) carry `psi`;
+ *  the older scaler-statistics reports carry mean shift (sd) and variance ratio. */
 export function topShiftRows(report, limit = 5) {
   return (Array.isArray(report?.top_shifts) ? report.top_shifts : []).slice(0, limit).map(r => ({
     feature: r.feature,
-    shift: typeof r.mean_shift_sd === 'number' ? r.mean_shift_sd.toFixed(2) : '—',
-    ratio: typeof r.variance_ratio === 'number' ? r.variance_ratio.toFixed(2) : '—',
+    value: typeof r.psi === 'number'
+      ? `PSI ${r.psi.toFixed(3)}`
+      : `${typeof r.mean_shift_sd === 'number' ? r.mean_shift_sd.toFixed(2) : '—'} · ${typeof r.variance_ratio === 'number' ? r.variance_ratio.toFixed(2) : '—'}×`,
     flagged: Array.isArray(report?.drifted_features) && report.drifted_features.includes(r.feature),
+  }))
+}
+
+/** Global SHAP summary (GET /api/ai/engine/explain-global) as rows for a small table. */
+export function globalShapRows(summary, limit = 8) {
+  const rows = Array.isArray(summary?.overall) ? summary.overall : []
+  const max = rows.reduce((m, r) => Math.max(m, Number(r.mean_abs_shap) || 0), 0)
+  return rows.slice(0, limit).map(r => ({
+    feature: r.feature,
+    value: (Number(r.mean_abs_shap) || 0).toFixed(4),
+    pct: max ? Math.round(((Number(r.mean_abs_shap) || 0) / max) * 100) : 0,
   }))
 }
 
@@ -51,5 +64,6 @@ export function recommendationSummary(rec) {
   if (rec.nextProfile === rec.activeProfile) {
     return `Keep serving ${rec.activeProfile}${rec.explored ? ' (exploration pick)' : ''}.`
   }
-  return `Switch ${rec.activeProfile} → ${rec.nextProfile}${rec.explored ? ' (exploration pick)' : ' (best known Q-value)'}.`
+  const best = rec.policy === 'ucb1' ? ' (highest upper confidence bound)' : ' (best known Q-value)'
+  return `Switch ${rec.activeProfile} → ${rec.nextProfile}${rec.explored ? ' (exploration pick)' : best}.`
 }

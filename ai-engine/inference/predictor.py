@@ -264,6 +264,22 @@ class SentinelPredictor:
                     raise ValueError("Model metadata feature count mismatch")
                 if metadata.get("feature_names", FEATURE_NAMES) != FEATURE_NAMES:
                     raise ValueError("Model metadata feature order mismatch")
+            # P5: the pinned golden set must reproduce exactly before the models count as loaded
+            golden_entry = (registry or {}).get("golden")
+            if golden_entry:
+                from inference.model_checks import verify_golden
+                golden_path = self.model_dir / golden_entry["file"]
+                if not golden_path.exists() or file_sha256(golden_path) != golden_entry["sha256"].lower():
+                    log.error("Golden set missing or its hash does not match the registry; inference unavailable")
+                    return
+                ok, message = verify_golden(self.clf, self.ifo, json.loads(golden_path.read_text(encoding="utf-8")))
+                if not ok:
+                    log.error(f"Golden-set check failed: {message}; inference unavailable")
+                    return
+                log.info(f"Golden-set check passed: {message}")
+                self.registry["goldenCheck"] = message
+            elif registry:
+                log.warning("Registry has no golden set; re-run training/register_model.py to add one")
             self._loaded = True
             log.info(f"Classifier loaded from {clf_path}")
             print(f"[STARTUP] Loaded classification model: {clf_path.name}")
@@ -319,11 +335,25 @@ class SentinelPredictor:
                 tree_model = self.clf.named_steps["xgb"]
             else:
                 tree_model = self.clf.named_steps["rf"]
-            self.explainer = shap.TreeExplainer(tree_model)
+            # Wrapped boosters (training.estimators.EncodedXGB) expose the fitted XGBClassifier as model_
+            self.explainer = shap.TreeExplainer(getattr(tree_model, "model_", tree_model))
             log.info("SHAP TreeExplainer initialized successfully.")
         except Exception as e:
             log.warning(f"Could not initialize SHAP TreeExplainer (explain=True will fall back to empty): {e}")
             self.explainer = None
+
+    def shap_for_classes(self, X, cls_pos):
+        """|SHAP| of each row for the class it was assigned (rows x features), or None without an explainer."""
+        if not self._loaded or self.explainer is None:
+            return None
+        raw = self.explainer.shap_values(self.clf.named_steps["scaler"].transform(X))
+        rows = np.arange(len(X))
+        if isinstance(raw, list):
+            return np.abs(np.stack([raw[int(c)][i] for i, c in enumerate(cls_pos)]))
+        raw = np.asarray(raw)
+        if raw.ndim == 3:
+            return np.abs(raw[rows, :, np.asarray(cls_pos, dtype=int)])
+        return np.abs(raw)
 
     def calculate_if_anomaly_signal(self, if_score: float) -> float:
         """
@@ -561,4 +591,5 @@ class SentinelPredictor:
 
     def get_model_info(self):
         from utils.features import LABEL_MAP
-        return {"classProvenance":self.class_provenance(),"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD,"reviewMinAnomalySignal":REVIEW_MIN_SIGNAL},"registry":self.registry}
+        from inference.model_checks import read_history
+        return {"lineage":read_history(self.model_dir, last=5),"classProvenance":self.class_provenance(),"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD,"reviewMinAnomalySignal":REVIEW_MIN_SIGNAL},"registry":self.registry}

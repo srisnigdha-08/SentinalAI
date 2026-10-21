@@ -94,6 +94,7 @@ export const aiAPI = {
   modelInfo:  ()       => api.get('/ai/engine/model-info'),
   engineStats:()       => api.get('/ai/engine/stats'),
   drift:      ()       => api.get('/ai/engine/drift'),
+  explainGlobal:()     => api.get('/ai/engine/explain-global'),
   // Loading and verifying new models can take a while; the backend allows 120 s.
   reloadModel:()       => api.post('/ai/engine/reload', null, { timeout: 130000 }),
   predictions:(params) => api.get('/ai/predictions', { params }),

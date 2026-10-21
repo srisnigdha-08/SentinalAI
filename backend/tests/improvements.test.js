@@ -152,7 +152,7 @@ describe('drift monitor alerting', () => {
     jest.doMock('../services/alertService', () => ({ createAlert }))
     jest.doMock('../websocket/socketManager', () => ({ emitNewAlert: jest.fn() }))
     const { DriftMonitorService } = require('../services/driftMonitorService')
-    const svc = new DriftMonitorService({ cooldownHours: 24 })
+    const svc = new DriftMonitorService({ cooldownHours: 24, retrainAfter: 99 }) // retraining alert tested below
 
     getDrift.mockResolvedValue({ status: 'ok' })
     expect((await svc.check(0)).alerted).toBe(false)
@@ -167,6 +167,34 @@ describe('drift monitor alerting', () => {
     expect((await svc.check(1000 + 25 * 3600 * 1000)).alerted).toBe(true)
     expect(createAlert).toHaveBeenCalledTimes(2)
     expect(createAlert.mock.calls[0][0]).toMatchObject({ type: 'SYSTEM_HEALTH', title: 'Model input drift detected' })
+  })
+
+  test('sustained drift raises one admin-only retraining recommendation; a clean report resets the streak', async () => {
+    jest.resetModules()
+    const getDrift = jest.fn()
+    const createAlert = jest.fn().mockResolvedValue({ _id: 'a' })
+    jest.doMock('../services/aiEngineService', () => ({ getDrift }))
+    jest.doMock('../services/alertService', () => ({ createAlert }))
+    jest.doMock('../websocket/socketManager', () => ({ emitNewAlert: jest.fn() }))
+    const { DriftMonitorService } = require('../services/driftMonitorService')
+    const svc = new DriftMonitorService({ cooldownHours: 24, retrainAfter: 3 })
+    const drift = { status: 'drift', method: 'psi_benign_quantiles', drifted_features: ['a'], top_shifts: [] }
+    const retrainCalls = () => createAlert.mock.calls.filter(([a]) => a.title.startsWith('Retraining recommended'))
+
+    getDrift.mockResolvedValue(drift)
+    expect((await svc.check(0)).retrainRecommended).toBe(false)
+    expect((await svc.check(1)).retrainRecommended).toBe(false)
+    getDrift.mockResolvedValue({ status: 'ok' })
+    await svc.check(2) // streak reset
+    getDrift.mockResolvedValue(drift)
+    await svc.check(3)
+    await svc.check(4)
+    expect(retrainCalls()).toHaveLength(0)
+    expect((await svc.check(5)).retrainRecommended).toBe(true)
+    expect((await svc.check(6)).retrainRecommended).toBe(false) // cooldown
+    expect(retrainCalls()).toHaveLength(1)
+    expect(retrainCalls()[0][0]).toMatchObject({ type: 'SYSTEM_HEALTH', targetRoles: ['admin'] })
+    expect(retrainCalls()[0][0].message).toMatch(/retrain_from_samples\.py/)
   })
 
   test('gauge value: -1 before any check or when not assessed, 0 ok, 1 drift', async () => {

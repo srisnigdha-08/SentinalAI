@@ -9,6 +9,7 @@ const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonical
 
 // While the AI engine is down every analysed flow is degraded. Each one is still recorded as a
 // DEGRADED threat (held in MONITOR), but only one SYSTEM_HEALTH alert is raised per cooldown window.
+const HONEYPOT_CORROBORATION_DAYS = parseFloat(process.env.HONEYPOT_CORROBORATION_DAYS) || 7
 const DEGRADED_ALERT_COOLDOWN_MS = parseInt(process.env.DEGRADED_ALERT_COOLDOWN_MS, 10) || 5 * 60 * 1000
 let lastDegradedAlertAt = 0
 const resetDegradedAlertCooldown = () => {
@@ -50,6 +51,22 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified, revie
 const storePrediction = async (data) => {
   const payload = { ...data }
   payload.needsReview = data.action === 'REVIEW'
+  // Honeypot feedback (U4): a network flow from an IP that attacked the honeypot recently but was classified
+  // BENIGN/Unknown is a likely missed attack. It joins the analyst review queue; once verified it becomes a
+  // training sample through the existing verification -> TrainingSample path. Never a threat or block by itself.
+  // Only on an open connection: a buffered query would otherwise stall every prediction while Mongo is down
+  if (data.inputSource === 'network_traffic' && data.sourceIP && module.exports.dbConnected()) {
+    try {
+      const since = new Date(Date.now() - HONEYPOT_CORROBORATION_DAYS * 24 * 3600 * 1000)
+      const HoneypotSession = require('../models/HoneypotSession')
+      if (await HoneypotSession.exists({ sourceIP: data.sourceIP, createdAt: { $gte: since } })) {
+        payload.honeypotCorroborated = true
+        if (['BENIGN', 'Unknown'].includes(data.predictedClass)) payload.needsReview = true
+      }
+    } catch (err) {
+      logger.warn('[AI Persistence] Honeypot corroboration lookup failed (' + err.name + ')')
+    }
+  }
 
   if (data.featureVector !== undefined && data.featureVector !== null) {
     const isArr = Array.isArray(data.featureVector)
@@ -362,4 +379,14 @@ const getModelStats = async (now = new Date()) => {
   }
 }
 
-module.exports = { findPredictions, storePrediction, verifyPrediction, getModelStats, resetDegradedAlertCooldown }
+// Exported so tests can simulate an open connection (mongoose's readyState is not configurable)
+const dbConnected = () => mongoose.connection.readyState === 1
+
+module.exports = {
+  findPredictions,
+  storePrediction,
+  verifyPrediction,
+  getModelStats,
+  resetDegradedAlertCooldown,
+  dbConnected,
+}

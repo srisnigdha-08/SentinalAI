@@ -75,3 +75,8 @@ test-results/
 # Prometheus scrape credential for the compose monitoring profile
 deployment/metrics_token
 deployment/grafana_admin_password
+
+# Candidate model copies written by training/pipeline.py and retrain_from_samples.py; reports stay tracked.
+# The served copies live in ai-engine/models/ (registered).
+ai-engine/experiments/pipeline/*/models/*.pkl
+ai-engine/experiments/retraining/*/*.pkl

@@ -77,3 +77,38 @@ describe('H5 analyst review queue', () => {
     expect(mockFind).toHaveBeenCalledWith({ needsReview: true, verified: false })
   })
 })
+
+describe('U4 honeypot corroboration', () => {
+  const HoneypotSession = require('../models/HoneypotSession')
+  let readyState
+  beforeEach(() => {
+    jest.clearAllMocks()
+    readyState = jest.spyOn(aiService, 'dbConnected').mockReturnValue(true)
+    jest.spyOn(aiEngineService, 'getAlertThreshold').mockResolvedValue(0.9)
+    jest.spyOn(aiEngineService, 'getBlockThreshold').mockResolvedValue(0.92)
+  })
+  afterEach(() => jest.restoreAllMocks())
+  const flow = (predictedClass) => ({ inputSource: 'network_traffic', sourceIP: '203.0.113.50', predictedClass, threatScore: 0.1 })
+
+  test('a BENIGN flow from a recent honeypot attacker is queued for review', async () => {
+    jest.spyOn(HoneypotSession, 'exists').mockResolvedValue({ _id: 's1' })
+    await aiService.storePrediction(flow('BENIGN'))
+    expect(created).toMatchObject({ honeypotCorroborated: true, needsReview: true })
+    expect(mockThreatCreate).not.toHaveBeenCalled()
+  })
+
+  test('an attack verdict from such an IP is marked but not queued (it is already a detection)', async () => {
+    jest.spyOn(HoneypotSession, 'exists').mockResolvedValue({ _id: 's1' })
+    await aiService.storePrediction(flow('Port Scan'))
+    expect(created.honeypotCorroborated).toBe(true)
+    expect(created.needsReview).toBe(false)
+  })
+
+  test('no lookup while MongoDB is not connected', async () => {
+    readyState.mockReturnValue(false)
+    const exists = jest.spyOn(HoneypotSession, 'exists')
+    await aiService.storePrediction(flow('BENIGN'))
+    expect(exists).not.toHaveBeenCalled()
+    expect(created.honeypotCorroborated).toBeUndefined()
+  })
+})

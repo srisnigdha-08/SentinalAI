@@ -120,6 +120,20 @@ EPSILON_MIN = 0.05
 CONVERGENCE_WINDOW = 100
 CONVERGENCE_TOL = 0.5
 
+# Recommendation policy (U6). The learner's "state" is only the previous persona, so the problem is close to a
+# multi-armed bandit over personas. "ucb1" recommends by Upper Confidence Bound on each persona's mean
+# (normalised) reward: unplayed personas first, then the best mean plus an exploration bonus that shrinks as
+# a persona is tried more. "q_learning" (default) keeps the epsilon-greedy Q-table policy described in the paper.
+# Per-persona arm statistics are maintained under both policies, so switching needs no relearning.
+POLICY = os.getenv("DECEPTION_POLICY", "q_learning").strip().lower()
+POLICIES = ("q_learning", "ucb1")
+UCB_C = 1.0
+
+
+def _normalised(reward: float) -> float:
+    return (reward - REWARD_MIN) / (REWARD_MAX - REWARD_MIN)
+
+
 LOCK_TIMEOUT_S = 5.0
 LOCK_STALE_S = 30.0
 
@@ -166,6 +180,8 @@ class DeceptionQLearner:
     def __init__(self, alpha=0.1, gamma=0.9, epsilon=0.2, q_table_path="rl_engine/q_table.json"):
         self.alpha=alpha; self.gamma=gamma; self.epsilon=epsilon; self.q_table_path=q_table_path
         self.episode_count=0; self.total_reward=0.0; self.reward_history=[]; self.td_errors=[]
+        self.policy = POLICY if POLICY in POLICIES else "q_learning"
+        self.arm_stats = {a: {"n": 0, "mean": 0.0} for a in PROFILES_LIST}
         self.q_table={s:{a:0.0 for a in PROFILES_LIST} for s in PROFILES_LIST}
         # TD updates applied since the last save, and the state of the file when it was last read or written.
         # Together they let save() merge with another process's writes instead of overwriting them (M5).
@@ -183,6 +199,9 @@ class DeceptionQLearner:
                 self.total_reward=data.get("total_reward",0.0)
                 self.reward_history=data.get("reward_history",[])
                 self.td_errors=data.get("td_errors",[])
+                for a, st in (data.get("arm_stats") or {}).items():
+                    if a in self.arm_stats:
+                        self.arm_stats[a] = {"n": int(st.get("n", 0)), "mean": float(st.get("mean", 0.0))}
                 self._disk_signature=_file_signature(p)
             except (OSError, ValueError) as e:
                 log.warning("Q-table at %s could not be read (%s); starting from defaults", p, type(e).__name__)
@@ -206,6 +225,13 @@ class DeceptionQLearner:
         errors = [self._td_update(table, state, action, reward, next_state)
                   for state, action, reward, next_state in self._pending]
         self.td_errors = (disk.get("td_errors", []) + [round(e, 4) for e in errors])[-CONVERGENCE_WINDOW:]
+        arms = {a: {"n": 0, "mean": 0.0} for a in PROFILES_LIST}
+        for a, st in (disk.get("arm_stats") or {}).items():
+            if a in arms:
+                arms[a] = {"n": int(st.get("n", 0)), "mean": float(st.get("mean", 0.0))}
+        self.arm_stats = arms
+        for _, action, reward, _ in self._pending:
+            self._record_arm(action, reward)
         self.q_table = table
         self.episode_count = disk.get("episode_count", 0) + len(self._pending)
         self.total_reward = disk.get("total_reward", 0.0) + sum(r for _, _, r, _ in self._pending)
@@ -277,6 +303,7 @@ class DeceptionQLearner:
                 "total_reward": round(self.total_reward, 2),
                 "reward_history": self.reward_history[-100:],
                 "td_errors": self.td_errors[-CONVERGENCE_WINDOW:],
+                "arm_stats": self.arm_stats,
                 "saved_at": datetime.now(timezone.utc).isoformat(),
             }
             try:
@@ -298,7 +325,29 @@ class DeceptionQLearner:
     def current_epsilon(self) -> float:
         return max(EPSILON_MIN, self.epsilon / (1 + self.episode_count * 0.01))
 
+    def _record_arm(self, action, reward):
+        st = self.arm_stats.setdefault(action, {"n": 0, "mean": 0.0})
+        st["n"] += 1
+        st["mean"] = round(st["mean"] + (_normalised(reward) - st["mean"]) / st["n"], 6)
+
+    def ucb_scores(self) -> dict:
+        total = sum(st["n"] for st in self.arm_stats.values())
+        return {a: (float("inf") if st["n"] == 0 else
+                    st["mean"] + UCB_C * math.sqrt(2 * math.log(max(total, 1)) / st["n"]))
+                for a, st in self.arm_stats.items()}
+
+    def greedy_action(self, state: str) -> str:
+        """Best persona without exploration, under the active policy."""
+        if self.policy == "ucb1":
+            played = {a: st["mean"] for a, st in self.arm_stats.items() if st["n"] > 0}
+            return max(played, key=played.get) if played else PROFILES_LIST[0]
+        q = self.q_table.get(state, {})
+        return max(q, key=q.get) if q else PROFILES_LIST[0]
+
     def choose_action(self, state: str) -> str:
+        if self.policy == "ucb1":
+            scores = self.ucb_scores()
+            return max(PROFILES_LIST, key=lambda a: scores[a])  # list order breaks ties deterministically
         if random.random()<self.current_epsilon(): return random.choice(PROFILES_LIST)
         q=self.q_table.get(state,{}); return max(q,key=q.get)
 
@@ -306,6 +355,7 @@ class DeceptionQLearner:
         td_error = self._td_update(self.q_table, state, action, reward, next_state)
         self.td_errors = (self.td_errors + [round(td_error, 4)])[-CONVERGENCE_WINDOW:]
         self._pending.append((state, action, reward, next_state))
+        self._record_arm(action, reward)
         self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
         # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
         if self.episode_count % max(1, int(os.getenv("Q_SAVE_EVERY", "1"))) == 0: self.save()
@@ -322,7 +372,8 @@ class DeceptionQLearner:
 
     def get_stats(self):
         recent=self.reward_history[-20:]
-        return {"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.current_epsilon(),3),"epsilonMin":EPSILON_MIN,"convergence":self.convergence(),"profileRankings":self.get_profile_rankings()}
+        return {"episodeCount":self.episode_count,"totalReward":round(self.total_reward,2),"avgRecentReward":round(sum(recent)/len(recent),2) if recent else 0,"epsilon":round(self.current_epsilon(),3),"epsilonMin":EPSILON_MIN,"convergence":self.convergence(),"policy":self.policy,
+                "armStats":{a: {"n": st["n"], "meanNormalisedReward": round(st["mean"], 4)} for a, st in self.arm_stats.items()},"profileRankings":self.get_profile_rankings()}
 
 class SessionScorer:
     """

@@ -144,7 +144,7 @@ def test_shipped_registry_matches_shipped_models():
     assert reg is not None, "ai-engine/models/registry.json is missing"
     for role in ("classifier", "anomaly"):
         assert pred_mod.file_sha256(ENGINE / "models" / reg[role]["file"]) == reg[role]["sha256"]
-    assert reg["classifier"]["file"] == "rf_classifier_cicids_v3.pkl"  # C2: de-duplicated retrain
+    assert reg["classifier"]["file"] == "xgb_classifier_xgb_cicids_v1.pkl"  # M-5: XGBoost won the chronological evaluation
 
 
 def test_missing_registry_refuses_to_guess_the_production_model(tmp_path, monkeypatch, caplog):

@@ -1,6 +1,8 @@
 # ai-engine/models
 
-**Served:** exactly the two files pinned by SHA-256 in `registry.json`, currently `rf_classifier_cicids_v3.pkl` and `isolation_forest_cicids_v3.pkl`.
+**Served:** exactly the two files pinned by SHA-256 in `registry.json`, currently `xgb_classifier_xgb_cicids_v1.pkl` and `isolation_forest_xgb_cicids_v1.pkl`, produced by `training/pipeline.py`.
+- `golden_set.json` holds 20 fixed vectors and the outputs they must reproduce at startup (pinned in the registry).
+- `registry_history.jsonl` is the append-only record of every registration.
 - Without `registry.json` the engine loads nothing. The legacy "first matching file name" order applies only with `ALLOW_UNREGISTERED_MODELS=1`, intended for development and tests.
 - To change the served model, run `training/register_model.py` and then `POST /model/reload`.
 
@@ -8,6 +10,7 @@
 
 | File | What it is |
 |---|---|
+| `rf_classifier_cicids_v3.pkl`, `isolation_forest_cicids_v3.pkl` | De-duplicated Random Forest (served after C2, until XGBoost won M-5) |
 | `rf_classifier_cicids_v2.pkl`, `isolation_forest_cicids.pkl` | August models (served before C2; trained on a split with duplicates, SMOTE) |
 | `rf_classifier_cicids.pkl` | Older RF v1 |
 | `xgb_classifier_cicids.pkl` | XGBoost on real CICIDS2017 (not deployed) |

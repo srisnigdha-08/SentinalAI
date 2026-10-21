@@ -182,6 +182,8 @@ Setting `ALERT_THRESHOLD` in an environment still overrides the default. The MON
 
 ### 2.7 What the paper should now say (replace Table IV's sentence and abstract claim)
 
+> **Superseded (Phase 5, M-5):** the served model is now XGBoost (`xgb_cicids_v1`). It was chosen over this Random Forest by chronological evaluation. Use the wording and Table IV in `docs/PAPER_CORRECTIONS.md`; the paragraph below describes the RF.
+
 > The deployed Random Forest is trained on all eight CICIDS2017 MachineLearningCVE files after removing
 > exact duplicate flows (22% of the dataset; 98.8% of PortScan rows). On a stratified random 80/20 split it
 > reaches 98.47% accuracy, 0.986 weighted F1 and 0.842 macro F1. Because random row splits overstate

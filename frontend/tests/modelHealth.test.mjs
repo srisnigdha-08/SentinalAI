@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { driftSummary, topShiftRows, classMixRows, recommendationSummary } from '../src/utils/modelHealth.js'
+import { driftSummary, topShiftRows, classMixRows, recommendationSummary, globalShapRows } from '../src/utils/modelHealth.js'
 
 test('missing drift report is shown as unavailable, never as healthy', () => {
   for (const report of [null, undefined, 'x']) assert.equal(driftSummary(report).label, 'UNAVAILABLE')
@@ -22,7 +22,7 @@ test('top shift rows flag only drifted features and respect the limit', () => {
     { feature: 'y', mean_shift_sd: 0.1, variance_ratio: 1 },
     { feature: 'z', mean_shift_sd: 0.05, variance_ratio: 1 },
   ] }, 2)
-  assert.deepEqual(rows.map(r => [r.feature, r.shift, r.flagged]), [['x', '1.23', true], ['y', '0.10', false]])
+  assert.deepEqual(rows.map(r => [r.feature, r.value, r.flagged]), [['x', '1.23 · 5.00×', true], ['y', '0.10 · 1.00×', false]])
 })
 test('class mix is sorted with percentages', () => {
   assert.deepEqual(classMixRows({ recent_class_mix: { BENIGN: 3, DDoS: 1 } }),
@@ -33,4 +33,19 @@ test('recommendation wording distinguishes keep, switch and exploration', () => 
   assert.equal(recommendationSummary(null), null)
   assert.equal(recommendationSummary({ activeProfile: 'centos_7', nextProfile: 'centos_7', explored: false }), 'Keep serving centos_7.')
   assert.match(recommendationSummary({ activeProfile: 'centos_7', nextProfile: 'aws_ec2', explored: true }), /centos_7 → aws_ec2 \(exploration pick\)/)
+})
+
+test('PSI drift rows show the PSI value', () => {
+  const rows = topShiftRows({ drifted_features: ['a'], top_shifts: [{ feature: 'a', psi: 0.4123 }] })
+  assert.deepEqual(rows, [{ feature: 'a', value: 'PSI 0.412', flagged: true }])
+})
+
+test('global SHAP rows scale bars to the largest contribution', () => {
+  assert.deepEqual(globalShapRows(null), [])
+  const rows = globalShapRows({ overall: [{ feature: 'a', mean_abs_shap: 0.2 }, { feature: 'b', mean_abs_shap: 0.05 }] })
+  assert.deepEqual(rows, [{ feature: 'a', value: '0.2000', pct: 100 }, { feature: 'b', value: '0.0500', pct: 25 }])
+})
+
+test('UCB1 recommendations are not described as Q-values', () => {
+  assert.match(recommendationSummary({ activeProfile: 'centos_7', nextProfile: 'aws_ec2', explored: false, policy: 'ucb1' }), /upper confidence bound/)
 })

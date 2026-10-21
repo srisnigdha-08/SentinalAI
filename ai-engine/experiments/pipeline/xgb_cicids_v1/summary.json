@@ -1,0 +1,45 @@
+{
+  "version": "xgb_cicids_v1",
+  "model": "xgboost",
+  "generated_at": "2026-10-21T16:12:23.236056+00:00",
+  "smoke": false,
+  "random_split_train_py": {
+    "accuracy": 0.9897,
+    "f1_weighted": 0.9907,
+    "f1_macro": 0.8738
+  },
+  "random": {
+    "accuracy": 0.9926,
+    "f1_macro": 0.8757,
+    "f1_weighted": 0.9932
+  },
+  "chronological": {
+    "accuracy": 0.9891,
+    "f1_macro": 0.7718,
+    "f1_weighted": 0.9898,
+    "at_alert_line_0.9": {
+      "attack_detection": 0.9113,
+      "benign_fpr": 0.001587
+    }
+  },
+  "leave_one_day_out_detection": {
+    "Monday": null,
+    "Tuesday": 0.0021,
+    "Wednesday": 0.069,
+    "Thursday": 0.8017,
+    "Friday": 0.1027
+  },
+  "threshold_validation": {
+    "selected_line": 0.87,
+    "test_at_selected": {
+      "line": 0.87,
+      "benign_fpr": 0.00145,
+      "benign_fpr_ci95": [
+        0.001275,
+        0.001649
+      ],
+      "attack_detection": 0.9159
+    },
+    "conservative_line": 0.9
+  }
+}

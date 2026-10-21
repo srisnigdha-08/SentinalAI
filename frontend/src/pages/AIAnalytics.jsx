@@ -8,7 +8,7 @@ import { BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
 import { aiAPI, CANONICAL_CLASSES, trainingSampleAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
-import { driftSummary, topShiftRows, classMixRows } from '../utils/modelHealth.js'
+import { driftSummary, topShiftRows, classMixRows, globalShapRows } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -34,6 +34,7 @@ export default function AIAnalytics() {
   const [selectedClass, setSelectedClass] = useState('')
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [drift,     setDrift]     = useState(null)
+  const [globalShap, setGlobalShap] = useState(null)
   const [driftLoaded, setDriftLoaded] = useState(false)
   const [reloading, setReloading] = useState(false)
   const { connected, on } = useSocket()
@@ -45,6 +46,9 @@ export default function AIAnalytics() {
       .then(r => setDrift(r.data?.data || null))
       .catch(() => setDrift(null))
       .finally(() => setDriftLoaded(true))
+    aiAPI.explainGlobal()
+      .then(r => setGlobalShap(r.data?.data || null))
+      .catch(() => setGlobalShap(null))
   }
 
   const handleReloadModel = async () => {
@@ -168,6 +172,7 @@ export default function AIAnalytics() {
   const driftInfo   = driftSummary(drift)
   const shiftRows   = topShiftRows(drift)
   const mixRows     = classMixRows(drift).slice(0, 5)
+  const shapRows    = globalShapRows(globalShap)
   const thresholds  = modelInfo?.thresholds || {}
 
   // Class performance for bar chart
@@ -284,11 +289,11 @@ export default function AIAnalytics() {
           {(shiftRows.length > 0 || mixRows.length > 0) && (
             <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem' }}>
               <div>
-                <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>LARGEST FEATURE SHIFTS (SD FROM TRAINING MEAN · VARIANCE RATIO)</div>
+                <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>LARGEST FEATURE SHIFTS VS. BENIGN TRAINING TRAFFIC</div>
                 {shiftRows.map(r => (
                   <div key={r.feature} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'3px 0', borderBottom:'1px solid #0d335244', fontFamily:'Share Tech Mono,monospace', fontSize:11, color: r.flagged ? '#ffaa00' : '#7ab3cc' }}>
                     <span>{r.flagged ? '▲ ' : ''}{r.feature}</span>
-                    <span>{r.shift} · {r.ratio}×</span>
+                    <span>{r.value}</span>
                   </div>
                 ))}
                 {shiftRows.length === 0 && <div style={{ color:'#3a6a88', fontSize:11 }}>Not enough samples yet.</div>}
@@ -305,8 +310,24 @@ export default function AIAnalytics() {
               </div>
             </div>
           )}
+          {shapRows.length > 0 && (
+            <div style={{ marginTop:12 }}>
+              <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>
+                FEATURES DRIVING RECENT VERDICTS (MEAN |SHAP| OVER {globalShap?.samples} FLOWS)
+              </div>
+              {shapRows.map(r => (
+                <div key={r.feature} style={{ display:'flex', alignItems:'center', gap:8, padding:'2px 0', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
+                  <span style={{ width:190, overflow:'hidden', textOverflow:'ellipsis' }}>{r.feature}</span>
+                  <div style={{ flex:1, height:6, background:'#0d3352', borderRadius:3 }}>
+                    <div style={{ width:`${r.pct}%`, height:6, background:'#8b5cf6', borderRadius:3 }} />
+                  </div>
+                  <span style={{ width:60, textAlign:'right' }}>{r.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
           <div style={{ marginTop:10, fontSize:10, color:'#3a6a88' }}>
-            Screening statistics against the deployed scaler&apos;s training statistics; drift is a cue to re-evaluate or retrain, not proof of model failure.
+            Screening statistics (PSI of benign-classified traffic against the benign training data); drift is a cue to re-evaluate or retrain, not proof of model failure.
           </div>
         </Panel>
       )}

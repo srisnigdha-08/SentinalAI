@@ -11,6 +11,7 @@ backend callbacks pointed at a dead port), then:
   5. scores two honeypot sessions and asks for a deception recommendation.
 
 Usage (from the repo root):  ai-engine/.venv/Scripts/python.exe scripts/ai_engine_endpoint_check.py
+       --skip-dataset   no CICIDS CSVs needed (CI): synthetic flows replace steps 2-4's real rows
 Nothing outside .test-runtime/ is written. The rows come from the training CSVs, so the per-class
 predictions are a sanity check of the serving path, not an independent accuracy estimate.
 """
@@ -24,11 +25,13 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 AI = ROOT / "ai-engine"
 sys.path.insert(0, str(AI))
-from utils.features import FEATURE_NAMES, RAW_LABEL_TO_TARGET, prepare_features  # noqa: E402
+from utils.features import FEATURE_NAMES, RAW_LABEL_TO_TARGET, extract_features_from_record, prepare_features  # noqa: E402
 
 sys.stdout.reconfigure(errors="backslashreplace")  # CICIDS web-attack labels contain U+FFFD
 
 DATA = AI / "datasets" / "cicids2017"
+# The datasets are not in git, so CI runs without them (Q8)
+SKIP_DATASET = "--skip-dataset" in sys.argv or not any(DATA.glob("*.csv"))
 PER_LABEL = 5
 runtime = ROOT / ".test-runtime" / "endpoint-check"
 runtime.mkdir(parents=True, exist_ok=True)
@@ -110,48 +113,64 @@ def run(port, key, q_path):
         check(c.post("/predict/eval", headers=H, json={"flow_duration": "NaN"}).status_code == 422, "NaN feature -> 422")
         check(c.post("/predict/batch", headers=H, json=[{}] * 501).status_code == 400, "batch of 501 -> 400")
 
-        rows = sample_rows()
-        X_train_path, y = prepare_features(rows, max_missing=0)
-        print(f"\n[2] Real CICIDS2017 rows per class ({len(rows)} rows, {PER_LABEL} per raw label)")
-        out = []
-        for i, row in rows.iterrows():
-            # Same mapping as demo/replay_cicids.py: schema field names, plus a timestamp.
-            record = {fn: float(X_train_path[i, j]) for j, fn in enumerate(FEATURE_NAMES)
+        if SKIP_DATASET:
+            print("\n[2] Real CICIDS2017 rows: skipped (--skip-dataset or no CSVs)")
+            record = {fn: 10.0 + j for j, fn in enumerate(FEATURE_NAMES)
                       if fn not in ("payload_entropy", "time_of_day_sin", "time_of_day_cos")}
             record["sourceIP"] = "192.0.2.10"
-            r = c.post("/predict/internal", headers=H, json=record)
-            r.raise_for_status()
-            res = r.json()["result"]
-            vec = np.array(res["featureVector"])
-            out.append({"raw": row["Label"], "target": RAW_LABEL_TO_TARGET.get(row["Label"], row["Label"]),
-                        "pred": res["predictedClass"], "score": res["threatScore"], "action": res["action"],
-                        "anomaly": res["isAnomaly"], "same_vector": bool(np.allclose(vec, X_train_path[i]))})
-        df = pd.DataFrame(out)
-        df["correct"] = (df["pred"] == df["target"]) | ((df["target"] != "BENIGN") & (df["pred"] == "Unknown"))
-        summary = df.groupby("raw").agg(target=("target", "first"), n=("pred", "size"), correct=("correct", "sum"),
-                                         preds=("pred", lambda s: ",".join(sorted(set(s)))),
-                                         mean_score=("score", "mean"),
-                                         actions=("action", lambda s: ",".join(f"{a}:{n}" for a, n in s.value_counts().items())))
-        print(summary.to_string())
-        benign = df[df.target == "BENIGN"]
-        attack = df[df.target != "BENIGN"]
-        check(benign["pred"].eq("BENIGN").mean() >= 0.8, f"benign rows predicted BENIGN: {benign['pred'].eq('BENIGN').mean():.0%}")
-        check(attack["pred"].ne("BENIGN").mean() >= 0.8, f"attack rows predicted non-BENIGN: {attack['pred'].ne('BENIGN').mean():.0%}")
+            print("\n[3] Train/serve consistency (synthetic flow)")
+            res = c.post("/predict/internal", headers=H, json=record).json()["result"]
+            check(np.allclose(res["featureVector"], extract_features_from_record(record)),
+                  "served featureVector == utils.features vector for the same record")
+            ev = c.post("/predict/eval", headers=H, json=dict(record)).json()["result"]
+            check("featureVector" not in ev, "/predict/eval hides featureVector; /predict/internal returns it")
+            print("\n[4] Caller sends raw CSV header names instead of schema field names")
+            res = c.post("/predict/internal", headers=H, json={"Flow Duration": 24.0}).json()["result"]
+            check(res["featureVector"][FEATURE_NAMES.index("flow_duration")] == 24.0,
+                  "CSV-named fields reach the model (FAIL = Record defaults shadow them; send schema names)")
+        else:
+            rows = sample_rows()
+            X_train_path, y = prepare_features(rows, max_missing=0)
+            print(f"\n[2] Real CICIDS2017 rows per class ({len(rows)} rows, {PER_LABEL} per raw label)")
+            out = []
+            for i, row in rows.iterrows():
+                # Same mapping as demo/replay_cicids.py: schema field names, plus a timestamp.
+                record = {fn: float(X_train_path[i, j]) for j, fn in enumerate(FEATURE_NAMES)
+                          if fn not in ("payload_entropy", "time_of_day_sin", "time_of_day_cos")}
+                record["sourceIP"] = "192.0.2.10"
+                r = c.post("/predict/internal", headers=H, json=record)
+                r.raise_for_status()
+                res = r.json()["result"]
+                vec = np.array(res["featureVector"])
+                out.append({"raw": row["Label"], "target": RAW_LABEL_TO_TARGET.get(row["Label"], row["Label"]),
+                            "pred": res["predictedClass"], "score": res["threatScore"], "action": res["action"],
+                            "anomaly": res["isAnomaly"], "same_vector": bool(np.allclose(vec, X_train_path[i]))})
+            df = pd.DataFrame(out)
+            df["correct"] = (df["pred"] == df["target"]) | ((df["target"] != "BENIGN") & (df["pred"] == "Unknown"))
+            summary = df.groupby("raw").agg(target=("target", "first"), n=("pred", "size"), correct=("correct", "sum"),
+                                             preds=("pred", lambda s: ",".join(sorted(set(s)))),
+                                             mean_score=("score", "mean"),
+                                             actions=("action", lambda s: ",".join(f"{a}:{n}" for a, n in s.value_counts().items())))
+            print(summary.to_string())
+            benign = df[df.target == "BENIGN"]
+            attack = df[df.target != "BENIGN"]
+            check(benign["pred"].eq("BENIGN").mean() >= 0.8, f"benign rows predicted BENIGN: {benign['pred'].eq('BENIGN').mean():.0%}")
+            check(attack["pred"].ne("BENIGN").mean() >= 0.8, f"attack rows predicted non-BENIGN: {attack['pred'].ne('BENIGN').mean():.0%}")
 
-        print("\n[3] Train/serve consistency")
-        check(df["same_vector"].all(), f"served featureVector == training prepare_features vector for {df['same_vector'].sum()}/{len(df)} rows")
-        ev = c.post("/predict/eval", headers=H, json=dict(record)).json()["result"]
-        check("featureVector" not in ev, "/predict/eval hides featureVector; /predict/internal returns it")
+            print("\n[3] Train/serve consistency")
+            check(df["same_vector"].all(), f"served featureVector == training prepare_features vector for {df['same_vector'].sum()}/{len(df)} rows")
+            ev = c.post("/predict/eval", headers=H, json=dict(record)).json()["result"]
+            check("featureVector" not in ev, "/predict/eval hides featureVector; /predict/internal returns it")
 
-        print("\n[4] Caller sends raw CSV header names instead of schema field names")
-        raw = rows.iloc[0].drop(labels=["Label"]).to_dict()
-        raw = {k: float(v) for k, v in raw.items()}
-        res = c.post("/predict/internal", headers=H, json=raw).json()["result"]
-        idx = FEATURE_NAMES.index("flow_duration")
-        print(f"       CSV Flow Duration={raw['Flow Duration']}  -> engine used flow_duration={res['featureVector'][idx]}")
-        print(f"       defaultedFeatures reported: {len(res['defaultedFeatures'])} fields")
-        check(res["featureVector"][idx] == raw["Flow Duration"],
-              "CSV-named fields reach the model (FAIL = Record defaults shadow them; send schema names)")
+            print("\n[4] Caller sends raw CSV header names instead of schema field names")
+            raw = rows.iloc[0].drop(labels=["Label"]).to_dict()
+            raw = {k: float(v) for k, v in raw.items()}
+            res = c.post("/predict/internal", headers=H, json=raw).json()["result"]
+            idx = FEATURE_NAMES.index("flow_duration")
+            print(f"       CSV Flow Duration={raw['Flow Duration']}  -> engine used flow_duration={res['featureVector'][idx]}")
+            print(f"       defaultedFeatures reported: {len(res['defaultedFeatures'])} fields")
+            check(res["featureVector"][idx] == raw["Flow Duration"],
+                  "CSV-named fields reach the model (FAIL = Record defaults shadow them; send schema names)")
 
         print("\n[5] Batch, public /predict, drift, stats, reload")
         b = c.post("/predict/batch", headers=H, json=[record] * 3).json()

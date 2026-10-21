@@ -243,7 +243,7 @@ export default function HoneypotAnalytics() {
             {canSeeRecommendation && (
               recError
                 ? <span style={{ color:'#ffaa00' }}>Recommendation unavailable: AI engine unreachable.</span>
-                : <span>Q-learner recommends: <strong style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
+                : <span>{recommendation?.policy === 'ucb1' ? 'Bandit (UCB1)' : 'Q-learner'} recommends: <strong style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
             )}
           </div>
           {canSeeRecommendation && (

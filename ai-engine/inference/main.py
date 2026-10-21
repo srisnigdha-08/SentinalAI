@@ -22,7 +22,10 @@ from inference.predictor import SentinelPredictor, MONITOR_THRESHOLD
 from inference.deception import get_scorer, save_scorer
 from inference.errors import ModelUnavailableError
 from monitoring.drift import DriftMonitor
-from utils.features import FEATURE_NAMES, CANDIDATES
+from utils.features import FEATURE_NAMES, CANDIDATES, LABEL_NAMES
+
+def pred_label(cls: int) -> str:
+    return LABEL_NAMES.get(cls, f"c{cls}")
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.exceptions import RequestValidationError
 
@@ -56,7 +59,10 @@ if not API_KEY:
 THRESHOLD   = float(os.getenv("SCORE_THRESHOLD") or MONITOR_THRESHOLD)
 
 predictor = None
-stats = {"total":0,"threats":0,"blocked":0,"start":datetime.now(timezone.utc).isoformat(),"scores":deque(maxlen=100),"times":deque(maxlen=100),"classes":defaultdict(int),"time_sum_ms":0.0}
+stats = {"total":0,"threats":0,"blocked":0,"start":datetime.now(timezone.utc).isoformat(),"scores":deque(maxlen=100),"times":deque(maxlen=100),"classes":defaultdict(int),"time_sum_ms":0.0,
+         "actions":defaultdict(int),"score_buckets":defaultdict(int),"score_sum":0.0,"incomplete":0}
+# threatScore histogram buckets (P4): the 0.90 alert and 0.92 block lines get their own edges
+SCORE_BUCKETS = (0.1, 0.3, 0.5, 0.7, 0.9, 0.92, 0.99)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -264,6 +270,13 @@ def _upd_unlocked(r):
     stats["total"]+=1; stats["scores"].append(r["threatScore"]); stats["times"].append(r.get("inferenceTimeMs",0))
     stats["time_sum_ms"] += float(r.get("inferenceTimeMs") or 0)
     stats["classes"][r["predictedClass"]]+=1
+    stats["actions"][r.get("action") or "UNKNOWN"] += 1
+    stats["score_sum"] += float(r["threatScore"])
+    for edge in SCORE_BUCKETS:
+        if r["threatScore"] <= edge:
+            stats["score_buckets"][edge] += 1
+    if r.get("incompleteInput"):
+        stats["incomplete"] += 1
     if r["threatScore"]>=THRESHOLD: stats["threats"]+=1
     if r["action"]=="BLOCK": stats["blocked"]+=1
 
@@ -308,7 +321,8 @@ def metrics(request: Request):
         raise HTTPException(403, "Metrics access denied")
     with _stats_lock:
         total, threats, time_sum = stats["total"], stats["threats"], stats["time_sum_ms"]
-        classes = dict(stats["classes"])
+        classes, actions = dict(stats["classes"]), dict(stats["actions"])
+        buckets, score_sum, incomplete = dict(stats["score_buckets"]), stats["score_sum"], stats["incomplete"]
     lines = ["# HELP sentinel_ai_predictions_total Predictions served, by class", "# TYPE sentinel_ai_predictions_total counter"]
     lines += [f'sentinel_ai_predictions_total{{class="{c.replace(chr(34), "_")}"}} {n}' for c, n in classes.items()]
     lines += ["# HELP sentinel_ai_threat_predictions_total Predictions at or above SCORE_THRESHOLD",
@@ -319,6 +333,16 @@ def metrics(request: Request):
               f"sentinel_ai_inference_count {total}",
               "# HELP sentinel_ai_model_loaded 1 when the registered models are loaded", "# TYPE sentinel_ai_model_loaded gauge",
               f"sentinel_ai_model_loaded {1 if predictor and predictor._loaded else 0}"]
+    # Prediction distribution (P4): what the engine decides and how its scores are spread, so a silent model
+    # failure (everything BENIGN, scores collapsing to 0 or saturating) is visible and alertable.
+    lines += ["# HELP sentinel_ai_actions_total Predictions by action", "# TYPE sentinel_ai_actions_total counter"]
+    lines += [f'sentinel_ai_actions_total{{action="{a}"}} {n}' for a, n in actions.items()]
+    lines += ["# HELP sentinel_ai_threat_score Distribution of threatScore", "# TYPE sentinel_ai_threat_score histogram"]
+    lines += [f'sentinel_ai_threat_score_bucket{{le="{edge}"}} {buckets.get(edge, 0)}' for edge in SCORE_BUCKETS]
+    lines += [f'sentinel_ai_threat_score_bucket{{le="+Inf"}} {total}', f"sentinel_ai_threat_score_sum {round(score_sum, 4)}",
+              f"sentinel_ai_threat_score_count {total}",
+              "# HELP sentinel_ai_incomplete_input_total Flows scored with too many defaulted features",
+              "# TYPE sentinel_ai_incomplete_input_total counter", f"sentinel_ai_incomplete_input_total {incomplete}"]
     return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4")
 
 @app.get("/model/drift", dependencies=[Depends(verify_api_key)])
@@ -338,6 +362,36 @@ def model_drift():
         report = {"method": "scaler_mean_variance", **drift_monitor.report(scaler.mean_, scaler.var_, FEATURE_NAMES)}
     report["model"] = (predictor.registry or {}).get("classifier")
     return report
+
+GLOBAL_SHAP_ROWS = 200
+
+@app.get("/model/explain/global", dependencies=[Depends(verify_api_key)])
+def model_explain_global():
+    """
+    U5: which features drive the model's recent verdicts. Mean |SHAP| (for each flow's assigned class) over the
+    last GLOBAL_SHAP_ROWS scored flows, overall and per predicted class. Computed on demand from the drift window.
+    """
+    if not predictor or not predictor._loaded:
+        raise HTTPException(503, "Not ready")
+    if predictor.explainer is None:
+        raise HTTPException(501, "Deployed model has no SHAP explainer")
+    vectors, _ = drift_monitor.recent(GLOBAL_SHAP_ROWS)
+    if not vectors:
+        return {"samples": 0, "overall": [], "by_class": {}}
+    X = np.vstack(vectors)
+    labels, _, cls_pos = predictor._classify_many(X)
+    contrib = predictor.shap_for_classes(X, cls_pos)
+    names = [pred_label(int(c)) for c in labels]
+
+    def top(rows, k):
+        mean = rows.mean(axis=0)
+        return [{"feature": FEATURE_NAMES[j], "mean_abs_shap": round(float(mean[j]), 6)} for j in np.argsort(-mean)[:k]]
+
+    by_class = {}
+    for name in sorted(set(names)):
+        mask = np.array([n == name for n in names])
+        by_class[name] = {"samples": int(mask.sum()), "top": top(contrib[mask], 5)}
+    return {"samples": int(len(X)), "overall": top(contrib, 10), "by_class": by_class}
 
 _reload_lock = threading.Lock()
 
@@ -437,9 +491,8 @@ def deception_recommendation(current: str = "centos_7"):
     with _scorer_lock:
         learner = get_scorer().learner
         next_profile = learner.choose_action(current)
-        row = learner.q_table.get(current, {})
-        greedy = max(row, key=row.get) if row else next_profile
-        return {"success": True, "current": current, "nextProfile": next_profile,
+        greedy = learner.greedy_action(current)
+        return {"success": True, "current": current, "nextProfile": next_profile, "policy": learner.policy,
                 "explored": next_profile != greedy, "learnerStats": learner.get_stats()}
 
 class AuthTelemetryRecord(BaseModel):

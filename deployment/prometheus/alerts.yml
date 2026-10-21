@@ -82,6 +82,44 @@ groups:
           summary: Live traffic has drifted from the model's training data
           description: Re-evaluate the model and consider retraining (ai-engine/training/retrain_from_samples.py).
 
+      # Prediction distribution (P4, engine /metrics). A sudden jump in the share of non-BENIGN verdicts is an
+      # attack wave or a model/input failure; either way someone should look. Needs a baseline: idle or
+      # near-idle traffic and shares under 2 % are ignored.
+      - alert: SentinelAIPredictionMixShift
+        expr: |
+          (
+            sum(rate(sentinel_ai_predictions_total{class!="BENIGN"}[15m]))
+              / sum(rate(sentinel_ai_predictions_total[15m]))
+          ) > 3 * (
+            sum(rate(sentinel_ai_predictions_total{class!="BENIGN"}[6h]))
+              / sum(rate(sentinel_ai_predictions_total[6h]))
+          )
+          and (
+            sum(rate(sentinel_ai_predictions_total{class!="BENIGN"}[15m]))
+              / sum(rate(sentinel_ai_predictions_total[15m]))
+          ) > 0.02
+          and sum(rate(sentinel_ai_predictions_total[15m])) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of recent predictions are attacks, over 3x the 6-hour share"
+          description: An attack wave, or a model or input failure. Compare with the threat log and /model/drift.
+
+      - alert: SentinelAIScoresSaturated
+        expr: |
+          (
+            1 - sum(rate(sentinel_ai_threat_score_bucket{le="0.92"}[15m]))
+              / sum(rate(sentinel_ai_threat_score_count[15m]))
+          ) > 0.5
+          and sum(rate(sentinel_ai_threat_score_count[15m])) > 0.1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value | humanizePercentage }} of recent flows score at or above the block line"
+          description: Either a sustained attack or a broken input pipeline (e.g. all features defaulted).
+
   - name: sentinel-http
     rules:
       # Ignore near-idle periods so a single failed request does not page anyone.

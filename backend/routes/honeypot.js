@@ -113,7 +113,12 @@ router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (r
     const active = await honeypotService.getActiveProfile()
     const rec = await require('../services/aiEngineService').getDeceptionRecommendation(active.profile)
     if (!rec) return sendError(res, 'AI engine unreachable', 503)
-    sendSuccess(res, { activeProfile: active.profile, nextProfile: rec.nextProfile, explored: rec.explored })
+    sendSuccess(res, {
+      activeProfile: active.profile,
+      nextProfile: rec.nextProfile,
+      explored: rec.explored,
+      policy: rec.policy || 'q_learning',
+    })
   } catch (err) {
     next(err)
   }

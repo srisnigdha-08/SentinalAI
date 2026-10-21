@@ -92,6 +92,31 @@ router.get('/engine/stats', protect, async (req, res, next) => {
  *       503:
  *         description: AI engine unreachable
  */
+/**
+ * @swagger
+ * /ai/engine/explain-global:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: Features that drive the model's recent verdicts (mean absolute SHAP, overall and per class)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Global explanation over the engine's recent scored flows
+ *       503:
+ *         description: AI engine unreachable or no explainer
+ */
+router.get('/engine/explain-global', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const summary = await aiSvc.getGlobalExplanation()
+    if (!summary) return sendError(res, 'Global explanation unavailable', 503)
+    sendSuccess(res, summary)
+  } catch (err) {
+    next(err)
+  }
+})
+
 router.get('/engine/drift', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
   try {
     const drift = await aiSvc.getDrift()

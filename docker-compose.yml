@@ -35,6 +35,15 @@ services:
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ai-data:/data # Q-learning state survives container restarts
+    # P1: the image (code + models) is read-only at runtime; the only writable places are the Q-table volume
+    # and a tmpfs for scratch files, so a compromised process cannot swap a model or plant code.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
 
   backend:
     build:

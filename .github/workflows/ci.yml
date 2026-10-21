@@ -139,6 +139,8 @@ jobs:
           r = p.predict({'flow_duration': 1000.0, 'total_fwd_packets': 2.0})
           print(p.registry['classifier'], r['predictedClass'], r['threatScore'])
           "
+      - name: Live engine over HTTP (every endpoint, CSV-name skew, honeypot, deception; no dataset needed)
+        run: python scripts/ai_engine_endpoint_check.py --skip-dataset
 
   monitoring-config:
     name: Prometheus rules + Grafana dashboard

@@ -301,6 +301,15 @@ const getDrift = async () => {
   }
 }
 
+/** Mean |SHAP| of the engine's recent verdicts, overall and per class (U5); null when unavailable. */
+const getGlobalExplanation = async () => {
+  try {
+    return (await guarded(() => ai.get('/model/explain/global', { timeout: 30000 }), { retry: true })).data
+  } catch {
+    return null
+  }
+}
+
 const getDeceptionRecommendation = async (currentProfile) => {
   try {
     return (
@@ -324,6 +333,7 @@ module.exports = {
   invalidateThresholds,
   reloadModel,
   getDrift,
+  getGlobalExplanation,
   getDeceptionRecommendation,
   circuitState: () => breaker.state,
   resetCircuit: () => breaker.reset(),

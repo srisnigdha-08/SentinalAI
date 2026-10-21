@@ -130,11 +130,20 @@ def chronological_split(df: pd.DataFrame, train_fraction=TRAIN_FRACTION, purge_f
 
 
 # ── model (production recipe) ─────────────────────────────────────────────────────────────────────
+# Classifier evaluated by every protocol: "rf" (deployed recipe) or "xgboost" (M-5 comparison, --classifier).
+CLASSIFIER = "rf"
+from training.estimators import XGB_PARAMS, EncodedXGB  # noqa: E402  (pickle-stable import path)
+
+
 def fit(train: pd.DataFrame, n_estimators=None):
     rf_params = dict(RF_PARAMS, **({"n_estimators": n_estimators} if n_estimators else {}))
     if_params = dict(IF_PARAMS, **({"n_estimators": n_estimators} if n_estimators else {}))
     X, y = train[FEATURE_NAMES].to_numpy(), train["y"].to_numpy()
-    rf = Pipeline([("scaler", StandardScaler()), ("rf", RandomForestClassifier(**rf_params))]).fit(X, y)
+    if CLASSIFIER == "xgboost":
+        xgb = EncodedXGB(**dict(XGB_PARAMS, **({"n_estimators": n_estimators} if n_estimators else {})))
+        rf = Pipeline([("scaler", StandardScaler()), ("xgb", xgb)]).fit(X, y)
+    else:
+        rf = Pipeline([("scaler", StandardScaler()), ("rf", RandomForestClassifier(**rf_params))]).fit(X, y)
     ifo = Pipeline([("scaler", StandardScaler()), ("if", IsolationForest(**if_params))]).fit(X[y == BENIGN])
     return rf, ifo
 
@@ -314,6 +323,51 @@ def run_review(data, n_estimators, target=REVIEW_BENIGN_TARGET):
 
 
 MIN_RELIABLE_SUPPORT = 30  # per-class test rows below this: metric reported but marked unreliable (H2)
+CALIBRATION_BINS = 10
+
+
+def calibration_report(p_attack, is_attack, bins=CALIBRATION_BINS) -> dict:
+    """Brier score, expected calibration error and a reliability table for P(attack) = 1 - P(BENIGN)."""
+    p_attack, is_attack = np.asarray(p_attack, dtype=float), np.asarray(is_attack, dtype=float)
+    edges = np.linspace(0, 1, bins + 1)
+    idx = np.clip(np.digitize(p_attack, edges[1:-1]), 0, bins - 1)
+    table, ece = [], 0.0
+    for b in range(bins):
+        m = idx == b
+        if not m.any():
+            continue
+        conf, freq = float(p_attack[m].mean()), float(is_attack[m].mean())
+        ece += m.mean() * abs(conf - freq)
+        table.append({"bin": f"{edges[b]:.1f}-{edges[b + 1]:.1f}", "n": int(m.sum()),
+                      "mean_predicted": round(conf, 4), "observed_attack_rate": round(freq, 4)})
+    return {"brier": round(float(np.mean((p_attack - is_attack) ** 2)), 6), "ece": round(float(ece), 6),
+            "reliability": table}
+
+
+def run_calibration(data, n_estimators):
+    """
+    U7: are the classifier's probabilities calibrated on later traffic, and would isotonic calibration (fitted on
+    the chronological validation split, never on test) help? Same fit / validation / test split as run_threshold.
+    Reported only; nothing is deployed from here.
+    """
+    from sklearn.isotonic import IsotonicRegression
+    train_all, test = chronological_split(data)
+    fit_rows, validation = chronological_split(train_all, train_fraction=0.80, purge_fraction=PURGE_FRACTION)
+    fit_rows, validation, test = cap(fit_rows, TRAIN_CAPS), cap(validation, TEST_CAPS), cap(test, TEST_CAPS)
+    rf, _ = fit(fit_rows, n_estimators)
+    benign_col = int(np.flatnonzero(rf.classes_ == BENIGN)[0])
+
+    def p_attack(frame):
+        return 1.0 - rf.predict_proba(frame[FEATURE_NAMES].to_numpy())[:, benign_col]
+
+    pv, yv = p_attack(validation), (validation["y"].to_numpy() != BENIGN)
+    pt, yt = p_attack(test), (test["y"].to_numpy() != BENIGN)
+    iso = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0).fit(pv, yv.astype(float))
+    return {"classifier": CLASSIFIER, "validation_rows": int(len(validation)), "test_rows": int(len(test)),
+            "test_uncalibrated": calibration_report(pt, yt),
+            "test_isotonic_calibrated": calibration_report(iso.predict(pt), yt)}
+
+
 ALERT_FPR_TARGET = 0.001
 CANDIDATE_LINES = [round(0.70 + 0.01 * i, 2) for i in range(30)]  # 0.70 .. 0.99
 
@@ -445,6 +499,8 @@ def main():
     ap.add_argument("--max-rows-per-file", type=int, default=None)
     ap.add_argument("--smoke", action="store_true", help="20k rows/file, 30 trees: quick pipeline check")
     ap.add_argument("--no-dedupe", action="store_true", help="keep exact duplicate rows (reproduces pre-C2 runs)")
+    ap.add_argument("--classifier", choices=["rf", "xgboost"], default="rf",
+                    help="classifier trained by every protocol (default: the deployed Random Forest recipe)")
     ap.add_argument("--drop-features", default="",
                     help="comma-separated features set to 0 everywhere (ablation, e.g. init_win_bytes_forward,"
                          "init_win_bytes_backward); constant columns are never split on, so this equals removing them")
@@ -452,6 +508,8 @@ def main():
     if args.smoke:
         args.max_rows_per_file, args.n_estimators = args.max_rows_per_file or 20000, args.n_estimators or 30
 
+    global CLASSIFIER
+    CLASSIFIER = args.classifier
     t_start = time.time()
     print("Loading CICIDS2017 CSVs...", flush=True)
     data = load_all(Path(args.data), args.max_rows_per_file, dedupe=not args.no_dedupe)
@@ -470,6 +528,7 @@ def main():
         "rows_after_cleaning": int(len(data)),
         "deduplicated": not args.no_dedupe,
         "dropped_features": dropped,
+        "classifier": CLASSIFIER,
         "duplicates_removed": int(data.attrs.get("duplicates_removed", 0)),
         "class_counts_after_cleaning": class_counts(data),
         "recipe": {"rf_params": dict(RF_PARAMS, **({"n_estimators": args.n_estimators} if args.n_estimators else {})),
@@ -496,6 +555,8 @@ def main():
             report["protocols"]["threshold"] = run_threshold(data, args.n_estimators)
         elif name == "review":
             report["protocols"]["review"] = run_review(data, args.n_estimators)
+        elif name == "calibration":
+            report["protocols"]["calibration"] = run_calibration(data, args.n_estimators)
         else:
             ap.error(f"unknown protocol {name}")
         print(f"  done in {time.time() - t0:.1f}s", flush=True)

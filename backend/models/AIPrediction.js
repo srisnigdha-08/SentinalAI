@@ -30,6 +30,8 @@ const AIPredictionSchema = new mongoose.Schema(
     needsReview: { type: Boolean, default: false },
     // More than the engine's allowed number of features were filled with defaults (M2): never auto-blocked
     incompleteInput: { type: Boolean, default: false },
+    // Source IP attacked the honeypot within HONEYPOT_CORROBORATION_DAYS (U4); BENIGN/Unknown ones are queued
+    honeypotCorroborated: { type: Boolean, default: false },
     anomalyScore: { type: Number, min: -1, max: 1 },
     featureImportance: { type: Map, of: Number, select: false },
     inferenceTimeMs: Number,

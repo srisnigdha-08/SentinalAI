@@ -145,14 +145,21 @@ def _metrics(f1, fpr):
 def test_gate_blocks_regressions():
     assert retrain.gate(_metrics(0.80, 0.0005), _metrics(0.80, 0.0005))["passed"]
     assert not retrain.gate(_metrics(0.78, 0.0005), _metrics(0.80, 0.0005))["passed"]  # macro F1 drop > 0.005
-    assert not retrain.gate(_metrics(0.85, 0.002), _metrics(0.80, 0.0005))["passed"]  # alert FPR above target
+    assert not retrain.gate(_metrics(0.85, 0.002), _metrics(0.80, 0.0005))["passed"]  # more false alerts than baseline
+    # An unchanged recipe passes even when the absolute 0.1 % target is out of reach (U1 dry run)
+    same = retrain.gate(_metrics(0.77, 0.0016), _metrics(0.77, 0.0016))
+    assert same["passed"] and same["meets_alert_fpr_target"] is False
+    assert retrain.gate(_metrics(0.80, 0.0017), _metrics(0.80, 0.0016))["passed"]  # within the tolerance
 
 
 def test_promote_writes_new_files_and_repins_registry(tmp_path):
     out, models = tmp_path / "cand", tmp_path / "models"
     out.mkdir(); models.mkdir()
-    (out / "rf_classifier.pkl").write_bytes(b"rf")
-    (out / "isolation_forest.pkl").write_bytes(b"if")
+    # Real (tiny) models: promotion scores the golden set with them (P5)
+    from tests.test_phase5_improvements import _tiny_models
+    _tiny_models(out)
+    (out / "clf_t.pkl").rename(out / "rf_classifier.pkl")
+    (out / "if_t.pkl").rename(out / "isolation_forest.pkl")
     (models / "registry.json").write_text('{"previous": true}')
     report = {"trained_at": "t", "analyst_samples": 3,
               "candidate": {"accuracy": 0.9, "f1_weighted": 0.9, "f1_macro": 0.8}}
@@ -160,6 +167,8 @@ def test_promote_writes_new_files_and_repins_registry(tmp_path):
     assert reg["classifier"]["file"] == "rf_classifier_retrained_test.pkl"
     assert json.loads((models / "registry.json").read_text())["anomaly"]["file"] == "isolation_forest_retrained_test.pkl"
     assert json.loads((out / "registry.previous.json").read_text()) == {"previous": True}  # rollback copy
+    assert reg["golden"]["file"] == "golden_set.json" and (models / "golden_set.json").exists()
+    assert "retrain_from_samples.py --promote" in (models / "registry_history.jsonl").read_text()
     with pytest.raises(SystemExit):
         retrain.promote(out, models, "retrained_test", report)  # never overwrites
 

@@ -1,17 +1,22 @@
 {
-  "registered_at": "2026-10-21T12:19:55.523552+00:00",
+  "registered_at": "2026-10-21T16:12:28.102427+00:00",
   "sklearn_version": "1.4.0",
   "classifier": {
-    "file": "rf_classifier_cicids_v3.pkl",
-    "type": "rf",
-    "sha256": "482d1fc659116926315e7a0a5f4a77661afbadc4e5e1eacb1e314ce446f657f3",
-    "meta": "rf_classifier_cicids_v3_meta.json",
-    "version": "cicids_v3"
+    "file": "xgb_classifier_xgb_cicids_v1.pkl",
+    "type": "xgboost",
+    "sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+    "meta": "xgb_classifier_xgb_cicids_v1_meta.json",
+    "version": "xgb_cicids_v1"
   },
   "anomaly": {
-    "file": "isolation_forest_cicids_v3.pkl",
+    "file": "isolation_forest_xgb_cicids_v1.pkl",
     "sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
-    "meta": "isolation_forest_cicids_v3_meta.json",
-    "version": "cicids_v3"
+    "meta": "isolation_forest_xgb_cicids_v1_meta.json",
+    "version": "xgb_cicids_v1"
+  },
+  "golden": {
+    "file": "golden_set.json",
+    "rows": 20,
+    "sha256": "c8d72dd96dc35287e7dd15c1af1e9c4c3b6a4a2f79507e04cc34359bd0420af6"
   }
 }

@@ -5,7 +5,7 @@ Every place where the paper (`IMPLIMENTATION.pdf`; line numbers below refer to i
 - replacement text you can paste;
 - the evidence.
 
-Numbers are for the served model `rf_classifier_cicids_v3` (2026-10-21). See `docs/CRITICAL_FIXES_REPORT.md` and `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`.
+Numbers are for the served model `xgb_classifier_xgb_cicids_v1` (XGBoost, registered 2026-10-21 after it beat the Random Forest under chronological evaluation; Phase 5 M-5). See `docs/CRITICAL_FIXES_REPORT.md` and `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`.
 
 I have not edited the PDF or `paper_text.txt`.
 
@@ -13,15 +13,15 @@ I have not edited the PDF or `paper_text.txt`.
 
 | Line | Paper says | Replace with | Evidence |
 |---|---|---|---|
-| 18 | "Engine combining Random Forest, XGBoost, 1D-CNN, and Isolation Forest" | "Engine designed to combine Random Forest, XGBoost, 1D-CNN and Isolation Forest models (Random Forest and Isolation Forest are deployed; the 1D-CNN tier is future work)" | `models/registry.json` pins an RF and an IF only; no deep-learning code exists |
-| 31–33 | "a Random Forest classifier trained on real CICIDS2017 traffic achieves 98.43% accuracy and 0.9862 weighted F1" | "a Random Forest classifier trained on de-duplicated CICIDS2017 traffic reaches 98.47% accuracy (0.842 macro F1) on a random split and 0.750 macro F1 under chronological evaluation, where it raises an alert for 78.6% of attack flows at a 0.15% benign alert rate" | `models/rf_classifier_cicids_v3_meta.json`; `experiments/c2_dedup_eval/` |
+| 18 | "Engine combining Random Forest, XGBoost, 1D-CNN, and Isolation Forest" | "Engine designed to combine Random Forest, XGBoost, 1D-CNN and Isolation Forest models (XGBoost and Isolation Forest are deployed; the 1D-CNN tier is future work)" | `models/registry.json` pins an RF and an IF only; no deep-learning code exists |
+| 31–33 | "a Random Forest classifier trained on real CICIDS2017 traffic achieves 98.43% accuracy and 0.9862 weighted F1" | "an XGBoost classifier trained on de-duplicated CICIDS2017 traffic reaches 98.97% accuracy (0.874 macro F1) on a random split and 0.772 macro F1 under chronological evaluation, where it raises an alert for 91.0% of attack flows at a 0.13% benign alert rate" | `models/rf_classifier_cicids_v3_meta.json`; `experiments/c2_dedup_eval/` |
 | 1021–1022, 1234 | "98.43% accuracy and 0.9862 weighted F1" | Same replacement as lines 31–33 | same |
 
 ## 2. Table II (implementation status)
 
 | Row | Paper says | Replace with | Evidence |
 |---|---|---|---|
-| Multi-Model Threat Detection | "Random Forest (RF), XGBoost, Isolation Forest, and an SGD-based online learner are implemented and trained. RF is validated on CICIDS2017 data, achieving 98.43% accuracy and 0.9862 weighted F1." | "Random Forest, XGBoost, a stacking ensemble and an Isolation Forest are implemented and trained on CICIDS2017. The deployed pair is the Random Forest and the Isolation Forest, pinned by SHA-256 in a model registry. On de-duplicated data the RF reaches 0.842 macro F1 on a random split and 0.750 chronologically." | `training/train.py`; `models/registry.json`. **No SGD code exists** in `ai-engine/` |
+| Multi-Model Threat Detection | "Random Forest (RF), XGBoost, Isolation Forest, and an SGD-based online learner are implemented and trained. RF is validated on CICIDS2017 data, achieving 98.43% accuracy and 0.9862 weighted F1." | "Random Forest, XGBoost, a stacking ensemble and an Isolation Forest are implemented and trained on CICIDS2017. The deployed pair is XGBoost and the Isolation Forest, pinned by SHA-256 in a model registry with a startup golden-set check. XGBoost was selected over the Random Forest by chronological evaluation (91.0% vs 78.6% attack detection at the alert line; benign alert rate 0.134% vs 0.154%)." | `training/train.py`; `models/registry.json`. **No SGD code exists** in `ai-engine/` |
 | Self-Evolution Module | "An SGD-based classifier and operator-feedback path support incremental learning through partial_fit … the supplied SGD artifact currently fails to deserialize …" | "Analyst-verified predictions can be exported and used to retrain a candidate model offline. The candidate is promoted only if it passes gates on a sealed chronological test (macro F1 not worse by more than 0.005; benign alert rate ≤ 0.1%), and is then hot-reloaded. A drift monitor flags when inputs depart from the training distribution. GAN augmentation and EWC are future work." | `training/retrain_from_samples.py`, `monitoring/drift.py`, `POST /model/reload`. Not yet run end to end: say "implemented", not "demonstrated" |
 | Adaptive Honeypot Intelligence | "The recommendation is persisted … but the active Cowrie configuration is not automatically modified at runtime." | "… The engine only recommends; an optional rotator (`honeypot/deception_rotator.py`) can apply the recommended persona to Cowrie, but was not used in the reported evaluation." | `honeypot/deception_rotator.py` |
 | Cross-Domain Threat Intelligence (line 552) | "An IP-reputation enrichment service based on AbuseIPDB has also been integrated." | "… integrated as asynchronous enrichment in the backend (it is not on the inference path)." | `predictor.predict` sets `ipReputationScore=None`; the enrichment runs in the backend's `threatIntelService` |
@@ -60,17 +60,20 @@ I have not edited the PDF or `paper_text.txt`.
 | 938–944 (Table IV) | RF real 98.43% / 0.9862; RF synthetic 93.20%; XGB synthetic 83.67% | Replace with the table below |
 | 950–953 | "only six of the eleven target classes currently have real CICIDS2017 training examples" | "ten of the eleven classes have real examples, but three have fewer than 100 training rows; their per-class figures rest on 2–7 test flows and are not statistically meaningful" |
 
-**Replacement Table IV.** Deployed RF `cicids_v3`, de-duplicated CICIDS2017. Alert = threat score ≥ 0.90 and a class other than BENIGN.
+**Replacement Table IV.** De-duplicated CICIDS2017. Alert = threat score ≥ 0.90 and a class other than BENIGN. The deployed model is XGBoost; the Random Forest is shown because the paper's original results are RF.
 
-| Protocol | Accuracy | Weighted F1 | Macro F1 | Attack flows alerted | Benign alert rate [95% CI] |
-|---|---|---|---|---|---|
-| Stratified random 80/20 | 98.47% | 0.986 | 0.842 | — | — |
-| Chronological within each capture (validation-selected alert line) | 97.6% | 0.979 | 0.750 | 78.6% | 0.154% [0.136, 0.174] |
-| Leave-one-day-out (Tue / Wed / Thu / Fri held out) | 66–93% | 0.53–0.92 | 0.19–0.30 | ≤ 0.4% | 0.02–0.16% |
+| Model | Protocol | Accuracy | Weighted F1 | Macro F1 | Attack flows alerted | Benign alert rate [95% CI] |
+|---|---|---|---|---|---|---|
+| **XGBoost (deployed)** | Stratified random 80/20 (train.py) | 98.97% | 0.991 | 0.874 | — | — |
+| **XGBoost (deployed)** | Chronological within each capture | 98.9% | 0.990 | 0.772 | 91.0% | 0.134% [0.118, 0.154] |
+| **XGBoost (deployed)** | Leave-one-day-out (Tue / Wed / Thu / Fri held out) | 67–93% | 0.55–0.94 | 0.20–0.31 | 0.2% / 6.9% / 80.2% / 10.3% | 0.04–1.41% |
+| Random Forest | Stratified random 80/20 (train.py) | 98.47% | 0.986 | 0.842 | — | — |
+| Random Forest | Chronological within each capture | 97.6% | 0.979 | 0.750 | 78.6% | 0.154% [0.136, 0.174] |
+| Random Forest | Leave-one-day-out | 66–93% | 0.53–0.92 | 0.19–0.30 | ≤ 0.4% | 0.02–0.16% |
 
 In the chronological row, accuracy and F1 come from the chronological protocol (`experiments/c2_dedup_eval/results.json`). The alert rates come from the threshold-validation run on the same test rows, where the model is fitted on 80% of that training portion (`threshold_validation/results.json`).
 
-The XGBoost figures (99.13% accuracy, 0.907 macro F1) are from the older random split with duplicates and are not comparable. Report them only with that caveat, or after re-running them under the same protocols.
+The old XGBoost figures (99.13% accuracy, 0.907 macro F1) come from the random split with duplicates. Use the de-duplicated rows above instead. XGBoost generalises somewhat better to unseen days than the RF (it detects 80% of attacks when Thursday's web attacks/infiltration are held out, at a 1.4% benign alert rate), but it still does not detect novel attacks in general.
 
 ## 7. Section XII (future work)
 

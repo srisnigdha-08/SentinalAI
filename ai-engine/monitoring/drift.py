@@ -80,6 +80,12 @@ class DriftMonitor:
             self._vectors.append(vec)
             self._classes.append(predicted_class)
 
+    def recent(self, n):
+        """The last n recorded feature vectors and their predicted classes."""
+        with self._lock:
+            vectors, classes = list(self._vectors)[-n:], list(self._classes)[-n:]
+        return vectors, classes
+
     def report(self, reference_mean, reference_var, feature_names):
         with self._lock:
             n = len(self._vectors)

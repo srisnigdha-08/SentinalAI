@@ -981,14 +981,14 @@ About 0.9% of benign flows get an attack label, mostly Malware Beacon. An alert 
 - I changed the fallback to (0,0).
 - It did not change the metrics, and I re-scored to confirm, getting identical numbers. The deployed model has zero variance and zero importance on those features, and its predictions are identical across all 24 hours.
 
-**6. Why Random Forest?**
+**6. Why Random Forest, and why do you now serve XGBoost?**
 - Tabular, heavy-tailed features with no need for scaling.
 - Robust with little tuning.
 - Fast on CPU (median 36 ms per flow, measured in-process over 200 flows).
 - Built-in class weighting.
 - Exact SHAP explanations through TreeExplainer.
 
-XGBoost actually scored higher on the same split (macro F1 0.91). I kept RF in production because my independent chronological evaluation and gating pipeline were built around it. Moving to XGBoost is my next change, *if it also wins chronologically*. (Only say this if you haven't done M-5. If you have, give the result.)
+I evaluated both families under the same honest protocol (de-duplicated data, chronological split, validation-selected alert line). XGBoost won: at the 0.90 alert line it raises an alert for 91.0% of attack flows at a 0.134% benign alert rate, against the Random Forest's 78.6% at 0.154%. Its probabilities are also well calibrated (expected calibration error 0.006). So the served model is now XGBoost (`xgb_cicids_v1`), produced and registered by one reproducible pipeline. The Random Forest stays as the reference, because the original paper results are RF.
 
 **7. How do RF and XGBoost differ?**
 RF trains deep trees independently on bootstrap samples and averages them, which reduces variance. XGBoost adds shallow trees one after another, each correcting the previous ensemble's errors along the loss gradient, which reduces bias.
@@ -1065,16 +1065,16 @@ See the table below. Never claim deep learning, PPO, DQN, BERT, GAN or EWC.
 > SentinelAI's AI engine is a FastAPI service that the Node backend calls over HTTP with a shared API key.
 > It scores network flows using fifty-three CICFlowMeter-style features.
 >
-> The classifier is a Random Forest — two hundred trees, balanced class weights — trained on all eight
-> CICIDS2017 capture files. Next to it, an Isolation Forest trained only on benign traffic measures how unusual
+> The classifier is XGBoost — two hundred boosted trees with balanced class weights — trained on all eight
+> CICIDS2017 capture files. I chose it over a Random Forest by chronological evaluation, not by headline accuracy. Next to it, an Isolation Forest trained only on benign traffic measures how unusual
 > each flow is. I combine them with a fixed rule: for attacks, the classifier's confidence is a floor and the
 > anomaly score can only raise it. Above 0.90 the backend opens a threat; above 0.92 it can block, if an
 > administrator has enabled auto-block.
 >
 > I removed exact duplicate flows first — twenty-two percent of CICIDS2017 is duplicated. On a random split
-> the Random Forest then reaches 98.5 percent accuracy, but macro F1 is 0.84. Evaluated chronologically it
-> catches about eighty percent of attack flows at a benign alert rate of about a third of a percent, and
-> when I hold out whole days it misses those days' attacks. So I present it as a strong detector of
+> the model reaches about 99 percent accuracy, but macro F1 is 0.87. Evaluated chronologically it catches
+> about ninety-one percent of attack flows at a benign alert rate of about 0.13 percent, and when I hold out
+> whole days it misses most of those days' attacks. So I present it as a strong detector of
 > *known* attack types, not of novel ones.
 >
 > Every deployed model is pinned by SHA-256 in a registry, with its scikit-learn version, and can be
@@ -1091,8 +1091,8 @@ See the table below. Never claim deep learning, PPO, DQN, BERT, GAN or EWC.
 
 | Say this | Never say this |
 |---|---|
-| "After removing duplicate flows, a Random Forest trained on CICIDS2017 achieves 98.47% accuracy and 0.986 weighted F1 **on a stratified random split**; macro F1 is 0.842. Chronological evaluation gives macro F1 0.75 and 79.5% attack detection at a 0.33% benign alert rate." | "98.43% detection accuracy." / "Detects 98% of attacks." |
-| "XGBoost and a stacking model were trained and evaluated; the Random Forest is the deployed model." | "An RF + XGBoost ensemble." |
+| "After removing duplicate flows, the deployed XGBoost model achieves 98.97% accuracy **on a stratified random split** (macro F1 0.874). Under chronological evaluation it raises an alert for 91.0% of attack flows at a 0.134% benign alert rate (macro F1 0.772)." | "98.43% detection accuracy." / "Detects 98% of attacks." |
+| "Random Forest, XGBoost and a stacking model were trained and evaluated; XGBoost was selected by chronological evaluation and is the deployed model." | "An RF + XGBoost ensemble." |
 | "An Isolation Forest provides an anomaly signal that raises scores and flags unusual benign traffic for review." | "Detects zero-day attacks." |
 | "Fusion is a fixed weighted rule." | "A meta-learner fuses the tiers." |
 | "A tabular Q-learning agent recommends honeypot personas from engagement rewards and updates after every session; a rotator can apply the recommendation." | "A reinforcement-learning agent autonomously reconfigures the honeypot." / "PPO." |

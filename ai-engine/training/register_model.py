@@ -18,6 +18,16 @@ from pathlib import Path
 ENGINE_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ENGINE_ROOT))
 from inference.predictor import MODEL_TYPES, REGISTRY_FILE, file_sha256, load_registry  # noqa: E402
+from inference.model_checks import GOLDEN_FILE, append_history, build_golden  # noqa: E402
+from utils.features import FEATURE_NAMES  # noqa: E402
+
+
+def write_golden(model_dir: Path, clf_file: str, if_file: str) -> dict:
+    """Score the golden vectors with the models being registered and pin the result (P5)."""
+    import joblib
+    golden = build_golden(joblib.load(model_dir / clf_file), joblib.load(model_dir / if_file), len(FEATURE_NAMES))
+    (model_dir / GOLDEN_FILE).write_text(json.dumps(golden), encoding="utf-8")
+    return {"file": GOLDEN_FILE, "rows": golden["rows"], "sha256": file_sha256(model_dir / GOLDEN_FILE)}
 
 
 def default_meta(model_file: str) -> str:
@@ -45,6 +55,7 @@ def main():
     ap.add_argument("--anomaly", help="IsolationForest .pkl in --model-dir")
     ap.add_argument("--anomaly-meta", default="")
     ap.add_argument("--check", action="store_true", help="verify the existing registry and exit")
+    ap.add_argument("--note", default=None, help="reason for this registration, recorded in registry_history.jsonl")
     args = ap.parse_args()
     model_dir = Path(args.model_dir)
 
@@ -58,6 +69,11 @@ def main():
             match = actual == reg[role]["sha256"]
             ok &= match
             print(f"{role:<10} {reg[role]['file']:<40} {'OK' if match else 'MISMATCH ' + actual[:12]}")
+        if reg.get("golden"):
+            golden_path = model_dir / reg["golden"]["file"]
+            match = golden_path.exists() and file_sha256(golden_path) == reg["golden"]["sha256"]
+            ok &= match
+            print(f"{'golden':<10} {reg['golden']['file']:<40} {'OK' if match else 'MISMATCH'}")
         print(f"registry   sha256 {file_sha256(model_dir / REGISTRY_FILE)} (value for MODEL_REGISTRY_SHA256)")
         sys.exit(0 if ok else 1)
 
@@ -71,7 +87,11 @@ def main():
         "classifier": entry(model_dir, args.classifier, args.classifier_meta, type=args.type),
         "anomaly": entry(model_dir, args.anomaly, args.anomaly_meta),
     }
+    registry["golden"] = write_golden(model_dir, args.classifier, args.anomaly)
     (model_dir / REGISTRY_FILE).write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
+    meta_file = registry["classifier"].get("meta")
+    metrics = json.loads((model_dir / meta_file).read_text(encoding="utf-8")).get("metrics") if meta_file else None
+    append_history(model_dir, registry, source="register_model.py", note=args.note, metrics=metrics)
     print(f"Wrote {model_dir / REGISTRY_FILE}")
     print(json.dumps(registry, indent=2))
     # L11: pin the registry itself from outside the model volume (environment / secret store)
