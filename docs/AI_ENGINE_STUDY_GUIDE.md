@@ -876,22 +876,22 @@ Severity is judged for this project's context: a viva/demo system, with containm
 - **What is wrong:** there is no key rotation, no mTLS, and no per-caller identity. Anyone with the key can mutate the Q-table (`/deception/score`) and hot-swap models (`/model/reload`).
 - **Fix:** bind the engine to the internal Docker network only (no `ports:` mapping); use a separate admin key for `/model/reload`; rotate `SENTINEL_KEY`.
 
-## Low
+## Low — all addressed, see `docs/AI_LOW_PRIORITY_FIXES_REPORT.md`
 
 | # | Issue | Where | Fix |
 |---|---|---|---|
-| L1 | `/predict/auth/shadow` returns `str(exc)` to the caller | `main.py:393-394` | `return {"success": False, "error": "shadow evaluation failed"}` and log the exception |
-| L2 | `AuthTelemetryRecord` uses `str = None` without `Optional`, with no length limits | `main.py:362-370` | `Optional[str] = Field(None, max_length=512)` |
+| L1 | ~~`/predict/auth/shadow` returns `str(exc)` to the caller~~ **Fixed** | `main.py:393-394` | `return {"success": False, "error": "shadow evaluation failed"}` and log the exception |
+| L2 | ~~`AuthTelemetryRecord` untyped/unbounded~~ **Fixed** | `main.py:362-370` | `Optional[str] = Field(None, max_length=512)` |
 | L3 | ~~Honeypot score adds 0.02 per command even for BENIGN~~ | `predictor.py` | **Fixed with C1** (+0.01 per command, non-BENIGN only) |
-| L4 | `/predict/internal` is retried by the backend (`retry: true`), so a retried call double-counts stats and drift | `aiEngineService.js:68` | Dedupe by `X-Request-Id` in `_upd`, or don't retry |
-| L5 | `get_ip_reputation` is dead and logs raw IPs at INFO | `predictor.py:16-86` | Delete it |
-| L6 | `log_transform_features` imported, never used | `train.py:18`, `features.py:519-528` | Delete it |
-| L7 | `evaluate_model.py` hard-codes the model filenames instead of reading the registry | `evaluate_model.py:142-145` | Use `load_registry` |
-| L8 | `--tune` baseline hard-coded | `train.py:325-327` | Always compute it from the current registered model |
-| L9 | `pytest>=8` unpinned; `scipy` used but not listed; no pyarrow (pandas warning) | `requirements.txt` | Pin `pytest==9.1.1`, add `scipy==1.17.1` |
-| L10 | Experiment pickles don't load in the pinned env | `experiments/gate1_phase8/10/13/*.pkl` | Archive them, or record their sklearn version |
-| L11 | Pickle loading executes code; the SHA-256 in `registry.json` lives in the same directory as the pickles | `predictor.py:221-231, 278-280` | Fine for a single-host demo; for production, sign the registry or keep the hashes outside the writable model volume (`skops.io` is a safer format) |
-| L12 | The batch endpoint scores sequentially, one `predict_proba` per row | `main.py:322-330` | Vectorise: build a matrix and do one `predict_proba` call |
+| L4 | ~~Retried `/predict/internal` double-counts stats and drift~~ **Fixed** | `aiEngineService.js:68` | Dedupe by `X-Request-Id` in `_upd`, or don't retry |
+| L5 | ~~`get_ip_reputation` is dead and logs raw IPs~~ **Removed** | `predictor.py:16-86` | Delete it |
+| L6 | ~~`log_transform_features` imported, never used~~ **Import removed; function kept for the archived SGD pickle** | `train.py:18`, `features.py:519-528` | Delete it |
+| L7 | ~~`evaluate_model.py` hard-codes model filenames~~ **Fixed with C2** | `evaluate_model.py:142-145` | Use `load_registry` |
+| L8 | ~~`--tune` baseline hard-coded~~ **Fixed** | `train.py:325-327` | Always compute it from the current registered model |
+| L9 | ~~`pytest` unpinned; `scipy` not listed~~ **Fixed** (pyarrow warning left: not a dependency) | `requirements.txt` | Pin `pytest==9.1.1`, add `scipy==1.17.1` |
+| L10 | ~~Experiment pickles don't load~~ **Documented** (`experiments/ARTIFACT_VERSIONS.md`: sklearn 1.7.2) | `experiments/gate1_phase8/10/13/*.pkl` | Archive them, or record their sklearn version |
+| L11 | ~~Registry hash lives next to the pickles~~ **Fixed: optional `MODEL_REGISTRY_SHA256` pin** | `predictor.py:221-231, 278-280` | Fine for a single-host demo; for production, sign the registry or keep the hashes outside the writable model volume (`skops.io` is a safer format) |
+| L12 | ~~Batch scores one row at a time~~ **Fixed: one vectorised pass** | `main.py:322-330` | Vectorise: build a matrix and do one `predict_proba` call |
 
 What is already done well (examiners like hearing this):
 - The fail-closed key check, constant-time key comparison, and NaN/inf rejection.

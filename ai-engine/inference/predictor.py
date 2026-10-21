@@ -1,5 +1,5 @@
 """SentinelAI Inference Predictor"""
-import os, sys, json, time, joblib, logging, requests, ipaddress, hashlib
+import os, sys, json, time, joblib, logging, hashlib
 import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -9,81 +9,8 @@ from inference.errors import ModelUnavailableError
 
 log = logging.getLogger("sentinel.predictor")
 
-# In-memory cache for IP reputation: ip_str -> (score, timestamp)
-REPUTATION_CACHE = {}
-CACHE_TTL = 3600  # 1 hour
-
-def get_ip_reputation(ip_str: str) -> float:
-    """
-    Checks the IP reputation score via AbuseIPDB API.
-    Returns a score between 0.0 and 1.0, or None (neutral/null) if lookup fails, is skipped, or is local.
-    """
-    if not ip_str:
-        return None
-        
-    ip_str = ip_str.strip()
-    
-    # 1. Skip loopbacks and private IP ranges
-    try:
-        ip = ipaddress.ip_address(ip_str)
-        if ip.is_private or ip.is_loopback:
-            return None
-    except ValueError:
-        # Invalid IP string
-        return None
-
-    # 2. Check Cache & Prevent Unbounded Growth
-    now = time.time()
-    if len(REPUTATION_CACHE) > 5000:
-        # Evict expired entries
-        expired_keys = [k for k, (score, ts) in REPUTATION_CACHE.items() if now - ts >= CACHE_TTL]
-        for k in expired_keys:
-            del REPUTATION_CACHE[k]
-        # If still too large, clear it entirely to reset memory footprint
-        if len(REPUTATION_CACHE) > 5000:
-            REPUTATION_CACHE.clear()
-            log.info("Reputation cache size exceeded 5,000 entries. Flushed cache to prevent memory bloat.")
-
-    if ip_str in REPUTATION_CACHE:
-        score, timestamp = REPUTATION_CACHE[ip_str]
-        if now - timestamp < CACHE_TTL:
-            log.info(f"AbuseIPDB cache hit for {ip_str}: {score}")
-            return score
-
-    # 3. Query API
-    api_key = os.getenv("ABUSEIPDB_API_KEY")
-    if not api_key:
-        log.warning("ABUSEIPDB_API_KEY environment variable not set. Skipping reputation check.")
-        return None
-
-    url = "https://api.abuseipdb.com/api/v2/check"
-    headers = {
-        "Key": api_key,
-        "Accept": "application/json"
-    }
-    params = {
-        "ipAddress": ip_str,
-        "maxAgeInDays": 90
-    }
-
-    try:
-        log.info(f"Querying AbuseIPDB API for IP: {ip_str}")
-        # Synchronous request with 3 second timeout
-        response = requests.get(url, headers=headers, params=params, timeout=3.0)
-        if response.status_code == 200:
-            res_data = response.json()
-            score_100 = res_data.get("data", {}).get("abuseConfidenceScore", 0)
-            score = round(float(score_100) / 100.0, 4)
-            # Update cache
-            REPUTATION_CACHE[ip_str] = (score, now)
-            log.info(f"AbuseIPDB reputation query successful for {ip_str}: {score}")
-            return score
-        else:
-            log.warning(f"AbuseIPDB query failed with status {response.status_code}: {response.text}")
-            return None
-    except Exception as e:
-        log.warning(f"AbuseIPDB query error for {ip_str}: {e}")
-        return None
+# IP reputation (AbuseIPDB) is enrichment owned by the backend (threatIntelService), off the inference path;
+# the engine makes no outbound calls (L5). Results keep ipReputationScore=None for the response shape.
 
 def _threshold_env(name, default):
     try:
@@ -243,6 +170,15 @@ class SentinelPredictor:
         except (ValueError, json.JSONDecodeError) as e:
             log.error(f"Model registry invalid; inference unavailable: {e}")
             return
+        # L11: registry.json sits next to the pickles, so whoever can replace a pickle can also rewrite its hash.
+        # MODEL_REGISTRY_SHA256, set outside the model volume (environment / secret store), anchors the registry.
+        pinned_registry = (os.getenv("MODEL_REGISTRY_SHA256") or "").strip().lower()
+        if pinned_registry:
+            reg_path = self.model_dir / REGISTRY_FILE
+            actual = file_sha256(reg_path) if reg_path.exists() else None
+            if actual != pinned_registry:
+                log.error("models/registry.json does not match MODEL_REGISTRY_SHA256; inference unavailable")
+                return
         if registry:
             clf_entry, if_entry = registry["classifier"], registry["anomaly"]
             pinned = ((self.model_dir / clf_entry["file"], clf_entry["sha256"]),
@@ -271,7 +207,8 @@ class SentinelPredictor:
             if_p = pinned[1][0]
             if_meta_p = self.model_dir / if_entry["meta"] if if_entry.get("meta") else None
             self.registry = {"classifier": clf_entry["file"], "classifierSha256": clf_entry["sha256"],
-                             "anomaly": if_entry["file"], "anomalySha256": if_entry["sha256"], "verified": True}
+                             "anomaly": if_entry["file"], "anomalySha256": if_entry["sha256"], "verified": True,
+                             "registryPinned": bool(pinned_registry)}
             log.info(f"Model registry: {clf_entry['file']} + {if_entry['file']} (sha256 verified)")
             model_candidates = []
         elif os.getenv("ALLOW_UNREGISTERED_MODELS", "").lower() in ("1", "true", "yes"):
@@ -457,29 +394,56 @@ class SentinelPredictor:
             return []
 
     def predict(self, record: dict, explain: bool = False) -> dict:
+        return self.predict_many([record], explain=explain)[0]
+
+    def _classify_many(self, X):
+        """One forest pass for all rows: (labels, probability matrix, column of each label)."""
+        proba = np.asarray(self.rf.predict_proba(X), dtype=float)
+        if proba.ndim == 1:
+            proba = proba.reshape(1, -1)
+        classes = getattr(self.rf, "classes_", None)
+        if isinstance(classes, np.ndarray) and len(classes) == proba.shape[1]:
+            pos = proba.argmax(axis=1)
+            return classes[pos], proba, pos
+        labels = np.asarray(self.rf.predict(X)).reshape(-1)  # estimators without classes_ (test doubles)
+        return labels, proba, labels.astype(int)
+
+    def predict_many(self, records: list, explain: bool = False) -> list:
+        """
+        Score several flows with one classifier pass and one Isolation Forest pass (L12); /predict/batch
+        previously ran both forests once per row. predict() is the one-row case of this method.
+        """
         t0 = time.perf_counter()
         # Decoupled in Phase 2.4B: AbuseIPDB reputation is no longer queried synchronously during inference.
         # Threat intelligence enrichment executes asynchronously in backend threatIntelService.
         rep_score = None
         if not self._loaded:
             raise ModelUnavailableError("Required models are not loaded")
-        X = extract_features_from_record(record).reshape(1,-1)
+        if not records:
+            return []
+        X = np.vstack([extract_features_from_record(r).reshape(1, -1) for r in records])
         if not np.isfinite(X).all():
             raise ValueError("Features must be finite numbers")
-        raw_vector = [float(v) for v in X[0]]
         try:
-            cls, proba, cls_pos = self._classify(X)
-            cname = LABEL_NAMES.get(int(cls), "BENIGN")
-            probs = {LABEL_NAMES.get(i, f"c{i}"): round(float(p),4) for i,p in enumerate(proba)}
-            max_p = float(max(proba))
+            labels, proba, cls_pos = self._classify_many(X)
         except Exception as e:
             log.error(f"Prediction error: {e}")
             raise ModelUnavailableError("Classifier inference failed") from e
         try:
-            if_score  = float(self.ifo.named_steps["if"].score_samples(self.ifo.named_steps["scaler"].transform(X))[0])
-            is_anomaly = if_score < ANOMALY_THRESHOLD
+            if_scores = np.asarray(self.ifo.named_steps["if"].score_samples(self.ifo.named_steps["scaler"].transform(X)),
+                                   dtype=float).reshape(-1)
         except Exception as e:
             raise ModelUnavailableError("Anomaly inference failed") from e
+        per_row_ms = round((time.perf_counter() - t0) * 1000 / len(records), 2)
+        return [self._assemble(record, X[i], labels[i], proba[i], int(cls_pos[i]), float(if_scores[i]),
+                               per_row_ms, explain, rep_score)
+                for i, record in enumerate(records)]
+
+    def _assemble(self, record, x, cls, proba, cls_pos, if_score, ms, explain, rep_score):
+        cname = LABEL_NAMES.get(int(cls), "BENIGN")
+        probs = {LABEL_NAMES.get(i, f"c{i}"): round(float(p),4) for i,p in enumerate(proba)}
+        max_p = float(max(proba))
+        is_anomaly = if_score < ANOMALY_THRESHOLD
         rf_s   = max_p if cname != "BENIGN" else (1 - max_p)
         if_sig = self.calculate_if_anomaly_signal(if_score)
         score  = round(combine_threat_score(rf_s, if_sig, cname != "BENIGN"), 4)
@@ -487,11 +451,11 @@ class SentinelPredictor:
         if cname == "BENIGN" and is_anomaly:
             cname = "Unknown"; score = max(score, 0.55)
             review = if_sig >= REVIEW_MIN_SIGNAL
-            
+
         explanation = []
         if explain:
-            explanation = self.get_explanation(record, X=X, cls_pos=cls_pos)
-            
+            explanation = self.get_explanation(record, X=x.reshape(1, -1), cls_pos=cls_pos)
+
         # Shadow evaluation of B2 Volumetric Flood Detector (zero mutation of primary action/score)
         shadow_b2_eval = None
         if getattr(self, "shadow_b2", None) is not None:
@@ -506,7 +470,6 @@ class SentinelPredictor:
             except Exception as exc:
                 log.debug(f"Shadow B2 evaluation failed safe: {exc}")
 
-        ms = round((time.perf_counter()-t0)*1000, 2)
         action = "BLOCK" if score>=BLOCK_THRESHOLD else "MONITOR" if score>=MONITOR_THRESHOLD else "ALLOW"
         if review and action == "ALLOW":
             # The anomaly tier cannot raise an alert; it can only ask an analyst to look (never auto-block).
@@ -524,7 +487,7 @@ class SentinelPredictor:
             "modelVersion":self.rf_meta.get("version","v2.1"),
             "featureImportance":explanation,
             "ipReputationScore": rep_score,
-            "featureVector": raw_vector,
+            "featureVector": [float(v) for v in x],
             "featureSchemaVersion": FEATURE_SCHEMA_VERSION,
             # True when the predicted class had too few training rows for its verdicts to be trusted (H2)
             "lowTrainingDataClass": cname in self._low_data_classes,

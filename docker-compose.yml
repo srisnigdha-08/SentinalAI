@@ -31,6 +31,7 @@ services:
       Q_TABLE_PATH: /data/q_table.json
       ALERT_THRESHOLD: ${ALERT_THRESHOLD:-0.90}
       SENTINEL_ADMIN_KEY: ${SENTINEL_ADMIN_KEY:-}
+      MODEL_REGISTRY_SHA256: ${MODEL_REGISTRY_SHA256:-}
       METRICS_TOKEN: ${METRICS_TOKEN:-}
     volumes:
       - ai-data:/data # Q-learning state survives container restarts

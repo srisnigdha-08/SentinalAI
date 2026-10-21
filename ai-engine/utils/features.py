@@ -559,6 +559,9 @@ def prepare_features(df: pd.DataFrame, max_missing=None):
         
     return X.values, y.values
 
+# Not used by any current training or inference path (L6). Kept only because the archived SGD artifact
+# (repository-root models/sgd_classifier_cicids.pkl, a preserved asset) pickled a reference to it and could
+# not be unpickled without it. Do not use in new pipelines.
 def log_transform_features(X):
     # Flow Duration is column 0
     # Flow Bytes/s is column 13

@@ -58,6 +58,7 @@ def main():
             match = actual == reg[role]["sha256"]
             ok &= match
             print(f"{role:<10} {reg[role]['file']:<40} {'OK' if match else 'MISMATCH ' + actual[:12]}")
+        print(f"registry   sha256 {file_sha256(model_dir / REGISTRY_FILE)} (value for MODEL_REGISTRY_SHA256)")
         sys.exit(0 if ok else 1)
 
     if not args.classifier or not args.anomaly:
@@ -73,6 +74,8 @@ def main():
     (model_dir / REGISTRY_FILE).write_text(json.dumps(registry, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote {model_dir / REGISTRY_FILE}")
     print(json.dumps(registry, indent=2))
+    # L11: pin the registry itself from outside the model volume (environment / secret store)
+    print(f"Registry sha256, for MODEL_REGISTRY_SHA256: {file_sha256(model_dir / REGISTRY_FILE)}")
 
 
 if __name__ == "__main__":

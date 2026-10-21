@@ -19,6 +19,7 @@ with patch("inference.predictor.SentinelPredictor.load"), \
 @pytest.fixture(autouse=True)
 def mock_predictor_methods():
     with patch("inference.predictor.SentinelPredictor.predict") as mock_predict, \
+         patch("inference.predictor.SentinelPredictor.predict_many") as mock_predict_many, \
          patch("inference.predictor.SentinelPredictor.predict_from_honeypot") as mock_predict_honeypot, \
          patch("inference.predictor.SentinelPredictor.get_model_info") as mock_get_info, \
          patch("inference.predictor.SentinelPredictor._loaded", new_callable=PropertyMock, return_value=True, create=True):
@@ -31,6 +32,8 @@ def mock_predictor_methods():
             "classProbabilities": {},
             "inferenceTimeMs": 2.5
         }
+        # /predict/batch scores all rows in one call (L12): one copy of the single-row result per record
+        mock_predict_many.side_effect = lambda records, explain=False: [dict(mock_predict.return_value) for _ in records]
         mock_predict_honeypot.return_value = {
             "threatScore": 0.95,
             "predictedClass": "Brute Force",

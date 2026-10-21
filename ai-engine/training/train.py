@@ -20,7 +20,7 @@ from sklearn.preprocessing import StandardScaler, FunctionTransformer
 from sklearn.pipeline import Pipeline
 from sklearn.metrics import accuracy_score, f1_score, classification_report
 from datetime import datetime
-from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, LABEL_SOURCES, prepare_features, RAW_LABEL_TO_TARGET, CANDIDATES, log_transform_features
+from utils.features import FEATURE_NAMES, LABEL_MAP, LABEL_NAMES, LABEL_SOURCES, prepare_features, RAW_LABEL_TO_TARGET, CANDIDATES
 from utils.data_generator import generate
 from monitoring.drift import benign_reference
 
@@ -375,25 +375,18 @@ def train(args):
             version_str = "v2.1"
             
         if args.tune:
-            baseline_macro_f1 = 0.8468
-            baseline_acc = 0.9853
-            baseline_f1_weighted = 0.9870
-            
-            baseline_path = model_dir / pkl_name
-            if baseline_path.exists():
-                try:
-                    print(f"\nLoading existing baseline model from {baseline_path} for comparison...")
-                    baseline_pipe = joblib.load(baseline_path)
-                    y_pred_baseline = baseline_pipe.predict(X_test)
-                    baseline_acc = accuracy_score(y_test, y_pred_baseline)
-                    baseline_f1_weighted = f1_score(y_test, y_pred_baseline, average="weighted", zero_division=0)
-                    baseline_macro_f1 = f1_score(y_test, y_pred_baseline, average="macro", zero_division=0)
-                    print(f"  Baseline Model (on test set): Acc = {baseline_acc:.4f}, Weighted F1 = {baseline_f1_weighted:.4f}, Macro F1 = {baseline_macro_f1:.4f}")
-                except Exception as e:
-                    print(f"  Could not load baseline model: {e}. Using default baseline metrics (Acc: 0.9853, Macro F1: 0.8468).")
-            else:
-                print(f"\nNo baseline model found at {baseline_path}. Using default baseline metrics (Acc: 0.9853, Macro F1: 0.8468).")
-                
+            # Baseline = the untuned recipe fitted on this same training split and scored on the same test rows
+            # (L8). A saved model file is not a fair baseline: it may have been trained on rows that are in this
+            # test split, and hard-coded numbers describe some other split.
+            from sklearn.base import clone
+            print("\nFitting the untuned recipe on the same split as the tuning baseline...")
+            baseline_pipe = clone(pipe).fit(X_train, y_train)
+            y_pred_baseline = baseline_pipe.predict(X_test)
+            baseline_acc = accuracy_score(y_test, y_pred_baseline)
+            baseline_f1_weighted = f1_score(y_test, y_pred_baseline, average="weighted", zero_division=0)
+            baseline_macro_f1 = f1_score(y_test, y_pred_baseline, average="macro", zero_division=0)
+            print(f"  Baseline (untuned, same split): Acc = {baseline_acc:.4f}, Weighted F1 = {baseline_f1_weighted:.4f}, Macro F1 = {baseline_macro_f1:.4f}")
+
             print("\nRunning RandomizedSearchCV for Random Forest hyperparameter tuning...")
             param_dist = {
                 "rf__n_estimators": [200, 400, 600],
@@ -422,7 +415,7 @@ def train(args):
             
             if tuned_f1_macro <= baseline_macro_f1:
                 print(f"\nTuned RF Macro F1 ({tuned_f1_macro:.4f}) does NOT improve over baseline model Macro F1 ({baseline_macro_f1:.4f}).")
-                print("Tuning did NOT help. We will NOT overwrite the existing production model.")
+                print("Tuning did NOT help; the tuned model is not saved.")
                 should_save = False
             else:
                 print(f"\nTuned RF Macro F1 ({tuned_f1_macro:.4f}) IMPROVED over baseline model Macro F1 ({baseline_macro_f1:.4f})!")

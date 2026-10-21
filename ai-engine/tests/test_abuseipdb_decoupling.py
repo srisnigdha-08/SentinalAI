@@ -10,7 +10,7 @@ TEST 3: Action is unchanged (BLOCK for >= 0.92, MONITOR for >= 0.70, ALLOW other
 TEST 4: Containment is unchanged (no side-effects triggered by inference).
 TEST 16: Predict output threatScore is mathematically invariant to source IP reputation.
 TEST 17: Predict output action is invariant to source IP reputation.
-Verification: get_ip_reputation is never invoked synchronously during predict().
+Verification: no HTTP request is made during predict() (the engine has no reputation client).
 """
 import sys
 import os
@@ -70,30 +70,28 @@ def test_normal_prediction_works_without_abuseipdb(predictor_instance):
 
 
 # ── Latency & Synchronous Purge Verification ──────────────────────────────────
-def test_get_ip_reputation_never_called_synchronously_during_predict(predictor_instance):
+def test_predict_makes_no_outbound_http_call(predictor_instance):
     """
-    Verifies that get_ip_reputation is NOT called synchronously before or during predict().
-    Prediction latency must be completely independent of AbuseIPDB.
+    Prediction latency must be independent of AbuseIPDB: no HTTP request is made during predict() (the
+    reputation client was removed from the engine, L5).
     """
     record = {"sourceIP": "8.8.8.8", "flow_duration": 1500.0}
 
-    with patch("inference.predictor.get_ip_reputation") as mock_get_rep:
+    with patch("requests.sessions.Session.request") as mock_http:
         res = predictor_instance.predict(record)
-        assert mock_get_rep.call_count == 0  # Zero calls!
+        assert mock_http.call_count == 0
 
     assert res["threatScore"] > 0
     assert res["ipReputationScore"] is None
 
 
-def test_get_ip_reputation_never_called_synchronously_during_honeypot(predictor_instance):
-    """
-    Verifies that get_ip_reputation is NOT called synchronously during predict_from_honeypot().
-    """
+def test_honeypot_scoring_makes_no_outbound_http_call(predictor_instance):
+    """No HTTP request is made during predict_from_honeypot()."""
     session = {"sourceIP": "185.220.101.5", "commands": [{"command": "id"}, {"command": "uname -a"}]}
 
-    with patch("inference.predictor.get_ip_reputation") as mock_get_rep:
+    with patch("requests.sessions.Session.request") as mock_http:
         res = predictor_instance.predict_from_honeypot(session)
-        assert mock_get_rep.call_count == 0  # Zero calls!
+        assert mock_http.call_count == 0
 
     assert res["threatScore"] > 0
     assert res["ipReputationScore"] is None

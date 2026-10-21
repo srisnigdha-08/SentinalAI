@@ -29,6 +29,9 @@ class Capture:
         return {"predictedClass": "BENIGN", "threatScore": 0.1, "action": "ALLOW", "inferenceTimeMs": 1.0,
                 "featureVector": None}
 
+    def predict_many(self, records, explain=False):
+        return [self.predict(r, explain) for r in records]
+
 
 @pytest.fixture
 def capture(monkeypatch):

@@ -1,10 +1,11 @@
 """SentinelAI FastAPI Inference Server"""
-import os, sys, time, logging, math, secrets, threading
+import os, sys, time, logging, math, secrets, threading, hashlib
+import numpy as np
 from pathlib import Path
 from datetime import datetime, timezone
 from contextlib import asynccontextmanager
 from typing import Dict, List, Optional, Union
-from collections import defaultdict, deque
+from collections import OrderedDict, defaultdict, deque
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Header, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -211,7 +212,9 @@ def _defaulted_features(record: "Record") -> list:
 
 def _score(record: "Record", explain: bool = False) -> dict:
     """predictor.predict plus the input-completeness policy (M2)."""
-    r = predictor.predict(_record_payload(record), explain=explain)
+    return _input_policy(predictor.predict(_record_payload(record), explain=explain), record)
+
+def _input_policy(r: dict, record: "Record") -> dict:
     r["defaultedFeatures"] = _defaulted_features(record)
     r["incompleteInput"] = len(r["defaultedFeatures"]) > MAX_DEFAULTED_FEATURES
     if r["incompleteInput"] and r.get("action") == "BLOCK":
@@ -234,6 +237,25 @@ def _upd(r):
         _upd_unlocked(r)
 
 drift_monitor = DriftMonitor()
+
+# The backend retries /predict/internal on transient failures with the same X-Request-Id and payload; a retry
+# whose first attempt already reached here must not be counted twice in stats/drift (L4). Keyed on request id
+# plus feature vector, so distinct flows sent within one backend request are all counted.
+_SEEN_DELIVERIES = OrderedDict()
+_SEEN_LIMIT = 10000
+
+def _first_delivery(result: dict) -> bool:
+    vector = result.get("featureVector")
+    if vector is None:
+        return True
+    key = (request_id_var.get(), hashlib.sha256(np.asarray(vector, dtype=float).tobytes()).hexdigest())
+    with _stats_lock:
+        if key in _SEEN_DELIVERIES:
+            return False
+        _SEEN_DELIVERIES[key] = True
+        if len(_SEEN_DELIVERIES) > _SEEN_LIMIT:
+            _SEEN_DELIVERIES.popitem(last=False)
+    return True
 
 def _upd_unlocked(r):
     # Only real flow vectors feed drift monitoring; honeypot results carry no featureVector.
@@ -353,7 +375,8 @@ def predict_internal(record: Record, explain: bool = False):
     """Backend-owned persistence: returns the raw vector and never calls back."""
     if not predictor: raise HTTPException(503, "Not ready")
     result = _score(record, explain)
-    _upd(result)
+    if _first_delivery(result):
+        _upd(result)
     return {"success": True, "result": result}
 
 @app.post("/predict/honeypot/internal", dependencies=[Depends(verify_api_key)])
@@ -382,8 +405,10 @@ def predict_batch(records: List[Record], bg: BackgroundTasks):
     if not predictor: raise HTTPException(503,"Not ready")
     if len(records)>500: raise HTTPException(400,"Max 500")
     results=[]
-    for rec in records:
-        r=_score(rec); _upd(r); results.append({"sourceIP":rec.sourceIP,"result":_public_result(r)})
+    # One classifier pass and one Isolation Forest pass for the whole batch (L12)
+    scored = predictor.predict_many([_record_payload(rec) for rec in records]) if records else []
+    for rec, r in zip(records, scored):
+        r = _input_policy(r, rec); _upd(r); results.append({"sourceIP":rec.sourceIP,"result":_public_result(r)})
         if r["threatScore"]>=THRESHOLD: bg.add_task(_notify,r,rec.sourceIP)
     return {"success":True,"total":len(results),"threatCount":sum(1 for r in results if r["result"]["threatScore"]>=THRESHOLD),"results":results}
 
@@ -418,14 +443,15 @@ def deception_recommendation(current: str = "centos_7"):
                 "explored": next_profile != greedy, "learnerStats": learner.get_stats()}
 
 class AuthTelemetryRecord(BaseModel):
-    event_type: str = "AUTH_FAILURE"
-    src_ip: str = "0.0.0.0"
-    dst_ip: str = None
-    dst_port: int = 22
-    service: str = "ssh"
-    user_identity: str = None
-    raw_message: str = None
-    timestamp: float = None
+    # Typed and bounded (L2): optional fields are Optional, strings have length limits, numbers are finite.
+    event_type: str = Field(default="AUTH_FAILURE", max_length=64)
+    src_ip: str = Field(default="0.0.0.0", max_length=64)
+    dst_ip: Optional[str] = Field(default=None, max_length=64)
+    dst_port: int = Field(default=22, ge=0, le=65535)
+    service: str = Field(default="ssh", max_length=64)
+    user_identity: Optional[str] = Field(default=None, max_length=256)
+    raw_message: Optional[str] = Field(default=None, max_length=4096)
+    timestamp: Optional[float] = Field(default=None, allow_inf_nan=False)
 
 @app.post("/predict/auth/shadow", dependencies=[Depends(verify_api_key)])
 def predict_auth_shadow(auth_record: AuthTelemetryRecord):
@@ -449,7 +475,9 @@ def predict_auth_shadow(auth_record: AuthTelemetryRecord):
             "mitigation": res.mitigation_recommendation.watermark if res.mitigation_recommendation else None
         }
     except Exception as exc:
-        return {"success": False, "error": str(exc)}
+        # Never echo exception text (it can contain the submitted raw_message or internals) (L1)
+        log.warning("Shadow E2 evaluation failed (%s)", type(exc).__name__)
+        return {"success": False, "error": "shadow evaluation failed"}
 
 if __name__ == "__main__":
     import uvicorn

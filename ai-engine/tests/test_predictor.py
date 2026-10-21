@@ -3,8 +3,7 @@ tests/test_predictor.py
 
 Unit tests for ai-engine/inference/predictor.py:
   - Model prioritization: cicids real-data models take precedence over synthetic baselines
-  - get_ip_reputation() skips private / loopback IPs
-  - get_ip_reputation() skips when ABUSEIPDB_API_KEY is not set
+  - the engine has no IP-reputation client (enrichment lives in the backend)
   - _demo() fallback produces correct response shape
 """
 import sys
@@ -112,80 +111,6 @@ class TestModelPrioritization:
             p = pred_mod.SentinelPredictor(model_dir=str(model_dir))
 
         assert p._loaded is False
-
-
-# ── get_ip_reputation ─────────────────────────────────────────────────────────
-
-class TestGetIpReputation:
-
-    def setup_method(self):
-        """Clear reputation cache before every test."""
-        import importlib
-        import inference.predictor as pred_mod
-        importlib.reload(pred_mod)
-        pred_mod.REPUTATION_CACHE.clear()
-        self.get_ip_reputation = pred_mod.get_ip_reputation
-
-    def test_returns_none_for_private_ip(self):
-        assert self.get_ip_reputation("192.168.1.1") is None
-
-    def test_returns_none_for_loopback(self):
-        assert self.get_ip_reputation("127.0.0.1") is None
-
-    def test_returns_none_for_empty_string(self):
-        assert self.get_ip_reputation("") is None
-
-    def test_returns_none_when_api_key_missing(self):
-        """Should skip the request when ABUSEIPDB_API_KEY is not set."""
-        with patch.dict(os.environ, {}, clear=True):
-            # Ensure no API key in env
-            os.environ.pop("ABUSEIPDB_API_KEY", None)
-            result = self.get_ip_reputation("8.8.8.8")
-        assert result is None
-
-    def test_returns_none_for_invalid_ip_string(self):
-        assert self.get_ip_reputation("not-an-ip") is None
-
-    def test_caches_successful_lookup(self):
-        """A successful API response should be cached and not trigger a second HTTP call."""
-        import inference.predictor as pred_mod
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"data": {"abuseConfidenceScore": 75}}
-
-        with patch.dict(os.environ, {"ABUSEIPDB_API_KEY": "fake-key"}), \
-             patch("requests.get", return_value=mock_response) as mock_get:
-            first  = pred_mod.get_ip_reputation("8.8.8.8")
-            second = pred_mod.get_ip_reputation("8.8.8.8")  # should hit cache
-
-        assert first == 0.75
-        assert second == 0.75
-        assert mock_get.call_count == 1  # only one real HTTP call
-
-    def test_returns_none_on_http_error(self):
-        """Non-200 response must return None gracefully."""
-        import inference.predictor as pred_mod
-
-        mock_response = MagicMock()
-        mock_response.status_code = 429
-        mock_response.text = "Rate limited"
-
-        with patch.dict(os.environ, {"ABUSEIPDB_API_KEY": "fake-key"}), \
-             patch("requests.get", return_value=mock_response):
-            result = pred_mod.get_ip_reputation("8.8.8.8")
-
-        assert result is None
-
-    def test_returns_none_on_network_exception(self):
-        """Network exceptions must be caught and return None."""
-        import inference.predictor as pred_mod
-
-        with patch.dict(os.environ, {"ABUSEIPDB_API_KEY": "fake-key"}), \
-             patch("requests.get", side_effect=ConnectionError("timeout")):
-            result = pred_mod.get_ip_reputation("8.8.8.8")
-
-        assert result is None
 
 
 # ── Isolation Forest Scoring Integrity Tests ─────────────────────────────────
@@ -456,3 +381,10 @@ class TestCombineThreatScore:
         rf = np.array([0.99, 0.10, 0.80]); sig = np.array([0.0, 1.0, 1.0]); atk = np.array([True, False, True])
         vec = combine_threat_score(rf, sig, atk)
         assert list(np.round(vec, 4)) == [round(combine_threat_score(r, g, a), 4) for r, g, a in zip(rf, sig, atk)]
+
+
+def test_engine_has_no_ip_reputation_client():
+    """L5: AbuseIPDB enrichment is backend-only; the predictor module makes no outbound requests."""
+    import inference.predictor as pred_mod
+    assert not hasattr(pred_mod, "get_ip_reputation")
+    assert not hasattr(pred_mod, "requests")

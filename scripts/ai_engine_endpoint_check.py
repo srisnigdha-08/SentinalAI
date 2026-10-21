@@ -45,13 +45,20 @@ def sample_rows():
     """Up to PER_LABEL rows per raw CICIDS label, read from every CSV."""
     picked = []
     for f in sorted(DATA.glob("*.csv")):
-        df = pd.read_csv(f, low_memory=False)
-        df.columns = df.columns.str.strip()
-        df["Label"] = df["Label"].astype(str).str.strip()
-        numeric = df.drop(columns=["Label"]).apply(pd.to_numeric, errors="coerce")
-        df = df[np.isfinite(numeric.to_numpy(dtype=float)).all(axis=1)]
-        for _, grp in df.groupby("Label"):
-            picked.append(grp.sample(n=min(PER_LABEL, len(grp)), random_state=7))
+        # Chunked so a 225 MB capture never has to fit in memory at once: up to PER_LABEL random rows per label
+        # from every chunk, then PER_LABEL random rows per label from those candidates (seeded, deterministic).
+        candidates = []
+        for df in pd.read_csv(f, low_memory=False, chunksize=100_000):
+            df.columns = df.columns.str.strip()
+            df["Label"] = df["Label"].astype(str).str.strip()
+            numeric = df.drop(columns=["Label"]).apply(pd.to_numeric, errors="coerce")
+            df = df[np.isfinite(numeric.to_numpy(dtype=float)).all(axis=1)]
+            for _, grp in df.groupby("Label"):
+                candidates.append(grp.sample(n=min(PER_LABEL, len(grp)), random_state=7))
+        if candidates:
+            pool = pd.concat(candidates)
+            for _, grp in pool.groupby("Label"):
+                picked.append(grp.sample(n=min(PER_LABEL, len(grp)), random_state=7))
     return pd.concat(picked, ignore_index=True)
 
 
