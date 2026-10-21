@@ -11,6 +11,7 @@ test('legacy/model/manual records are never guessed to be heuristic from score o
 test('embedded marker in unrelated notes is not a source annotation', () => {
   assert.equal(threatEvidenceLabel({ notes: 'Operator quoted [SESSION_OPEN_HEURISTIC]' }), null)
 })
-test('explicit reclassification marker distinguishes subsequent model inference', () => {
-  assert.equal(threatEvidenceLabel({ notes: '[RF_IF_RECLASSIFIED] RF/IF inference replaced the initial signal' }), 'RF/IF reclassified after session-open heuristic')
+test('reclassification marker reports the honeypot rule verdict, including the legacy spelling', () => {
+  for (const notes of ['[HONEYPOT_RULES_RECLASSIFIED] Honeypot rule classification replaced the initial signal', '[RF_IF_RECLASSIFIED] RF/IF inference replaced the initial signal'])
+    assert.equal(threatEvidenceLabel({ notes }), 'Rule-reclassified after session-open heuristic')
 })

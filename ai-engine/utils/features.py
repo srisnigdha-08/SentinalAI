@@ -6,6 +6,9 @@ import numpy as np
 import pandas as pd
 import datetime
 import logging
+import posixpath
+import re
+import shlex
 
 _features_log = logging.getLogger("sentinel.features")
 
@@ -344,27 +347,60 @@ def extract_features_from_record(record: dict) -> np.ndarray:
         entropy, t_sin, t_cos
     ], dtype=np.float64)
 
+EXFIL_TOOLS = {"scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "ncat", "netcat"}
+LATERAL_TOOLS = {"ssh", "telnet", "ping", "nmap", "arp", "route", "smbclient", "mount"}
+RCE_TOOLS = {"wget", "curl", "chmod", "python", "python3", "perl", "bash", "sh", "gcc"}
+# Prefixes that run another program; the program after them is the one that counts.
+_WRAPPERS = {"sudo", "busybox", "nohup", "env", "exec", "time", "nice"}
+_SEGMENT_SPLIT = re.compile(r"[;&|\n]+|\$\(|`")
+
+
+def command_programs(commands) -> set:
+    """
+    Program names a Cowrie session ran: the first word of every command segment (split on ; & | and
+    subshells), path stripped (/usr/bin/wget -> wget), wrappers such as sudo skipped. A local executable
+    (./x, /tmp/x) is reported as "./". Matching whole program names instead of substrings keeps "sync"
+    from matching "nc" or "start" from matching "tar".
+    """
+    programs = set()
+    for c in commands:
+        for segment in _SEGMENT_SPLIT.split(str(c.get("command", ""))):
+            try:
+                words = shlex.split(segment)
+            except ValueError:
+                words = segment.split()
+            while words and (words[0] in _WRAPPERS or "=" in words[0]):
+                words = words[1:]
+            if not words:
+                continue
+            first = words[0].lower()
+            if first.startswith(("./", "/tmp/", "/dev/shm/")):
+                programs.add("./")
+            programs.add(posixpath.basename(first))
+    return programs
+
+
 def classify_honeypot_session(session: dict) -> str:
     """
-    Rule-based class of a Cowrie session (login outcome, command keywords, IOC count, duration).
+    Rule-based class of a Cowrie session (login outcome, programs run, IOC count).
     This is the honeypot verdict served by predictor.predict_from_honeypot: Cowrie records no packet
-    statistics, so there is no flow for the CICIDS-trained classifier to score.
+    statistics, so there is no flow for the CICIDS-trained classifier to score. Session duration is not
+    a signal: an idle logged-in session is not exfiltration.
     """
     cmds = session.get("commands", [])
-    cmd_str = " ".join(str(c.get("command", "")).lower() for c in cmds)
     login_ok = bool(session.get("loginSucceeded", False))
-    dur_sec = float(session.get("durationSeconds", 1))
     ioc_cnt = int(session.get("iocCount", 0))
 
     if not login_ok:
         return "SSH Brute Force"
     if len(cmds) == 0:
         return "Port Scan"
-    if ioc_cnt >= 3 or dur_sec > 120 or any(k in cmd_str for k in ["scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "netcat"]):
+    programs = command_programs(cmds)
+    if ioc_cnt >= 3 or programs & EXFIL_TOOLS:
         return "Data Exfiltration"
-    if any(k in cmd_str for k in ["ssh ", "telnet", "ping", "nmap", "arp", "route", "smb", "mount"]):
+    if programs & LATERAL_TOOLS:
         return "Lateral Movement"
-    if any(k in cmd_str for k in ["wget", "curl", "chmod", "./", "python", "perl", "bash", "sh", "gcc"]):
+    if programs & (RCE_TOOLS | {"./"}):
         return "RCE Attempt"
     return "BENIGN"
 

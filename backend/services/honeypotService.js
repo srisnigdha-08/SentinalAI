@@ -280,7 +280,7 @@ const analyseClosure = async (session, telemetry) => {
         classProbabilities: aiResult.classProbabilities,
         threatScore: score,
         // Cowrie sessions are classified by rules, not by a model (see predictor.predict_from_honeypot)
-        modelVersion: `${aiResult.modelVersion || 'honeypot_rules_v1'}+${aiResult.classificationMethod || 'honeypot_rules'}`,
+        modelVersion: `${aiResult.modelVersion || 'honeypot_rules_v2'}+${aiResult.classificationMethod || 'honeypot_rules'}`,
         modelType: 'rules',
         isAnomaly: aiResult.isAnomaly || false,
         anomalyScore: aiResult.anomalyScore || 0,
@@ -335,7 +335,8 @@ const analyseClosure = async (session, telemetry) => {
         if (existingThreat.notes?.startsWith('[SESSION_OPEN_HEURISTIC]')) {
           existingThreat.notes = existingThreat.notes.replace(
             /^\[SESSION_OPEN_HEURISTIC\][^\r\n]*/,
-            '[RF_IF_RECLASSIFIED] RF/IF inference replaced the initial fixed SSH session-open signal.'
+            // Honeypot sessions are classified by rules (predictor.predict_from_honeypot), never RF/IF.
+            '[HONEYPOT_RULES_RECLASSIFIED] Honeypot rule classification replaced the initial fixed SSH session-open signal.'
           )
         }
 
@@ -415,8 +416,14 @@ const analyseClosure = async (session, telemetry) => {
   return finishClosure(session, payload)
 }
 
+// Sessions invented by `log_parser.py --demo` travel the real ingest path. They must not train the deception
+// Q-learner, whose table is meant to reflect attackers. Same convention as retentionService (demo-*).
+const isSyntheticSession = (sessionId) => /^demo-/i.test(String(sessionId || ''))
+
 const finishClosure = async (session, payload) => {
-  const decRes = await aiSvc.getDeceptionScore(payload)
+  const synthetic = isSyntheticSession(session.sessionId)
+  if (synthetic) logger.info(`[HP] Synthetic session ${session.sessionId}: Q-learner update skipped`)
+  const decRes = synthetic ? null : await aiSvc.getDeceptionScore(payload)
   if (decRes?.success && decRes?.result) {
     session.qDeceptionScore = decRes.result.deceptionScore || 0
     session.recommendedProfile = decRes.result.nextProfile || 'ubuntu_22'

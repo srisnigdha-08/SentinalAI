@@ -377,15 +377,16 @@ The backend creates a threat when `threatScore ≥ alert line (0.90; 0.85 before
 
 **The honeypot path**, `predict_from_honeypot` (`predictor.py`, after the C1 fix):
 - Cowrie sessions contain no packet statistics, so **no model runs**.
-- `classify_honeypot_session` (`utils/features.py`) picks the class with **keyword rules**, checked in this order:
+- `classify_honeypot_session` (`utils/features.py`) picks the class with **rules over the programs run** (the first word of each command segment, from `command_programs`; whole names, not substrings), checked in this order:
   1. failed login → "SSH Brute Force";
   2. logged in, no commands → "Port Scan";
-  3. ≥ 3 IOCs, duration over 120 s, or `scp/tar/nc…` → "Data Exfiltration";
+  3. ≥ 3 IOCs, or `scp/tar/nc…` → "Data Exfiltration";
   4. `ssh/nmap/ping…` → "Lateral Movement";
-  5. `wget/curl/chmod…` → "RCE Attempt";
+  5. `wget/curl/chmod…` or a local executable (`./x`) → "RCE Attempt";
   6. anything else → "BENIGN".
+  Session duration is not a rule (v1 counted any session over 120 s as exfiltration).
 - Score = `HONEYPOT_RULE_SCORES[class]`: BENIGN 0.40, Port Scan 0.75, SSH Brute Force 0.86, Lateral Movement 0.90, RCE 0.93, Exfiltration 0.95. Non-BENIGN classes get `+0.01` per command, capped at 0.99.
-- The response says `classificationMethod: "honeypot_rules"` and `modelVersion: "honeypot_rules_v1"`; `confidence` and `anomalyScore` are null. The backend stores it as `modelType: "rules"`.
+- The response says `classificationMethod: "honeypot_rules"` and `modelVersion: "honeypot_rules_v2"`; `confidence` and `anomalyScore` are null. The backend stores it as `modelType: "rules"`.
 - *Before the fix:* the rules built a fake flow from synthetic-generator means and pushed it through the RF, which scored **every** profile BENIGN (0.08–0.11).
 
 ## 2.6 The Q-learning deception scorer

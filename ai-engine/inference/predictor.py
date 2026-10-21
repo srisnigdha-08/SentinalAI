@@ -84,7 +84,7 @@ def score_to_severity(s):
 # ran only harmless commands) sits near or above the alert line; the score rises with what the attacker did:
 # credential guessing -> MONITOR, lateral movement -> MONITOR, payload download/execution and exfiltration
 # -> BLOCK line (auto-block still requires the backend's autoBlockEnabled setting).
-HONEYPOT_RULES_VERSION = "honeypot_rules_v1"
+HONEYPOT_RULES_VERSION = "honeypot_rules_v2"  # v2: whole program names, no duration rule
 HONEYPOT_RULE_SCORES = {
     "BENIGN":            0.40,
     "Port Scan":         0.75,

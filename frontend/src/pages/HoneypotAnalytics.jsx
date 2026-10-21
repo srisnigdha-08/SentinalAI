@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
@@ -15,6 +15,8 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
     {payload.map(p=><p key={p.name} style={{ color:p.color||'#ffaa00' }}>{p.name||'Count'}: {p.value}</p>)}
   </div>
 ) : null
+
+const RELOAD_COALESCE_MS = 1500
 
 export default function HoneypotAnalytics() {
   const [analytics, setAnalytics] = useState(null)
@@ -61,12 +63,23 @@ export default function HoneypotAnalytics() {
     loadDeception()
   }, [])
 
+  // Each event used to trigger three REST calls, so one busy session (a command per event) could exhaust
+  // the per-IP rate limit. Events arriving within RELOAD_COALESCE_MS share one reload; a steady stream still
+  // refreshes every RELOAD_COALESCE_MS instead of waiting for it to stop.
+  const reloadTimer = useRef(null)
   useEffect(() => {
     if (!connected) return
-    const unsubOpen = on('honeypot_session_opened', () => load())
-    const unsubClose = on('honeypot_session_closed', () => load())
-    const unsubCmd = on('honeypot_command', () => load())
-    return () => { unsubOpen?.(); unsubClose?.(); unsubCmd?.() }
+    const scheduleReload = () => {
+      if (reloadTimer.current) return
+      reloadTimer.current = setTimeout(() => { reloadTimer.current = null; load() }, RELOAD_COALESCE_MS)
+    }
+    const unsubOpen = on('honeypot_session_opened', scheduleReload)
+    const unsubClose = on('honeypot_session_closed', scheduleReload)
+    const unsubCmd = on('honeypot_command', scheduleReload)
+    return () => {
+      unsubOpen?.(); unsubClose?.(); unsubCmd?.()
+      clearTimeout(reloadTimer.current); reloadTimer.current = null
+    }
   }, [connected, on])
 
   const kpis   = analytics?.kpis   || {}

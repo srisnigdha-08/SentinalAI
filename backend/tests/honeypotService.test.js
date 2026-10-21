@@ -307,7 +307,7 @@ describe('honeypotService.closeSession()', () => {
     mockPredictHoneypot.mockResolvedValue({ success: true, result: { predictedClass: 'Port Scan', threatScore: 0.6 } })
     await closeSession('session-doc-id')
     expect(threat.notes).toBe(
-      '[RF_IF_RECLASSIFIED] RF/IF inference replaced the initial fixed SSH session-open signal.\nOperator note retained'
+      '[HONEYPOT_RULES_RECLASSIFIED] Honeypot rule classification replaced the initial fixed SSH session-open signal.\nOperator note retained'
     )
     expect(threat.aiScore).toBe(0.6)
     expect(threat.status).toBe('DETECTED')
@@ -338,6 +338,21 @@ describe('honeypotService.closeSession()', () => {
     expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
     expect(result.qDeceptionScore).toBe(72)
     expect(result.recommendedProfile).toBe('debian_11')
+  })
+
+  test('demo sessions are closed and classified but never update the Q-learner', async () => {
+    mockGetDeceptionScore.mockResolvedValue({ success: true, result: { deceptionScore: 72, nextProfile: 'debian_11' } })
+    mockSession.sessionId = 'demo-1a2b3c4d'
+    try {
+      const result = await closeSession('session-doc-id')
+      expect(mockPredictHoneypot).toHaveBeenCalledTimes(1)
+      expect(mockGetDeceptionScore).not.toHaveBeenCalled()
+      expect(result.status).toBe('closed')
+      expect(result.qDeceptionScore).toBe(0)
+      expect(mockSessionSave).toHaveBeenCalledTimes(1)
+    } finally {
+      mockSession.sessionId = 'sess-TEST-0001'
+    }
   })
 
   test('calls campaignService.clusterSession with the updated session', async () => {

