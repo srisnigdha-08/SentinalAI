@@ -50,3 +50,20 @@ test('model reload sends the separate admin key only when configured (M9)', asyn
   expect(mockPost.mock.calls[0][2].headers).toEqual({ 'X-Admin-Key': 'admin-key-test' })
   expect(mockPost.mock.calls[1][2].headers).toEqual({})
 })
+
+test('deception scoring failure logs the engine error code and exception type, not its message', async () => {
+  // Regression: the backend logged only "status code 500" while every session stayed unscored.
+  mockPost.mockRejectedValue({
+    message: 'Request failed with status code 503',
+    response: {
+      status: 503,
+      data: { detail: { error: 'DECEPTION_SCORER_UNAVAILABLE', reason: 'PermissionError: offline-private-path' } },
+    },
+  })
+  expect(await ai.getDeceptionScore({ sessionId: 's1' })).toBeNull()
+  const line = require('../utils/logger').warn.mock.calls[0][0]
+  expect(line).toBe(
+    '[AI] deception scoring failed: Request failed with status code 503 (DECEPTION_SCORER_UNAVAILABLE, PermissionError)'
+  )
+  expect(line.includes('offline-private-path')).toBe(false)
+})

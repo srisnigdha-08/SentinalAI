@@ -53,6 +53,21 @@ describe('active deception profile', () => {
     await expect(honeypotService.getActiveProfile()).resolves.toEqual({ profile: 'centos_7', source: 'default' })
   })
 
+  test('with nothing recorded, the persona Cowrie reported in the latest session wins over the default', async () => {
+    // Regression: Cowrie served ubuntu_22 (sessions credited ubuntu_22) while the dashboard showed, and the
+    // recommendation was computed from, "centos_7 (from default)".
+    SystemSetting.findOne.mockResolvedValue(null)
+    HoneypotSession.findOne.mockReturnValueOnce(previousQuery({ servedProfile: 'ubuntu_22' }))
+    await expect(honeypotService.getActiveProfile()).resolves.toEqual({ profile: 'ubuntu_22', source: 'latest_session' })
+
+    HoneypotSession.findOne.mockReturnValueOnce(previousQuery({ servedProfile: 'not_a_profile' }))
+    await expect(honeypotService.getActiveProfile()).resolves.toEqual({ profile: 'centos_7', source: 'default' })
+
+    // A recorded setting still takes precedence over what sessions reported.
+    SystemSetting.findOne.mockResolvedValue({ key: 'deceptionActiveProfile', value: 'debian_11' })
+    await expect(honeypotService.getActiveProfile()).resolves.toEqual({ profile: 'debian_11', source: 'setting' })
+  })
+
   test('ignores an invalid stored value', async () => {
     SystemSetting.findOne.mockResolvedValue({ key: 'deceptionActiveProfile', value: 'not_a_profile' })
     await expect(honeypotService.getActiveProfile()).resolves.toMatchObject({ profile: 'centos_7' })

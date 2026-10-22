@@ -2,6 +2,8 @@
 
 Audited and run on 2026-10-22 (IST) on this laptop. Everything marked **[RUN]** was executed today and the output is pasted unedited (excerpted where long, never altered). **[CODE]** = verified by reading the file only. **NOT RUN** = expected output unverified.
 
+> **Update 14:30 (see `docs/DEMO_READINESS_REPORT.md`, which supersedes this file where they differ):** v3 rules are committed and were verified live (download-only → RCE 0.91, no block; with `chmod +x` + `./payload.sh` → 0.99, blocked). The deployed Cowrie now listens on 127.0.0.1, which can never be auto-blocked: bind it to the WSL IP for Part C (report §5). Restart your :8000 engine: it predates v3 and its deception scorer returns 500. The dashboard now shows the persona Cowrie reports, and no Block IP button on already-blocked threats.
+
 Isolation used for the runs: AI engine replays used the `/predict/eval` endpoint (no side effects). Backend runs used a **separate backend on port 5055** with a throwaway DB `sentinel-runbook-verify-20261022` and a generated test admin. Your own `sentinel-db`, your backend on :5000 and your engine on :8000 were not written to. Cowrie in WSL was restarted (see Part 7).
 
 > **Read first: three things changed what you can safely demo**

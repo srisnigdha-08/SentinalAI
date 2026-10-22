@@ -11,7 +11,9 @@ const ACTIVE_PROFILE_KEY = 'deceptionActiveProfile'
 
 /**
  * The persona Cowrie is currently serving. An operator records it (PUT /api/honeypot/deception/profile)
- * after applying switch_profile.py; DECEPTION_ACTIVE_PROFILE / the shipped CentOS 7 config are fallbacks.
+ * after applying switch_profile.py; DECEPTION_ACTIVE_PROFILE, then the persona Cowrie reported in the latest
+ * session (the parser reads it from cowrie.cfg), then the shipped CentOS 7 config are fallbacks. Without the
+ * session step a honeypot serving ubuntu_22 with nothing recorded was shown, and recommended from, as centos_7.
  */
 const getActiveProfile = async () => {
   const SystemSetting = require('../models/SystemSetting')
@@ -19,6 +21,8 @@ const getActiveProfile = async () => {
   if (setting && DECEPTION_PROFILES.includes(setting.value)) return { profile: setting.value, source: 'setting' }
   if (DECEPTION_PROFILES.includes(process.env.DECEPTION_ACTIVE_PROFILE))
     return { profile: process.env.DECEPTION_ACTIVE_PROFILE, source: 'env' }
+  const latest = await findPreviousServedProfile(null)
+  if (DECEPTION_PROFILES.includes(latest?.servedProfile)) return { profile: latest.servedProfile, source: 'latest_session' }
   return { profile: 'centos_7', source: 'default' }
 }
 

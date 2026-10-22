@@ -11,14 +11,17 @@ Two targets:
                    stored and nothing reaches the dashboard.
   --target backend Signs in to the Node backend and POSTs each flow to /api/ai/analyze, the same
                    path an analyst uses. Predictions are stored in MongoDB, threats/alerts are
-                   created for scores >= 0.7, and Socket.IO pushes them to the live dashboard.
+                   created for non-BENIGN scores >= the engine's alert line (0.90 by default; auto-block
+                   only at >= 0.92 and only when autoBlockEnabled is on), and Socket.IO
+                   pushes them to the live dashboard.
 
 HARD CONSTRAINTS & INTEGRITY GUARANTEES:
 - Ground-truth 'Label' is NEVER included in the API request payload.
 - 'Label' is stripped before constructing the request and revealed ONLY post-hoc
   after the model has returned its independent prediction.
 - No second classifier, simulation mode, or synthetic fallbacks are used.
-- Uses the live, existing production model (rf_classifier_cicids_v2.pkl).
+- Uses whatever model the engine serves (models/registry.json; currently XGBoost xgb_cicids_v1 plus
+  the Isolation Forest). The model version is printed on every result line.
 - The secret API key and the analyst password are NEVER printed, logged, or hardcoded.
 - Backend mode uses RFC 5737 TEST-NET-2 source addresses (198.51.100.0/24), so even with
   auto-block enabled no real host can be deny-listed.
@@ -158,6 +161,7 @@ def resolve_api_key(cli_key: str = None) -> str:
 
     base_dir = Path(__file__).resolve().parent.parent
     candidate_paths = [
+        base_dir.parent / "backend" / ".env",
         base_dir.parent / "deployment" / ".env",
         base_dir / ".env",
         Path(".env")
@@ -173,7 +177,7 @@ def resolve_api_key(cli_key: str = None) -> str:
             except Exception:
                 pass
 
-    print(f"{Color.RED}[ERROR] Authentication failed: SENTINEL_KEY not found in environment or deployment/.env.{Color.RESET}", file=sys.stderr)
+    print(f"{Color.RED}[ERROR] Authentication failed: SENTINEL_KEY not found in the environment, backend/.env or deployment/.env.{Color.RESET}", file=sys.stderr)
     print("        Please provide it via export SENTINEL_KEY=... or --api-key <key>.", file=sys.stderr)
     sys.exit(1)
 
@@ -294,9 +298,10 @@ def format_threat_meter(score: float, width: int = 10) -> str:
     filled = max(0, min(width, int(round(score * width))))
     empty = width - filled
     bar_chars = "#" * filled + "-" * empty
-    if score >= 0.90:
+    # Colours follow the engine's default operating lines (inference/predictor.py): BLOCK >= 0.92, alert >= 0.90.
+    if score >= 0.92:
         return f"{Color.RED}[{bar_chars}] {score:.4f}{Color.RESET}"
-    elif score >= 0.70:
+    elif score >= 0.90:
         return f"{Color.YELLOW}[{bar_chars}] {score:.4f}{Color.RESET}"
     else:
         return f"{Color.GREEN}[{bar_chars}] {score:.4f}{Color.RESET}"
@@ -407,7 +412,7 @@ def run_replay(file_path: str, total_rows: int, delay: float, target) -> dict:
     """
     print(f"\n{Color.CYAN}{Color.BOLD}============================================================================{Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}         SentinelAI -- CICIDS2017 Real Attack Replay Demonstration          {Color.RESET}")
-    print(f"{Color.CYAN}{Color.BOLD}      Independent Live Evaluation of Production Random Forest Model         {Color.RESET}")
+    print(f"{Color.CYAN}{Color.BOLD}        Post-hoc Evaluation of the Deployed Model (see Model: per flow)       {Color.RESET}")
     print(f"{Color.CYAN}{Color.BOLD}============================================================================{Color.RESET}\n")
 
     print(f"{Color.BOLD}Demonstration Parameters:{Color.RESET}")
@@ -513,7 +518,7 @@ def run_replay(file_path: str, total_rows: int, delay: float, target) -> dict:
     print(f"  * Sample Demonstration Accuracy:  {acc_color}{Color.BOLD}{accuracy_pct:.2f}%{Color.RESET}")
     print(f"  * Pipeline Integrity Status:      {Color.GREEN}[VERIFIED] Zero Ground-Truth Label Leakage{Color.RESET}")
     if isinstance(target, BackendTarget):
-        print("  * Dashboard:                      predictions stored; scores >= 0.7 raised as live threats")
+        print("  * Dashboard:                      predictions stored; non-BENIGN scores >= 0.90 raised as live threats")
     print(f"{Color.CYAN}{'=' * 76}{Color.RESET}\n")
     return {"evaluated": total_evaluated, "correct": correct_predictions, "failed": failed}
 

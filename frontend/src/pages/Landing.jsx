@@ -177,7 +177,8 @@ export default function Landing() {
                 { ref: cnt1, label: 'Threats Blocked' },
                 { ref: cnt2, label: 'Attacks Analyzed' },
                 { ref: cnt3, label: 'Honeypot Sessions' },
-                { ref: cnt4, label: 'AI Accuracy' },
+                // rfMetrics.accuracy is the served model's random 80/20 test split, not field accuracy
+                { ref: cnt4, label: 'Test-split Accuracy' },
               ].map(({ ref, label }) => (
                 <div key={label} style={{ textAlign: 'center' }}>
                   <div ref={ref} style={{

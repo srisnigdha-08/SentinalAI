@@ -19,6 +19,7 @@ if "pytest" not in sys.modules:
     from dotenv import load_dotenv
     load_dotenv(ENGINE_ROOT / ".env", override=False)
 from inference.predictor import SentinelPredictor, MONITOR_THRESHOLD
+from inference import deception
 from inference.deception import get_scorer, save_scorer
 from inference.errors import ModelUnavailableError
 from monitoring.drift import DriftMonitor
@@ -308,7 +309,7 @@ async def health():
 @app.get("/model/info", dependencies=[Depends(verify_api_key)])
 async def model_info():
     if not predictor: raise HTTPException(503,"Not ready")
-    return predictor.get_model_info()
+    return {**predictor.get_model_info(), "deception": _deception_status()}
 
 def _metrics_allowed(request) -> bool:
     token = os.getenv("METRICS_TOKEN")
@@ -475,10 +476,37 @@ def predict_honeypot(s: SessionData, bg: BackgroundTasks):
     bg.add_task(_notify,r,s.sourceIP)
     return {"success":True,"sessionId":s.sessionId,"sourceIP":s.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
 
+# Last Q-learner initialisation failure. A failing get_scorer() used to surface as a bare 500, so the backend
+# logged only "status code 500" and every session stayed unscored with no reason anywhere but this console.
+_deception_error = None
+
+def _deception_status() -> dict:
+    scorer = deception._scorer
+    return {"initialized": scorer is not None,
+            "qTablePath": str(scorer.learner.q_table_path) if scorer is not None else None,
+            "lastError": _deception_error}
+
+def _deception_scorer():
+    """get_scorer() with its failure reported: a 503 with the reason, logged once per attempt."""
+    global _deception_error
+    try:
+        scorer = get_scorer()
+    except Exception as e:
+        _deception_error = f"{type(e).__name__}: {e}"
+        log.error("Deception scorer unavailable: %s", _deception_error)
+        raise HTTPException(503, detail={"error": "DECEPTION_SCORER_UNAVAILABLE", "reason": _deception_error})
+    _deception_error = None
+    return scorer
+
 @app.post("/deception/score", dependencies=[Depends(verify_api_key)])
 def deception_score(s: SessionData):
     with _scorer_lock:
-        res = get_scorer().process_session(s.model_dump())
+        scorer = _deception_scorer()
+        try:
+            res = scorer.process_session(s.model_dump())
+        except Exception as e:
+            log.exception("Deception scoring failed for session %s", s.sessionId[:64])
+            raise HTTPException(500, detail={"error": "DECEPTION_SCORING_FAILED", "reason": f"{type(e).__name__}: {e}"})
     return {"success": True, "result": res}
 
 @app.get("/deception/recommendation", dependencies=[Depends(verify_api_key)])
@@ -491,7 +519,7 @@ def deception_recommendation(current: str = "centos_7"):
     if current not in PROFILES:
         raise HTTPException(422, f"Unknown profile '{current}'")
     with _scorer_lock:
-        learner = get_scorer().learner
+        learner = _deception_scorer().learner
         next_profile = learner.choose_action(current)
         greedy = learner.greedy_action(current)
         return {"success": True, "current": current, "nextProfile": next_profile, "policy": learner.policy,

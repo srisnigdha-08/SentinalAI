@@ -52,6 +52,8 @@ $env:SENTINEL_KEY = "<YOUR_CONFIGURED_SENTINEL_KEY>"
 ```
 
 #### Option B: Lightweight Mock Engine (Rapid 0-dependency fallback)
+> **MOCK.** Returns hard-coded results. Use it only for the role/UI walkthrough below, never for the threat demo
+> (`docs/THREAT_DEMO_RUNBOOK.md`) or for any accuracy or detection claim.
 ```powershell
 cd C:\Users\srisn\Desktop\Projects\sentinelai-complete
 node scratch/mock_ai_engine.js
@@ -64,7 +66,8 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/model/info" -Headers @{ "X-API-Key
 ```
 - **Real Python Engine**:
   - Exposes Swagger UI at `http://127.0.0.1:8000/docs`.
-  - `/model/info` returns real ensemble dimensions, Random Forest features, and SHAP tree parameters.
+  - `/model/info` returns the registered model (`rfVersion: xgb_cicids_v1`, an XGBoost classifier despite the
+    field name), `featureCount: 53`, the thresholds (block 0.92, alert 0.90) and `registry.verified: true`.
   - Calling `/model/info` *without* an API key returns `HTTP 401 Unauthorized`.
 - **Mock Engine**:
   - Exposes no Swagger docs.
@@ -136,7 +139,9 @@ Use the following pre-configured demonstration accounts (passwords provided sepa
    - Inspect the Threat Logs table: IP addresses (`198.51.100.77`) and attack commands (`cat /etc/shadow`) are unmasked for threat analysis.
 3. **Demonstrate Defensive Action**:
    - Click the **Block IP** button on an active threat.
-   - Show that the system creates a `ContainmentAction` record, updates the firewall rule, and synchronously transitions the threat to `BLOCKED`.
+   - Show that the system creates a `ContainmentAction` record (`enforcementBackend: mock`: a simulated rule, no
+     Windows Firewall change) and transitions the threat to `BLOCKED`. Real enforcement exists only at the Cowrie
+     honeypot, which refuses deny-listed IPs (`docs/THREAT_DEMO_RUNBOOK.md`, Part C).
    - Click **Triage Threat** to resolve alerts.
 
 ### Minute 3: Governance & Tamper-Evident Auditing — Admin Control Workspace

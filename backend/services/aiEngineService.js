@@ -232,7 +232,13 @@ const getDeceptionScore = async (session) => {
   try {
     return (await guarded(() => ai.post('/deception/score', session))).data
   } catch (e) {
-    logger.warn('[AI] deception scoring failed: ' + e.message)
+    // The engine names the cause (error code + exception type); without it the log said only "status code
+    // 500" and the failure could not be diagnosed from the backend. The exception message is not logged here:
+    // it can echo session content, and the engine's own log already has it.
+    const detail = e.response?.data?.detail
+    const code = typeof detail?.error === 'string' ? detail.error.replace(/[^A-Z_]/g, '').slice(0, 64) : ''
+    const kind = typeof detail?.reason === 'string' ? detail.reason.split(':')[0].replace(/\W/g, '').slice(0, 64) : ''
+    logger.warn('[AI] deception scoring failed: ' + e.message + (code ? ` (${code}${kind ? `, ${kind}` : ''})` : ''))
     return null
   }
 }

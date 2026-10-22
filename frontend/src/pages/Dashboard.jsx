@@ -19,6 +19,8 @@ import toast from 'react-hot-toast'
 import { denyListRecorded } from '../utils/containmentLabels.js'
 
 const SEV_COLORS = { CRITICAL:'#ff2d55', HIGH:'#ff6400', MEDIUM:'#ffaa00', LOW:'#00d4ff' }
+// The queue lists the latest threats whatever their state; these need no Block IP button and are not "open".
+const CLOSED_STATUSES = new Set(['BLOCKED', 'RESOLVED', 'FALSE_POSITIVE'])
 const VECTOR_COLORS = {
   'SSH Brute Force':'#ff2d55','SQL Injection':'#ff6400','Port Scan':'#00d4ff',
   'DDoS':'#ffaa00','Malware Beacon':'#8b5cf6','RCE Attempt':'#00ff88',
@@ -192,7 +194,7 @@ export default function Dashboard() {
   // Section 2: Active threat queue table
   const threatQueueSection = (
     <ErrorBoundary key="threat-queue" compact>
-      <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.length} active`} badgeType="live" style={{ marginBottom:'1rem' }}>
+      <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.filter(t => !CLOSED_STATUSES.has(t.status)).length} open / ${threats.length} latest`} badgeType="live" style={{ marginBottom:'1rem' }}>
       <div className="sentinel-table-scroll" role="region" aria-label="Active threat queue" tabIndex={0}>
       <table style={{ width:'100%', minWidth: 680, borderCollapse:'collapse' }}>
         <thead>
@@ -219,7 +221,7 @@ export default function Dashboard() {
                 {((t.aiScore||0)*100).toFixed(0)}%
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>
-                {userRole === 'viewer' ? (
+                {userRole === 'viewer' || CLOSED_STATUSES.has(t.status) ? (
                   <span style={{
                     fontFamily: 'Share Tech Mono,monospace',
                     fontSize: 10,
@@ -231,7 +233,7 @@ export default function Dashboard() {
                     display: 'inline-block',
                     letterSpacing: 0.5,
                   }}>
-                    OBSERVATION MODE
+                    {userRole === 'viewer' ? 'OBSERVATION MODE' : t.status.replace('_', ' ')}
                   </span>
                 ) : (
                   <button onClick={async()=>{
