@@ -74,9 +74,11 @@ services:
       HONEYPOT_API_KEY: ${HONEYPOT_API_KEY:?set HONEYPOT_API_KEY}
       SENTINEL_API: ${SENTINEL_API_URL:-http://172.30.66.1:5000/api}
       PARSER_STATE_DIR: /state
+      COWRIE_CFG: /cowrie-etc/cowrie.cfg # the persona Cowrie serves is read from its header
     command: ["--live", "--log", "/cowrie-var/log/cowrie/cowrie.json"]
     volumes:
       - cowrie-var:/cowrie-var:ro # reads Cowrie's JSON log, cannot change it
+      - ./cowrie/cowrie.cfg:/cowrie-etc/cowrie.cfg:ro
       - parser-state:/state # offset, open sessions, delivery spool (holds captured credentials)
     depends_on:
       - cowrie

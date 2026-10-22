@@ -6,8 +6,7 @@ const { escapeRegex, parsePagination } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
 const mitreMapping = require('../utils/mitreMapping')
 
-// Must match PROFILES in ai-engine/rl_engine/deception_scorer.py and honeypot/switch_profile.py.
-const DECEPTION_PROFILES = ['ubuntu_22', 'debian_11', 'centos_7', 'windows_srv', 'aws_ec2', 'raspberry_pi']
+const { DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
 const ACTIVE_PROFILE_KEY = 'deceptionActiveProfile'
 
 /**

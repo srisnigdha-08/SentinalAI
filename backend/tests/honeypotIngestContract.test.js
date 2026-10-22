@@ -36,6 +36,22 @@ test('supported event keeps its response contract and calls the collector', asyn
   expect(response.body.data).toEqual({ received: true, eventType: 'SESSION_OPENED' })
   expect(collector.onSessionOpened).toHaveBeenCalledTimes(1)
 })
+test('servedProfile (C1) is passed to the collector when it is a known persona and rejected otherwise', async () => {
+  collector.onSessionOpened.mockResolvedValue({ sessionId: 'persona' })
+  const send = (servedProfile) =>
+    request(app)
+      .post('/ingest')
+      .set('X-API-Key', process.env.HONEYPOT_API_KEY)
+      .send({ eventType: 'SESSION_OPENED', sessionId: 'persona', sourceIP: '192.0.2.10', servedProfile })
+  expect((await send('ubuntu_22')).status).toBe(200)
+  expect(collector.onSessionOpened.mock.calls[0][0].servedProfile).toBe('ubuntu_22')
+  for (const bad of ['solaris_9', '$where', 42, { $ne: null }]) {
+    const res = await send(bad)
+    expect(res.status).toBe(400)
+    expect(res.body.error).toBe('servedProfile must be one of the deception profiles')
+  }
+  expect(collector.onSessionOpened).toHaveBeenCalledTimes(1)
+})
 test('collector failures are not successful acknowledgements', async () => {
   collector.onSessionOpened.mockRejectedValue(Object.assign(new Error('Collector unavailable'), { statusCode: 503 }))
   const response = await request(app)

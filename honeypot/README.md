@@ -11,7 +11,7 @@ Run Cowrie on a separately managed Linux host. Its real JSON log is ingested wit
 
 | Component | Variables | Default backend URL |
 |---|---|---|
-| `parsers/log_parser.py` (the ingest path) | `SENTINEL_API`, `HONEYPOT_API_KEY` (required; the backend refuses `SENTINEL_KEY` on honeypot routes), `COWRIE_LOG`, `SENTINEL_POST_RETRIES`, `SENTINEL_POST_BACKOFF`, `PARSER_STATE_DIR` (default `~/.sentinelai/cowrie-parser`: read offset, open sessions, delivery spool), `SENTINEL_SPOOL_MAX`, `SENTINEL_SPOOL_RETRY` | `http://localhost:5000/api` |
+| `parsers/log_parser.py` (the ingest path) | `SENTINEL_API`, `HONEYPOT_API_KEY` (required; the backend refuses `SENTINEL_KEY` on honeypot routes), `COWRIE_LOG`, `COWRIE_CFG` (default `<cowrie>/etc/cowrie.cfg` next to the log: the persona served is read from the header `switch_profile.py` writes and sent with each session), `COWRIE_PERSONA` (overrides it), `SENTINEL_POST_RETRIES`, `SENTINEL_POST_BACKOFF`, `PARSER_STATE_DIR` (default `~/.sentinelai/cowrie-parser`: read offset, open sessions, delivery spool), `SENTINEL_SPOOL_MAX`, `SENTINEL_SPOOL_RETRY` | `http://localhost:5000/api` |
 | `cowrie/sentinelblocker.py` (Cowrie output plugin `[output_sentinelblocker]`, enabled in `cowrie.cfg`; install as `src/cowrie/output/sentinelblocker.py`: Cowrie takes the module name from the section up to the next underscore, so the name must not contain one) | `SENTINEL_API_URL`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
 | `sniffer/sniffer.py` (dataset builder: labels captured flows into `flows.csv`) | `SENTINEL_API`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
 

@@ -3,6 +3,7 @@ const router = express.Router()
 const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { isValidIP, parseDate } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
+const { DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
 
 const { isHoneypotKey } = require('../utils/apiKeys')
 
@@ -190,6 +191,9 @@ const telemetryError = (data, eventType) => {
     return 'eventId must be a hex string'
   if (data.clientVersion !== undefined && (typeof data.clientVersion !== 'string' || data.clientVersion.length > 256))
     return 'clientVersion must be a string of at most 256 characters'
+  // Persona the honeypot reports it served (log_parser.served_persona); one of the six profiles.
+  if (data.servedProfile !== undefined && !DECEPTION_PROFILES.includes(data.servedProfile))
+    return 'servedProfile must be one of the deception profiles'
   if (data.ttylog !== undefined) {
     const t = data.ttylog
     if (

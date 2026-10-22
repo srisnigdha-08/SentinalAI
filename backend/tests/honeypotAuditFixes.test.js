@@ -120,6 +120,38 @@ describe('Phase 4 honeypot audit fixes', () => {
     expect((await HoneypotSession.findById(s._id)).servedProfile).toBe('debian_11')
   })
 
+  test('C1: the persona the honeypot reports is credited over a stale recorded setting', async () => {
+    // No setting recorded: the fallback would be centos_7 while Cowrie serves ubuntu_22 (live run 2026-10-22).
+    const a = await collector.onSessionOpened({
+      sessionId: 'c1-a',
+      sourceIP: '198.51.100.40',
+      servedProfile: 'ubuntu_22',
+    })
+    expect(a.servedProfile).toBe('ubuntu_22')
+    await SystemSetting.create({ key: 'deceptionActiveProfile', value: 'debian_11' })
+    const b = await collector.onSessionOpened({
+      sessionId: 'c1-b',
+      sourceIP: '198.51.100.40',
+      servedProfile: 'aws_ec2',
+    })
+    expect(b.servedProfile).toBe('aws_ec2')
+    // The closure keeps it and sends it to the Q-learner as the action.
+    await honeypotService.closeSession(b._id, { telemetry: { durationSeconds: 3 } })
+    expect((await HoneypotSession.findById(b._id)).servedProfile).toBe('aws_ec2')
+  })
+
+  test('C1: without a valid reported persona the recorded setting is still used', async () => {
+    await SystemSetting.create({ key: 'deceptionActiveProfile', value: 'debian_11' })
+    const a = await collector.onSessionOpened({ sessionId: 'c1-none', sourceIP: '198.51.100.41' })
+    const b = await collector.onSessionOpened({
+      sessionId: 'c1-bad',
+      sourceIP: '198.51.100.41',
+      servedProfile: 'solaris_9',
+    })
+    expect(a.servedProfile).toBe('debian_11')
+    expect(b.servedProfile).toBe('debian_11')
+  })
+
   test('M7: the learner state is the persona of the session that started before, not a later one', async () => {
     const t0 = Date.now()
     await HoneypotSession.create({

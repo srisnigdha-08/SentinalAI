@@ -97,6 +97,42 @@ def start_metrics_server(port):
     log.info("Parser metrics on http://127.0.0.1:%s/metrics", server.server_address[1])
     return server
 
+# The persona Cowrie is serving, read from the honeypot itself (C1): the backend's recorded active profile is set
+# by hand or by the rotator and can be stale, which credited sessions to the wrong persona. Source, in order:
+# COWRIE_PERSONA; the "(<persona>)" in the header switch_profile.py writes on line 1 of cowrie.cfg (COWRIE_CFG, by
+# default <cowrie>/etc/cowrie.cfg next to the log). Unknown (no header, unreadable, or the config was rewritten
+# after the session started, e.g. a backlog replayed after a rotation) means the backend falls back to its setting.
+PERSONAS = ("ubuntu_22", "debian_11", "centos_7", "windows_srv", "aws_ec2", "raspberry_pi")
+_PERSONA_HEADER = re.compile(r"switch_profile\.py \((\w+)\)")
+COWRIE_CFG = os.getenv("COWRIE_CFG") or None
+
+def default_cfg_for(log_path):
+    """<cowrie>/var/log/cowrie/cowrie.json -> <cowrie>/etc/cowrie.cfg"""
+    p = Path(log_path)
+    return str(p.parents[3] / "etc" / "cowrie.cfg") if len(p.parents) > 3 else None
+
+def served_persona(session_start=None):
+    """Persona for a session that connected at session_start (Cowrie ISO timestamp), or None if unknown."""
+    env = os.getenv("COWRIE_PERSONA", "").strip()
+    if env:
+        return env if env in PERSONAS else None
+    if not COWRIE_CFG:
+        return None
+    try:
+        path = Path(COWRIE_CFG)
+        with open(path, encoding="utf-8") as f:
+            header = f.readline()
+        changed = path.stat().st_mtime
+    except OSError:
+        return None
+    m = _PERSONA_HEADER.search(header)
+    if not m or m.group(1) not in PERSONAS:
+        return None
+    started = _cowrie_time(session_start)
+    if started is not None and started < changed:
+        return None
+    return m.group(1)
+
 IP_RE   = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 URL_RE  = re.compile(r"https?://[^\s\'\"]+")
 HASH_RE = re.compile(r"\b[0-9a-fA-F]{32,64}\b")
@@ -252,6 +288,7 @@ def ensure_session_opened(sid):
             "protocol": "SSH",
             # Cowrie's own connect time, so replayed or delayed logs keep their real start time.
             "startTime": meta.get("startTime"),
+            **({"servedProfile": meta["servedProfile"]} if meta.get("servedProfile") else {}),
         }):
             log.warning(f"Session opening was not acknowledged: {sid}")
             return False
@@ -266,6 +303,8 @@ def on_connect(e):
         "sourceIP": ip,
         "sourcePort": e.get("src_port", 0),
         "startTime": e.get("timestamp"),
+        # Read at connect: the persona Cowrie served this session, even if it is switched before the kex.
+        "servedProfile": served_persona(e.get("timestamp")) if e.get("timestamp") else None,
         "commands": [],
         "credentials": [],
         "hassh": "",
@@ -471,7 +510,17 @@ def resume_position(path, state, from_start=False):
         log.warning("Log rotated while stopped and the previous file is gone: its unread lines are lost")
     return 0
 
+def use_cfg_next_to(log_path):
+    """COWRIE_CFG unless set: the cowrie.cfg of the Cowrie install that writes log_path."""
+    global COWRIE_CFG
+    if not COWRIE_CFG:
+        COWRIE_CFG = default_cfg_for(log_path)
+    persona = served_persona()
+    log.info("Persona source: %s (now serving %s)", os.getenv("COWRIE_PERSONA") and "COWRIE_PERSONA" or COWRIE_CFG,
+             persona or "unknown: the backend's recorded profile is used")
+
 def tail(filepath, from_start=False):
+    use_cfg_next_to(filepath)
     path = Path(filepath)
     if not path.exists():
         log.warning(f"Waiting for {filepath}...")
@@ -513,6 +562,7 @@ def tail(filepath, from_start=False):
             current_file.close()
 
 def replay(filepath, delay=0.0):
+    use_cfg_next_to(filepath)
     with open(filepath,"r") as f:
         for line in f: process(line); delay and time.sleep(delay)
 
