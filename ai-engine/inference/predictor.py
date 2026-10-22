@@ -3,7 +3,8 @@ import os, sys, json, time, joblib, logging, hashlib
 import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils.features import FEATURE_NAMES, LABEL_NAMES, FEATURE_SCHEMA_VERSION, extract_features_from_record, classify_honeypot_session
+from utils.features import (FEATURE_NAMES, LABEL_NAMES, FEATURE_SCHEMA_VERSION, extract_features_from_record,
+                            classify_honeypot_session, command_programs, EXECUTION_TOOLS)
 
 from inference.errors import ModelUnavailableError
 
@@ -84,10 +85,14 @@ def score_to_severity(s):
 # ran only harmless commands) sits near or above the alert line; the score rises with what the attacker did:
 # credential guessing -> MONITOR, lateral movement -> MONITOR, payload download/execution and exfiltration
 # -> BLOCK line (auto-block still requires the backend's autoBlockEnabled setting).
-HONEYPOT_RULES_VERSION = "honeypot_rules_v2"  # v2: whole program names, no duration rule
+# v3: brute force needs BRUTE_FORCE_MIN_FAILURES failed logins (per source), a single failure or a login with no
+# commands is "SSH Intrusion Attempt" (below the alert line), and a download that is never run stays under the
+# block line.
+HONEYPOT_RULES_VERSION = "honeypot_rules_v3"
 HONEYPOT_RULE_SCORES = {
     "BENIGN":            0.40,
-    "Port Scan":         0.75,
+    "Port Scan":         0.75,  # not produced by the rules since v3; kept for stored v2 verdicts
+    "SSH Intrusion Attempt": 0.75,
     "SSH Brute Force":   0.90,
     "Lateral Movement":  0.90,
     "RCE Attempt":       0.93,
@@ -541,6 +546,9 @@ class SentinelPredictor:
         score = HONEYPOT_RULE_SCORES[cname]
         if cname != "BENIGN":
             score = round(min(score + n * HONEYPOT_COMMAND_STEP, 0.99), 4)
+        if cname == "RCE Attempt" and not (command_programs(session.get("commands", [])) & EXECUTION_TOOLS):
+            # Fetched but never ran anything (M6): alerted, but a download alone is not auto-blocked.
+            score = min(score, round(BLOCK_THRESHOLD - HONEYPOT_COMMAND_STEP, 4))
 
         # Shadow evaluation of E2 Structured Auth Event Adapter (zero mutation of primary action/score)
         shadow_e2_eval = None

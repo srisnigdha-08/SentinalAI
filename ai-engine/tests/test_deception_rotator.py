@@ -19,10 +19,11 @@ def rotator(monkeypatch):
     return module
 
 
-def _client(active, nxt, record_status=200):
+def _client(active, nxt, record_status=200, active_sessions=None):
     client = MagicMock(RECOMMENDATION="/api/honeypot/deception/recommendation", PROFILE="/api/honeypot/deception/profile")
     rec = MagicMock(status_code=200)
-    rec.json.return_value = {"data": {"activeProfile": active, "nextProfile": nxt, "explored": True}}
+    rec.json.return_value = {"data": {"activeProfile": active, "nextProfile": nxt, "explored": True,
+                                      **({} if active_sessions is None else {"activeSessions": active_sessions})}}
     put = MagicMock(status_code=record_status)
     client.call.side_effect = lambda method, path, **kw: rec if method == "GET" else put
     return client
@@ -77,3 +78,24 @@ def test_machine_client_uses_only_the_honeypot_key_on_scoped_paths(rotator, monk
     ]
     assert all(h == {"X-API-Key": "hp-key"} for _, _, h, _ in calls)
     assert calls[1][3] == {"profile": "debian_11"}
+
+
+def test_switch_waits_while_attackers_are_connected_unless_forced(rotator, tmp_path, monkeypatch):
+    """M7: a switch restarts Cowrie and would drop the live sessions."""
+    ran = []
+    monkeypatch.setattr(rotator.subprocess, "run", lambda args, **kw: ran.append(args) or MagicMock(returncode=0))
+    cfg = tmp_path / "cowrie.cfg"
+    busy = _client("centos_7", "debian_11", active_sessions=2)
+    result = rotator.rotate_once(busy, cfg, "systemctl restart cowrie", dry_run=False)
+    assert result == {"changed": False, "active": "centos_7", "deferred": "debian_11", "activeSessions": 2}
+    assert not ran and not cfg.exists()
+    forced = rotator.rotate_once(busy, cfg, "systemctl restart cowrie", dry_run=False, force=True)
+    assert forced["changed"] is True and ran
+    idle = rotator.rotate_once(_client("debian_11", "ubuntu_22", active_sessions=0), cfg, "", dry_run=False)
+    assert idle["changed"] is True
+
+
+def test_unservable_recommendation_is_skipped_not_fatal(rotator, tmp_path):
+    result = rotator.rotate_once(_client("centos_7", "windows_srv"), tmp_path / "cowrie.cfg", "", dry_run=False)
+    assert result["changed"] is False and "not servable" in result["error"]
+    assert not (tmp_path / "cowrie.cfg").exists()

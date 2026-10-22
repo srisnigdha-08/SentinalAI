@@ -345,6 +345,7 @@ class TestShadowDetectorIntegration:
                 "sessionId": "sesh-123",
                 "sourceIP": "192.168.1.50",
                 "loginSucceeded": False,
+                "failedLogins": 5,  # brute force needs 5 failures since rules v3 (H4)
                 "commands": []
             }
             res = pred.predict_from_honeypot(session)

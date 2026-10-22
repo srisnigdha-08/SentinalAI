@@ -146,7 +146,7 @@ def test_every_config_switch_profile_writes_is_recognised(parser, tmp_path, monk
         sys.path.pop(0)
     cfg = tmp_path / "cowrie.cfg"
     monkeypatch.setattr(switch_profile, "CFG_PATH", cfg)
-    switch_profile.generate_config(persona)
+    switch_profile.generate_config(persona, allow_unservable=True)
     os.utime(cfg, (BEFORE, BEFORE))
     parser.COWRIE_CFG = str(cfg)
     assert parser.served_persona("2026-10-21T10:00:00Z") == persona

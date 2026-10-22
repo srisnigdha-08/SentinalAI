@@ -5,6 +5,9 @@ jest.mock('../../honeypot/collectors/session_collector', () => ({
   onCommandReceived: jest.fn(),
   onSessionClosed: jest.fn(),
   onFileDownload: jest.fn(),
+  onCommandFailed: jest.fn(),
+  onFileUpload: jest.fn(),
+  onTunnelRequest: jest.fn(),
   classifyIntent: jest.fn(() => 'UNKNOWN'),
 }))
 const collector = require('../../honeypot/collectors/session_collector')
@@ -51,6 +54,36 @@ test('servedProfile (C1) is passed to the collector when it is a known persona a
     expect(res.body.error).toBe('servedProfile must be one of the deception profiles')
   }
   expect(collector.onSessionOpened).toHaveBeenCalledTimes(1)
+})
+test('COMMAND_FAILED marks a stored command instead of adding one (M1)', async () => {
+  collector.onCommandFailed.mockResolvedValue({ sessionId: 's' })
+  const res = await request(app)
+    .post('/ingest')
+    .set('X-API-Key', process.env.HONEYPOT_API_KEY)
+    .send({ eventType: 'COMMAND_FAILED', sessionId: 's', sourceIP: '192.0.2.10', command: 'notreal' })
+  expect(res.status).toBe(200)
+  expect(collector.onCommandFailed).toHaveBeenCalledTimes(1)
+  expect(collector.onCommandReceived).not.toHaveBeenCalled()
+})
+test('FILE_UPLOAD and TUNNEL_REQUEST are validated and reach their handlers (M3)', async () => {
+  collector.onFileUpload.mockResolvedValue({ sessionId: 's' })
+  collector.onTunnelRequest.mockResolvedValue({ sessionId: 's' })
+  const send = (body) =>
+    request(app)
+      .post('/ingest')
+      .set('X-API-Key', process.env.HONEYPOT_API_KEY)
+      .send({ sessionId: 's', sourceIP: '192.0.2.10', ...body })
+  expect((await send({ eventType: 'FILE_UPLOAD', filename: '/tmp/x', sha256: 'a'.repeat(64) })).status).toBe(200)
+  expect((await send({ eventType: 'TUNNEL_REQUEST', dstIP: '203.0.113.9', dstPort: 25 })).status).toBe(200)
+  for (const bad of [
+    { eventType: 'FILE_UPLOAD' },
+    { eventType: 'FILE_UPLOAD', filename: '/tmp/x', sha256: 'nothex' },
+    { eventType: 'TUNNEL_REQUEST', dstIP: '203.0.113.9', dstPort: 70000 },
+    { eventType: 'TUNNEL_REQUEST', dstPort: 25 },
+  ])
+    expect((await send(bad)).status).toBe(400)
+  expect(collector.onFileUpload).toHaveBeenCalledTimes(1)
+  expect(collector.onTunnelRequest).toHaveBeenCalledTimes(1)
 })
 test('collector failures are not successful acknowledgements', async () => {
   collector.onSessionOpened.mockRejectedValue(Object.assign(new Error('Collector unavailable'), { statusCode: 503 }))

@@ -110,11 +110,16 @@ router.get('/deception/recommendation', internalAuth, async (req, res, next) => 
     const active = await honeypotService.getActiveProfile()
     const rec = await require('../services/aiEngineService').getDeceptionRecommendation(active.profile)
     if (!rec) return sendError(res, 'AI engine unreachable', 503)
+    // M7: a persona switch restarts Cowrie and drops live sessions; the rotator waits while any are open.
+    const activeSessions = await require('../models/HoneypotSession')
+      .countDocuments({ status: 'active' })
+      .catch(() => null) // unknown: the rotator decides
     sendSuccess(res, {
       activeProfile: active.profile,
       nextProfile: rec.nextProfile,
       explored: rec.explored,
       policy: rec.policy || 'q_learning',
+      activeSessions,
     })
   } catch (err) {
     next(err)
@@ -171,6 +176,17 @@ router.put('/deception/profile', internalAuth, async (req, res, next) => {
 const countEvent = (type) =>
   require('../utils/metrics').inc('sentinel_honeypot_events_total', 'Honeypot events accepted by type', { type })
 
+const EVENT_TYPES = [
+  'SESSION_OPENED',
+  'COMMAND_INPUT',
+  'COMMAND_FAILED',
+  'FILE_DOWNLOAD',
+  'FILE_UPLOAD',
+  'TUNNEL_REQUEST',
+  'SESSION_CLOSED',
+  'CLIENT_KEX',
+]
+
 const getCollector = () => {
   try {
     return require('../../honeypot/collectors/session_collector')
@@ -215,6 +231,16 @@ const telemetryError = (data, eventType) => {
     if (typeof data.url !== 'string' || !data.url) return 'Download URL is required'
     if (data.url.length > 2048) return 'Download URL exceeds maximum of 2048 characters'
   }
+  if (eventType === 'FILE_UPLOAD') {
+    if (typeof data.filename !== 'string' || !data.filename || data.filename.length > 1024)
+      return 'Upload filename is required (at most 1024 characters)'
+    if (data.sha256 !== undefined && (typeof data.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(data.sha256)))
+      return 'sha256 must be 64 hex characters'
+  }
+  if (eventType === 'TUNNEL_REQUEST') {
+    if (typeof data.dstIP !== 'string' || !data.dstIP || data.dstIP.length > 255) return 'dstIP is required'
+    if (!Number.isInteger(data.dstPort) || data.dstPort < 0 || data.dstPort > 65535) return 'dstPort must be 0-65535'
+  }
   return null
 }
 
@@ -238,7 +264,7 @@ const telemetryError = (data, eventType) => {
  *             properties:
  *               eventType:
  *                 type: string
- *                 enum: [SESSION_OPENED, COMMAND_INPUT, COMMAND_FAILED, FILE_DOWNLOAD, SESSION_CLOSED, CLIENT_KEX]
+ *                 enum: [SESSION_OPENED, COMMAND_INPUT, COMMAND_FAILED, FILE_DOWNLOAD, FILE_UPLOAD, TUNNEL_REQUEST, SESSION_CLOSED, CLIENT_KEX]
  *     responses:
  *       200:
  *         description: Telemetry ingested successfully
@@ -246,12 +272,7 @@ const telemetryError = (data, eventType) => {
 router.post('/', internalAuth, async (req, res, next) => {
   try {
     const { eventType, ...data } = req.body || {}
-    if (
-      !['SESSION_OPENED', 'COMMAND_INPUT', 'COMMAND_FAILED', 'FILE_DOWNLOAD', 'SESSION_CLOSED', 'CLIENT_KEX'].includes(
-        eventType
-      )
-    )
-      return sendError(res, 'Unsupported honeypot eventType', 400)
+    if (!EVENT_TYPES.includes(eventType)) return sendError(res, 'Unsupported honeypot eventType', 400)
     const invalid = telemetryError(data, eventType)
     if (invalid) return sendError(res, invalid, 400)
 
@@ -264,8 +285,12 @@ router.post('/', internalAuth, async (req, res, next) => {
     let result
     if (c) {
       if (eventType === 'SESSION_OPENED') result = await c.onSessionOpened(data, io)
-      else if (['COMMAND_INPUT', 'COMMAND_FAILED'].includes(eventType))
+      else if (eventType === 'COMMAND_INPUT')
         result = await c.onCommandReceived({ ...data, intent: c.classifyIntent(data.command || '') }, io)
+      // M1: a failed command marks the stored one; it is not a second command.
+      else if (eventType === 'COMMAND_FAILED') result = await c.onCommandFailed(data, io)
+      else if (eventType === 'FILE_UPLOAD') result = await c.onFileUpload(data, io)
+      else if (eventType === 'TUNNEL_REQUEST') result = await c.onTunnelRequest(data, io)
       else if (eventType === 'FILE_DOWNLOAD') result = await c.onFileDownload(data, io)
       else if (eventType === 'SESSION_CLOSED') result = await c.onSessionClosed(data, io)
       else if (eventType === 'CLIENT_KEX') result = await c.onClientKex(data, io)

@@ -1,0 +1,37 @@
+# Cowrie under systemd (L3): restarts it if it dies and never leaves a stale twistd.pid behind, which
+# `cowrie start` on its own can. For a native (non-Docker) install running as the unprivileged user "cowrie".
+#
+#   sudo cp cowrie.service /etc/systemd/system/ && sudo systemctl daemon-reload
+#   sudo systemctl enable --now cowrie
+#   journalctl -u cowrie -f
+#
+# The rotator then restarts it with:  deception_rotator.py --restart-cmd "sudo systemctl restart cowrie"
+# (grant only that command to the rotator's user in sudoers). Adjust the paths to your install.
+[Unit]
+Description=Cowrie SSH honeypot (SentinelAI)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cowrie
+Group=cowrie
+WorkingDirectory=/home/cowrie/cowrie
+# Holds HONEYPOT_API_KEY and SENTINEL_API_URL for the blocker plugin; mode 600, owned by root.
+EnvironmentFile=/etc/sentinelai/honeypot.env
+# -n: stay in the foreground so systemd supervises the process itself (no pid file).
+ExecStart=/home/cowrie/cowrie/cowrie-env/bin/twistd --umask=0077 -n --pidfile= -l - cowrie
+Restart=on-failure
+RestartSec=5
+# Containment for a native install (the Docker stack has its own).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/cowrie/cowrie/var
+CapabilityBoundingSet=
+MemoryMax=512M
+TasksMax=256
+
+[Install]
+WantedBy=multi-user.target

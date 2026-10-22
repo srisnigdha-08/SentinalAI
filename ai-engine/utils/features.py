@@ -350,6 +350,12 @@ def extract_features_from_record(record: dict) -> np.ndarray:
 EXFIL_TOOLS = {"scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "ncat", "netcat"}
 LATERAL_TOOLS = {"ssh", "telnet", "ping", "nmap", "arp", "route", "smbclient", "mount"}
 RCE_TOOLS = {"wget", "curl", "chmod", "python", "python3", "perl", "bash", "sh", "gcc"}
+# Programs that run or prepare code to run, as opposed to only fetching it (wget/curl). A session that only
+# downloaded is staged RCE: it is still "RCE Attempt" but stays under the block line (predict_from_honeypot).
+EXECUTION_TOOLS = (RCE_TOOLS - {"wget", "curl"}) | {"./"}
+# Failed logins (this session plus the same source's recent sessions) before failures count as brute force.
+# Bots usually try one password per connection, so the per-IP total is what matters (H4).
+BRUTE_FORCE_MIN_FAILURES = 5
 # Prefixes that run another program; the program after them is the one that counts.
 _WRAPPERS = {"sudo", "busybox", "nohup", "env", "exec", "time", "nice"}
 _SEGMENT_SPLIT = re.compile(r"[;&|\n]+|\$\(|`")
@@ -392,9 +398,12 @@ def classify_honeypot_session(session: dict) -> str:
     ioc_cnt = int(session.get("iocCount", 0))
 
     if not login_ok:
-        return "SSH Brute Force"
+        # A single wrong password is an intrusion attempt, not brute force (H4).
+        failures = int(session.get("failedLogins", 0) or 0) + int(session.get("recentFailedLogins", 0) or 0)
+        return "SSH Brute Force" if failures >= BRUTE_FORCE_MIN_FAILURES else "SSH Intrusion Attempt"
     if len(cmds) == 0:
-        return "Port Scan"
+        # Logged in, ran nothing: an intrusion that stopped at the prompt (was mislabelled "Port Scan", M6).
+        return "SSH Intrusion Attempt"
     programs = command_programs(cmds)
     if ioc_cnt >= 3 or programs & EXFIL_TOOLS:
         return "Data Exfiltration"
@@ -416,6 +425,7 @@ def extract_features_from_honeypot(session: dict) -> np.ndarray:
     PROFILES_MEANS = {
         "BENIGN":             {"dur": 65000.0,  "bps": 6500.0,    "pps": 250.0,   "syn": 0.5},
         "SSH Brute Force":    {"dur": 650.0,    "bps": 200000.0,  "pps": 5000.0,  "syn": 2.0},
+        "SSH Intrusion Attempt": {"dur": 650.0, "bps": 20000.0,   "pps": 500.0,   "syn": 1.5},
         "SQL Injection":      {"dur": 2000.0,   "bps": 15000.0,   "pps": 500.0,   "syn": 1.5},
         "Port Scan":          {"dur": 12.5,     "bps": 500000.0,  "pps": 80000.0, "syn": 1.5},
         "DDoS":               {"dur": 100000.0, "bps": 2000000.0, "pps": 50000.0, "syn": 1.5},

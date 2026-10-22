@@ -5,7 +5,8 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "honeypot"))
+ROOT = Path(__file__).resolve().parents[2] / "honeypot"
+sys.path.insert(0, str(ROOT))
 import build_honeyfs  # noqa: E402
 import switch_profile  # noqa: E402
 
@@ -60,7 +61,7 @@ def _generate(tmp_path, monkeypatch, persona, honeyfs=None):
     else:
         monkeypatch.setenv("COWRIE_PERSONA_HONEYFS", honeyfs)
     monkeypatch.setattr(switch_profile, "CFG_PATH", tmp_path / "cowrie.cfg")
-    switch_profile.generate_config(persona)
+    switch_profile.generate_config(persona, allow_unservable=True)  # windows_srv is written on purpose here
     cfg = configparser.ConfigParser(interpolation=None)
     cfg.read(tmp_path / "cowrie.cfg")
     return cfg
@@ -170,3 +171,50 @@ def test_pickle_mode_plants_canaries_and_motd(cowrie_pickle, tmp_path):
 
 def test_canaries_are_deterministic():
     assert build_honeyfs.canary_files("aws_ec2") == build_honeyfs.canary_files("aws_ec2")
+
+
+# ---- Phase 5 guide fixes (docs/COWRIE_COMPLETE_GUIDE.md)
+
+def test_windows_persona_is_refused_without_the_explicit_override(tmp_path, monkeypatch):
+    """H2: a Windows banner over a Linux shell gives the honeypot away."""
+    monkeypatch.setattr(switch_profile, "CFG_PATH", tmp_path / "cowrie.cfg")
+    with pytest.raises(SystemExit) as exit_:
+        switch_profile.generate_config("windows_srv")
+    assert exit_.value.code == 2 and not (tmp_path / "cowrie.cfg").exists()
+
+
+def test_template_sensor_textlog_listen_and_txtcmds(tmp_path, monkeypatch):
+    monkeypatch.setenv("COWRIE_PERSONA_FS", "personas")
+    monkeypatch.setenv("COWRIE_LISTEN_ADDR", "127.0.0.1")
+    monkeypatch.delenv("COWRIE_SENSOR_NAME", raising=False)
+    cfg = _generate(tmp_path, monkeypatch, "ubuntu_22")
+    assert cfg.get("honeypot", "sensor_name") == "sentinel-hp-01"  # L1
+    assert cfg.get("output_textlog", "enabled") == "false"  # M5
+    assert cfg.get("ssh", "listen_endpoints") == "tcp:2222:interface=127.0.0.1"  # H3
+    assert cfg.get("honeypot", "txtcmds_path") == "personas/ubuntu_22-txtcmds"  # H2
+    monkeypatch.delenv("COWRIE_LISTEN_ADDR")
+    monkeypatch.delenv("COWRIE_PERSONA_FS")
+    cfg = _generate(tmp_path, monkeypatch, "centos_7")
+    assert cfg.get("ssh", "listen_endpoints") == "tcp:2222:interface=0.0.0.0"
+    assert not cfg.has_option("honeypot", "txtcmds_path")
+
+
+def test_lsb_release_only_where_the_distribution_ships_it(cowrie_pickle, tmp_path):
+    """H2: Debian-family personas answer lsb_release; CentOS 7 / Amazon Linux 2 do not install it."""
+    out = tmp_path / "personas"
+    build_honeyfs.main(["--fs-pickle", str(cowrie_pickle), "--out", str(out)])
+    ubuntu = (out / "ubuntu_22-txtcmds" / "usr" / "bin" / "lsb_release").read_text(encoding="utf-8")
+    assert "Description:\tUbuntu 22.04.3 LTS" in ubuntu and "Codename:\tjammy" in ubuntu
+    node = _find(pickle.loads((out / "ubuntu_22.pickle").read_bytes()), "/usr/bin/lsb_release")
+    assert node is not None and node[5] == 0o100755  # Cowrie runs a txtcmd only for a path that exists
+    for persona in ("centos_7", "aws_ec2"):
+        assert (out / f"{persona}-txtcmds").is_dir()
+        assert not any((out / f"{persona}-txtcmds").rglob("lsb_release"))
+        assert _find(pickle.loads((out / f"{persona}.pickle").read_bytes()), "/usr/bin/lsb_release") is None
+
+
+def test_userdb_holds_only_root_and_no_textbook_honeypot_logins():
+    """H2: every persona has root; per-distro users (pi, ubuntu) on the wrong persona were a tell."""
+    entries = [line.split(":") for line in (ROOT / "cowrie" / "userdb.txt").read_text().split()]
+    assert entries and all(user == "root" for user, _, _ in entries)
+    assert not {"toor", "password", "root"} & {password for _, _, password in entries}

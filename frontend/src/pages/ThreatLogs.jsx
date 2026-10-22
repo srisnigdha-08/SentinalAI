@@ -23,7 +23,7 @@ const STATUS_STYLES = {
   FALSE_POSITIVE: { background:'rgba(160,160,160,.1)', color:'#888888', border:'1px solid rgba(160,160,160,.3)' },
 }
 
-const TYPES = ['SSH Brute Force','SQL Injection','Port Scan','DDoS','RCE Attempt',
+const TYPES = ['SSH Brute Force','SSH Intrusion Attempt','SQL Injection','Port Scan','DDoS','RCE Attempt',
                'XSS Attempt','Malware Beacon','Credential Stuffing','Lateral Movement','Data Exfiltration',
                'UNINSPECTED_TRAFFIC']
 

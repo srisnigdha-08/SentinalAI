@@ -47,6 +47,31 @@ const findPreviousServedProfile = async (excludeId, before) => {
   }
 }
 
+/**
+ * H4: failed logins from the same source in its other sessions of the threat window, so the AI engine's
+ * brute-force rule sees bots that try one password per connection. 0 when unreadable (the rule then only
+ * counts this session's failures, which errs towards the milder verdict).
+ */
+const recentFailedLoginsFrom = async (sourceIP, excludeId, before = new Date()) => {
+  const minutes = parseInt(process.env.HONEYPOT_THREAT_WINDOW_MINUTES, 10)
+  const ms = (Number.isInteger(minutes) && minutes > 0 ? minutes : 60) * 60000
+  try {
+    const [row] = await HoneypotSession.aggregate([
+      { $match: { sourceIP, _id: { $ne: excludeId }, createdAt: { $gte: new Date(before.getTime() - ms) } } },
+      { $unwind: '$credentials' },
+      { $match: { 'credentials.success': { $ne: true } } },
+      { $count: 'failed' },
+    ])
+    return row?.failed || 0
+  } catch (err) {
+    logger.debug('[HP] Recent failed-login count unavailable: ' + err.message)
+    return 0
+  }
+}
+
+// M8: sessions invented by log_parser.py --demo or the seed script (demo- prefix) stay out of the KPIs.
+const REAL_SESSIONS = { sessionId: { $not: /^demo-/i } }
+
 const findSessions = async ({ page = 1, limit = 20, node, status, ip } = {}) => {
   const {
     page: safePage,
@@ -380,6 +405,8 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
     sourceIP: session.sourceIP,
     durationSeconds: session.durationSeconds,
     loginSucceeded: session.credentials.some((c) => c.success),
+    failedLogins: session.credentials.filter((c) => !c.success).length,
+    recentFailedLogins: await recentFailedLoginsFrom(session.sourceIP, session._id, session.createdAt),
     commands: session.commands,
     iocCount: session.iocExtracted?.urls?.length || 0,
     // The persona Cowrie actually served. Recommendations are not applied automatically, so this is
@@ -632,10 +659,10 @@ const getFullAnalytics = async (now = new Date()) => {
     dailySessions,
     avgEngagement,
   ] = await Promise.all([
-    HoneypotSession.countDocuments({ createdAt: today }),
-    HoneypotSession.distinct('sourceIP', { createdAt: today }),
+    HoneypotSession.countDocuments({ createdAt: today, ...REAL_SESSIONS }),
+    HoneypotSession.distinct('sourceIP', { createdAt: today, ...REAL_SESSIONS }),
     HoneypotSession.aggregate([
-      { $match: { createdAt: today } },
+      { $match: { createdAt: today, ...REAL_SESSIONS } },
       {
         $group: {
           _id: '$honeypotNode',
@@ -649,14 +676,14 @@ const getFullAnalytics = async (now = new Date()) => {
     // Every aggregate below is bounded to the 7-day reporting window (M6): unbounded $unwind/$group
     // over all sessions grew linearly with history.
     HoneypotSession.aggregate([
-      { $match: { createdAt: weekAgo } },
+      { $match: { createdAt: weekAgo, ...REAL_SESSIONS } },
       { $unwind: '$commands' },
       { $group: { _id: '$commands.command', count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
     ]),
     HoneypotSession.aggregate([
-      { $match: { createdAt: weekAgo } },
+      { $match: { createdAt: weekAgo, ...REAL_SESSIONS } },
       {
         $group: {
           _id: '$sourceIP',
@@ -669,16 +696,16 @@ const getFullAnalytics = async (now = new Date()) => {
       { $limit: 10 },
     ]),
     HoneypotSession.aggregate([
-      { $match: { createdAt: weekAgo } },
+      { $match: { createdAt: weekAgo, ...REAL_SESSIONS } },
       { $group: { _id: '$engagementLevel', count: { $sum: 1 } } },
     ]),
     HoneypotSession.aggregate([
-      { $match: { createdAt: weekAgo } },
+      { $match: { createdAt: weekAgo, ...REAL_SESSIONS } },
       { $group: { _id: reportTime.dayGroup(), sessions: { $sum: 1 } } },
       { $sort: { _id: 1 } },
     ]),
     HoneypotSession.aggregate([
-      { $match: { createdAt: weekAgo } },
+      { $match: { createdAt: weekAgo, ...REAL_SESSIONS } },
       {
         $group: {
           _id: null,
@@ -757,7 +784,9 @@ const getNodeStatus = async (now = new Date()) => {
   const today = reportTime.filter(1, now)
   // Only nodes that exist in this repository. HTTP/FTP/SMTP decoys were listed here previously but
   // were never implemented; do not re-add them without a real collector.
-  const NODES = [{ name: 'SSH-COWRIE-01', protocol: 'SSH', port: 2222 }]
+  // L5: the port attackers reach (2222, or 22 when published/redirected there).
+  const port = parseInt(process.env.HONEYPOT_SSH_PORT, 10)
+  const NODES = [{ name: 'SSH-COWRIE-01', protocol: 'SSH', port: port > 0 && port < 65536 ? port : 2222 }]
   return Promise.all(
     NODES.map(async (node) => {
       const [sessionsToday, activeSessions] = await Promise.all([

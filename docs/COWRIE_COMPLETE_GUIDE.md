@@ -377,6 +377,51 @@ Event counts in today's JSON: connect 7, version 7, kex 7, login.failed 6, login
 
 # PHASE 5: Issues audit
 
+### Status of every Phase 5 issue (working tree, 2026-10-22)
+
+"Live" means re-tested today against the WSL Cowrie: an isolated instance on 127.0.0.1:2299 with its own log, using the deployed config, personas and userdb, feeding the test backend and database. Test counts: full backend suite 1126 passed (13 skipped, as before); full AI-engine suite 565 passed.
+
+| # | Issue | Status | Evidence / what changed |
+|---|---|---|---|
+| C1 | Wrong persona credited | **Fixed** | Parser reads the persona from `cowrie.cfg`. Live: credited `ubuntu_22` |
+| H1 | Stale persona pickles | **Fixed** | Rebuilt twice; live: Ubuntu MOTD, canary alert |
+| H2 | wget "unable to resolve" for a bare IP | **Not fixed** | Cowrie's own anti-SSRF guard, which applies only to private/loopback targets (`wget.py:274-281`). Public URLs are fetched normally. Fixing it needs a custom `wget` module |
+| H2 | `ps` shows only 2 processes | **Withdrawn (my finding was wrong)** | Real `ps` with no options lists only the processes on your terminal (the shell and `ps`). Not a tell |
+| H2 | Debian MOTD on other personas | **Fixed** | See H1 |
+| H2 | `[4l`/`[4h` escape codes | **Not fixed** | Comes from Cowrie's terminal code; no config option exists |
+| H2 | Textbook userdb | **Fixed** | `userdb.txt` is root-only. Removed: toor, password, `admin` with uid 0, and per-distro users that could log in on the wrong persona. Live: `pi/raspberry` refused |
+| H2 | Docker used the stock fs.pickle | **Fixed (untested)** | Compose mounts `./personas`; the repo `cowrie.cfg` points at them. No Docker here to run it |
+| H2 | `windows_srv` persona | **Fixed** | `switch_profile.py` refuses it (exit 2) without `--allow-unservable`; the rotator skips it |
+| H2 | SSH algorithm list / server HASSH | **Not fixable** in shell mode | Inherent to Twisted Conch; proxy mode is the only answer |
+| H2 | No `lsb_release`, uniform timing | **Partially** | `lsb_release` added for Ubuntu/Debian/Raspbian via per-persona txtcmds. Live: `lsb_release -a` prints Ubuntu 22.04.3 LTS. CentOS and Amazon Linux rightly lack it. No timing jitter |
+| H2 | Host private keys 0644 | **Fixed (WSL install)** | `chmod 600` applied |
+| H3 | Isolation | **Partially** | Image pinned to `cowrie/cowrie:sha-c7773f4@sha256:69e3…515c`. `COWRIE_LISTEN_ADDR`: the deployed WSL config now listens on 127.0.0.1. Hardened systemd unit `honeypot/cowrie.service` (its `twistd -n` command verified live). **Still open:** the Docker stack and egress rules have never run (no Docker/root), and the WSL install has full outbound internet |
+| H4 | One failed login = brute force | **Fixed** | Brute force needs ≥5 failures from the source within the threat window; fewer is "SSH Intrusion Attempt" 0.75. Live: 4 × Intrusion Attempt, then Brute Force from the 5th |
+| H5 | Paper overclaims | **Not fixed here** | The paper's source is not in this repo; corrected wording is below |
+| M1 | `command.failed` ignored | **Fixed** | Live: `notarealcommand` stored `success: false`, command count unchanged |
+| M2 | CRITICAL alert for a download attempt | **Fixed** | Intent alerts are HIGH; CRITICAL only for a real `file_download`. Live: HIGH |
+| M3 | Uploads and port-forwards dropped | **Uploads fixed; port-forwards partially** | Live: SFTP upload stored with sha256, CRITICAL alert. The port-forward handler is built and tested offline, but Cowrie does not log the request at all when `forwarding = false` (verified live), so with our config it never fires |
+| M4 | Plaintext passwords at rest | **Partially** | Parser state, spool and the alternative plugin no longer keep passwords (live: none in `state.json`). Cowrie's own `cowrie.json` still has them (Cowrie cannot mask): `var/` set to 700 on WSL, and `retention.sh` prunes it |
+| M5 | Disk growth | **Fixed (needs scheduling)** | `honeypot/retention.sh` (logs 30 d, TTY 90 d, downloads 30 d; tested on aged files); `output_textlog` off. Not added to cron: that is your call |
+| M6 | Coarse classifier | **Fixed** | Logged in with no commands → "SSH Intrusion Attempt" (not Port Scan). A download that is never run stays below the block line. Live: `wget` alone → RCE Attempt 0.91 |
+| M7 | Persona switch drops live sessions | **Fixed** | The recommendation now includes `activeSessions`; the rotator waits while it is > 0 (`--force` overrides) |
+| M8 | Demo sessions in KPIs | **Fixed** | Every analytics query excludes `demo-*` (test) |
+| L1 | Host name as sensor | **Fixed** | Live: `"sensor": "sentinel-hp-01"` |
+| L2 | Lag trusts future timestamps | **Fixed** | Timestamps more than 5 min ahead are ignored (test) |
+| L3 | Stale `twistd.pid` | **Fixed (template)** | `honeypot/cowrie.service`. Not installed (needs sudo/systemd) |
+| L4 | `sentinel_output.py` | **No change needed** | Still disabled; it now also drops passwords |
+| L5 | Hard-coded node port | **Fixed** | `HONEYPOT_SSH_PORT` (test) |
+| L6 | Timezones | **No change needed** | — |
+
+Two things changed under the Cowrie instance that was running in WSL during this work (PID 1193, started with `cowrie start` at 07:38 UTC, not by me): its `userdb.txt` and persona files were replaced, and its `cowrie.cfg` was regenerated. It reads the new config only when restarted. Backups: `etc/userdb.txt.bak-20261022`, `etc/cowrie.cfg.bak-20261022`, `personas.bak-20261022/`.
+
+**H5: corrected wording for the paper**
+- Containers: "The frontend, backend and AI engine run under Docker Compose. A hardened Compose file for the honeypot is provided but has not yet been deployed; the evaluated honeypot ran natively under WSL."
+- Profile: "Cowrie serves one of five Linux personas (the shipped default is CentOS 7)."
+- Adaptation: "An optional rotator applies the Q-learner's recommended persona by rewriting Cowrie's configuration and restarting it when no attacker session is open; this was demonstrated once and is not enabled by default."
+- Downloads: "The parser ingests Cowrie download and upload events; uploads were verified, while real downloads were not exercised because the honeypot has no outbound access by design."
+- Tests: "Automated tests cover the parser, ingestion, collector, rules and Q-learner."
+
 ### Status after the C1 / H1 fixes (working tree, 2026-10-22, live-verified)
 
 - **C1 FIXED.**

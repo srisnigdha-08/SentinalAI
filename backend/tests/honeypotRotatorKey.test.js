@@ -12,6 +12,8 @@ process.env.SENTINEL_KEY = 'test-sentinel-api-key'
 
 jest.mock('../utils/logger', () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }))
 jest.mock('../models/SystemSetting', () => ({ findOne: jest.fn(), findOneAndUpdate: jest.fn() }))
+const mockActiveSessions = jest.fn()
+jest.mock('../models/HoneypotSession', () => ({ countDocuments: (...a) => mockActiveSessions(...a) }))
 const mockRecommendation = jest.fn()
 jest.mock('../services/aiEngineService', () => ({
   getDeceptionRecommendation: (...a) => mockRecommendation(...a),
@@ -32,6 +34,7 @@ describe('rotator endpoints on the honeypot key', () => {
     SystemSetting.findOne.mockResolvedValue({ key: 'deceptionActiveProfile', value: 'centos_7' })
     SystemSetting.findOneAndUpdate.mockResolvedValue({})
     mockRecommendation.mockResolvedValue({ nextProfile: 'ubuntu_22', explored: false, policy: 'q_learning' })
+    mockActiveSessions.mockResolvedValue(2)
   })
 
   test.each([
@@ -59,7 +62,9 @@ describe('rotator endpoints on the honeypot key', () => {
       nextProfile: 'ubuntu_22',
       explored: false,
       policy: 'q_learning',
+      activeSessions: 2, // M7: the rotator waits while attackers are connected
     })
+    expect(mockActiveSessions).toHaveBeenCalledWith({ status: 'active' })
     expect(mockRecommendation).toHaveBeenCalledWith('centos_7')
   })
 

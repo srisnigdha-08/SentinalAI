@@ -34,7 +34,7 @@ def test_normalized_event_dispatch_keeps_credentials_private_until_supported_clo
         instance.write({'eventid': 'cowrie.session.closed', 'session': 'offline'})
     events = [call.kwargs['json'] for call in module.requests.post.call_args_list]
     assert [event['eventType'] for event in events] == ['SESSION_OPENED', 'COMMAND_INPUT', 'SESSION_CLOSED']
-    assert events[-1]['credentials'][0]['password'] == 'private-captured-password'
+    assert events[-1]['credentials'][0] == {'username': 'private-user', 'success': False}  # M4: no password
     assert 'private-captured-password' not in caplog.text
     assert 'offline' not in instance.sessions
 

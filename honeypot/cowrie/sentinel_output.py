@@ -44,10 +44,10 @@ class Output(output.Output):
             self.sessions.pop(session, None)
     def loginFailed(self, session, username, password, **kw):
         if session in self.sessions:
-            self.sessions[session]["credentials"].append({"username":username,"password":password,"success":False})
+            self.sessions[session]["credentials"].append({"username":str(username)[:100],"success":False})  # M4: password never kept
     def loginSucceeded(self, session, username, password, **kw):
         if session in self.sessions:
-            self.sessions[session]["credentials"].append({"username":username,"password":password,"success":True})
+            self.sessions[session]["credentials"].append({"username":str(username)[:100],"success":True})
     def command_input(self, session, command, event_id=None, **kw):
         src=self.sessions.get(session,{}).get("sourceIP","?")
         if session in self.sessions: self.sessions[session]["commands"].append(command)

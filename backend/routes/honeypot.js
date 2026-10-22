@@ -120,6 +120,10 @@ router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (r
       policy: rec.policy || 'q_learning',
       // Seed episodes (synthetic warm start) vs sessions scored here; null from engines without the field.
       provenance: rec.learnerStats?.provenance || null,
+      // M7: the rotator does not restart Cowrie while attackers are connected.
+      activeSessions: await require('../models/HoneypotSession')
+        .countDocuments({ status: 'active' })
+        .catch(() => null),
     })
   } catch (err) {
     next(err)

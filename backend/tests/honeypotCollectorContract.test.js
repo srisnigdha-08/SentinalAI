@@ -48,7 +48,7 @@ test('session-open signal is explicitly heuristic while preserving HIGH/0.75/MON
       severity: 'HIGH',
       aiScore: 0.75,
       status: 'MONITORING',
-      attackType: 'SSH Brute Force',
+      attackType: 'SSH Intrusion Attempt',
       notes: '[SESSION_OPEN_HEURISTIC] Fixed SSH session-open signal; no RF/IF inference has run for this signal.',
     })
   )

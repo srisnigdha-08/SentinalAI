@@ -80,3 +80,6 @@ deployment/grafana_admin_password
 # The served copies live in ai-engine/models/ (registered).
 ai-engine/experiments/pipeline/*/models/*.pkl
 ai-engine/experiments/retraining/*/*.pkl
+
+# Built by honeypot/build_honeyfs.py (persona fs.pickle files and txtcmds)
+honeypot/personas/

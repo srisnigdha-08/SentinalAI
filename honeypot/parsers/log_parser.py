@@ -312,18 +312,23 @@ def on_connect(e):
         "openedPosted": False
     }
 
+# M4: the password itself is never kept or sent. The backend stores every captured password as ***REDACTED***,
+# so holding it in state.json / spool.jsonl only left plaintext credentials on the honeypot host.
+def _credential(e, success):
+    return {"username": str(e.get("username") or "")[:100], "success": success}
+
 def on_login_failed(e):
     sid = _session_for(e)
     if not sid: return
     if not ensure_session_opened(sid): return
-    _sessions[sid]["credentials"].append({"username": e.get("username"), "password": e.get("password"), "success": False})
+    _sessions[sid]["credentials"].append(_credential(e, False))
 
 def on_login_ok(e):
     sid = _session_for(e)
     if not sid: return
     if not ensure_session_opened(sid): return
     log.warning(f"Login SUCCESS: {_sessions[sid]['sourceIP']} (credentials omitted)")
-    _sessions[sid]["credentials"].append({"username": e.get("username"), "password": e.get("password"), "success": True})
+    _sessions[sid]["credentials"].append(_credential(e, True))
 
 def _with_event_id(payload, eid):
     if eid: payload["eventId"] = eid
@@ -364,6 +369,40 @@ def on_download(e):
         "sha256": e.get("shasum", ""),
         "filename": e.get("outfile", "")
     }, event_id(e, url)))
+
+def on_cmd_failed(e):
+    """Unknown program (cowrie.command.failed, logged after its command.input): marks that command failed (M1)."""
+    cmd = (e.get("input", "")).strip()
+    sid = _session_for(e) if cmd else None
+    if not sid or not ensure_session_opened(sid): return
+    post("/honeypot/ingest", _with_event_id({"eventType": "COMMAND_FAILED", "sessionId": sid,
+                                             "sourceIP": _sessions[sid]["sourceIP"], "command": cmd[:2048]},
+                                            event_id(e, e.get("input", ""))))
+
+def on_upload(e):
+    """File pushed in over SFTP/SCP (cowrie.session.file_upload, M3)."""
+    name = str(e.get("filename") or e.get("destfile") or e.get("outfile") or "")[:1024]
+    sid = _session_for(e) if name else None
+    if not sid or not ensure_session_opened(sid): return
+    log.warning("FILE UPLOAD: %s (name omitted)", _sessions[sid]["sourceIP"])
+    sha = str(e.get("shasum") or "").lower()
+    post("/honeypot/ingest", _with_event_id({"eventType": "FILE_UPLOAD", "sessionId": sid,
+                                             "sourceIP": _sessions[sid]["sourceIP"], "filename": name,
+                                             **({"sha256": sha} if re.fullmatch(r"[0-9a-f]{64}", sha) else {})},
+                                            event_id(e, name)))
+
+def on_tunnel(e):
+    """Port-forward request (cowrie.direct-tcpip.request, M3); refused by Cowrie (forwarding = false)."""
+    dst = str(e.get("dst_ip") or "")[:255]
+    try:
+        port = int(e.get("dst_port"))
+    except (TypeError, ValueError):
+        return
+    sid = _session_for(e) if dst and 0 <= port <= 65535 else None
+    if not sid or not ensure_session_opened(sid): return
+    post("/honeypot/ingest", _with_event_id({"eventType": "TUNNEL_REQUEST", "sessionId": sid,
+                                             "sourceIP": _sessions[sid]["sourceIP"], "dstIP": dst, "dstPort": port},
+                                            event_id(e, f"{dst}:{port}")))
 
 def on_kex(e):
     hassh = e.get("hassh", "")
@@ -430,7 +469,7 @@ def on_closed(e):
         log.debug(f"Ignoring connection with zero SSH activity: {sid} from {meta.get('sourceIP', '?')}")
     _sessions.pop(sid, None)
 
-HANDLERS={"cowrie.session.connect":on_connect,"cowrie.login.failed":on_login_failed,"cowrie.login.success":on_login_ok,"cowrie.command.input":on_cmd,"cowrie.session.file_download":on_download,"cowrie.session.closed":on_closed,"cowrie.client.kex":on_kex,"cowrie.client.version":on_client_version,"cowrie.log.closed":on_log_closed}
+HANDLERS={"cowrie.session.connect":on_connect,"cowrie.login.failed":on_login_failed,"cowrie.login.success":on_login_ok,"cowrie.command.input":on_cmd,"cowrie.command.failed":on_cmd_failed,"cowrie.session.file_upload":on_upload,"cowrie.direct-tcpip.request":on_tunnel,"cowrie.session.file_download":on_download,"cowrie.session.closed":on_closed,"cowrie.client.kex":on_kex,"cowrie.client.version":on_client_version,"cowrie.log.closed":on_log_closed}
 
 def process(line):
     global _last_event_ts
@@ -438,7 +477,8 @@ def process(line):
     try:
         e = json.loads(line.strip())
         ts = _cowrie_time(e.get("timestamp"))
-        if ts and (_last_event_ts is None or ts > _last_event_ts):
+        # L2: a timestamp more than 5 min ahead (clock skew, a forged line) must not drive lag_seconds negative.
+        if ts and ts <= time.time() + 300 and (_last_event_ts is None or ts > _last_event_ts):
             _last_event_ts = ts
         h = HANDLERS.get(e.get("eventid", ""))
         if h:

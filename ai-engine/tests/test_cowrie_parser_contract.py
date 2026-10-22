@@ -50,7 +50,8 @@ def test_login_logging_omits_credentials(parser, caplog):
     assert "private-user" not in caplog.text
     assert "private-password" not in caplog.text
     # Preserve original event data for the existing ingestion contract.
-    assert parser._sessions["contract-session"]["credentials"][0]["password"] == "private-password"
+    # M4: the password is never kept in parser state (the backend redacts it anyway)
+    assert parser._sessions["contract-session"]["credentials"][0] == {"username": "private-user", "success": True}
 
 
 def test_command_and_download_logs_omit_sensitive_payload_but_ingestion_preserves_it(parser, caplog):

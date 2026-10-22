@@ -51,6 +51,34 @@ DISTROS = {
                      "issue": "Raspbian GNU/Linux 11 \\n \\l", "gcc": "gcc-10 (Raspbian 10.2.1-6+rpi1) 10.2.1 20210110"},
 }
 OS_RELEASE_KEYS = ("PRETTY_NAME", "NAME", "VERSION_ID", "VERSION", "ID", "ID_LIKE")
+
+# `lsb_release -a` of the Debian-family personas (H2: stock Cowrie has no lsb_release at all). Served as a
+# txtcmd from <out>/<persona>-txtcmds (switch_profile sets txtcmds_path). CentOS 7 and Amazon Linux 2 do not
+# install it by default, so "command not found" is the realistic answer there.
+LSB_RELEASE = {
+    "ubuntu_22": ("Ubuntu", "Ubuntu 22.04.3 LTS", "22.04", "jammy"),
+    "debian_11": ("Debian", "Debian GNU/Linux 11 (bullseye)", "11", "bullseye"),
+    "raspberry_pi": ("Raspbian", "Raspbian GNU/Linux 11 (bullseye)", "11", "bullseye"),
+}
+
+
+def lsb_release_output(persona):
+    dist, desc, release, codename = LSB_RELEASE[persona]
+    return (f"No LSB modules are available.\nDistributor ID:\t{dist}\nDescription:\t{desc}\n"
+            f"Release:\t{release}\nCodename:\t{codename}\n")
+
+
+def write_txtcmds(out: Path, persona: str) -> Path:
+    """<out>/<persona>-txtcmds: per-persona command output (an empty directory means Cowrie's defaults)."""
+    target = out / f"{persona}-txtcmds"
+    if target.exists():
+        shutil.rmtree(target)
+    target.mkdir(parents=True)
+    if persona in LSB_RELEASE:
+        f = target / "usr" / "bin" / "lsb_release"
+        f.parent.mkdir(parents=True)
+        f.write_text(lsb_release_output(persona), encoding="utf-8")
+    return target
 DEFAULT_USER = "phil"
 
 # fs.pickle node layout (cowrie.shell.fs): [name, type, uid, gid, size, mode, ctime, contents, target, realfile]
@@ -181,6 +209,14 @@ def build_persona_pickle(tree, out: Path, persona: str) -> Path:
     t = copy.deepcopy(tree)
     user, uid = DISTROS[persona]["user"]
     missing = [p for p, c in persona_files(persona).items() if not _set_file(t, p, c)]
+    if persona in LSB_RELEASE:
+        # Cowrie only runs a txtcmd for a path that exists in the fake filesystem.
+        _ensure_dirs(t, "/usr/bin/lsb_release")
+        if _set_file(t, "/usr/bin/lsb_release", "#!/usr/bin/python3 -Es\n"):
+            _resolve(t, "/usr/bin/lsb_release")[1][A_MODE] = 0o100755
+        else:
+            missing.append("/usr/bin/lsb_release")
+    write_txtcmds(out, persona)
     home = _resolve(t, "/home")
     home_dir = home[1] if home else None
     phil = _child(home_dir, DEFAULT_USER) if home_dir else None
@@ -222,6 +258,7 @@ def build_persona(source: Path, out: Path, persona: str) -> Path:
             content = content(f.read_text(encoding="utf-8"))
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(content, encoding="utf-8")
+    write_txtcmds(out, persona)
     return target
 
 
