@@ -7,6 +7,10 @@ A background thread pulls the full deny-list every SYNC_INTERVAL seconds; connec
 the in-memory copy, so the Twisted reactor never blocks on the network and a connection flood cannot
 start threads or requests. A newly blocked IP is therefore refused within SYNC_INTERVAL (+ request time).
 If the backend is unreachable the last list is kept.
+
+The sync thread is started from reactor.callWhenRunning, not from start(): Cowrie builds its output plugins
+before twistd daemonizes, and a thread started then does not survive the fork. Under `cowrie start` the
+deny-list stayed empty and nothing was ever blocked (only the foreground mode worked).
 """
 import os
 import time
@@ -33,9 +37,10 @@ class Output(output.Output):
         if not self.api_key:
             print("[SentinelAI] HONEYPOT_API_KEY is not set: the blocker cannot read the deny-list and blocks nothing.")
 
-        # Start background sync thread to poll blocklist continuously
-        self.sync_thread = threading.Thread(target=self._background_sync_loop, daemon=True)
-        self.sync_thread.start()
+        # Start the sync thread once the reactor runs, i.e. in the process that is left after daemonizing.
+        self.sync_thread = None
+        from twisted.internet import reactor
+        reactor.callWhenRunning(self._start_sync_thread)
 
         self.patch_ssh()
         if HoneyPotTelnetFactory:
@@ -67,6 +72,10 @@ class Output(output.Output):
         except Exception:
             pass
         return False
+
+    def _start_sync_thread(self):
+        self.sync_thread = threading.Thread(target=self._background_sync_loop, daemon=True)
+        self.sync_thread.start()
 
     def _background_sync_loop(self):
         """Continuously syncs the full blocklist in the background so buildProtocol never blocks."""

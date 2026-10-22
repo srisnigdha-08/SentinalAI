@@ -15,9 +15,23 @@ class FakeFactory:
         return "protocol"
 
 
-@pytest.fixture
-def blocker(monkeypatch):
+class FakeReactor:
+    """callWhenRunning keeps the callbacks until run(), like Twisted before the reactor has started."""
+    def __init__(self):
+        self.pending = []
+
+    def callWhenRunning(self, fn, *args):
+        self.pending.append((fn, args))
+
+    def run(self):
+        for fn, args in self.pending:
+            fn(*args)
+        self.pending = []
+
+
+def load_blocker(monkeypatch):
     ssh, telnet = type("SSH", (FakeFactory,), {}), type("Telnet", (FakeFactory,), {})
+    reactor = FakeReactor()
     modules = {
         "cowrie": types.ModuleType("cowrie"),
         "cowrie.core": types.SimpleNamespace(output=types.SimpleNamespace(Output=object)),
@@ -25,6 +39,8 @@ def blocker(monkeypatch):
         "cowrie.ssh.factory": types.SimpleNamespace(CowrieSSHFactory=ssh),
         "cowrie.telnet": types.ModuleType("cowrie.telnet"),
         "cowrie.telnet.factory": types.SimpleNamespace(HoneyPotTelnetFactory=telnet),
+        "twisted": types.ModuleType("twisted"),
+        "twisted.internet": types.SimpleNamespace(reactor=reactor),
     }
     for name, mod in modules.items():
         monkeypatch.setitem(sys.modules, name, mod)
@@ -36,7 +52,26 @@ def blocker(monkeypatch):
     monkeypatch.setattr(module.requests, "get", Mock())
     plugin = module.Output()
     plugin.start()
+    return module, plugin, ssh, telnet, reactor
+
+
+@pytest.fixture
+def blocker(monkeypatch):
+    module, plugin, ssh, telnet, reactor = load_blocker(monkeypatch)
+    reactor.run()
     return module, plugin, ssh, telnet
+
+
+def test_sync_thread_starts_only_when_the_reactor_runs(monkeypatch):
+    # twistd builds output plugins before it daemonizes; a thread started in start() died in the fork and the
+    # daemon never refreshed its deny-list. The thread must be created once the reactor runs (after the fork).
+    module, plugin, _, _, reactor = load_blocker(monkeypatch)
+    assert module.threading.Thread.call_count == 0
+    assert plugin.sync_thread is None
+    reactor.run()
+    assert module.threading.Thread.call_count == 1
+    assert module.threading.Thread.call_args.kwargs == {"target": plugin._background_sync_loop, "daemon": True}
+    module.threading.Thread.return_value.start.assert_called_once_with()
 
 
 def deny_list(module, ips, status=200):
