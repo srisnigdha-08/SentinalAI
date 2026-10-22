@@ -1,0 +1,42 @@
+{
+ "note": "Sampled 1/s during benchmark run 2 (same workload as run 1). CPU % normalised to all 16 logical CPUs. working_set_mb is trimmed by Windows and understates usage; private_mb (committed private bytes) is the memory figure to report. mongod CPU reads 0 because the service process is not readable without elevation.",
+ "mongod": {
+  "samples": 99,
+  "cpu_pct_mean": 0.0,
+  "cpu_pct_mean_when_active": 0,
+  "cpu_pct_p95": 0.0,
+  "cpu_pct_max": 0.0,
+  "mem_mb_min": 25.4,
+  "mem_mb_mean": 42.3,
+  "mem_mb_max": 66.6,
+  "private_mb_min": 199.5,
+  "private_mb_mean": 200.1,
+  "private_mb_max": 200.5
+ },
+ "node": {
+  "samples": 99,
+  "cpu_pct_mean": 1.13,
+  "cpu_pct_mean_when_active": 4.17,
+  "cpu_pct_p95": 4.79,
+  "cpu_pct_max": 6.25,
+  "mem_mb_min": 21.0,
+  "mem_mb_mean": 46.2,
+  "mem_mb_max": 108.8,
+  "private_mb_min": 110.8,
+  "private_mb_mean": 121.7,
+  "private_mb_max": 193.7
+ },
+ "python": {
+  "samples": 99,
+  "cpu_pct_mean": 12.58,
+  "cpu_pct_mean_when_active": 15.74,
+  "cpu_pct_p95": 21.19,
+  "cpu_pct_max": 23.93,
+  "mem_mb_min": 19.2,
+  "mem_mb_mean": 65.7,
+  "mem_mb_max": 260.3,
+  "private_mb_min": 1190.0,
+  "private_mb_mean": 1201.0,
+  "private_mb_max": 1211.1
+ }
+}

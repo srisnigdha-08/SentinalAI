@@ -1,0 +1,16 @@
+(node:39204) [MONGOOSE] Warning: Mongoose: looks like you're trying to test a Mongoose app with Jest's mock timers enabled. Please make sure you read Mongoose's docs on configuring Jest to test Node.js apps: https://mongoosejs.com/docs/jest.html. Set the SUPPRESS_JEST_WARNINGS to true to hide this warning.
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+=============================== Coverage summary ===============================
+Statements   : 79.23% ( 3663/4623 )
+Branches     : 71.62% ( 2411/3366 )
+Functions    : 76.13% ( 469/616 )
+Lines        : 81.04% ( 3446/4252 )
+================================================================================
+
+Test Suites: 4 skipped, 71 passed, 71 of 75 total
+Tests:       13 skipped, 1128 passed, 1141 total
+Snapshots:   0 total
+Time:        532.861 s
+Ran all test suites.
+Test results written to: ..\metrics_report\raw\backend_jest.json
