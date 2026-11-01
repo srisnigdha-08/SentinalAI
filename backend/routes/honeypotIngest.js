@@ -108,17 +108,20 @@ router.get('/deception/recommendation', internalAuth, async (req, res, next) => 
   try {
     const honeypotService = require('../services/honeypotService')
     const active = await honeypotService.getActiveProfile()
-    const rec = await require('../services/aiEngineService').getDeceptionRecommendation(active.profile)
-    if (!rec) return sendError(res, 'AI engine unreachable', 503)
+    // RL-001: the persisted pending decision for this persona (drawn once), not a fresh draw per request
+    const current = await require('../services/deceptionDecisionService').currentDecision(active.profile)
+    if (!current) return sendError(res, 'AI engine unreachable', 503)
     // M7: a persona switch restarts Cowrie and drops live sessions; the rotator waits while any are open.
     const activeSessions = await require('../models/HoneypotSession')
       .countDocuments({ status: 'active' })
       .catch(() => null) // unknown: the rotator decides
     sendSuccess(res, {
       activeProfile: active.profile,
-      nextProfile: rec.nextProfile,
-      explored: rec.explored,
-      policy: rec.policy || 'q_learning',
+      nextProfile: current.decision.action,
+      explored: current.decision.explored,
+      policy: current.decision.policy,
+      decisionId: current.decision.decisionId,
+      decisionReused: current.reused,
       activeSessions,
     })
   } catch (err) {
@@ -156,17 +159,51 @@ router.put('/deception/profile', internalAuth, async (req, res, next) => {
   try {
     const honeypotService = require('../services/honeypotService')
     const profile = typeof req.body?.profile === 'string' ? req.body.profile.trim() : ''
+    const decisionId = typeof req.body?.decisionId === 'string' ? req.body.decisionId.trim() : ''
     const previous = await honeypotService.getActiveProfile()
+    // With a decisionId the rotator reports applying (or keeping, when action == state) that decision; it must
+    // still be pending for the persona being served. Without one this records a persona (legacy / manual).
+    const decision = decisionId
+      ? await require('../services/deceptionDecisionService').applyDecision(
+          decisionId,
+          profile,
+          previous.profile,
+          'honeypot-rotator'
+        )
+      : null
     await honeypotService.setActiveProfile(profile)
     await require('../utils/auditLogger').logAudit({
       action: 'SETTINGS_CHANGED',
       actor: { id: 'honeypot-rotator', role: 'service' },
       target: { identifier: 'deceptionActiveProfile', type: 'SystemSetting' },
       status: 'SUCCESS',
-      details: { from: previous.profile, to: profile, via: 'honeypot ingest key' },
+      details: {
+        from: previous.profile,
+        to: profile,
+        via: 'honeypot ingest key',
+        decisionId: decision?.decisionId || null,
+      },
       ip: req.ip,
     })
-    sendSuccess(res, { profile, previous: previous.profile }, 'Active deception profile recorded')
+    sendSuccess(
+      res,
+      { profile, previous: previous.profile, decisionId: decision?.decisionId || null },
+      'Active deception profile recorded'
+    )
+  } catch (err) {
+    next(err)
+  }
+})
+
+// RL-001: the rotator could not serve a decision (restart failed; it restored cowrie.cfg). Honeypot key only.
+router.post('/deception/decision/:decisionId/fail', internalAuth, async (req, res, next) => {
+  try {
+    const reason = typeof req.body?.reason === 'string' ? req.body.reason : 'apply failed'
+    const decision = await require('../services/deceptionDecisionService').failDecision(
+      String(req.params.decisionId),
+      reason
+    )
+    sendSuccess(res, { decisionId: decision.decisionId, status: decision.status }, 'Decision marked failed')
   } catch (err) {
     next(err)
   }

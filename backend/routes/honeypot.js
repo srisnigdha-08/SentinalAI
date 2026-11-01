@@ -111,15 +111,18 @@ router.get('/deception/profile', async (req, res, next) => {
 router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (req, res, next) => {
   try {
     const active = await honeypotService.getActiveProfile()
-    const rec = await require('../services/aiEngineService').getDeceptionRecommendation(active.profile)
-    if (!rec) return sendError(res, 'AI engine unreachable', 503)
+    // RL-001: viewing this page shows the pending decision; it no longer draws a new one on every view
+    const current = await require('../services/deceptionDecisionService').currentDecision(active.profile)
+    if (!current) return sendError(res, 'AI engine unreachable', 503)
     sendSuccess(res, {
       activeProfile: active.profile,
-      nextProfile: rec.nextProfile,
-      explored: rec.explored,
-      policy: rec.policy || 'q_learning',
-      // Seed episodes (synthetic warm start) vs sessions scored here; null from engines without the field.
-      provenance: rec.learnerStats?.provenance || null,
+      nextProfile: current.decision.action,
+      explored: current.decision.explored,
+      policy: current.decision.policy,
+      decisionId: current.decision.decisionId,
+      decisionReused: current.reused,
+      // Seed episodes (synthetic warm start) vs sessions scored here, as of the draw; null from older engines.
+      provenance: current.decision.provenance || null,
       // M7: the rotator does not restart Cowrie while attackers are connected.
       activeSessions: await require('../models/HoneypotSession')
         .countDocuments({ status: 'active' })
@@ -133,7 +136,17 @@ router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (r
 router.put('/deception/profile', requirePermission('settings:write'), async (req, res, next) => {
   try {
     const profile = typeof req.body?.profile === 'string' ? req.body.profile.trim() : ''
+    const decisionId = typeof req.body?.decisionId === 'string' ? req.body.decisionId.trim() : ''
     const previous = await honeypotService.getActiveProfile()
+    if (decisionId) {
+      // RL-001: recording a specific decision (deprecated login rotator); compare-and-set as on the ingest route
+      await require('../services/deceptionDecisionService').applyDecision(
+        decisionId,
+        profile,
+        previous.profile,
+        req.user?.email || 'user'
+      )
+    }
     await honeypotService.setActiveProfile(profile)
     await logAudit({
       action: 'SETTINGS_CHANGED',

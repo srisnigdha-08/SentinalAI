@@ -65,6 +65,20 @@ jest.mock('../services/trainingSampleService', () => ({
   transitionSampleStatus: jest.fn().mockResolvedValue({ _id: 'dummy-sample-id', status: 'VALIDATED' }),
 }))
 
+// RL-001 decision service, without a database: wraps the engine mock below
+jest.mock('../services/deceptionDecisionService', () => ({
+  currentDecision: async (profile) => {
+    const rec = await require('../services/aiEngineService').getDeceptionRecommendation(profile)
+    return rec
+      ? {
+          decision: { decisionId: 'decision-1', action: rec.nextProfile, explored: false, policy: 'q_learning' },
+          reused: false,
+        }
+      : null
+  },
+  applyDecision: jest.fn().mockResolvedValue({ status: 'APPLIED' }),
+  failDecision: jest.fn().mockResolvedValue({ decisionId: 'decision-1', status: 'FAILED' }),
+}))
 jest.mock('../services/aiEngineService', () => ({
   getHealth: jest.fn().mockResolvedValue({ status: 'ok' }),
   getModelInfo: jest.fn().mockResolvedValue({ model: 'RandomForest', version: '1.0' }),
@@ -611,6 +625,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     {
       method: 'put',
       path: '/api/honeypot/ingest/deception/profile',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/deception/decision/:decisionId/fail',
       expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
     },
 

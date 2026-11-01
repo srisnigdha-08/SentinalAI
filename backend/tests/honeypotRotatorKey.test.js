@@ -18,6 +18,27 @@ const mockRecommendation = jest.fn()
 jest.mock('../services/aiEngineService', () => ({
   getDeceptionRecommendation: (...a) => mockRecommendation(...a),
 }))
+// RL-001: the routes go through the decision service; here it wraps the mocked engine call (no database)
+const mockApply = jest.fn()
+const mockFail = jest.fn()
+jest.mock('../services/deceptionDecisionService', () => ({
+  currentDecision: async (profile) => {
+    const rec = await mockRecommendation(profile)
+    return rec
+      ? {
+          decision: {
+            decisionId: 'decision-1',
+            action: rec.nextProfile,
+            explored: rec.explored,
+            policy: rec.policy || 'q_learning',
+          },
+          reused: false,
+        }
+      : null
+  },
+  applyDecision: (...a) => mockApply(...a),
+  failDecision: (...a) => mockFail(...a),
+}))
 const mockLogAudit = jest.fn().mockResolvedValue(null)
 jest.mock('../utils/auditLogger', () => ({ logAudit: (...a) => mockLogAudit(...a) }))
 
@@ -62,6 +83,8 @@ describe('rotator endpoints on the honeypot key', () => {
       nextProfile: 'ubuntu_22',
       explored: false,
       policy: 'q_learning',
+      decisionId: 'decision-1', // RL-001: the rotator applies this decision, not a fresh draw
+      decisionReused: false,
       activeSessions: 2, // M7: the rotator waits while attackers are connected
     })
     expect(mockActiveSessions).toHaveBeenCalledWith({ status: 'active' })
@@ -91,6 +114,44 @@ describe('rotator endpoints on the honeypot key', () => {
       expect(res.status).toBe(400)
     }
     expect(SystemSetting.findOneAndUpdate).not.toHaveBeenCalled()
+  })
+
+  test('recording with a decisionId applies that decision (compare-and-set) before recording the persona', async () => {
+    mockApply.mockResolvedValue({ decisionId: 'decision-1', status: 'APPLIED' })
+    const res = await request(app)
+      .put(PROFILE)
+      .set('x-api-key', 'test-honeypot-api-key')
+      .send({ profile: 'ubuntu_22', decisionId: 'decision-1' })
+    expect(res.status).toBe(200)
+    expect(res.body.data.decisionId).toBe('decision-1')
+    expect(mockApply).toHaveBeenCalledWith('decision-1', 'ubuntu_22', 'centos_7', 'honeypot-rotator')
+    expect(SystemSetting.findOneAndUpdate).toHaveBeenCalled()
+  })
+
+  test('a stale or mismatched decision is refused with 409 and nothing is recorded', async () => {
+    mockApply.mockRejectedValue(Object.assign(new Error('Decision is not pending'), { statusCode: 409 }))
+    const res = await request(app)
+      .put(PROFILE)
+      .set('x-api-key', 'test-honeypot-api-key')
+      .send({ profile: 'ubuntu_22', decisionId: 'old-decision' })
+    expect(res.status).toBe(409)
+    expect(SystemSetting.findOneAndUpdate).not.toHaveBeenCalled()
+  })
+
+  test('a failed application is reported on the honeypot key only', async () => {
+    mockFail.mockResolvedValue({ decisionId: 'decision-1', status: 'FAILED' })
+    const path = '/api/honeypot/ingest/deception/decision/decision-1/fail'
+    expect((await request(app).post(path).send({ reason: 'x' })).status).toBe(401)
+    expect((await request(app).post(path).set('x-api-key', 'test-sentinel-api-key').send({ reason: 'x' })).status).toBe(
+      401
+    )
+    const res = await request(app)
+      .post(path)
+      .set('x-api-key', 'test-honeypot-api-key')
+      .send({ reason: 'restart failed' })
+    expect(res.status).toBe(200)
+    expect(res.body.data).toEqual({ decisionId: 'decision-1', status: 'FAILED' })
+    expect(mockFail).toHaveBeenCalledWith('decision-1', 'restart failed')
   })
 
   test('reports an unreachable AI engine', async () => {

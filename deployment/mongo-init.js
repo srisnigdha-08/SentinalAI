@@ -62,6 +62,7 @@ const operationalCollections = [
   'campaigns',
   'trainingsamples',
   'outboxevents',
+  'deceptiondecisions',
   'backups',
   // retentionService writes archived_* (the older archive_* names are kept for existing deployments)
   'archived_threatlogs',

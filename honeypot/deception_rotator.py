@@ -43,6 +43,7 @@ class MachineClient:
     """HONEYPOT_API_KEY on the honeypot-scoped endpoints; no user account involved."""
     RECOMMENDATION = "/api/honeypot/ingest/deception/recommendation"
     PROFILE = "/api/honeypot/ingest/deception/profile"
+    DECISION_FAIL = "/api/honeypot/ingest/deception/decision/{}/fail"
 
     def __init__(self, base, api_key):
         self.base, self._key = base.rstrip("/"), api_key
@@ -59,6 +60,7 @@ class BackendClient:
     """Deprecated: admin login (CSRF handshake + login, bearer calls; re-logs in once on 401)."""
     RECOMMENDATION = "/api/honeypot/deception/recommendation"
     PROFILE = "/api/honeypot/deception/profile"
+    DECISION_FAIL = None  # the deprecated login client cannot mark decisions failed; they expire (TTL) instead
 
     def __init__(self, base, email, password, origin):
         self.base, self.email, self._password, self.origin = base.rstrip("/"), email, password, origin
@@ -122,11 +124,17 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
                 raise RuntimeError(f"Recommendation unavailable (HTTP {resp.status_code})")
             data = resp.json()["data"]
             active, nxt = data["activeProfile"], data["nextProfile"]
+    # RL-001: backends that persist decisions send a decisionId; this run applies, keeps or fails exactly that one
+    decision_id = data.get("decisionId")
     if nxt == active:
         log.info("Keeping persona %s (recommended again)", active)
-        return {"changed": False, "active": active}
+        if decision_id and not dry_run:
+            _acknowledge(client, active, decision_id)
+        return {"changed": False, "active": active, **({"decisionId": decision_id} if decision_id else {})}
     if nxt in switch_profile.UNSERVABLE:
         log.warning("Recommended persona %s cannot be served by Cowrie; keeping %s", nxt, active)
+        if decision_id and not dry_run:
+            _fail(client, decision_id, f"{nxt} is not servable")
         return {"changed": False, "active": active, "error": f"{nxt} is not servable"}
     # M7: a switch restarts Cowrie, which drops every live attacker session. Wait for a quiet moment.
     busy = data.get("activeSessions")
@@ -146,17 +154,37 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
         # Put the served persona's cowrie.cfg back, so the next Cowrie start (or the restart retried here) does not
         # serve a persona the backend never recorded.
         if previous_cfg is None:
+            if decision_id:
+                _fail(client, decision_id, "restart failed")
             return {"changed": False, "active": active, "error": "restart failed; persona not recorded"}
         cfg_path.write_text(previous_cfg, encoding="utf-8")
         recovered = run_restart(restart_cmd)
         log.error("Restart with %s failed; restored the %s cowrie.cfg%s", nxt, active,
                   "" if recovered else " but Cowrie did not restart with it either")
+        if decision_id:
+            _fail(client, decision_id, "restart failed" + ("" if recovered else "; Cowrie did not restart with the restored cfg"))
         return {"changed": False, "active": active, "restored": True, "recovered": recovered,
                 "error": "restart failed; persona not recorded"}
-    rec = client.call("PUT", client.PROFILE, json={"profile": nxt})
+    rec = client.call("PUT", client.PROFILE, json={"profile": nxt, **({"decisionId": decision_id} if decision_id else {})})
     if rec.status_code != 200:
         raise RuntimeError(f"Recording the persona failed (HTTP {rec.status_code})")
-    return {"changed": True, "active": nxt, "previous": active}
+    return {"changed": True, "active": nxt, "previous": active, **({"decisionId": decision_id} if decision_id else {})}
+
+
+def _acknowledge(client, profile, decision_id):
+    """Close a "keep" decision so the next rotation draws a new one (otherwise it would be served until its TTL)."""
+    resp = client.call("PUT", client.PROFILE, json={"profile": profile, "decisionId": decision_id})
+    if resp.status_code != 200:
+        log.warning("Could not acknowledge decision %s (HTTP %s)", decision_id, resp.status_code)
+
+
+def _fail(client, decision_id, reason):
+    path = getattr(client, "DECISION_FAIL", None)
+    if not path:
+        return
+    resp = client.call("POST", path.format(decision_id), json={"reason": reason})
+    if resp.status_code != 200:
+        log.warning("Could not mark decision %s failed (HTTP %s)", decision_id, resp.status_code)
 
 
 def main():
