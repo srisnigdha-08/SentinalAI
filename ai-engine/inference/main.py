@@ -296,6 +296,11 @@ async def _notify(result, ip):
 async def model_unavailable_handler(request, exc):
     return JSONResponse(status_code=503, content={"detail": "Model inference unavailable"})
 
+@app.get("/")
+async def root():
+    return {"service": app.title, "version": app.version, "status": "running",
+            "health": "/health", "ready": "/ready", "docs": "/docs"}
+
 @app.get("/ready")
 async def ready():
     if not predictor or not predictor._loaded:

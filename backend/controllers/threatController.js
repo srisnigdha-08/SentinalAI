@@ -300,7 +300,15 @@ const blockIP = async (req, res, next) => {
     socketManager.emitNewAlert(alert)
     logger.info('IP ' + threat.sourceIP + ' blocked by ' + req.user.email)
 
-    sendSuccess(res, { threat, blockedIP: threat.sourceIP }, 'IP blocked')
+    // After the deny-list write and its audit succeeded: enforce through the containment adapter as well
+    const enforcement = await require('../services/containmentService').enforceManualBlock({
+      ip: threat.sourceIP,
+      requester: req.user,
+      reason: 'Manual threat block',
+      threatRef: threat._id,
+    })
+
+    sendSuccess(res, { threat, blockedIP: threat.sourceIP, enforcement }, 'IP blocked')
   } catch (err) {
     if (err.message && err.message.includes('Security audit logging failed')) {
       return sendError(res, err.message, err.statusCode || 500)
@@ -477,7 +485,13 @@ const blockIPManual = async (req, res, next) => {
     socketManager.emitNewAlert(alert)
     logger.info(`IP ${cleanIP} blocked manually by ${req.user.email}`)
 
-    sendSuccess(res, { blockedIP }, 'IP blocked successfully')
+    const enforcement = await containmentService.enforceManualBlock({
+      ip: cleanIP,
+      requester: req.user,
+      reason: cleanReason,
+    })
+
+    sendSuccess(res, { blockedIP, enforcement }, 'IP blocked successfully')
   } catch (err) {
     if (err.isInconsistent) {
       logger.error(`[CRITICAL] Containment inconsistency on blockIPManual: ${err.message}`)
@@ -545,7 +559,10 @@ const unblockIPManual = async (req, res, next) => {
     socketManager.emitNewAlert(alert)
     logger.info(`IP ${cleanIP} unblocked manually by ${req.user.email}`)
 
-    sendSuccess(res, {}, 'IP unblocked successfully')
+    // Remove the adapter rule(s) too, otherwise the firewall keeps blocking an IP the dashboard shows as free
+    const enforcement = await containmentService.releaseManualBlock({ ip: cleanIP, operator: req.user })
+
+    sendSuccess(res, { enforcement }, 'IP unblocked successfully')
   } catch (err) {
     if (err.isInconsistent) {
       logger.error(`[CRITICAL] Containment inconsistency on unblockIPManual: ${err.message}`)

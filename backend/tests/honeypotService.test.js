@@ -97,6 +97,10 @@ const SystemSetting = require('../models/SystemSetting')
 const ThreatLog = require('../models/ThreatLog')
 const containmentService = require('../services/containmentService')
 
+// closeSession schedules threat-intel enrichment with setImmediate; let it run before Jest tears the
+// module registry down, otherwise its late require() fails the run with a non-zero exit code.
+afterAll(() => new Promise((resolve) => setImmediate(resolve)))
+
 describe('honeypotService.closeSession()', () => {
   beforeEach(() => {
     jest.clearAllMocks()

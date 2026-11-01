@@ -24,11 +24,11 @@
 
 Modern enterprise networks face an onslaught of sophisticated, automated intrusions, Advanced Persistent Threats (APTs), and zero-day vulnerabilities. Conventional Intrusion Detection and Prevention Systems (IDS/IPS) remain predominantly static and signature-bound, leaving them vulnerable to polymorphic payloads and novel evasion tactics.
 
-**SentinelAI** is an autonomous, full-stack cyber defence platform designed to shift enterprise security from passive defense to proactive, adaptive deception and automated threat mitigation. SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
-1. **Multi-Model Anomaly & Intrusion Detection:** Scikit-learn Random Forest, XGBoost, and Isolation Forest models trained on verified **CICIDS2017** network traffic.
+**SentinelAI** is a full-stack cyber defence prototype, designed toward autonomous operation, that combines ML threat detection, adaptive honeypot deception and a policy-governed containment workflow (enforcement is simulated by default). SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
+1. **Multi-Model Anomaly & Intrusion Detection:** XGBoost (served) and Random Forest classifiers plus an Isolation Forest, trained on **CICIDS2017** flow records. Input is flow records sent on demand or replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`); there is no live packet capture.
 2. **Explainable AI (XAI):** Real-time **SHAP** (SHapley Additive exPlanations) attribution that visualizes feature weights directly for SOC security analysts.
-3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** reinforcement agent that dynamically reconfigures Cowrie SSH deception environments based on attacker interaction depth, maximizing dwell time to extract critical Indicators of Compromise (IOCs).
-4. **Live SOC Operations Interface:** A high-throughput React dashboard with real-time Socket.IO telemetry, automated MITRE ATT&CK technique mapping, and analyst triage governance.
+3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` can apply the recommendation to Cowrie. The rotator has not yet been validated against a live Cowrie instance.
+4. **Live SOC Operations Interface:** A React dashboard with Socket.IO telemetry, MITRE ATT&CK technique mapping of honeypot sessions, and analyst triage governance.
 
 > **Academic Attribution:**  
 > Developed at the **Department of Information Science and Engineering, RNS Institute of Technology (RNSIT), Bengaluru, India**.  
@@ -39,13 +39,13 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 
 ## 🌟 Key Features
 
-* **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised Random Forest/XGBoost classification with unsupervised Isolation Forest anomaly scoring across 53 engineered network-flow dimensions to compute a balanced `ThreatScore`.
+* **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised classification (XGBoost `xgb_cicids_v1` is the served model, pinned in `ai-engine/models/registry.json`) with Isolation Forest anomaly scoring over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) to compute a `ThreatScore`.
 * **🧠 Explainable AI (SHAP):** Deploys tree-based SHAP explainers to demystify black-box predictions, presenting analysts with top positive and negative contributing flow features per incident.
-* **🎯 Reinforcement Learning Deception (Q-Learning):** Dynamically switches Cowrie honeypot decoy OS profiles (e.g., Ubuntu database server, legacy CentOS server, Windows controller) between attacker sessions to adaptively optimize entrapment rewards.
-* **🏷️ MITRE ATT&CK Matrix Tagging:** Classifies shell commands and packet behavior in real time against MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
-* **⚡ High-Throughput Real-Time Dispatcher:** Real-time event propagation via Socket.IO from backend ingestion pipelines to analyst dashboards with sub-second latency.
+* **🎯 Reinforcement Learning Deception (Q-Learning):** Learns which decoy persona (e.g. Ubuntu, CentOS, Windows) keeps attackers engaged and recommends the next one; the rotator script switches the Cowrie persona between sessions (not yet validated live).
+* **🏷️ MITRE ATT&CK Matrix Tagging:** Maps honeypot shell commands to MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
+* **⚡ Real-Time Dispatcher:** Event propagation via Socket.IO from backend ingestion to analyst dashboards (end-to-end latency not yet measured).
 * **🔒 Enterprise Security & Session Management:** Session-backed authentication architecture featuring 15-minute access JWTs, 30-day absolute refresh token rotation, strict CORS isolation, and Asia/Kolkata timezone normalization.
-* **🚨 Automated Containment Loop:** Configurable containment engine capable of automatically enforcing firewall IP isolation once a threat score exceeds designated safety thresholds.
+* **🚨 Policy-Governed Containment:** Auto-blocks (off by default) and analyst blocks go through a policy check and a pluggable containment adapter. The default adapter is a **mock** (no firewall change); the Windows Firewall adapter is gated behind two settings and has not been field-tested.
 
 ---
 
@@ -70,9 +70,9 @@ sequenceDiagram
     BE->>UI: Broadcasts live session telemetry via Socket.IO
     Note over Attacker, HP: Attacker executes recon & downloads payloads
     Parser->>BE: Streams closed session metrics & command history
-    BE->>AI: Dispatches session for evaluation (/predict/honeypot)
-    AI->>AI: Extracts 53-D features, runs RF & IF models, computes SHAP
-    AI-->>BE: Returns ThreatScore, classification, & anomaly vectors
+    BE->>AI: Dispatches session for evaluation (/predict/honeypot/internal)
+    AI->>AI: Rule-based session classifier (no ML: Cowrie sessions carry no flow data)
+    AI-->>BE: Returns ThreatScore and session classification
     BE->>AI: Evaluates deception reward (/deception/score)
     AI->>AI: Updates Q-table state and selects optimal next profile
     AI-->>BE: Emits recommended decoy OS profile
@@ -136,14 +136,14 @@ SentinelAI is evaluated on the **CICIDS2017** benchmark. How the data is split c
 so each figure says which split it comes from (full method and results:
 [docs/C1_EVALUATION_PLAN_AND_RESULTS.md](docs/C1_EVALUATION_PLAN_AND_RESULTS.md)).
 
-### Multi-Class Performance Metrics (production Random Forest, `rf_classifier_cicids_v2.pkl`)
+### Multi-Class Performance Metrics (Random Forest `rf_classifier_cicids_v2.pkl`, the model reported in the paper)
 | Split | Accuracy | Macro F1 | What it measures |
 |---|---|---|---|
 | Random 80/20 rows (as in the model metadata) | 98.43% (re-run: 98.69%) | 0.84 (re-run: 0.88) | Optimistic: flows from the same attack burst land in train and test |
 | **Chronological per class** (train on earlier flows, test on later ones) | **97.57%** | **0.74** | Honest in-distribution estimate; rare classes (bot/C2, XSS, SQLi) are weak |
 | Leave one capture day out | 59–94% | 0.19–0.29 | Attacks from a day never trained on are almost all missed |
 
-The XGBoost candidate (99.13% accuracy) was measured on the same random split and is not deployed.
+The **served** model is XGBoost `xgb_cicids_v1` (`ai-engine/models/registry.json`): on a de-duplicated random 80/20 split it reaches 98.97% accuracy and 0.874 macro F1 (`xgb_classifier_xgb_cicids_v1_meta.json`). Chronological and leave-one-day-out results above were measured with the Random Forest recipe; the same evaluation has not yet been run for the XGBoost model. Several classes have very little test data (SQL Injection 4 rows, RCE 2, Lateral Movement 7, no Data Exfiltration), so per-class results for them are not meaningful.
 
 ### Alerting (backend threat/alert creation)
 The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),

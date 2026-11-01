@@ -149,6 +149,8 @@ jest.mock('../services/containmentService', () => ({
     unblockedIP: '198.51.100.99',
     restoredThreats: [],
   }),
+  enforceManualBlock: jest.fn().mockResolvedValue({ status: 'ACTIVE', backend: 'mock' }),
+  releaseManualBlock: jest.fn().mockResolvedValue([]),
 }))
 
 jest.mock('../controllers/containmentController', () => ({

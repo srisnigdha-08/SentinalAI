@@ -15,17 +15,15 @@ export default function About() {
             Built for the Next Generation<br/>of SOC Operations
           </h1>
           <p style={{ color:'#7ab3cc', lineHeight:1.8, maxWidth:700 }}>
-            SentinelAI is a final-year engineering major project exploring the intersection of autonomous AI systems,
-            adaptive cyber deception, and real-time threat response. It demonstrates how machine learning can be
-            applied to enterprise cybersecurity at scale.
+            SentinelAI is a final-year engineering major project exploring machine-learning threat detection, adaptive cyber deception and policy-governed response. It is a research prototype designed toward autonomous operation, not a production security product.
           </p>
         </div>
 
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'3rem', maxWidth:900, margin:'0 auto', padding:'0 3rem 5rem' }}>
           {[
             { title:'Research Focus', text:'This project investigates whether a reinforcement-learning-based honeypot system can improve attacker engagement time and threat intelligence quality compared to static honeypot deployments — using MITRE ATT&CK framework TTPs as behavioral ground truth.' },
-            { title:'Academic Context', text:'Designed to IEEE final-year project standards. Evaluation uses detection rate, false positive rate, mean time to detect (MTTD), and honeypot engagement duration as primary metrics against the CICIDS2017 benchmark dataset.' },
-            { title:'Key Contributions', text:'1. Adaptive honeypot deception engine using RL\n\n2. Dual-engine ML threat classifier (CICIDS2017)\n\n3. Autonomous response pipeline with confidence thresholding\n\n4. Real-time SOC dashboard with live attack visualization' },
+            { title:'Academic Context', text:'Designed to IEEE final-year project standards. Detection rate and false positive rate are measured on CICIDS2017 with random, chronological and leave-one-day-out splits. Honeypot engagement duration against a static baseline has not yet been evaluated.' },
+            { title:'Key Contributions', text:'1. Adaptive honeypot deception engine using RL\n\n2. Dual-engine ML threat classifier (CICIDS2017)\n\n3. Policy-governed containment pipeline with confidence thresholding (simulated enforcement by default)\n\n4. Real-time SOC dashboard with live attack visualization' },
           ].map(({ title, text }) => (
             <div key={title}>
               <div style={{ fontFamily:'Orbitron,sans-serif', fontSize:12, fontWeight:700, color:'#00d4ff', letterSpacing:3, marginBottom:'1rem' }}>

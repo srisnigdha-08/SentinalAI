@@ -9,10 +9,15 @@ if (-not $OutputPath) {
 $transcriptPath = $OutputPath
 Start-Transcript -Path $transcriptPath -Force
 
-$env:VERIFY_ADMIN_PASSWORD = "Admin@1234"
-$env:VERIFY_ANALYST_PASSWORD = "Analyst@1234"
-$env:VERIFY_VIEWER_PASSWORD = "Viewer@1234"
-$env:HONEYPOT_API_KEY = "b09b49ab1eeff33d1b0fa5f7f721e6d5ea60b0a1c430fec8d00813f13b5ff94e"
+# Credentials are never stored here: set VERIFY_ADMIN_PASSWORD, VERIFY_ANALYST_PASSWORD,
+# VERIFY_VIEWER_PASSWORD and HONEYPOT_API_KEY in this shell before running.
+foreach ($name in @("VERIFY_ADMIN_PASSWORD", "VERIFY_ANALYST_PASSWORD", "VERIFY_VIEWER_PASSWORD", "HONEYPOT_API_KEY")) {
+  if (-not [Environment]::GetEnvironmentVariable($name)) {
+    Write-Error "$name is not set; refusing to run."
+    Stop-Transcript | Out-Null
+    exit 1
+  }
+}
 $env:MONGO_URI = "mongodb://localhost:27017/sentinel-db"
 
 Write-Host "`n========================================================"

@@ -7,6 +7,19 @@ export function denyListRecorded(ip) {
   return `IP ${ip} added to deny-list (${DENY_LIST_NOTE})`
 }
 
+// `response` is the axios response from threatAPI.blockIP / blockIPManual, which now also report the
+// containment adapter result as `enforcement` (status, backend).
+export function manualBlockOutcome(ip, response) {
+  const e = response?.data?.data?.enforcement
+  if (e?.status === 'ACTIVE' && e.backend === 'windows-firewall') {
+    return `IP ${ip} added to deny-list and blocked by a Windows Firewall rule`
+  }
+  if (e?.status === 'ACTIVE') {
+    return `IP ${ip} added to deny-list (simulated firewall rule, ${e.backend || 'mock'} adapter)`
+  }
+  return `${denyListRecorded(ip)}; adapter enforcement did not complete`
+}
+
 // `response` is the axios response from containmentAPI.requestAction
 export function containmentOutcome(target, response) {
   const action = response?.data?.data?.action

@@ -16,7 +16,7 @@ import { threatAPI, honeypotAPI, systemAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
-import { denyListRecorded } from '../utils/containmentLabels.js'
+import { manualBlockOutcome } from '../utils/containmentLabels.js'
 
 const SEV_COLORS = { CRITICAL:'#ff2d55', HIGH:'#ff6400', MEDIUM:'#ffaa00', LOW:'#00d4ff' }
 // The queue lists the latest threats whatever their state; these need no Block IP button and are not "open".
@@ -237,7 +237,7 @@ export default function Dashboard() {
                   </span>
                 ) : (
                   <button onClick={async()=>{
-                    try{ await threatAPI.blockIP(t._id); toast.success(denyListRecorded(t.sourceIP)); load() }
+                    try{ const res = await threatAPI.blockIP(t._id); toast.success(manualBlockOutcome(t.sourceIP, res)); load() }
                     catch(e){ toast.error(e.response?.data?.error || 'Block failed') }
                   }} style={{ background:'none', border:'1px solid #0d3352', color:'#3a6a88',
                     fontSize:11, fontFamily:'Share Tech Mono,monospace', padding:'4px 10px',

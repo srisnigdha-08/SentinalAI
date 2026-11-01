@@ -1,0 +1,2 @@
+# Shell scripts run inside WSL/Linux: a CRLF checkout (core.autocrlf=true) breaks them with "$'\r': command not found".
+*.sh text eol=lf

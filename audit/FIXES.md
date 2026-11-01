@@ -49,3 +49,43 @@ Backup of all pre-existing uncommitted work (taken before any edit): `audit/back
   scikit-learn 1.7.2 but the venv has 1.4.0 (Stage 5 item).
 - Frontend: `npm test` **36/36 passed**; `npm run build` succeeded (covers the edited JSX pages).
 - Not run: Playwright E2E (needs a local `sentinelai_test` MongoDB and starts servers), real-firewall VM harness, Cowrie.
+
+---
+
+# Fix batch 2 — the "Not fixed" rows (2026-10-22, at `a5856b7` + working tree; nothing committed)
+
+| Row | Outcome | What was done |
+|---|---|---|
+| SEC-001 leaked honeypot key | **PARTLY FIXED** | Rotated `HONEYPOT_API_KEY` to a new 64-hex value in `backend/.env` and `deployment/.env.demo` (no local file holds the old value). Removed the hard-coded key **and three verify-account passwords** from the tracked `scratch/run_all_verify.ps1`; the script now refuses to run unless they are set in the shell. **Not done:** the honeypot host's env (not reachable from here); Git-history purge (needs a force-push of a shared branch); the account passwords: a read-only check showed the leaked passwords still work for `admin@sentinel.io`, `arjun@sentinel.io`, `priya@sentinel.io` and `sara@sentinel.io`. |
+| CORE-001 manual blocks via adapter | **FIXED** | `enforceManualBlock` / `releaseManualBlock` in `containmentService.js`; the Block button, block-ip and unblock-ip now go through policy → adapter → ContainmentAction after the deny-list write and audit succeed. `requestContainment(syncLegacyState)` and `rollbackContainment(releaseLegacyState)` options keep the manual paths' own BlockedIP/ThreatLog semantics. Manual adapter rules get the 30-day policy maximum, not the 1-hour default. Responses carry `enforcement`; the Dashboard toast reports it (`manualBlockOutcome`). Test: `backend/tests/manualBlockEnforcement.test.js`. |
+| CORE-003 / F1-001 wording | **FIXED (README + UI)** | README (served model, replay input, rule-based honeypot classification, containment, MITRE scope, latency), `Landing.jsx` (hero text; terminal relabelled "Illustrative output (not live)" with accurate lines), `Features.jsx`, `About.jsx`. **Paper not edited:** only the PDF and its text extraction are in the repo. |
+| CORE-003 / F1-001 live Cowrie run | **NOT FIXED** | Needs a Linux/WSL host running Cowrie. |
+| CORE-004 apply recommendations | **CODE DONE, NOT VALIDATED** | `honeypot/deception_rotator.py` (added by `a6de7f1`) applies personas; a live run needs Cowrie. |
+| CORE-005 event bus | **ALREADY FIXED** | `socketManager.js:110-120` records every delivery; `securityEventBus.js:766-772` persists to the outbox store. |
+| ML-001 time-of-day | **WITHDRAWN** | Features are constant zero in training and have 0.0 importance; nothing to fix. |
+| HYG-001 stale models | **KEPT BY DESIGN** | Every non-served file is referenced by tests, the legacy loader, `verify_protected_hashes.py` or `docs/PRESERVED_ASSETS_SHA256.json`, or is a rollback target in `registry_history.jsonl`; `ai-engine/models/README.md` documents which files are served. Deleting would break tests and the protected-hash check. |
+| Plaintext credentials in sentinel-db | **ALREADY FIXED** | Fresh backup `backups/sentinel-db-2026-10-22T05-55-35-492Z` (git-ignored), then a dry run: 0 unredacted credentials in 8 sessions, so no write was needed. Older pre-scrub backups in `backups/` still contain plaintext passwords. |
+| (found while testing) | **FIXED** | `honeypotService.test.js`: `setImmediate` enrichment (added in `a5856b7`) ran after Jest teardown and made `npm test` exit 1 even with all tests passing; the suite now drains it in `afterAll`. |
+
+## Verification (ran 2026-10-22)
+- Backend Jest: **71 suites passed, 4 skipped; 1114 passed, 13 skipped, 0 failed; exit 0.** The first run failed one
+  test (TEST 8 in `containmentPolicy.test.js` timed out on the new unmocked `ContainmentAction` lookup); stubbed like the
+  suite's existing `requestContainment` stub. ESLint clean on all changed backend files (my edit had changed
+  `threatController.js` line endings; restored with `eslint --fix`, formatting only).
+- Frontend: `npm test` **49/49 passed**; `npm run build` succeeded.
+- AI engine: no code changed in this batch; not re-run.
+
+## Also in the working tree (after batch 2, uncommitted)
+- `honeypot/deception_rotator.py`: `served_persona()` reads the persona from switch_profile's `cowrie.cfg` header and,
+  before deciding, records it with the backend when it differs (a fresh database assumes `centos_7`, so the rotator
+  could "keep" a persona Cowrie was not serving). Tests: two new cases in `ai-engine/tests/test_deception_rotator.py`.
+- `ai-engine/inference/main.py`: `GET /` service index (links to `/health`, `/ready`, `/docs`).
+- `ai-engine/demo/replay_cicids.py`: `--backend-url` defaults to `SENTINEL_BACKEND_URL`.
+- `scripts/demo/` (start/stop/reset-demo-db PowerShell, `cowrie-demo-mode.sh`): demo stack on a separate
+  `sentinel-demo` database and Q-table, mock containment only. `.gitattributes` forces LF on `*.sh` for WSL.
+
+## Re-verification at HEAD `56981a3` + working tree (ran 2026-11-01) — closes TEST-004
+- Backend Jest: **71 suites passed, 4 skipped; 1128 passed, 13 skipped, 0 failed; exit 0.**
+- AI engine pytest: **594 passed**, 0 failed (6 InconsistentVersionWarnings: experiment pickles from scikit-learn 1.7.2, DEP-001).
+- Frontend: `npm test` **49/49 passed**; `npm run build` succeeded.
+- Still not run: Playwright E2E, real-firewall VM harness, live Cowrie (F1-001 / CORE-004).

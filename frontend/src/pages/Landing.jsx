@@ -120,7 +120,8 @@ export default function Landing() {
             fontWeight: 900, lineHeight: 1.05, marginBottom: '1.5rem',
             animation: 'fadeUp .6s .15s ease both',
           }}>
-            <span style={{ display: 'block', color: '#c8e6f5' }}>SELF-EVOLVING AI</span>
+            {/* Not "self-evolving": deception adapts (Q-learner + rotator); model retraining is human-gated. */}
+            <span style={{ display: 'block', color: '#c8e6f5' }}>ADAPTIVE AI</span>
             <span style={{ display: 'block', color: '#00d4ff', textShadow: '0 0 40px rgba(0,212,255,.4)' }}>
               SENTINEL DEFENCE
             </span>
@@ -130,8 +131,8 @@ export default function Landing() {
             fontSize: 17, color: '#7ab3cc', maxWidth: 600, lineHeight: 1.7,
             marginBottom: '3rem', animation: 'fadeUp .6s .3s ease both',
           }}>
-            Next-generation autonomous threat detection, adaptive honeypot intelligence,
-            and real-time incident response — powered by continuous machine learning.
+            ML threat detection, adaptive honeypot intelligence and policy-governed
+            incident response for SOC analysts.
           </p>
 
           <div style={{ display: 'flex', gap: 16, justifyContent: 'center', animation: 'fadeUp .6s .45s ease both' }}>
@@ -207,16 +208,16 @@ export default function Landing() {
               ['out',    '[00:00:09] Autonomous response: IP 45.95.147.22 flagged for isolation'],
               ['info',   '[00:00:10] All systems nominal. Monitoring 847 endpoints.'],
             */}
+            {/* Illustrative start-up output, not a live feed: keep it consistent with what the services do */}
+            <div style={{ color: '#3a6a88', marginBottom: 6 }}>// Illustrative output (not live)</div>
             {[
-              ['prompt', 'sentinel@soc:~$ ./start-defence.sh --real-mode'],
-              ['out',    '[00:00:01] Initializing SentinelAI v2.4.1 [REAL MODE]...'],
-              ['out',    '[00:00:02] Loading threat intelligence models... ✓'],
-              ['out',    '[00:00:03] Connecting to honeypot network... ✓'],
-              ['out',    '[00:00:04] Anomaly detection engine started [Isolation Forest + Random Forest]'],
-              ['out',    '[00:00:05] WebSocket server listening on :5000 (real-time stream ready)'],
-              ['out',    '[00:00:06] MongoDB connected: sentinel-db'],
-              ['info',   '[00:00:07] Simulation mode disabled. Pipeline listening for live packet & honeypot events...'],
-              ['info',   '[00:00:08] Defense shield online. All real telemetry monitoring active.'],
+              ['prompt', 'sentinel@soc:~$ npm start'],
+              ['out',    '[00:00:01] MongoDB connected: sentinel-db'],
+              ['out',    '[00:00:02] AI engine ready: XGBoost + Isolation Forest (registry-pinned)'],
+              ['out',    '[00:00:03] Socket.IO listening on :5000'],
+              ['out',    '[00:00:04] Honeypot ingest ready (/api/honeypot/ingest)'],
+              ['info',   '[00:00:05] Containment adapter: mock (no firewall changes)'],
+              ['info',   '[00:00:06] Waiting for honeypot events or replayed CICIDS2017 flows...'],
             ].map(([type, text], i) => (
               <div key={i} style={{
                 color: type==='prompt'?'#c8e6f5':type==='warn'?'#ffaa00':type==='err'?'#ff2d55':type==='info'?'#00d4ff':'#7ab3cc',

@@ -272,3 +272,129 @@ ID: DOC-002 | Priority: P3 | Label: CONFIRMED (static)
 Where: docs/ENROLLMENT_POLICY_20261015.md vs backend/controllers/userController.js:32, middleware/auth.js:36-43
 What: Doc says forced first-login password change is not implemented; it is.
 ```
+
+---
+
+## Re-verification at `a5856b7` (2026-10-22)
+
+16 commits landed after Stage 2 (`e5318ac`…`a5856b7`). Every earlier finding was re-checked on the new HEAD.
+
+| ID | Now | Evidence |
+|---|---|---|
+| SEC-001 | **OPEN, escalated to P0** | `git branch -r --contains 315700c` → `origin/db-fixes` (pushed); `backend/.env` and `deployment/.env.demo` still hold the leaked value (match flag only) |
+| OPS-001 | FIXED | `utils/destructiveGuard.js` |
+| TEST-001 / TEST-002 / CI-001 | FIXED | `playwright.config.js:61`; `e2e.yml:35-36`; `ci.yml:77` |
+| ML-001 | **WITHDRAWN** | Time-of-day columns are zero in every CICIDS2017 training row (`features.py:496-498`); importances are 0.0 in RF v2, RF v3, XGB v1 (ran, read-only load) |
+| ML-002 | FIXED | `ai-engine/models/registry.json` pins the served files by sha256; root `models/README.md` marks the archive |
+| DOC-001 / DOC-002 / CFG-001 | FIXED | README:227; enrollment doc; `validateEnv.js` |
+| HYG-001 | PARTLY FIXED | `.bak`/`.orig` backend files deleted; ~30 superseded model files remain in `ai-engine/models` |
+| CORE-001 | MOSTLY FIXED | Auto-block → `requestContainment` (`containmentService.js:895`); manual paths still DB-only → CORE-001b |
+| CORE-002 | FIXED | Honeypot sessions are rule-classified (`predictor.py:529-575`, `classificationMethod: honeypot_rules`) |
+| CORE-003 | FIXED as replay | `replay_cicids.py --target backend` posts to `/api/ai/analyze`; no live capture (claim → CLAIM-001) |
+| CORE-004 | PARTLY FIXED | Credit assignment, stable Q-table path (`deception_scorer.py:47-66`), `deception_rotator.py`; never run against live Cowrie |
+| CORE-005 | FIXED | `socketManager.js:110-120` records every delivered event on the bus |
+| CORE-006 / CORE-007 | FIXED | Redacted copies viewer-only; single node |
+| SEC-002 / SEC-003 / ML-003 | FIXED | Fix batch 1 still present |
+| F1-001 | OPEN | No Cowrie service in `docker-compose.yml`; no Linux host |
+
+---
+
+## Stage 3–7 findings (at `a5856b7`)
+
+```
+ID: CLAIM-001 | Priority: P1 | Label: CONFIRMED (static)
+Where: paper_text.txt (abstract; Tab II; Tab IV; §VIII; §XI-B/D/G/H; §XIII), README.md:30,44,46,48,72-75,139-146,
+       frontend/src/pages/Landing.jsx:133-134,198-218, Features.jsx:4-7, About.jsx:18-28
+What: Text describes RF v2 as deployed (XGB xgb_cicids_v1 is, registry.json); XGB as synthetic-only / not deployed;
+      4 files / 6 classes / 46 features (8 / 10 / 53); an SGD partial_fit learner (no code path, features.py:598);
+      MITRE tagging on every detection (honeypot only, honeypotService.js:175); live network events (replay only);
+      a Docker Compose deployment (file exists, never run here, no Cowrie service); an Ubuntu Cowrie persona (CentOS);
+      RF/IF/SHAP on honeypot sessions (rules); a hard-coded "REAL MODE … live packet" terminal; SOAR playbooks,
+      session termination, sub-100 ms latency (none exist / unmeasured).
+      The paper also UNDERSTATES current auth (§XI-B) and tests (§XI-G, Ph8).
+Fix: Wording list in REPORT.md §3.
+```
+
+```
+ID: ML-004 | Priority: P1 | Label: CONFIRMED (static) + prior-report
+Where: xgb_classifier_xgb_cicids_v1_meta.json class_counts; docs/C1_EVALUATION_PLAN_AND_RESULTS.md §3
+What: RF-recipe leave-one-day-out attack detection 0.03–7.7%; deployed-XGB LODO not measured (UNKNOWN). Test support:
+      SQLi 4, RCE 2, Lateral 7, Data Exfiltration 0. Zero-day claims unsupported.
+Fix: Report chronological + LODO + per-class support; drop zero-day language.
+```
+
+```
+ID: SEC-004 | Priority: P2 (P1 once real enforcement is enabled) | Label: LIKELY (static)
+Where: predictor.py:541-543 (rule score + 0.02/command), honeypotService closure → containmentService.js:895,
+       containmentPolicyService.js PROTECTED_* (loopback/link-local/multicast only by default)
+What: Any HONEYPOT_API_KEY holder can open a session for any sourceIP, send enough commands to pass 0.92 and close it;
+      with autoBlock on, that IP is deny-listed and sent to the adapter. With the Windows Firewall adapter enabled,
+      that becomes a real host rule against e.g. the gateway or an analyst workstation, unless
+      CONTAINMENT_PROTECTED_TARGETS is set. An auto-block cap exists (commit b282021): it limits volume, not targets.
+Fix: Rotate the key (SEC-001); set CONTAINMENT_PROTECTED_TARGETS; require manual approval for RFC1918 auto-blocks.
+```
+
+```
+ID: OPS-002 | Priority: P2 | Label: CONFIRMED (static)
+Where: docker-compose.yml backend: NODE_ENV=development, ports "5000:5000"; securityTopology.js:45 (any transport
+       accepted outside production), authCookies.js:24 (Secure cookies only in production/https), server.js:226
+What: The compose deployment publishes the whole API on all interfaces in development mode, so logins and refresh
+      cookies travel over plain HTTP to whoever can reach port 5000.
+Fix: NODE_ENV=production behind a TLS proxy, or publish 127.0.0.1:5000 and expose only the ingest path to the honeypot.
+```
+
+```
+ID: CORE-001b | Priority: P2 | Label: CONFIRMED (static)
+Where: backend/services/containmentService.js blockThreat / blockIPManual
+What: Manual Block and block-ip still only write BlockedIP/ThreatLog (no adapter, no ContainmentAction). Labelled
+      honestly in the UI since fix batch 1.
+Fix: Route through requestContainment like auto-block.
+```
+
+```
+ID: ML-005 | Priority: P2 | Label: CONFIRMED (static)
+Where: xgb_classifier_xgb_cicids_v1_meta.json provenance.git_dirty=true, evaluation.independent_holdout=false
+What: The served model was trained from an uncommitted tree on a random split; its exact recipe is not reproducible
+      from a commit.
+Fix: Retrain from a clean commit with the chronological recipe; record the split in meta.
+```
+
+```
+ID: RET-001 | Priority: P2 | Label: CONFIRMED (static)
+Where: ai-engine/training/retrain_from_samples.py; models/registry_history.jsonl (only backfill/register_model.py)
+What: Human-gated retraining exists but has never promoted a model.
+Fix: Run it once end to end and record the registry_history entry.
+```
+
+```
+ID: TEST-003 | Priority: P2 | Label: CONFIRMED (static)
+Where: backend/tests (36 files mock models, 14 mock AI service), ai-engine/tests, frontend/e2e/realtime.spec.js
+What: No automated test runs Express ↔ FastAPI ↔ Mongo together; the firewall adapter is tested only for refusal;
+      Cowrie only via offline contracts; realtime E2E injects events via the test emit hook.
+Fix: One compose-based CI job replaying flows end to end.
+```
+
+```
+ID: TEST-004 | Priority: P2 | Label: CONFIRMED
+What: The auditor's green runs (Jest 948, pytest 335, frontend 36) predate commits e5318ac…a5856b7. Pass status at
+      HEAD is not established by this audit.
+Fix: Re-run (requires approval under the audit rules).
+```
+
+```
+ID: OPS-003 | P3 | CONFIRMED (static) — MongoDB in compose has no auth (internal network only).
+ID: OPS-004 | P3 | LIKELY (static) — honeypot/collectors/session_collector.js:8 sessionMap only shrinks on collector
+            closure; sessions closed by the sweep or never closed stay in memory (sessionId attacker-chosen, ≤128 chars).
+ID: EVT-001 | P3 | CONFIRMED (static) — ip_unblocked and critical_alert are emitted with no frontend listener.
+ID: SEC-005 | P3 | CONFIRMED (static) — helmet CSP disabled (server.js:69).
+ID: DEP-001 | P3 | CONFIRMED (static) — early-2024 Python pins (fastapi 0.109.2, requests 2.31.0, scikit-learn 1.4.0),
+            pytest in runtime requirements; experiment pickles saved with scikit-learn 1.7.2 load under 1.4.0 with
+            InconsistentVersionWarning (ran). No CVE claims: pip-audit / npm audit not run (needs network).
+```
+
+Strengths confirmed in Stage 4 (no finding): HS256 pinned, access tokens capped at 900 s, DB-backed sessions with
+revocation and inactivity timeout; Socket.IO handshake + per-packet re-auth; every router guarded; express-mongo-sanitize
++ regex escaping + ObjectId validation; 10 kB body limit; rate limits on auth and machine routes; 5xx messages
+generic; no dangerouslySetInnerHTML; AI engine not published in compose, read-only container, cap_drop ALL; model
+files SHA-256 pinned (registry + optional MODEL_REGISTRY_SHA256); /metrics token- or loopback-only; reload needs the
+admin key when configured.

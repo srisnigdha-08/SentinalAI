@@ -19,7 +19,12 @@
 const ThreatLog = require('../models/ThreatLog')
 const BlockedIP = require('../models/BlockedIP')
 const ContainmentAction = require('../models/ContainmentAction')
-const { evaluatePolicy, normalizeTarget, checkTargetSafety } = require('./containmentPolicyService')
+const {
+  evaluatePolicy,
+  normalizeTarget,
+  checkTargetSafety,
+  MAX_CONTAINMENT_DURATION_SECONDS,
+} = require('./containmentPolicyService')
 const { getContainmentAdapter } = require('./containment/adapterFactory')
 const { logContainmentAudit } = require('../utils/containmentAudit')
 const logger = require('../utils/logger')
@@ -65,6 +70,9 @@ const requestContainment = async ({
   threatRef,
   metadata = {},
   emitEvents = true,
+  // Manual block paths already wrote BlockedIP/ThreatLog themselves; re-syncing here would re-point other
+  // threats' containmentId at this action and break the scoped manual unblock.
+  syncLegacyState = true,
 }) => {
   const correlationId = uuidv4()
   const cleanReason = (typeof reason === 'string' ? reason.trim().slice(0, 200) : '') || 'Containment policy action'
@@ -296,6 +304,22 @@ const requestContainment = async ({
     },
   })
 
+  if (syncLegacyState) await syncLegacyBlockState({ normalized, cleanReason, requester, threatRef, actionDoc })
+
+  // Step 14: Emit WebSocket events (callers that emit their own, such as auto-block, opt out)
+  if (emitEvents) {
+    try {
+      const socketManager = require('../websocket/socketManager')
+      socketManager.emitIPBlocked(normalized, requester?.name || 'System', threatRef || null)
+    } catch (socketErr) {
+      logger.warn(`[Containment] Socket emission warning: ${socketErr.message}`)
+    }
+  }
+
+  return { success: true, action: actionDoc }
+}
+
+const syncLegacyBlockState = async ({ normalized, cleanReason, requester, threatRef, actionDoc }) => {
   // Step 12: Maintain Backward Compatibility with BlockedIP
   try {
     await BlockedIP.findOneAndUpdate(
@@ -334,18 +358,6 @@ const requestContainment = async ({
   } catch (threatErr) {
     logger.warn(`[Containment] Candidate threat update warning: ${threatErr.message}`)
   }
-
-  // Step 14: Emit WebSocket events (callers that emit their own, such as auto-block, opt out)
-  if (emitEvents) {
-    try {
-      const socketManager = require('../websocket/socketManager')
-      socketManager.emitIPBlocked(normalized, requester?.name || 'System', threatRef || null)
-    } catch (socketErr) {
-      logger.warn(`[Containment] Socket emission warning: ${socketErr.message}`)
-    }
-  }
-
-  return { success: true, action: actionDoc }
 }
 
 /**
@@ -357,7 +369,7 @@ const requestContainment = async ({
  * @param {string} [params.reason]
  * @returns {Promise<Object>}
  */
-const rollbackContainment = async ({ containmentId, operator, reason }) => {
+const rollbackContainment = async ({ containmentId, operator, reason, releaseLegacyState = true }) => {
   const actionDoc = await ContainmentAction.findOne({ containmentId })
   if (!actionDoc) {
     const err = new Error(`Containment action '${containmentId}' not found`)
@@ -455,6 +467,24 @@ const rollbackContainment = async ({ containmentId, operator, reason }) => {
   })
   await actionDoc.save()
 
+  // Manual unblock has already removed BlockedIP and restored its own scoped threats; it only needs the rule gone.
+  if (releaseLegacyState) await releaseLegacyBlockState(actionDoc, operator)
+
+  logContainmentAudit({
+    action: 'CONTAINMENT_ROLLED_BACK',
+    containmentId: actionDoc.containmentId,
+    correlationId,
+    target: actionDoc.normalizedTarget,
+    enforcementStatus: 'ROLLED_BACK',
+    operatorId: operator?._id || operator?.id,
+    operatorEmail: operator?.email,
+    details: { reason: cleanReason },
+  })
+
+  return { success: true, action: actionDoc }
+}
+
+const releaseLegacyBlockState = async (actionDoc, operator) => {
   // Step 5: Clean up legacy BlockedIP
   try {
     await BlockedIP.deleteOne({ ip: actionDoc.normalizedTarget })
@@ -486,19 +516,68 @@ const rollbackContainment = async ({ containmentId, operator, reason }) => {
   } catch (e) {
     logger.warn(`[Containment] Socket emission warning: ${e.message}`)
   }
+}
 
-  logContainmentAudit({
-    action: 'CONTAINMENT_ROLLED_BACK',
-    containmentId: actionDoc.containmentId,
-    correlationId,
-    target: actionDoc.normalizedTarget,
-    enforcementStatus: 'ROLLED_BACK',
-    operatorId: operator?._id || operator?.id,
-    operatorEmail: operator?.email,
-    details: { reason: cleanReason },
-  })
+// Manual blocks are indefinite deny-list entries; give their adapter rule the policy maximum rather than the
+// 1-hour default, so reconciliation does not silently lift an analyst's block after an hour.
+const MANUAL_BLOCK_DURATION_SECONDS = MAX_CONTAINMENT_DURATION_SECONDS
 
-  return { success: true, action: actionDoc }
+/**
+ * Enforces a manual block (Block button / block-ip) through the configured adapter, after the deny-list
+ * write and its audit record have succeeded. Never throws: an adapter failure leaves the deny-list entry
+ * and is reported to the caller as the enforcement status.
+ */
+const enforceManualBlock = async ({ ip, requester, reason, threatRef = null }) => {
+  try {
+    const res = await module.exports.requestContainment({
+      target: ip,
+      actionType: 'block_ip',
+      durationSeconds: MANUAL_BLOCK_DURATION_SECONDS,
+      reason,
+      requester,
+      threatRef,
+      emitEvents: false,
+      syncLegacyState: false,
+    })
+    return {
+      status: res.action?.enforcementStatus,
+      backend: res.action?.enforcementBackend,
+      containmentId: res.action?.containmentId,
+    }
+  } catch (err) {
+    logger.warn(`[Containment] Manual block adapter enforcement for ${ip} did not complete: ${err.message}`)
+    return { status: err.action?.enforcementStatus || 'FAILED', error: err.message }
+  }
+}
+
+/** Removes the adapter rules of every active containment action on an IP that was manually unblocked. */
+const releaseManualBlock = async ({ ip, operator }) => {
+  let actions
+  try {
+    actions = await ContainmentAction.find({
+      normalizedTarget: normalizeTarget(ip),
+      enforcementStatus: { $in: ['ACTIVE', 'ROLLBACK_FAILED'] },
+    })
+  } catch (err) {
+    logger.error(`[Containment] Could not look up adapter rules for unblocked ${ip}: ${err.message}`)
+    return [{ status: 'UNKNOWN', error: err.message }]
+  }
+  const results = []
+  for (const action of actions) {
+    try {
+      await module.exports.rollbackContainment({
+        containmentId: action.containmentId,
+        operator,
+        reason: 'Manual unblock',
+        releaseLegacyState: false,
+      })
+      results.push({ containmentId: action.containmentId, status: 'ROLLED_BACK' })
+    } catch (err) {
+      logger.error(`[Containment] Adapter rule removal failed for ${ip} (${action.containmentId}): ${err.message}`)
+      results.push({ containmentId: action.containmentId, status: 'ROLLBACK_FAILED', error: err.message })
+    }
+  }
+  return results
 }
 
 /**
@@ -950,5 +1029,8 @@ module.exports = {
   blockIPManual,
   unblockIPManual,
   executeAutoBlock,
+  enforceManualBlock,
+  releaseManualBlock,
+  MANUAL_BLOCK_DURATION_SECONDS,
   AUTO_BLOCK_REQUESTER,
 }

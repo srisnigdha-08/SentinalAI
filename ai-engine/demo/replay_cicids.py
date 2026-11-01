@@ -564,8 +564,9 @@ def main():
     )
     parser.add_argument(
         "--backend-url",
-        default="http://127.0.0.1:5000",
-        help="Base URL of the Node backend (backend target)"
+        default=os.getenv("SENTINEL_BACKEND_URL", "http://127.0.0.1:5000"),
+        help="Base URL of the Node backend (backend target; or SENTINEL_BACKEND_URL, which "
+             "scripts/demo/start-demo.ps1 writes to demo-env.ps1)"
     )
     parser.add_argument(
         "--email",

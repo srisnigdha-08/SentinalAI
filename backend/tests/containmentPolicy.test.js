@@ -132,6 +132,8 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
     jest
       .spyOn(containmentService, 'requestContainment')
       .mockResolvedValue({ success: true, action: { enforcementStatus: 'ACTIVE', enforcementBackend: 'mock' } })
+    // Manual unblock also removes adapter rules (CORE-001b); covered in manualBlockEnforcement.test.js
+    jest.spyOn(containmentService, 'releaseManualBlock').mockResolvedValue([])
     mockGetBlockThreshold.mockResolvedValue(0.92)
     mockBlockedIPFind.mockReturnValue({
       populate: jest.fn().mockReturnThis(),
