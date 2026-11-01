@@ -9,6 +9,36 @@ on:
       - '**'
 
 jobs:
+  secret-scan:
+    name: Secret scan (tree + pushed commits)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # commit scans need the history
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      # Prints commit, file, line, rule and the value's length only (scripts/security/secret_scan.cjs)
+      - run: node --test scripts/security/secret_scan.test.cjs
+      - name: Tracked files
+        run: node scripts/security/secret_scan.cjs
+      - name: Every commit in this push / pull request (catches a secret a later commit deleted)
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          BEFORE: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            node scripts/security/secret_scan.cjs --range "$PR_BASE..$HEAD_SHA"
+          elif [ -n "$BEFORE" ] && ! echo "$BEFORE" | grep -qE '^0+$' && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            node scripts/security/secret_scan.cjs --range "$BEFORE..$HEAD_SHA"
+          else
+            # new branch or rewritten history: every commit, minus the reviewed baseline
+            node scripts/security/secret_scan.cjs --history
+          fi
+
   backend:
     name: Backend (Lint & Test)
     runs-on: ubuntu-latest
@@ -94,8 +124,8 @@ jobs:
       # The four suites skipped in the default job refuse any other host/port/database.
       AUTH_TEST_MONGO_URI: mongodb://127.0.0.1:27029/sentinelai_auth_timezone_test_20261014
       # aiEngineService refuses to load without a key; these are CI-only placeholders, never real secrets.
-      SENTINEL_KEY: ci-mongo-suites-sentinel-key-0123456789
-      HONEYPOT_API_KEY: ci-mongo-suites-honeypot-key-0123456789
+      SENTINEL_KEY: ci-mongo-suites-sentinel-key-0123456789  # secret-scan: allow (CI-only placeholder)
+      HONEYPOT_API_KEY: ci-mongo-suites-honeypot-key-0123456789  # secret-scan: allow (CI-only placeholder)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -129,7 +159,7 @@ jobs:
       - name: Engine loads the registered models and serves a prediction
         working-directory: ai-engine
         env:
-          SENTINEL_KEY: ci-model-integrity-key-0123456789
+          SENTINEL_KEY: ci-model-integrity-key-0123456789  # secret-scan: allow (CI-only placeholder)
         run: |
           python -c "
           import sys; sys.path.insert(0, '.')

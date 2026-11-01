@@ -31,7 +31,7 @@ $env:VERIFY_VIEWER_PASSWORD  = "<YOUR_VIEWER_PASSWORD>"
 $env:HONEYPOT_API_KEY        = "<YOUR_HONEYPOT_API_KEY>"
 
 # Optional Overrides
-$env:VERIFY_EPHEMERAL_PASSWORD = "Ephemeral@Pass123!"  # Defaults to Ephemeral@Auth123! if unset
+$env:VERIFY_EPHEMERAL_PASSWORD = "Ephemeral@Pass123!"  # Defaults to Ephemeral@Auth123! if unset  # secret-scan: allow (documented test default, valid for no account)
 $env:MONGO_URI                = "mongodb://localhost:27017/sentinel-db"
 ```
 

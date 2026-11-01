@@ -1,0 +1,4 @@
+#!/bin/sh
+# Opt-in: git config core.hooksPath .githooks
+# Refuses a commit whose staged files contain a credential (scripts/security/secret_scan.cjs; values are never printed).
+exec node scripts/security/secret_scan.cjs --staged
