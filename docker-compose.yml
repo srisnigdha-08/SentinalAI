@@ -13,8 +13,18 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    # Authentication on (OPS-003). On the first start with an empty volume the image creates the root user and runs
+    # deployment/mongo-init.js, which creates the least-privilege sentinel_app user the backend connects as
+    # (append-only auditlogs). An existing volume created before this change has no users: run mongo-init.js once
+    # by hand (see its header) or start from a fresh volume. Use hex passwords (they are embedded in a URI).
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+      SENTINEL_APP_PASSWORD: ${MONGO_APP_PASSWORD:?set MONGO_APP_PASSWORD in .env}
+      SENTINEL_AUDIT_PASSWORD: ${MONGO_AUDIT_PASSWORD:?set MONGO_AUDIT_PASSWORD in .env}
     volumes:
       - mongo-data:/data/db
+      - ./deployment/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
       interval: 10s
@@ -59,7 +69,7 @@ services:
       NODE_ENV: development
       HOST: 0.0.0.0
       PORT: 5000
-      MONGO_URI: mongodb://mongo:27017/sentinel-db
+      MONGO_URI: mongodb://sentinel_app:${MONGO_APP_PASSWORD}@mongo:27017/sentinel-db?authSource=sentinel-db
       AI_ENGINE_URL: http://ai-engine:8000
       AI_ENGINE_ADMIN_KEY: ${SENTINEL_ADMIN_KEY:-}
       CLIENT_URL: http://localhost:8080

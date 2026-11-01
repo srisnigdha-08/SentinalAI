@@ -136,10 +136,23 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
     log.info("Switching persona %s -> %s%s", active, nxt, " (exploration)" if data.get("explored") else "")
     if dry_run:
         return {"changed": False, "active": active, "would_switch_to": nxt}
+    try:
+        previous_cfg = cfg_path.read_text(encoding="utf-8")
+    except OSError:
+        previous_cfg = None
     switch_profile.CFG_PATH = cfg_path
     switch_profile.generate_config(nxt)
     if not run_restart(restart_cmd):
-        return {"changed": False, "active": active, "error": "restart failed; persona not recorded"}
+        # Put the served persona's cowrie.cfg back, so the next Cowrie start (or the restart retried here) does not
+        # serve a persona the backend never recorded.
+        if previous_cfg is None:
+            return {"changed": False, "active": active, "error": "restart failed; persona not recorded"}
+        cfg_path.write_text(previous_cfg, encoding="utf-8")
+        recovered = run_restart(restart_cmd)
+        log.error("Restart with %s failed; restored the %s cowrie.cfg%s", nxt, active,
+                  "" if recovered else " but Cowrie did not restart with it either")
+        return {"changed": False, "active": active, "restored": True, "recovered": recovered,
+                "error": "restart failed; persona not recorded"}
     rec = client.call("PUT", client.PROFILE, json={"profile": nxt})
     if rec.status_code != 200:
         raise RuntimeError(f"Recording the persona failed (HTTP {rec.status_code})")

@@ -30,7 +30,7 @@ test.describe('Public Landing Page', () => {
     await expect(page.getByText('Threats Blocked')).toBeVisible();
     await expect(page.getByText('Attacks Analyzed')).toBeVisible();
     await expect(page.getByText('Honeypot Sessions')).toBeVisible();
-    await expect(page.getByText('AI Accuracy')).toBeVisible();
+    await expect(page.getByText('Test-split Accuracy')).toBeVisible(); // renamed in 347af80: random-split figure
 
     // 3b. Assert "Sample data" disclosure label is visible for unauthenticated visitors
     await expect(page.getByText(/Sample data/i)).toBeVisible();

@@ -49,7 +49,8 @@ const ThreatLogSchema = new mongoose.Schema(
 
     preBlockStatus: {
       type: String,
-      enum: ['DETECTED', 'MONITORING', 'ESCALATED', 'DEGRADED', null],
+      // Every status a block may start from (all but BLOCKED, RESOLVED, FALSE_POSITIVE), so unblock restores it
+      enum: ['DETECTED', 'INVESTIGATING', 'CONTAINED', 'MONITORING', 'ESCALATED', 'DEGRADED', null],
       default: null,
     },
     containmentId: {

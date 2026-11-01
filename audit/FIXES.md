@@ -124,3 +124,42 @@ refresh, dashboard CSP, paper wording.
 - AI engine pytest: **595 passed** (+1 new), 0 failed; exit 0 (was 1 failed).
 - Frontend: `npm test` 49/49 passed; `npm run build` succeeded.
 - Not run: Playwright E2E, `docker compose config` (no Docker on this machine), live Cowrie, real-firewall VM harness.
+
+---
+
+# Fix batch 4 — integration validation and closure (2026-11-01, at `6883308`; nothing committed)
+
+Start state: clean tree at `6883308`, 7 commits ahead of `origin/db-fixes`, no other sessions' changes; all batch 1-3
+fixes present (suites green at the end of batch 3).
+
+| ID | Final status | What was done / found |
+|---|---|---|
+| SEC-001 | **PARTIALLY RESOLVED / REQUIRES APPROVAL** | Read-only check (`SEC001_REMEDIATION.md`): repo is **public**, leaking commits `315700c`/`a7fa029` are on GitHub; the old key is in no local env file and nowhere on the WSL honeypot host, and is refused; **the leaked passwords still work for 4 accounts in sentinel-db and 5 in sentinel-demo** (0 live sessions). Plan written; passwords and history purge need you. |
+| TEST-003 cross-service E2E | **RESOLVED (local)** | `scripts/integration/run_integration.cjs` (+ README): real engine + backend + MongoDB, workflows A-D and resilience, 25/25. Not in GitHub CI: the CICIDS CSVs are git-ignored. |
+| F1-001 live Cowrie / CORE-004 apply recommendations | **RESOLVED (verified once, lab)** | `--cowrie` + `scripts/integration/cowrie_lab.sh`: real SSH sessions against WSL Cowrie on 127.0.0.1, rotator switched `ubuntu_22` → `raspberry_pi`, hostname change seen over SSH, second session credited to the new persona, Q-table updated (episode_count 3); original cfg and state restored (hash check). |
+| ROT-001 (new) rotator left a rewritten cfg after a failed restart | **RESOLVED** | `honeypot/deception_rotator.py`: restores the previous `cowrie.cfg` and retries the restart; result reports `restored`/`recovered`. Test in `test_deception_rotator.py`. |
+| CORE-008 (new) block failed for INVESTIGATING/CONTAINED threats | **RESOLVED** | `backend/models/ThreatLog.js` enum; `tests/blockFromTriageStatus.test.js` (fails before, passes after). Found by the Firefox/WebKit E2E runs. |
+| UI-001 (new) modal state carried across opens | **RESOLVED** | `key` on both containment modals and the triage modal; triage form initialised at mount (`TriageModal.jsx`, `ThreatLogs.jsx`, `Settings.jsx`). |
+| E2E-001 (new) three broken/racy E2E tests | **RESOLVED** | landing label (stale since 347af80), seeded-user restore after the password-change spec, row-render wait in threat-logs. Full suite 163/177 → 177/177. |
+| E2E-002 (new) Firefox triage note intermittently empty | **DEFERRED** | 2 of 8 Firefox repeats; absent in the final full run. Cause unknown; trace procedure in FINDINGS. |
+| RL-001 (new) stored recommendation ≠ applied persona | **DEFERRED (design)** | Seen live; documented. |
+| ML-004 / ML-005 / RET-001 | **REQUIRES APPROVAL** | `audit/ML_EVAL_PLAN.md`: provenance verified (all 8 dataset sha256 match), per-day class table (7 of 10 classes occur on one day only; Data Exfiltration has 0 samples), protocols P1-P5, metrics, promotion and rollback criteria. No training run. |
+| OPS-003 MongoDB auth | **PARTIALLY RESOLVED** | Compose: root user + `mongo-init.js` on first start, backend as `sentinel_app`; `mongo-init.js` takes `SENTINEL_DB_NAME`. Verified the role at runtime (`run_with_mongo_auth.cjs`, 24/24, no authorization errors). Compose itself not run (no Docker); existing volumes need mongo-init run once by hand (documented in compose). |
+| Dashboard CSP | **RESOLVED (preview), nginx not run** | `frontend/csp.js` → `vite preview` headers and the same string in `nginx.conf` (+ nosniff, Referrer-Policy); `tests/csp.test.mjs`. Browser check on the production build: 11 pages, 0 violations, fonts and socket OK. |
+| DEP-001 | **VERIFIED EXISTING / DEFERRED** | Installed versions equal the pins; served models load with no version warning (registry sklearn 1.4.0 = venv). Warnings come only from experiment pickles (sklearn 1.7.2) loaded by tests. Pin refresh deferred (needs network + regression run). |
+| Compose validation | **BLOCKED** | Docker not installed; YAML parses, `docker compose config` not run. |
+| WebSocket auth | **VERIFIED EXISTING** | JWT socket connects, bad token refused (harness). Reconnection after a server restart not tested. |
+| Service startup / health | **VERIFIED EXISTING** | `/health` is readiness (Mongo + engine + revocation): 503 while the engine is down, API keeps serving. |
+| Test/dev isolation | **VERIFIED** | harness: generated DB, secrets, empty dotenv; E2E: `sentinelai_test` guard; auth run: throwaway mongod. The developer databases were not written. |
+
+Also: `.gitignore` ignores `scripts/integration/runs/`; `.claude/launch.json` (local preview servers for the CSP check)
+is new and untracked.
+
+## Verification after batch 4 (ran 2026-11-01)
+- Backend Jest: 72 suites passed, 4 skipped; **1133 passed**, 13 skipped, 0 failed; exit 0. ESLint: exit 0.
+- AI engine pytest: **596 passed**, 0 failed.
+- Frontend: `npm test` **52/52**; `npm run build` OK.
+- Playwright E2E, Chromium + Firefox + WebKit: **177/177 passed** (13.8 min); 163/177 at the start of the batch.
+- Integration: `run_integration.cjs` **25/25**; `--cowrie` **30/30** (before the resilience check existed);
+  `run_with_mongo_auth.cjs` **24/24** (before the resilience check existed).
+- Not run: Docker Compose, real firewall adapter / VM harness, nginx, auto-block end to end, ML protocols P1-P5.

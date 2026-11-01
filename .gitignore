@@ -83,3 +83,6 @@ ai-engine/experiments/retraining/*/*.pkl
 
 # Built by honeypot/build_honeyfs.py (persona fs.pickle files and txtcmds)
 honeypot/personas/
+
+# Cross-service integration run evidence (scripts/integration/run_integration.cjs)
+scripts/integration/runs/

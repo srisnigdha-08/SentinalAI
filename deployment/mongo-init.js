@@ -32,7 +32,10 @@
 
 /* global db */
 
-const targetDbName = 'sentinel-db';
+// SENTINEL_DB_NAME lets scripts/integration/run_with_mongo_auth.cjs provision a throwaway database the same way.
+const targetDbName = (typeof process !== 'undefined' && process.env && process.env.SENTINEL_DB_NAME)
+  ? process.env.SENTINEL_DB_NAME
+  : 'sentinel-db';
 const appDb = db.getSiblingDB(targetDbName);
 
 const APP_USER_PASSWORD = (typeof process !== 'undefined' && process.env && process.env.SENTINEL_APP_PASSWORD)

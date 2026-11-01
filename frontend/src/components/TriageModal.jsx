@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState } from 'react'
 import { threatAPI } from '../services/api.js'
 import toast from 'react-hot-toast'
 import Modal from './Modal.jsx'
@@ -18,16 +18,11 @@ export default function TriageModal({
   onClose,
   onSuccess,
 }) {
-  const [status, setStatus] = useState('DETECTED')
-  const [triageNotes, setTriageNotes] = useState('')
+  // Initialised from the threat at mount (the parent remounts the modal per threat with `key`). Copying it in an
+  // effect instead ran after the first paint and could wipe input typed in that window.
+  const [status, setStatus] = useState(() => threat?.status || 'DETECTED')
+  const [triageNotes, setTriageNotes] = useState(() => threat?.triageNotes || '')
   const [loading, setLoading] = useState(false)
-
-  useEffect(() => {
-    if (threat) {
-      setStatus(threat.status || 'DETECTED')
-      setTriageNotes(threat.triageNotes || '')
-    }
-  }, [threat])
 
   if (!isOpen || !threat) return null
 

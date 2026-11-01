@@ -1,6 +1,12 @@
 import { test, expect, SEEDED_USERS } from './fixtures/auth.fixture.js';
+import { restoreSeededUser } from './global-setup.js';
 
 test.describe('MustChangePassword Workflow', () => {
+  // The last test changes the seeded password; the next browser project needs the original back.
+  test.afterAll(async () => {
+    await restoreSeededUser('mustChange');
+  });
+
   test('mustChangePassword user is forced to /change-password from any protected route', async ({ page, loginPage }) => {
     await loginPage.goto();
     await loginPage.login(SEEDED_USERS.mustChange.email, SEEDED_USERS.mustChange.password);

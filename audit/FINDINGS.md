@@ -398,3 +398,54 @@ revocation and inactivity timeout; Socket.IO handshake + per-packet re-auth; eve
 generic; no dangerouslySetInnerHTML; AI engine not published in compose, read-only container, cap_drop ALL; model
 files SHA-256 pinned (registry + optional MODEL_REGISTRY_SHA256); /metrics token- or loopback-only; reload needs the
 admin key when configured.
+
+---
+
+## Batch 4 findings (2026-11-01, at `6883308`)
+
+```
+ID: CORE-008 | Priority: P1 | Label: CONFIRMED (ran: Firefox/WebKit E2E, then a failing-then-passing Jest test)
+Where: backend/models/ThreatLog.js preBlockStatus enum; services/containmentService.js blockThreat (preBlockStatus = status)
+What: Blocking a threat whose status is INVESTIGATING or CONTAINED failed validation ("INVESTIGATING is not a valid
+      enum value for path preBlockStatus"); the dashboard showed "Block failed" on exactly the threats an analyst was
+      working on. Chromium E2E passed only because no earlier test had set INVESTIGATING in that project.
+Fix: enum covers every blockable status. Test: backend/tests/blockFromTriageStatus.test.js (3 fail before, pass after).
+```
+
+```
+ID: UI-001 | Priority: P3 | Label: CONFIRMED (static)
+Where: frontend/src/components/ContainmentConfirmModal.jsx (never unmounts), TriageModal.jsx (reset in useEffect)
+What: The containment modal kept the previous reason/duration across opens (cancel on one IP, open another: old text
+      prefilled). The triage modal copied the threat into its form in an effect after first paint.
+Fix: remount per open/threat with `key`; triage form initialised at mount.
+```
+
+```
+ID: E2E-001 | Priority: P2 | Label: CONFIRMED (ran)
+What: (a) landing.spec expected "AI Accuracy" after 347af80 renamed it "Test-split Accuracy" (failed in all 3 browsers
+      at HEAD); (b) password-change.spec changed the seeded user's password in the chromium project, so the same spec
+      failed in firefox/webkit (global setup seeds once); (c) threat-logs.spec counted rows when the filtered response
+      arrived, before React re-rendered.
+Fix: test updates; restoreSeededUser() in e2e/global-setup.js; expect.poll on rendered rows.
+```
+
+```
+ID: E2E-002 | Priority: P3 | Label: CONFIRMED (ran), cause UNKNOWN
+What: threat-logs.spec "assert PATCH payload": in Firefox only, intermittently (2 of 8 repeats), the PATCH carries the
+      new status but an empty triageNotes. Seen before and after the UI-001 change. Not reproduced in Chromium/WebKit.
+Next: record a trace (`--trace on --project firefox --repeat-each 8`) and compare the input events.
+```
+
+```
+ID: RL-001 | Priority: P3 | Label: CONFIRMED (ran: live Cowrie run)
+Where: GET /api/honeypot/(ingest/)deception/recommendation → ai-engine choose_action (epsilon-greedy per call)
+What: Each request samples a fresh action, so the recommendedProfile stored on a session (debian_11 in the run) is
+      not the persona the rotator applies next (raspberry_pi, an exploration draw). "Recommended" vs "applied" is
+      therefore not one decision. Harmless for learning (credit goes to the served persona) but confusing in the UI.
+Fix (design choice): have the rotator apply the recommendation recorded at the last closure, or show only the
+      applied persona.
+```
+
+```
+ID: TEST-005 | P2 | FIXED in batch 3 — Windows Q-table save race. ID: CI-002 | P2 | FIXED in batch 3 — backend lint red.
+```

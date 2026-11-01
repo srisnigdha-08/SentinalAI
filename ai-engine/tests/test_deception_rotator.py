@@ -57,6 +57,26 @@ def test_failed_restart_does_not_record_the_persona(rotator, tmp_path, monkeypat
     assert all(c.args[0] == "GET" for c in client.call.call_args_list)
 
 
+def test_failed_restart_restores_the_served_cfg_and_retries(rotator, tmp_path, monkeypatch):
+    cfg = tmp_path / "cowrie.cfg"
+    rotator.switch_profile.CFG_PATH = cfg
+    rotator.switch_profile.generate_config("centos_7")
+    original = cfg.read_text()
+    outcomes, seen = iter([1, 0]), []
+
+    def run(args, **kw):
+        seen.append(rotator.served_persona(cfg))  # persona on disk at each restart attempt
+        return MagicMock(returncode=next(outcomes), stderr="busy")
+
+    monkeypatch.setattr(rotator.subprocess, "run", run)
+    client = _client("centos_7", "ubuntu_22")
+    result = rotator.rotate_once(client, cfg, "systemctl restart cowrie", dry_run=False)
+    assert result["changed"] is False and result["restored"] is True and result["recovered"] is True
+    assert seen == ["ubuntu_22", "centos_7"]  # tried the new persona, then restarted with the restored one
+    assert cfg.read_text() == original
+    assert all(c.args[0] == "GET" for c in client.call.call_args_list)
+
+
 def test_machine_client_uses_only_the_honeypot_key_on_scoped_paths(rotator, monkeypatch, tmp_path):
     # C3: no admin login on the honeypot host; the rotator talks to /api/honeypot/ingest/deception/*.
     calls = []

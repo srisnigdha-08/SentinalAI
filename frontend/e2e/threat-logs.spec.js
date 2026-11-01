@@ -36,13 +36,13 @@ test.describe('Threat Logs Telemetry, Triage & Containment', () => {
       sevSelect.selectOption('CRITICAL'),
     ]);
 
+    // The response arrives before React re-renders the table: wait for the filtered rows, not the response.
+    // All displayed severities should be CRITICAL.
     const rows = table.locator('tbody tr');
-    const count = await rows.count();
-    expect(count).toBeGreaterThan(0);
-    // All displayed severities should be CRITICAL
-    for (let i = 0; i < count; i++) {
-      await expect(rows.nth(i).locator('td').filter({ hasText: 'CRITICAL' })).toBeVisible();
-    }
+    await expect.poll(async () => {
+      const texts = await rows.allTextContents();
+      return texts.length > 0 && texts.every((t) => t.includes('CRITICAL'));
+    }).toBe(true);
   });
 
   test('open Triage modal, update incident status and notes, and assert PATCH payload', async ({ page }) => {

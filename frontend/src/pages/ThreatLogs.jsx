@@ -376,6 +376,7 @@ export default function ThreatLogs() {
       </Panel>
 
       <ContainmentConfirmModal
+        key={modalOpen ? 'open-' + selectedThreat?._id : 'closed'} // fresh duration/reason on every open
         isOpen={modalOpen}
         target={selectedThreat?.sourceIP}
         threatInfo={selectedThreat}
@@ -386,6 +387,7 @@ export default function ThreatLogs() {
       />
 
       <TriageModal
+        key={triageThreat?._id || 'none'}
         isOpen={triageModalOpen}
         threat={triageThreat}
         isReadOnly={triageReadOnly}

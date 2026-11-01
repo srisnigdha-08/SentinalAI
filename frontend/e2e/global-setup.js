@@ -76,6 +76,27 @@ export const SEEDED_USERS = {
 
 export { validateTestDatabaseName };
 
+// Puts a seeded account back to its seeded state (password, mustChangePassword, sessions). For specs that change
+// a seeded user: global setup runs once for all three browser projects, so a change made in the chromium run
+// would otherwise break the same spec in firefox and webkit.
+export async function restoreSeededUser(role) {
+  const seed = SEEDED_USERS[role];
+  const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinelai_test';
+  validateTestDatabaseName(mongoUri);
+  const conn = await mongoose.createConnection(mongoUri, { serverSelectionTimeoutMS: 5000 }).asPromise();
+  try {
+    const Users = conn.model('User', User.schema);
+    const user = await Users.findOne({ email: seed.email }).select('+password');
+    if (!user) return;
+    user.password = seed.password; // pre-save hook hashes it
+    user.mustChangePassword = seed.mustChangePassword;
+    user.authVersion = (user.authVersion || 0) + 1; // revoke sessions issued under the changed password
+    await user.save();
+  } finally {
+    await conn.close();
+  }
+}
+
 export default async function globalSetup() {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinelai_test';
   const dbName = validateTestDatabaseName(mongoUri);

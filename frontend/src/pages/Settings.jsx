@@ -492,6 +492,7 @@ export default function Settings() {
 
 
       <ContainmentConfirmModal
+        key={modalOpen ? 'open-' + modalTarget : 'closed'} // fresh duration/reason on every open
         isOpen={modalOpen}
         target={modalTarget}
         threatInfo={{ attackType: modalReason }}
