@@ -449,3 +449,73 @@ Fix (design choice): have the rotator apply the recommendation recorded at the l
 ```
 ID: TEST-005 | P2 | FIXED in batch 3 — Windows Q-table save race. ID: CI-002 | P2 | FIXED in batch 3 — backend lint red.
 ```
+
+---
+
+## Batch 5 findings and updates (2026-11-02, at `ff90941`)
+
+```
+ID: SEC-001 (update) | P0 | CONFIRMED (ran)
+The 2026-11-01 "0 live sessions" was a checker bug (queried `userId`; the field is `user`). sentinel-db holds 114
+unrevoked, unexpired sessions for the four affected accounts, all idle since 2026-10-18 and therefore refused by the
+900 s inactivity rule (code read, not exercised). Account checklist: audit/SEC001_REMEDIATION.md.
+```
+
+```
+ID: ML-006 | P2 | CONFIRMED (ran: P5)
+At the served alert line the in-distribution benign FPR is 0.230 % (43/18,671; 95 % CI 0.17-0.31 %), above the
+project's 0.10 % acceptance line; the line trades 4.6 points of attack recall for 36 % fewer false alarms.
+XSS precision 0.41 (148 Credential-Stuffing flows predicted as XSS): two Thursday web attacks, and "Credential
+Stuffing" mixes FTP-Patator with HTTP brute force. SQLi/RCE/Lateral have 4/2/7 test flows.
+```
+
+```
+ID: ENV-001 | P3 | CONFIRMED (static)
+ai-engine/.env sets SCORE_THRESHOLD=0.7. It only changes the engine's threat counter and its /predict push to the
+backend (main.py THRESHOLD); threats/alerts still use the backend's 0.90 line. README described it as "the
+trigger threshold" (corrected). Left as configured.
+```
+
+```
+ID: E2E-002 (update) | P3 | CONFIRMED (ran), cause narrowed
+Isolated Firefox repeats of threat-logs.spec "PATCH payload": 5/10 fail against the Vite dev server; every failing
+trace has /src/pages/Dashboard.jsx (lazy route chunk served by Vite dev) never completing, followed by stalled API
+calls — a Firefox + Vite-dev-server stall in the test setup, not the triage logic. Same test against the production
+build (vite preview): 1/10 (a 60 s timeout, not diagnosed). Chromium: 6/6. The original empty-note symptom did
+not recur in 26 Firefox runs. Recommendation: run the Firefox project against `vite preview`.
+```
+
+```
+ID: RL-001 (update) | P3 | CONFIRMED (static + live run)
+Cause: choose_action() runs at every closure and on every recommendation request (rotator up to twice, Honeypot
+Analytics page on each view); only the last draw is applied and none is recorded. Design: audit/RL001_DESIGN.md.
+```
+
+---
+
+## Batch 5, second pass (2026-11-02)
+
+```
+ID: AUTH-001 | P1 (blocked SEC-001 remediation) | CONFIRMED (static + E2E) | RESOLVED
+frontend/src/App.jsx ChangePasswordRoute sent every user without mustChangePassword to /dashboard, so nobody could
+change their own password in the UI. Fixed; sidebar link; E2E (3 browsers).
+```
+
+```
+ID: SCAN-001 | P2 | CONFIRMED (tests) | RESOLVED
+The first scanner checked only the final tree (a deleted secret passed CI), printed 4 characters of each value,
+allow-listed by path prefix, accepted reasonless markers, missed *_KEY names, non-Mongo URIs, backup files and values
+containing "test" inside a word. All fixed with tests (scripts/security/secret_scan.test.cjs).
+```
+
+```
+ID: E2E-002 (update) | P3 | PARTIALLY RESOLVED
+Cause of the stall: Firefox never completed the on-demand Vite dev transform of the lazy /src/pages/Dashboard.jsx
+after login (5 of 6 failures in loginAs waitForURL). Vite server.warmup → 0/25 isolated failures. Socket.IO
+long-polling hypothesis tested and rejected. Residual empty-note failure: 1/39 Firefox spec runs, cause unknown.
+```
+
+```
+ID: RL-001 (update) | P3 | PARTIALLY RESOLVED — persisted decisions applied by id (audit/RL001_DESIGN.md).
+Remaining by design choice: closure-time draws stored as session.recommendedProfile; no evidence threshold.
+```

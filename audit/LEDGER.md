@@ -17,6 +17,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Final report | DONE — REPORT.md |
 | Fix batch 3 | APPLIED 2026-11-01 — FIXES.md (baseline breakers: Windows Q-table race, CI lint; OPS-002/004, SEC-005, EVT-001) |
 | Fix batch 4 | APPLIED 2026-11-01 — FIXES.md, READINESS_2026-11-01.md, SEC001_REMEDIATION.md, ML_EVAL_PLAN.md (integration A-D + live Cowrie + auth Mongo verified; E2E 177/177) |
+| Fix batch 5 | APPLIED 2026-11-02 — FIXES.md (SEC-001 sessions verified, self-service password change, scanner hardening, P5, P3/P4 plan, RL-001 decisions, Firefox E2E stall; all suites green) |
 
 ## Commands run in the final pass (read-only)
 - git log/diff/branch -r --contains/grep; value comparison of HONEYPOT_API_KEY vs history (match flag only)
@@ -28,5 +29,6 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 - Another session/process committed while the audit ran; confirm no one else is editing before acting on the roadmap.
 
 ## Next step
-Batch 4 done 2026-11-01. Waiting on the user: SEC-001 passwords (+ optional history purge), approval for ML P5/P3/P4,
-a Docker host for compose. Open, low: RL-001, E2E-002, DEP-001 pin refresh, paper wording.
+Batch 5 done 2026-11-02, uncommitted (commit plan in the final report). Waiting on the user: change the 9 account
+passwords (SEC-001 checklist), approval for P3/P4 training, a Docker/nginx host. Open, low: RL-001 remainder
+(closure draws, evidence rule), E2E-002 residual, DEP-001 pin refresh, paper wording.

@@ -141,7 +141,7 @@ Use the following pre-configured demonstration accounts (passwords provided sepa
    - Click the **Block IP** button on an active threat.
    - Show that the system creates a `ContainmentAction` record (`enforcementBackend: mock`: a simulated rule, no
      Windows Firewall change) and transitions the threat to `BLOCKED`. Real enforcement exists only at the Cowrie
-     honeypot, which refuses deny-listed IPs (`docs/THREAT_DEMO_RUNBOOK.md`, Part C).
+     honeypot, which refuses deny-listed IPs (`docs/THREAT_DEMO_RUNBOOK.md`, Part 3 §C — Demo C, Autonomous Incident Response).
    - Click **Triage Threat** to resolve alerts.
 
 ### Minute 3: Governance & Tamper-Evident Auditing — Admin Control Workspace

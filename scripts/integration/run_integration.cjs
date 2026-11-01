@@ -7,14 +7,17 @@
  *   node scripts/integration/run_integration.cjs [--mongo mongodb://127.0.0.1:27017] [--db sentinelai_integration_x]
  *                                                [--rows 30] [--keep] [--cowrie]
  *
- * Workflows:
- *   A  CICIDS2017 replay (ai-engine/demo/replay_cicids.py --target backend) -> /api/ai/analyze -> FastAPI ->
- *      AIPrediction/ThreatLog in MongoDB -> Socket.IO new_threat / ai_prediction to a signed-in admin socket
- *   B  Cowrie JSON log (fixture written here) -> honeypot/parsers/log_parser.py --file -> /api/honeypot/ingest ->
+ * Workflows (demo letters: A Honeypot Intelligence, B AI Threat Detection, C Autonomous Incident Response):
+ *   A  Cowrie JSON log (fixture written here) -> honeypot/parsers/log_parser.py --file -> /api/honeypot/ingest ->
  *      HoneypotSession with commands, rule classification, MITRE techniques, deception score, canary alert
+ *   A-live (--cowrie) real Cowrie in WSL: SSH sessions, persona rotation, Q-table persistence
+ *   B  CICIDS2017 replay (ai-engine/demo/replay_cicids.py --target backend) -> /api/ai/analyze -> FastAPI ->
+ *      AIPrediction/ThreatLog in MongoDB -> Socket.IO new_threat / ai_prediction to a signed-in admin socket
  *   C  Manual block-ip -> safety policy -> mock adapter -> ContainmentAction ACTIVE -> AuditLog -> unblock-ip ->
- *      ROLLED_BACK; protected target refused; policy action with a 60 s TTL rolled back by reconciliation
- *   D  CSRF + login, RBAC (viewer/analyst/admin), logout revokes the access token
+ *      ROLLED_BACK; protected target refused; policy action with a 60 s TTL rolled back by reconciliation;
+ *      auto-block enabled: flows at/above the block line are contained through the mock adapter, others are not
+ *   D  CSRF + login, RBAC (viewer/analyst/admin), socket reconnect after a backend restart, logout revokes the
+ *      access token and disconnects the user's socket
  *
  * Safety: the database name is generated (sentinelai_integration_<time>) and must contain "integration"; it is
  * the only database written, and it is dropped at the end unless --keep. Secrets and passwords are generated per
@@ -55,6 +58,8 @@ const users = {
   admin: { name: 'Integration Admin', email: 'admin@integration.test', role: 'admin', password: 'Ia1!' + secret() },
   analyst: { name: 'Integration Analyst', email: 'analyst@integration.test', role: 'analyst', password: 'Ia1!' + secret() },
   viewer: { name: 'Integration Viewer', email: 'viewer@integration.test', role: 'viewer', password: 'Ia1!' + secret() },
+  // Only for the session-invalidation checks (password change, logout-all, suspension)
+  rotation: { name: 'Rotation Analyst', email: 'rotation@integration.test', role: 'analyst', password: 'Ia1!' + secret() },
 }
 const redact = (text) => {
   let t = String(text)
@@ -242,7 +247,7 @@ async function main() {
     PYTHONDONTWRITEBYTECODE: '1',
   }
   service('engine', python, ['-m', 'uvicorn', 'inference.main:app', '--host', '127.0.0.1', '--port', String(ENGINE_PORT)], path.join(root, 'ai-engine'), engineEnv)
-  service('backend', process.execPath, ['server.js'], path.join(root, 'backend'), {
+  const backendEnv = {
     ...baseEnv(),
     DOTENV_CONFIG_PATH: emptyEnv,
     NODE_ENV: 'development',
@@ -253,10 +258,12 @@ async function main() {
     AI_ENGINE_URL: `http://127.0.0.1:${ENGINE_PORT}`,
     AI_ENGINE_ADMIN_KEY: engineEnv.SENTINEL_ADMIN_KEY,
     CONTAINMENT_BACKEND: 'mock',
+    CONTAINMENT_PROTECTED_TARGETS: '198.51.100.0/30', // auto-block refusal check (C)
     ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT: 'false',
     LOG_LEVEL: 'info',
     ...S,
-  })
+  }
+  service('backend', process.execPath, ['server.js'], path.join(root, 'backend'), backendEnv)
   await check('-', 'AI engine /ready', () =>
     waitFor(async () => {
       const r = await fetch(`http://127.0.0.1:${ENGINE_PORT}/ready`)
@@ -300,6 +307,95 @@ async function main() {
     assert(ad.status === 200, 'admin users ' + ad.status)
   })
 
+  // ── D: session invalidation — the SEC-001 remediation path, on the real backend ──
+  const AuthSession = require(path.join(root, 'backend/models/AuthSession'))
+  const UserModel = require(path.join(root, 'backend/models/User'))
+  const rot = users.rotation
+  const rotUser = await UserModel.findOne({ email: rot.email }).lean()
+  const sessionsOf = (filter = {}) => AuthSession.find({ user: rotUser._id, ...filter }).lean()
+  await check('D', 'a session in the state of the 114 historical ones (idle since 2026-10-18) cannot refresh or authenticate', async () => {
+    const c = new Client()
+    await c.login(rot)
+    const [s] = await AuthSession.find({ user: rotUser._id }).sort({ createdAt: -1 }).limit(1).lean()
+    await AuthSession.updateOne({ _id: s._id }, { $set: { lastUsedAt: new Date('2026-10-18T19:47:00Z') } })
+    const me = await c.call('GET', '/api/auth/me')
+    const refresh = await c.mutate('POST', '/api/auth/refresh-token', {})
+    assert(me.status === 401, 'access token on an idle session -> ' + me.status)
+    assert(refresh.status === 401, 'refresh of an idle session -> ' + refresh.status)
+    const after = await AuthSession.findById(s._id).lean()
+    assert(after.revokedAt, 'idle session was not revoked on use')
+    return { me: me.status, refresh: refresh.status, revocationReason: after.revocationReason }
+  })
+  await check('D', 'refresh rotation: a reused (older) refresh token is refused and revokes that session', async () => {
+    const c = new Client()
+    await c.login(rot)
+    const old = { ...c.cookies }
+    assert((await c.mutate('POST', '/api/auth/refresh-token', {})).status === 200, 'first refresh')
+    const replay = new Client()
+    replay.cookies = old
+    const r = await replay.mutate('POST', '/api/auth/refresh-token', {})
+    assert(r.status === 401, 'replayed refresh token -> ' + r.status)
+    const legit = await c.mutate('POST', '/api/auth/refresh-token', {})
+    assert(legit.status === 401, 'session not revoked after replay: current refresh -> ' + legit.status)
+    return { replay: r.status, afterReplay: legit.status }
+  })
+  await check('D', 'password change: authVersion +1, every earlier session revoked, old tokens and old password refused', async () => {
+    const a = new Client()
+    const b = new Client()
+    await a.login(rot)
+    await b.login(rot)
+    const bOld = { token: b.token, cookies: { ...b.cookies } }
+    const before = (await UserModel.findById(rotUser._id).lean()).authVersion || 0
+    const changedAt = new Date()
+    const oldPassword = rot.password
+    const newPassword = 'Ia2!' + secret()
+    const r = await a.mutate('PUT', '/api/auth/update-password', { currentPassword: oldPassword, newPassword })
+    assert(r.status === 200, 'update-password ' + r.status)
+    rot.password = newPassword // redact() covers the new value too
+    a.token = r.body.data.token
+    const after = (await UserModel.findById(rotUser._id).lean()).authVersion || 0
+    assert(after === before + 1, `authVersion ${before} -> ${after}`)
+    const preChange = await sessionsOf({ createdAt: { $lt: changedAt } })
+    const stillOpen = preChange.filter((x) => !x.revokedAt)
+    assert(stillOpen.length === 0, stillOpen.length + ' pre-change sessions not revoked')
+    const stale = new Client()
+    stale.token = bOld.token
+    stale.cookies = bOld.cookies
+    assert((await stale.call('GET', '/api/auth/me')).status === 401, 'old access token accepted')
+    assert((await stale.mutate('POST', '/api/auth/refresh-token', {})).status === 401, 'old refresh token accepted')
+    const oldLogin = await new Client().mutate('POST', '/api/auth/login', { email: rot.email, password: oldPassword })
+    assert(oldLogin.status === 401, 'old password -> ' + oldLogin.status)
+    assert((await a.call('GET', '/api/auth/me')).status === 200, 'the session issued by the change does not work')
+    const postChange = await sessionsOf({ createdAt: { $gte: changedAt }, revokedAt: null })
+    return { authVersion: [before, after], preChangeSessions: preChange.length, preChangeStillOpen: 0, newSessions: postChange.length, oldPasswordLogin: oldLogin.status }
+  })
+  await check('D', 'logout-all revokes every session of the user', async () => {
+    const a = new Client()
+    const b = new Client()
+    await a.login(rot)
+    await b.login(rot)
+    const r = await a.mutate('POST', '/api/auth/logout-all', {})
+    assert(r.status === 200, 'logout-all ' + r.status)
+    const open = await sessionsOf({ revokedAt: null })
+    assert(open.length === 0, open.length + ' sessions still open')
+    assert((await b.call('GET', '/api/auth/me')).status === 401, 'other session still authenticates')
+    return { openSessions: open.length, reasons: [...new Set((await sessionsOf()).map((x) => x.revocationReason))] }
+  })
+  await check('D', 'suspended account: existing token and new logins refused; reactivation restores login', async () => {
+    const c = new Client()
+    await c.login(rot)
+    const sus = await admin.mutate('PUT', '/api/users/' + rotUser._id, { status: 'suspended' })
+    assert(sus.status === 200, 'suspend ' + sus.status)
+    const me = await c.call('GET', '/api/auth/me')
+    const login = await new Client().mutate('POST', '/api/auth/login', { email: rot.email, password: rot.password })
+    assert([401, 403].includes(me.status), 'suspended token -> ' + me.status)
+    assert([401, 403].includes(login.status), 'suspended login -> ' + login.status)
+    const act = await admin.mutate('PUT', '/api/users/' + rotUser._id, { status: 'active' })
+    assert(act.status === 200, 'reactivate ' + act.status)
+    assert((await new Client().mutate('POST', '/api/auth/login', { email: rot.email, password: rot.password })).status === 200, 'login after reactivation')
+    return { suspendedToken: me.status, suspendedLogin: login.status }
+  })
+
   // Socket for A/B/C events
   const events = []
   const sock = socketClient(BASE, { auth: { token: admin.token }, transports: ['websocket'], reconnection: false, extraHeaders: { Origin: ORIGIN } })
@@ -317,7 +413,7 @@ async function main() {
   sock.onAny((name, payload) => events.push({ name, at: Date.now(), payload }))
   await check('D', 'socket with a bad token is rejected', () =>
     new Promise((resolve, reject) => {
-      const bad = socketClient(BASE, { auth: { token: 'not-a-token' }, transports: ['websocket'], reconnection: false })
+      const bad = socketClient(BASE, { auth: { token: 'not-a-token' }, transports: ['websocket'], reconnection: false }) // secret-scan: allow (deliberately invalid token)
       bad.on('connect', () => {
         bad.close()
         reject(new Error('connected with a bad token'))
@@ -332,7 +428,7 @@ async function main() {
   // ── A: dataset replay through the persisted path ────────────────────────────
   const AIPrediction = require(path.join(root, 'backend/models/AIPrediction'))
   const ThreatLog = require(path.join(root, 'backend/models/ThreatLog'))
-  await check('A', `replay ${ROWS} CICIDS2017 flows via replay_cicids.py --target backend`, async () => {
+  await check('B', `replay ${ROWS} CICIDS2017 flows via replay_cicids.py --target backend`, async () => {
     const out = spawnSync(python, ['-I', 'demo/replay_cicids.py', '--target', 'backend', '--rows', String(ROWS), '--delay', '0', '--backend-url', BASE, '--email', users.analyst.email, '--origin', ORIGIN, '--no-color'], {
       cwd: path.join(root, 'ai-engine'),
       env: { ...baseEnv(), SENTINEL_DEMO_PASSWORD: users.analyst.password },
@@ -343,7 +439,7 @@ async function main() {
     assert(out.status === 0, 'replay exit ' + out.status)
     return { exit: out.status }
   })
-  await check('A', 'every replayed flow is stored as an AIPrediction', async () => {
+  await check('B', 'every replayed flow is stored as an AIPrediction', async () => {
     const n = await waitFor(async () => {
       const c = await AIPrediction.countDocuments({})
       return c >= ROWS ? c : null
@@ -352,7 +448,7 @@ async function main() {
     const versions = await AIPrediction.distinct('modelVersion')
     return { predictions: n, byClass: Object.fromEntries(byClass.map((x) => [x._id, x.n])), modelVersions: versions }
   })
-  await check('A', 'non-benign predictions at/above the alert line became ThreatLogs and reached the socket', async () => {
+  await check('B', 'non-benign predictions at/above the alert line became ThreatLogs and reached the socket', async () => {
     const threats = await ThreatLog.countDocuments({})
     const live = events.filter((e) => e.name === 'new_threat').length
     const preds = events.filter((e) => e.name === 'ai_prediction').length
@@ -364,7 +460,7 @@ async function main() {
   const HoneypotSession = require(path.join(root, 'backend/models/HoneypotSession'))
   const Alert = require(path.join(root, 'backend/models/Alert'))
   const fx = cowrieFixture(path.join(tmp, 'cowrie.json'))
-  await check('B', 'log_parser.py --file posts the Cowrie session', async () => {
+  await check('A', 'log_parser.py --file posts the Cowrie session', async () => {
     const out = spawnSync(python, ['-I', path.join(root, 'honeypot/parsers/log_parser.py'), '--file', path.join(tmp, 'cowrie.json')], {
       cwd: tmp,
       env: { ...baseEnv(), HONEYPOT_API_KEY: S.HONEYPOT_API_KEY, SENTINEL_API: BASE + '/api', PARSER_STATE_DIR: path.join(tmp, 'parser-state') },
@@ -374,7 +470,7 @@ async function main() {
     fs.writeFileSync(path.join(runDir, 'parser.log'), redact((out.stdout || '') + (out.stderr || '')))
     assert(out.status === 0, 'parser exit ' + out.status)
   })
-  await check('B', 'session stored, closed and analysed (rules, MITRE, deception score)', async () => {
+  await check('A', 'session stored, closed and analysed (rules, MITRE, deception score)', async () => {
     const s = await waitFor(async () => {
       const d = await HoneypotSession.findOne({ sessionId: fx.sid }).lean()
       return d && d.closureAnalysisState === 'complete' ? d : null
@@ -397,14 +493,14 @@ async function main() {
       durationSeconds: s.durationSeconds,
     }
   })
-  await check('B', 'canary read raised an alert; honeypot events reached the socket', async () => {
+  await check('A', 'canary read raised an alert; honeypot events reached the socket', async () => {
     const canary = await Alert.countDocuments({ title: 'Canary file read' })
     assert(canary === 1, 'canary alerts ' + canary)
     const hp = events.filter((e) => e.name.startsWith('honeypot_')).map((e) => e.name)
     assert(hp.includes('honeypot_session_opened') && hp.includes('honeypot_session_closed'), 'socket: ' + [...new Set(hp)].join(','))
     return { socketEvents: [...new Set(hp)] }
   })
-  await check('B', 'replaying the same log changes nothing (idempotent ingest)', async () => {
+  await check('A', 'replaying the same log changes nothing (idempotent ingest)', async () => {
     const before = await HoneypotSession.findOne({ sessionId: fx.sid }).lean()
     const alerts = await Alert.countDocuments({})
     spawnSync(python, ['-I', path.join(root, 'honeypot/parsers/log_parser.py'), '--file', path.join(tmp, 'cowrie.json')], {
@@ -419,7 +515,7 @@ async function main() {
     assert((await Alert.countDocuments({})) === alerts, 'alerts duplicated')
     assert((await HoneypotSession.countDocuments({ sessionId: fx.sid })) === 1, 'session duplicated')
   })
-  await check('B', 'old/unknown honeypot key is refused (401/403)', async () => {
+  await check('A', 'old/unknown honeypot key is refused (401/403)', async () => {
     const r = await fetch(BASE + '/api/honeypot/ingest/check-block', { headers: { 'X-API-Key': secret() } })
     assert([401, 403].includes(r.status), 'got ' + r.status)
   })
@@ -428,8 +524,8 @@ async function main() {
   if (COWRIE) {
     const labEnv = { HONEYPOT_API_KEY: S.HONEYPOT_API_KEY, SENTINEL_API_URL: BASE + '/api' }
     let first
-    await check('B-live', `Cowrie starts on 127.0.0.1:2222 serving ${lab.persona0}`, () => wsl(['start'], labEnv) || true)
-    await check('B-live', 'real SSH session -> parser -> stored with the persona cowrie.cfg serves', async () => {
+    await check('A-live', `Cowrie starts on 127.0.0.1:2222 serving ${lab.persona0}`, () => wsl(['start'], labEnv) || true)
+    await check('A-live', 'real SSH session -> parser -> stored with the persona cowrie.cfg serves', async () => {
       first = await labSession(tmp, 1, HoneypotSession)
       const host = cfgField(fs.readFileSync(lab.cfg, 'utf8'), 'hostname')
       assert(first.ssh.includes(host), `SSH output does not show the persona hostname ${host}`)
@@ -437,7 +533,7 @@ async function main() {
       return { sessionId: first.sid, hostname: host, servedProfile: first.session.servedProfile, recommendedProfile: first.session.recommendedProfile, commands: first.session.commands.length, mitre: first.session.mitreTechniques.map((m) => m.id), events: first.eventIds }
     })
     let rotation
-    await check('B-live', 'rotator applies a recommendation: cowrie.cfg rewritten, Cowrie restarted, persona recorded', async () => {
+    await check('A-live', 'rotator applies a recommendation: cowrie.cfg rewritten, Cowrie restarted, persona recorded', async () => {
       for (let attempt = 1; attempt <= 4 && !rotation?.changed; attempt++) {
         const out = spawnSync(lab.python, [path.join(root, 'honeypot/deception_rotator.py'), '--once', '--force', '--backend', BASE, '--origin', ORIGIN, '--cfg', lab.cfg, '--restart-cmd', `wsl.exe -d Ubuntu -- bash ${toWsl(path.join(__dirname, 'cowrie_lab.sh'))} restart`], {
           env: { ...baseEnv(), HONEYPOT_API_KEY: S.HONEYPOT_API_KEY, COWRIE_LISTEN_ADDR: '127.0.0.1', COWRIE_PERSONA_FS: 'personas', ...labEnv, WSLENV: Object.keys(labEnv).join(':') },
@@ -453,16 +549,22 @@ async function main() {
       assert(rotation.changed, 'no switch applied: ' + JSON.stringify(rotation))
       const now = wsl(['persona'])
       assert(now === rotation.active && now !== lab.persona0, `cowrie.cfg persona ${now}`)
-      return rotation
+      // RL-001: the applied persona is the persisted decision the rotator was given, recorded as APPLIED
+      const DeceptionDecision = require(path.join(root, 'backend/models/DeceptionDecision'))
+      assert(rotation.decisionId, 'rotator reported no decisionId')
+      const d = await DeceptionDecision.findOne({ decisionId: rotation.decisionId }).lean()
+      assert(d && d.status === 'APPLIED' && d.action === now && d.appliedProfile === now, 'decision record ' + JSON.stringify(d && { status: d.status, action: d.action }))
+      const draws = await DeceptionDecision.countDocuments({})
+      return { ...rotation, decisionStatus: d.status, decisionState: d.state, explored: d.explored, decisionsRecorded: draws }
     })
-    await check('B-live', 'next SSH session sees the new persona and is credited to it', async () => {
+    await check('A-live', 'next SSH session sees the new persona and is credited to it', async () => {
       const second = await labSession(tmp, 2, HoneypotSession)
       const host = cfgField(fs.readFileSync(lab.cfg, 'utf8'), 'hostname')
       assert(second.ssh.includes(host), `SSH output does not show the new hostname ${host}`)
       assert(second.session.servedProfile === rotation.active, `servedProfile ${second.session.servedProfile} != ${rotation.active}`)
       return { sessionId: second.sid, hostname: host, servedProfile: second.session.servedProfile, recommendedProfile: second.session.recommendedProfile }
     })
-    await check('B-live', 'Q-table persisted: valid JSON, one episode per session, reward credited to (served -> applied)', async () => {
+    await check('A-live', 'Q-table persisted: valid JSON, one episode per session, reward credited to (served -> applied)', async () => {
       const q = JSON.parse(fs.readFileSync(qPath, 'utf8'))
       const v = q.q_table?.[lab.persona0]?.[rotation.active]
       const seeded = rotation.active === lab.alt ? lab.seedQ : 0
@@ -531,8 +633,128 @@ async function main() {
     return { expiresAt: a.expiresAt, rolledBackAt: rolled.rolledBackAt, lagSeconds: Math.round((new Date(rolled.rolledBackAt) - new Date(a.expiresAt)) / 1000) }
   })
 
-  // ── D: logout revokes ───────────────────────────────────────────────────────
-  await check('D', 'logout revokes the access token (old token -> 401)', async () => {
+  // ── C: autonomous block (auto-block enabled by an admin) ────────────────────
+  // The backend runs with CONTAINMENT_PROTECTED_TARGETS=198.51.100.0/30, so replayed flows from .1-.3 must be refused
+  // even at a blocking score, and flows from .4 and up must be contained.
+  const replay = (rows, tag) => {
+    const out = spawnSync(python, ['-I', 'demo/replay_cicids.py', '--target', 'backend', '--rows', String(rows), '--delay', '0', '--backend-url', BASE, '--email', users.analyst.email, '--origin', ORIGIN, '--no-color'], {
+      cwd: path.join(root, 'ai-engine'),
+      env: { ...baseEnv(), SENTINEL_DEMO_PASSWORD: users.analyst.password },
+      encoding: 'utf8',
+      timeout: 300000,
+    })
+    fs.writeFileSync(path.join(runDir, `replay-${tag}.log`), redact((out.stdout || '') + (out.stderr || '')))
+    assert(out.status === 0, `replay ${tag} exit ${out.status}`)
+  }
+  const isProtected = (ip) => /^198\.51\.100\.[0-3]$/.test(ip)
+  let auto = null
+  await check('C', 'auto-block on: flows at/above the block line are contained via the mock adapter; protected targets are refused', async () => {
+    const on = await admin.mutate('POST', '/api/threats/settings', { autoBlockEnabled: true })
+    assert(on.status === 200, 'enable auto-block ' + on.status)
+    const since = new Date()
+    replay(8, 'autoblock')
+    await sleep(2000) // containment runs after the threat is stored
+    const threats = await ThreatLog.find({ createdAt: { $gte: since } }).lean()
+    const high = threats.filter((t) => t.aiScore >= 0.92)
+    const low = threats.filter((t) => t.aiScore < 0.92)
+    const blocked = high.filter((t) => !isProtected(t.sourceIP))
+    const refused = high.filter((t) => isProtected(t.sourceIP))
+    assert(blocked.length > 0, 'no unprotected flow reached the block line')
+    for (const t of blocked) {
+      assert(t.status === 'BLOCKED' && t.autonomousAction?.taken, `${t.sourceIP} score ${t.aiScore} status ${t.status}`)
+      assert(await BlockedIP.exists({ ip: t.sourceIP }), 'no deny-list row for ' + t.sourceIP)
+      const a = await ContainmentAction.findOne({ normalizedTarget: t.sourceIP, enforcementStatus: 'ACTIVE' }).lean()
+      assert(a && a.enforcementBackend === 'mock', 'no ACTIVE mock containment for ' + t.sourceIP)
+    }
+    for (const t of refused) {
+      assert(t.status !== 'BLOCKED', `protected ${t.sourceIP} was blocked`)
+      assert(!(await BlockedIP.exists({ ip: t.sourceIP })), `protected ${t.sourceIP} deny-listed`)
+      assert(!(await ContainmentAction.exists({ normalizedTarget: t.sourceIP, enforcementStatus: 'ACTIVE' })), `protected ${t.sourceIP} contained`)
+      assert(/AUTO_BLOCK_REFUSED/.test(t.notes || ''), `protected ${t.sourceIP}: refusal not recorded on the threat`)
+    }
+    for (const t of low) assert(t.status !== 'BLOCKED', `${t.sourceIP} below the block line but BLOCKED`)
+    auto = { since, blocked: [...new Set(blocked.map((t) => t.sourceIP))], refused: [...new Set(refused.map((t) => t.sourceIP))] }
+    const actions = await ContainmentAction.find({ normalizedTarget: { $in: auto.blocked } }).lean()
+    return { newThreats: threats.length, contained: auto.blocked, refusedProtected: auto.refused, belowBlockLine: low.length, requestedBy: [...new Set(actions.map((a) => a.requestedByName))] }
+  })
+  await check('C', 'repeated detections of a contained IP create no second action or deny-list row', async () => {
+    assert(auto, 'auto-block check did not run')
+    replay(8, 'autoblock-repeat')
+    await sleep(2000)
+    const counts = {}
+    for (const ip of auto.blocked) {
+      counts[ip] = { active: await ContainmentAction.countDocuments({ normalizedTarget: ip, enforcementStatus: 'ACTIVE' }), denyList: await BlockedIP.countDocuments({ ip }) }
+      assert(counts[ip].active === 1 && counts[ip].denyList === 1, `${ip}: ${JSON.stringify(counts[ip])}`)
+    }
+    return counts
+  })
+  await check('C', 'containment audit trail: requested/active lines for contained IPs; none for refused ones', async () => {
+    assert(auto, 'auto-block check did not run')
+    await sleep(500)
+    const log = fs.readFileSync(path.join(runDir, 'backend.log'), 'utf8')
+    for (const ip of auto.blocked) {
+      assert(log.includes(`[AUDIT] CONTAINMENT_REQUESTED - target=${ip} `), 'no REQUESTED audit line for ' + ip)
+      assert(log.includes(`[AUDIT] CONTAINMENT_ACTIVE - target=${ip} `), 'no ACTIVE audit line for ' + ip)
+    }
+    for (const ip of auto.refused) assert(!log.includes(`[AUDIT] CONTAINMENT_ACTIVE - target=${ip} `), 'ACTIVE audit line for protected ' + ip)
+    return { auditLines: (log.match(/\[AUDIT\] [A-Z_]+ - target=198\.51\.100\.\d+/g) || []).length }
+  })
+  await check('C', 'operator rollback of an auto-block: action ROLLED_BACK, deny-list cleared, threat restored, ip_unblocked', async () => {
+    assert(auto, 'auto-block check did not run')
+    const ip = auto.blocked[0]
+    const a = await ContainmentAction.findOne({ normalizedTarget: ip, enforcementStatus: 'ACTIVE' }).lean()
+    const r = await analyst.mutate('POST', `/api/containment/actions/${a.containmentId}/rollback`, { reason: 'integration rollback' })
+    assert(r.status === 200, 'rollback ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 160))
+    assert((await ContainmentAction.findOne({ containmentId: a.containmentId }).lean()).enforcementStatus === 'ROLLED_BACK', 'not ROLLED_BACK')
+    assert(!(await BlockedIP.exists({ ip })), 'deny-list row remains')
+    const stillBlocked = await ThreatLog.countDocuments({ sourceIP: ip, status: 'BLOCKED' })
+    assert(stillBlocked === 0, stillBlocked + ' threats still BLOCKED')
+    await sleep(500)
+    assert(events.some((x) => x.name === 'ip_unblocked' && x.payload?.ip === ip), 'no ip_unblocked event')
+    return { ip, containmentId: a.containmentId }
+  })
+  await admin.mutate('POST', '/api/threats/settings', { autoBlockEnabled: false })
+
+  // ── D: sockets across a backend restart; logout revokes token and socket ────
+  await check('D', 'socket reconnects by itself after a backend restart and keeps receiving events', async () => {
+    const s2 = socketClient(BASE, { auth: { token: admin.token }, transports: ['websocket'], reconnection: true, reconnectionDelay: 500, reconnectionDelayMax: 2000, extraHeaders: { Origin: ORIGIN } })
+    let connects = 0
+    const got = []
+    s2.on('connect', () => {
+      connects++
+      s2.emit('join_room', { role: 'admin' })
+    })
+    s2.onAny((n, p) => got.push({ n, p }))
+    try {
+      await waitFor(async () => connects >= 1, 15000, 'first connect')
+      procs[1].kill()
+      await waitFor(async () => !s2.connected, 15000, 'disconnect on backend stop')
+      service('backend-restarted', process.execPath, ['server.js'], path.join(root, 'backend'), backendEnv)
+      const t0 = Date.now()
+      await waitFor(async () => connects >= 2, 90000, 'reconnect after restart')
+      const reconnectMs = Date.now() - t0
+      const ip = '198.51.100.90'
+      const r = await analyst.mutate('POST', '/api/threats/block-ip', { ip, reason: 'post-restart delivery' })
+      assert(r.status === 200, 'block-ip after restart ' + r.status)
+      await waitFor(async () => got.some((e) => e.n === 'ip_blocked' && e.p?.ip === ip), 10000, 'ip_blocked after reconnect')
+      await sleep(1500) // a duplicate (old + new subscription) would arrive in this window
+      const deliveries = got.filter((e) => e.n === 'ip_blocked' && e.p?.ip === ip).length
+      assert(deliveries === 1, `ip_blocked delivered ${deliveries} times after reconnect`)
+      await analyst.mutate('POST', '/api/threats/unblock-ip', { ip })
+      return { connects, reconnectMs, deliveries }
+    } finally {
+      s2.close()
+    }
+  })
+  await check('D', 'logout revokes the access token (old token -> 401) and disconnects that user socket', async () => {
+    const vs = socketClient(BASE, { auth: { token: viewer.token }, transports: ['websocket'], reconnection: false, extraHeaders: { Origin: ORIGIN } })
+    let reason = null
+    await new Promise((resolve, reject) => {
+      vs.on('connect', resolve)
+      vs.on('connect_error', (e) => reject(new Error('viewer socket: ' + e.message)))
+      setTimeout(() => reject(new Error('viewer socket timeout')), 15000)
+    })
+    vs.on('disconnect', (r) => (reason = r))
     const token = viewer.token
     const out = await viewer.mutate('POST', '/api/auth/logout', {})
     assert(out.status === 200, 'logout ' + out.status)
@@ -540,6 +762,9 @@ async function main() {
     stale.token = token
     const r = await stale.call('GET', '/api/auth/me')
     assert(r.status === 401, 'stale token got ' + r.status)
+    await waitFor(async () => reason, 10000, 'server-side socket disconnect after logout')
+    vs.close()
+    return { socketDisconnect: reason }
   })
 
   // ── Resilience: AI engine goes away mid-run ─────────────────────────────────
@@ -578,9 +803,9 @@ main()
     if (lab.backedUp) {
       try {
         const hash = wsl(['restore', lab.tag])
-        results.push({ wf: 'B-live', name: 'lab cowrie.cfg restored to its original content and state', status: hash === lab.originalHash ? 'PASS' : 'FAIL', detail: { hashPrefix: hash } })
+        results.push({ wf: 'A-live', name: 'lab cowrie.cfg restored to its original content and state', status: hash === lab.originalHash ? 'PASS' : 'FAIL', detail: { hashPrefix: hash } })
       } catch (e) {
-        results.push({ wf: 'B-live', name: 'lab restore', status: 'FAIL', detail: e.message + ` (backup: etc/cowrie.cfg.integ-${lab.tag})` })
+        results.push({ wf: 'A-live', name: 'lab restore', status: 'FAIL', detail: e.message + ` (backup: etc/cowrie.cfg.integ-${lab.tag})` })
       }
     }
     for (const p of procs) p.kill()

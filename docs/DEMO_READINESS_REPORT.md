@@ -99,7 +99,7 @@ cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend
 $env:SENTINEL_DEV_API_PROXY = "http://<WIN_IP>:5000"; npm run dev
 ```
 ```bash
-# 4. WSL: Cowrie. For Part C bind it to the WSL IP (loopback attackers can never be blocked)
+# 4. WSL: Cowrie. For Demo C (Autonomous Incident Response) bind it to the WSL IP (loopback attackers can never be blocked)
 cd ~/sentinelai-cowrie-test/cowrie && export PATH=~/sentinelai-cowrie-test/env/bin:$PATH
 cp etc/cowrie.cfg /tmp/cowrie.cfg.local
 sed -i "s#^listen_endpoints .*#listen_endpoints     = tcp:2222:interface=$(hostname -I | awk '{print $1}')#" etc/cowrie.cfg

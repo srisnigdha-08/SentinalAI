@@ -1,4 +1,4 @@
-# SentinelAI Threat Demonstration Runbook (A: Cowrie, B: CICIDS replay, C: Autonomous response)
+# SentinelAI Threat Demonstration Runbook (Demo A: Honeypot Intelligence, Demo B: AI Threat Detection, Demo C: Autonomous Incident Response)
 
 Audited and run on 2026-10-22 (IST) on this laptop. Everything marked **[RUN]** was executed today and the output is pasted unedited (excerpted where long, never altered). **[CODE]** = verified by reading the file only. **NOT RUN** = expected output unverified.
 
@@ -235,7 +235,7 @@ Expected [RUN]: `Persona source: …cowrie.cfg (now serving ubuntu_22)`, then `T
 
 ## PART 3: Step-by-step threat demo
 
-### A. Live Cowrie SSH honeypot attack
+### A. Demo A — Honeypot Intelligence (live Cowrie SSH attack)
 
 **A1. Show the honeypot is up.** Point at Terminal 5 ("Ready to accept SSH connections") and the Honeypot Analytics tab.
 *Say:* "This is Cowrie, a medium-interaction SSH honeypot, running in WSL on port 2222. It pretends to be an Ubuntu 22.04 server. Nothing an attacker types here runs on a real operating system: Cowrie answers every command from a fake filesystem."
@@ -298,7 +298,7 @@ Real [RUN]: `campaignId: 'CAMP-B1DC0807'`, 4 sessions, `sourceIPs: ['172.29.32.1
 ### Transition A → B
 *Say:* "Deception catches attackers who log in and interact. Plenty of hostile traffic never logs in, though: floods and port scans only show up as flow statistics. For that we use a flow classifier. I can't produce a real flood on a laptop, so I'll replay labelled flows from the public CICIDS2017 dataset. One seam to be upfront about: these replayed flows come from 2017 capture addresses, which I re-map to reserved test addresses. They are not the attacker you just watched."
 
-### B. CICIDS2017 replay through the ML engine
+### B. Demo B — AI Threat Detection (CICIDS2017 replay through the ML engine)
 
 **B1. Presentation run** (Terminal 8, in `ai-engine`):
 ```bash
@@ -352,7 +352,7 @@ PortScan file:  Total 200 | Correct 196 | Misclassified 4 | Accuracy 98.00%
 ### Transition B → C
 *Say:* "Detection is only half of it. Now the response. Auto-blocking is off by default, because a false positive like flow 185 would block a legitimate host. I've switched it on for this demo. Remember the attacker from part A: their session crossed the 0.92 line, so let's see what happened to them. This is where the two halves meet: the block that matters is the honeypot attacker's, not the replayed 2017 addresses."
 
-### C. Autonomous response
+### C. Demo C — Autonomous Incident Response
 
 **C1. Show the block decision.** Threats tab, then Containment/Blocked IPs.
 Real [RUN]:

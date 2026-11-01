@@ -222,7 +222,8 @@ pip install -r requirements.txt
 # Configure environment variables (SENTINEL_KEY must match backend/.env)
 cp .env.example .env
 
-# Launch FastAPI inference server. --env-file is required: the engine does not read .env itself.
+# Launch FastAPI inference server. The engine loads ai-engine/.env itself (never overriding variables already set);
+# --env-file does the same through uvicorn.
 # Bind to loopback; only the backend needs to reach it.
 uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file .env --reload
 # API documentation available at http://localhost:8000/docs
@@ -264,7 +265,8 @@ npm run dev
 | `MODEL_DIR` | Directory containing serialized `.pkl` models | `./models` |
 | `SENTINEL_API` | Backend API URL for threat callbacks | `http://localhost:5000/api` |
 | `SENTINEL_KEY` | Shared internal key (matches backend) | Required |
-| `SCORE_THRESHOLD` | ThreatScore trigger threshold | `0.7` |
+| `ALERT_THRESHOLD` / `BLOCK_THRESHOLD` | Alert line (threat + alert) and block line (auto-block when enabled) | `0.90` / `0.92` |
+| `SCORE_THRESHOLD` | Only the engine's own threat counter and its `/predict` push to the backend; the backend still applies the alert line | defaults to the alert line |
 | `CORS_ORIGINS` | Permitted cross-origin endpoints | `http://localhost:3000,http://localhost:5000` |
 
 ---
@@ -287,7 +289,30 @@ cd ../frontend
 npm test
 ```
 
-Continuous integration is enforced on every pull request via **GitHub Actions** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Beyond the unit suites:
+
+| Check | Command (from the repository root) | Notes |
+| :--- | :--- | :--- |
+| Cross-service integration (Demos A–C + auth) | `node scripts/integration/run_integration.cjs` (`--cowrie` adds live WSL Cowrie) | real engine + backend + MongoDB on a throwaway DB; see [`scripts/integration/README.md`](scripts/integration/README.md) |
+| Browser E2E (Chromium, Firefox, WebKit) | `cd frontend && npx playwright test` | uses the `sentinelai_test` database |
+| Served-model evaluation (inference only) | `ai-engine/.venv/Scripts/python ai-engine/evaluation/p5_served_model_eval.py` | reconstructs the training split; [`audit/ML_EVAL_PLAN.md`](audit/ML_EVAL_PLAN.md) |
+| Secret scan | `node scripts/security/secret_scan.cjs` (`--staged`, `--history`) | never prints values; opt-in hook: `git config core.hooksPath .githooks` |
+
+Continuous integration runs on every push and pull request via **GitHub Actions** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, unit suites, secret scan.
+
+---
+
+## 🎬 Demonstrations
+
+The three demos keep the same letters in every document and script:
+
+| Demo | What it shows | Runbook | Say in the viva |
+| :--- | :--- | :--- | :--- |
+| **Demo A — Honeypot Intelligence** | live Cowrie SSH sessions (WSL) → parser → attacker behaviour (rule classification), MITRE mapping, deception score; persona adaptation by the rotator; Q-learning persistence | [`docs/THREAT_DEMO_RUNBOOK.md`](docs/THREAT_DEMO_RUNBOOK.md) Part 3 §A, `scripts/demo/cowrie-demo-mode.sh` | sessions are classified by rules; the persona learner is a tabular Q-learning recommender applied by the rotator |
+| **Demo B — AI Threat Detection** | CICIDS2017 flow replay → XGBoost inference + Isolation Forest anomaly score → ThreatLog persistence → SOC dashboard updates | Part 3 §B, `ai-engine/demo/replay_cicids.py --target backend` | replayed flow records, not live capture; 0.99 accuracy is an in-distribution split |
+| **Demo C — Autonomous Incident Response** | policy-controlled containment (protected targets, thresholds) → mock adapter → deny-list → expiry / rollback → audit log; manual or auto-block | Part 3 §C | the firewall rule is simulated (mock adapter); the honeypot deny-list is the only real enforcement |
+
+Readiness and limitations: [`audit/READINESS_2026-11-01.md`](audit/READINESS_2026-11-01.md).
 
 ---
 

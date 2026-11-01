@@ -134,7 +134,7 @@ fixes present (suites green at the end of batch 3).
 
 | ID | Final status | What was done / found |
 |---|---|---|
-| SEC-001 | **PARTIALLY RESOLVED / REQUIRES APPROVAL** | Read-only check (`SEC001_REMEDIATION.md`): repo is **public**, leaking commits `315700c`/`a7fa029` are on GitHub; the old key is in no local env file and nowhere on the WSL honeypot host, and is refused; **the leaked passwords still work for 4 accounts in sentinel-db and 5 in sentinel-demo** (0 live sessions). Plan written; passwords and history purge need you. |
+| SEC-001 | **PARTIALLY RESOLVED / REQUIRES APPROVAL** | Read-only check (`SEC001_REMEDIATION.md`): repo is **public**, leaking commits `315700c`/`a7fa029` are on GitHub; the old key is in no local env file and nowhere on the WSL honeypot host, and is refused; **the leaked passwords still work for 4 accounts in sentinel-db and 5 in sentinel-demo** (session count wrong here: 114 unrevoked sessions in sentinel-db, see the 2026-11-02 correction in SEC001_REMEDIATION.md). Plan written; passwords and history purge need you. |
 | TEST-003 cross-service E2E | **RESOLVED (local)** | `scripts/integration/run_integration.cjs` (+ README): real engine + backend + MongoDB, workflows A-D and resilience, 25/25. Not in GitHub CI: the CICIDS CSVs are git-ignored. |
 | F1-001 live Cowrie / CORE-004 apply recommendations | **RESOLVED (verified once, lab)** | `--cowrie` + `scripts/integration/cowrie_lab.sh`: real SSH sessions against WSL Cowrie on 127.0.0.1, rotator switched `ubuntu_22` → `raspberry_pi`, hostname change seen over SSH, second session credited to the new persona, Q-table updated (episode_count 3); original cfg and state restored (hash check). |
 | ROT-001 (new) rotator left a rewritten cfg after a failed restart | **RESOLVED** | `honeypot/deception_rotator.py`: restores the previous `cowrie.cfg` and retries the restart; result reports `restored`/`recovered`. Test in `test_deception_rotator.py`. |
@@ -163,3 +163,31 @@ is new and untracked.
 - Integration: `run_integration.cjs` **25/25**; `--cowrie` **30/30** (before the resilience check existed);
   `run_with_mongo_auth.cjs` **24/24** (before the resilience check existed).
 - Not run: Docker Compose, real firewall adapter / VM harness, nginx, auto-block end to end, ML protocols P1-P5.
+
+---
+
+# Fix batch 5 — SEC-001 verification, P5, RL-001 decisions, E2E stability (2026-11-02, at `ff90941`; nothing committed)
+
+| ID | Final status | What was done / found |
+|---|---|---|
+| SEC-001 | **REQUIRES USER ACTION** | Re-checked: the 3 leaked passwords still open 9 account records (4 in sentinel-db, 5 in sentinel-demo); the old honeypot key is in no env file and refused. Corrected session count (checker bug: `userId` → `user`): 114 unrevoked rows in sentinel-db. Session invalidation verified on the running backend (7 requirements, `SEC001_REMEDIATION.md` § Sessions). Account-by-account checklist with exact steps. |
+| AUTH-001 (new) no way to change your own password in the UI | **RESOLVED** | `/change-password` redirected everyone not flagged `mustChangePassword`. Route opened to all signed-in users; page wording/cancel differ for forced vs voluntary; sidebar "CHANGE PASSWORD". E2E test (3 browsers). Files: `frontend/src/App.jsx`, `pages/ChangePassword.jsx`, `components/Sidebar.jsx`, `e2e/password-change.spec.js`. |
+| SCAN-001 (new) secret scanner gaps | **RESOLVED** | Commit-range scanning (`--range`, CI over every pushed commit, `fetch-depth: 0`), reviewed-history baseline, length-only output (was 2+2 characters), exact-path allowlist, reason-required marker, `*_KEY` names, all URI schemes, backup files, whole-word test values. 9 tests incl. a throwaway-repo range scan. History values bcrypt-checked: only the 3 known passwords open anything. Files: `scripts/security/*`, `.github/workflows/ci.yml`, `.githooks/pre-commit`. |
+| ML-004 plan | **RESOLVED (plan)** | `ML_EVAL_PLAN.md` corrected: 8 files ≠ 5 calendar days; `--rows 20000` is unused for real data; identical-boundary rule; per-day class table. |
+| P5 | **VERIFIED** | `ai-engine/evaluation/p5_served_model_eval.py`; split reconstruction equals the meta exactly (re-verified after the loader change); accuracy 0.9897, macro F1 0.8738, weighted F1 0.9907; benign FPR 0.230 % at the alert line; full results in `ML_EVAL_PLAN.md` §5 and `ai-engine/experiments/p5_served_eval_20261102/`. |
+| P3/P4/P4f | **REQUIRES APPROVAL (prepared)** | `ai-engine/evaluation/xgb_holdout_eval.py` plan mode: frozen manifests (sha256 in `experiments/xgb_holdout_20261102/plan.json`; manifests git-ignored), fold tables with classes absent from training, per-fold label re-encoding, `--run` refuses without `--approved`. 4 unit tests. Nothing trained. |
+| RL-001 | **PARTIALLY RESOLVED** | Persisted decisions (`DeceptionDecision`): drawn once per served persona, reused by every caller (6 concurrent requests → 1 decision), applied/acknowledged/failed by id with compare-and-set, superseded on persona change or TTL. Rotator sends `decisionId`, acknowledges keeps, fails on restart failure. Live lab: applied persona `debian_11` = APPLIED decision's action. Not changed (needs your decision): closure-time draws still stored as `session.recommendedProfile`; no minimum-evidence rule; engine RNG not seeded. `RL001_DESIGN.md` § Implemented. |
+| E2E-002 | **PARTIALLY RESOLVED** | Root cause of the Firefox stall found: the lazy route chunk (`/src/pages/Dashboard.jsx`) served on demand by the Vite dev server never completed after login in Firefox. `server.warmup` for `src/pages` and `src/components`: isolated repeats 5/10 and 6/10 failing → 0/10 and 0/15; full suite 7.8 min (was 13.8). Rejected hypothesis (tested, reverted): Socket.IO long-polling starving connections (websocket-first: still 6/10). Residual: the empty-triage-note failure, 1 in 39 Firefox runs of the spec; cause unknown. |
+| WS-001 reconnection | **VERIFIED** | After a backend restart the socket reconnects (5.6 s), authenticates with its token, receives events exactly once (no duplicate after re-subscription); logout disconnects the user's socket server-side. |
+| C-auto autonomous response | **VERIFIED (mock adapter)** | Auto-block contained 3/3 unprotected high-score flows, refused 1/1 in `CONTAINMENT_PROTECTED_TARGETS` (recorded on the threat), no second action on repeated detections, audit lines present, operator rollback → ROLLED_BACK + deny-list cleared + threat restored + `ip_unblocked`; engine outage → DEGRADED, never blocked; TTL expiry earlier in the run. |
+| Demo naming | **RESOLVED** | Demo A — Honeypot Intelligence, Demo B — AI Threat Detection, Demo C — Autonomous Incident Response in README, runbooks, readiness report, harness. |
+| Deployment | **BLOCKED (tools)** | Docker and nginx not installed: compose start, nginx CSP and TLS not executed. Static: compose YAML parses; every `${VAR:?}` is in `.env.compose.example`. |
+
+## Verification after batch 5 (ran 2026-11-02)
+- Backend Jest: 73 suites passed, 4 skipped; **1147 passed**, 13 skipped, 0 failed. ESLint: exit 0.
+- AI engine pytest: **604 passed**, 0 failed.
+- Frontend: `npm test` 52/52; `npm run build` OK.
+- Playwright E2E, Chromium + Firefox + WebKit: **180/180** (7.8 min).
+- Secret scan: 9/9 tests; tree 0 findings; history 0 new (25 reviewed in the baseline).
+- Integration: `run_integration.cjs --cowrie` **41/41**; `run_with_mongo_auth.cjs` **35/35** (no authorization errors).
+- Not run: Docker Compose, nginx, real firewall adapter, P3/P4 training.
