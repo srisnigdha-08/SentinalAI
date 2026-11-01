@@ -1,0 +1,544 @@
+{
+  "generated_at": "2026-11-01T19:41:38.836742+00:00",
+  "protocol": "P5 inference-only, served model, reconstructed stratified_random_80_20 test split",
+  "thresholds": {
+    "alert": 0.9,
+    "block": 0.92,
+    "anomaly": -0.55,
+    "review_min_signal": 0.55
+  },
+  "artefacts": {
+    "classifier": {
+      "file": "xgb_classifier_xgb_cicids_v1.pkl",
+      "registry_sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+      "actual_sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b"
+    },
+    "anomaly": {
+      "file": "isolation_forest_xgb_cicids_v1.pkl",
+      "registry_sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
+      "actual_sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053"
+    },
+    "version": "xgb_cicids_v1",
+    "loaded_via": "SentinelPredictor.load (registry sha256 + golden set)",
+    "dataset_sha256_match": {
+      "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": true,
+      "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": true,
+      "Friday-WorkingHours-Morning.pcap_ISCX.csv": true,
+      "Monday-WorkingHours.pcap_ISCX.csv": true,
+      "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": true,
+      "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": true,
+      "Tuesday-WorkingHours.pcap_ISCX.csv": true,
+      "Wednesday-workingHours.pcap_ISCX.csv": true
+    }
+  },
+  "split_reconstruction": {
+    "matches_meta": true,
+    "rebuilt": {
+      "deduplication": {
+        "rows_before": 148015,
+        "rows_after": 124534,
+        "removed": 23481,
+        "conflicting_label_vectors": 33
+      },
+      "class_counts": {
+        "train": {
+          "BENIGN": 74682,
+          "SSH Brute Force": 2575,
+          "SQL Injection": 17,
+          "Port Scan": 283,
+          "DDoS": 14440,
+          "RCE Attempt": 9,
+          "XSS Attempt": 522,
+          "Malware Beacon": 1149,
+          "Credential Stuffing": 5921,
+          "Lateral Movement": 29
+        },
+        "test": {
+          "BENIGN": 18671,
+          "SSH Brute Force": 644,
+          "SQL Injection": 4,
+          "Port Scan": 71,
+          "DDoS": 3610,
+          "RCE Attempt": 2,
+          "XSS Attempt": 130,
+          "Malware Beacon": 288,
+          "Credential Stuffing": 1480,
+          "Lateral Movement": 7
+        }
+      }
+    },
+    "expected": {
+      "deduplication": {
+        "rows_before": 148015,
+        "rows_after": 124534,
+        "removed": 23481,
+        "conflicting_label_vectors": 33
+      },
+      "class_counts": {
+        "train": {
+          "BENIGN": 74682,
+          "SSH Brute Force": 2575,
+          "SQL Injection": 17,
+          "Port Scan": 283,
+          "DDoS": 14440,
+          "RCE Attempt": 9,
+          "XSS Attempt": 522,
+          "Malware Beacon": 1149,
+          "Credential Stuffing": 5921,
+          "Lateral Movement": 29
+        },
+        "test": {
+          "BENIGN": 18671,
+          "SSH Brute Force": 644,
+          "SQL Injection": 4,
+          "Port Scan": 71,
+          "DDoS": 3610,
+          "RCE Attempt": 2,
+          "XSS Attempt": 130,
+          "Malware Beacon": 288,
+          "Credential Stuffing": 1480,
+          "Lateral Movement": 7
+        }
+      }
+    },
+    "load_seconds": 23.3
+  },
+  "leakage": {
+    "test_rows_with_feature_vector_in_train": 15,
+    "of_test_rows": 24907,
+    "time_of_day_columns_constant": true,
+    "identifier_like_feature_names": []
+  },
+  "scoring_ms_per_row_batch": 0.0244,
+  "classifier": {
+    "accuracy": 0.9897,
+    "f1_macro": 0.8738,
+    "f1_weighted": 0.9907,
+    "precision_macro": 0.8944,
+    "recall_macro": 0.8848,
+    "meta_recorded": {
+      "accuracy": 0.9897,
+      "f1_weighted": 0.9907,
+      "f1_macro": 0.8738
+    },
+    "per_class": {
+      "BENIGN": {
+        "precision": 0.9994,
+        "recall": 0.9964,
+        "f1": 0.9979,
+        "support": 18671,
+        "tp": 18604,
+        "recall_wilson95": [
+          0.9954,
+          0.9972
+        ]
+      },
+      "SSH Brute Force": {
+        "precision": 0.9984,
+        "recall": 1.0,
+        "f1": 0.9992,
+        "support": 644,
+        "tp": 644,
+        "recall_wilson95": [
+          0.9941,
+          1.0
+        ]
+      },
+      "SQL Injection": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1": 0.6667,
+        "support": 4,
+        "tp": 2,
+        "recall_wilson95": [
+          0.15,
+          0.85
+        ]
+      },
+      "Port Scan": {
+        "precision": 0.85,
+        "recall": 0.9577,
+        "f1": 0.9007,
+        "support": 71,
+        "tp": 68,
+        "recall_wilson95": [
+          0.883,
+          0.9855
+        ]
+      },
+      "DDoS": {
+        "precision": 0.9967,
+        "recall": 0.9994,
+        "f1": 0.9981,
+        "support": 3610,
+        "tp": 3608,
+        "recall_wilson95": [
+          0.998,
+          0.9998
+        ]
+      },
+      "RCE Attempt": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "support": 2,
+        "tp": 2,
+        "recall_wilson95": [
+          0.3424,
+          1.0
+        ]
+      },
+      "XSS Attempt": {
+        "precision": 0.4071,
+        "recall": 0.7923,
+        "f1": 0.5379,
+        "support": 130,
+        "tp": 103,
+        "recall_wilson95": [
+          0.7147,
+          0.8532
+        ]
+      },
+      "Malware Beacon": {
+        "precision": 0.8824,
+        "recall": 0.9896,
+        "f1": 0.9329,
+        "support": 288,
+        "tp": 285,
+        "recall_wilson95": [
+          0.9698,
+          0.9965
+        ]
+      },
+      "Credential Stuffing": {
+        "precision": 0.9772,
+        "recall": 0.898,
+        "f1": 0.9359,
+        "support": 1480,
+        "tp": 1329,
+        "recall_wilson95": [
+          0.8815,
+          0.9124
+        ]
+      },
+      "Lateral Movement": {
+        "precision": 0.8333,
+        "recall": 0.7143,
+        "f1": 0.7692,
+        "support": 7,
+        "tp": 5,
+        "recall_wilson95": [
+          0.3589,
+          0.9178
+        ]
+      }
+    },
+    "confusion_matrix": {
+      "labels": [
+        "BENIGN",
+        "SSH Brute Force",
+        "SQL Injection",
+        "Port Scan",
+        "DDoS",
+        "RCE Attempt",
+        "XSS Attempt",
+        "Malware Beacon",
+        "Credential Stuffing",
+        "Lateral Movement"
+      ],
+      "rows_true_cols_pred": [
+        [
+          18604,
+          1,
+          0,
+          11,
+          12,
+          0,
+          2,
+          38,
+          2,
+          1
+        ],
+        [
+          0,
+          644,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          68,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          1,
+          3608,
+          0,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          0,
+          0,
+          0,
+          0,
+          0,
+          2,
+          0,
+          0,
+          0,
+          0
+        ],
+        [
+          1,
+          0,
+          0,
+          0,
+          0,
+          0,
+          103,
+          0,
+          26,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          285,
+          0,
+          0
+        ],
+        [
+          3,
+          0,
+          0,
+          0,
+          0,
+          0,
+          148,
+          0,
+          1329,
+          0
+        ],
+        [
+          2,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          0,
+          5
+        ]
+      ]
+    },
+    "classes_never_seen": [
+      "Data Exfiltration"
+    ]
+  },
+  "operating_lines": {
+    "classifier_argmax": {
+      "attack_recall": 0.9981,
+      "benign_fpr": 0.003588,
+      "fnr": 0.0019,
+      "tp": 6224,
+      "fp": 67,
+      "fn": 12,
+      "tn": 18604,
+      "benign_fpr_wilson95": [
+        0.0028,
+        0.0046
+      ]
+    },
+    "alert_line": {
+      "attack_recall": 0.9522,
+      "benign_fpr": 0.002303,
+      "fnr": 0.0478,
+      "tp": 5938,
+      "fp": 43,
+      "fn": 298,
+      "tn": 18628,
+      "benign_fpr_wilson95": [
+        0.0017,
+        0.0031
+      ]
+    },
+    "block_line": {
+      "attack_recall": 0.9476,
+      "benign_fpr": 0.002249,
+      "fnr": 0.0524,
+      "tp": 5909,
+      "fp": 42,
+      "fn": 327,
+      "tn": 18629,
+      "benign_fpr_wilson95": [
+        0.0017,
+        0.003
+      ]
+    },
+    "unknown_override_rows": 942,
+    "review_queue": {
+      "benign": 180,
+      "attack": 0
+    },
+    "actions": {
+      "ALLOW": 18746,
+      "MONITOR": 30,
+      "BLOCK": 5951,
+      "REVIEW": 180
+    }
+  },
+  "probabilistic": {
+    "pr_auc_attack_vs_benign": 0.9995,
+    "brier_attack_probability": 0.002754,
+    "reliability": [
+      {
+        "bin": [
+          0.0,
+          0.1
+        ],
+        "n": 18520,
+        "mean_p": 0.0014,
+        "attack_rate": 0.0003
+      },
+      {
+        "bin": [
+          0.1,
+          0.2
+        ],
+        "n": 67,
+        "mean_p": 0.1429,
+        "attack_rate": 0.0299
+      },
+      {
+        "bin": [
+          0.2,
+          0.3
+        ],
+        "n": 16,
+        "mean_p": 0.2563,
+        "attack_rate": 0.0
+      },
+      {
+        "bin": [
+          0.3,
+          0.4
+        ],
+        "n": 6,
+        "mean_p": 0.3472,
+        "attack_rate": 0.0
+      },
+      {
+        "bin": [
+          0.4,
+          0.5
+        ],
+        "n": 5,
+        "mean_p": 0.4507,
+        "attack_rate": 0.4
+      },
+      {
+        "bin": [
+          0.5,
+          0.6
+        ],
+        "n": 7,
+        "mean_p": 0.5556,
+        "attack_rate": 0.4286
+      },
+      {
+        "bin": [
+          0.6,
+          0.7
+        ],
+        "n": 2,
+        "mean_p": 0.6288,
+        "attack_rate": 0.0
+      },
+      {
+        "bin": [
+          0.7,
+          0.8
+        ],
+        "n": 14,
+        "mean_p": 0.7377,
+        "attack_rate": 0.1429
+      },
+      {
+        "bin": [
+          0.8,
+          0.9
+        ],
+        "n": 11,
+        "mean_p": 0.8606,
+        "attack_rate": 0.6364
+      },
+      {
+        "bin": [
+          0.9,
+          1.0
+        ],
+        "n": 6259,
+        "mean_p": 0.999,
+        "attack_rate": 0.9928
+      }
+    ]
+  },
+  "errors_by_pair": {
+    "Credential Stuffing -> XSS Attempt": 148,
+    "BENIGN -> Malware Beacon": 38,
+    "XSS Attempt -> Credential Stuffing": 26,
+    "BENIGN -> DDoS": 12,
+    "BENIGN -> Port Scan": 11,
+    "Credential Stuffing -> BENIGN": 3,
+    "Malware Beacon -> BENIGN": 3,
+    "SQL Injection -> Credential Stuffing": 2,
+    "BENIGN -> Credential Stuffing": 2,
+    "Lateral Movement -> BENIGN": 2,
+    "Port Scan -> BENIGN": 2,
+    "BENIGN -> XSS Attempt": 2,
+    "BENIGN -> Lateral Movement": 1,
+    "XSS Attempt -> BENIGN": 1,
+    "DDoS -> Port Scan": 1,
+    "Port Scan -> Credential Stuffing": 1,
+    "DDoS -> BENIGN": 1,
+    "BENIGN -> SSH Brute Force": 1
+  }
+}

@@ -1,0 +1,460 @@
+{
+  "generated_at": "2026-11-01T21:36:38.890777+00:00",
+  "mode": "plan",
+  "pool": {
+    "rows": 124534,
+    "build_seconds": 17.7,
+    "by_day": {
+      "Monday": 12022,
+      "Tuesday": 21038,
+      "Wednesday": 19856,
+      "Thursday": 24104,
+      "Friday": 47514
+    },
+    "by_file": {
+      "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": 22028,
+      "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": 12075,
+      "Friday-WorkingHours-Morning.pcap_ISCX.csv": 13411,
+      "Monday-WorkingHours.pcap_ISCX.csv": 12022,
+      "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": 10132,
+      "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": 13972,
+      "Tuesday-WorkingHours.pcap_ISCX.csv": 21038,
+      "Wednesday-workingHours.pcap_ISCX.csv": 19856
+    },
+    "data_sha256": {
+      "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+      "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+      "Friday-WorkingHours-Morning.pcap_ISCX.csv": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+      "Monday-WorkingHours.pcap_ISCX.csv": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+      "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+      "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+      "Tuesday-WorkingHours.pcap_ISCX.csv": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+      "Wednesday-workingHours.pcap_ISCX.csv": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a"
+    }
+  },
+  "recipe": {
+    "model": "StandardScaler + XGBClassifier",
+    "params": {
+      "n_estimators": 200,
+      "max_depth": 6,
+      "learning_rate": 0.1,
+      "random_state": 42,
+      "n_jobs": -1,
+      "eval_metric": "mlogloss"
+    },
+    "sample_weight": "balanced",
+    "label_encoding": "per fold, over classes present in training"
+  },
+  "protocols": {
+    "P3": [
+      {
+        "fold": "Mon-Wed -> Thu+Fri",
+        "sha256": "06d910df999d544d1eca7763644fc52b8a116943865958671cdbc515dc5651b8",
+        "train_rows": 52916,
+        "test_rows": 71618,
+        "classes": {
+          "train": {
+            "BENIGN": 35705,
+            "SSH Brute Force": 3219,
+            "DDoS": 8050,
+            "RCE Attempt": 11,
+            "Credential Stuffing": 5931
+          },
+          "test": {
+            "BENIGN": 57648,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 10000,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 1470,
+            "Lateral Movement": 36
+          },
+          "absent_from_training": [
+            "Lateral Movement",
+            "Malware Beacon",
+            "Port Scan",
+            "SQL Injection",
+            "XSS Attempt"
+          ],
+          "attack_test_rows_of_unseen_classes": 2500
+        },
+        "estimated_fit_minutes": "~1 (size-scaled guess; unmeasured)"
+      }
+    ],
+    "P4": [
+      {
+        "fold": "Monday",
+        "sha256": "5a172c8c00a22d8f735c41e62fb9d5c631c21beb241fc6269a2166c53cba8648",
+        "train_rows": 112512,
+        "test_rows": 12022,
+        "classes": {
+          "train": {
+            "BENIGN": 81331,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 12022
+          },
+          "absent_from_training": [],
+          "attack_test_rows_of_unseen_classes": 0
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Tuesday",
+        "sha256": "57a48ae783cb29333f15d8d639da0ecf3c2386d6397f48ce94ae74c26b2bb47d",
+        "train_rows": 103496,
+        "test_rows": 21038,
+        "classes": {
+          "train": {
+            "BENIGN": 81465,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 1470,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11888,
+            "SSH Brute Force": 3219,
+            "Credential Stuffing": 5931
+          },
+          "absent_from_training": [
+            "SSH Brute Force"
+          ],
+          "attack_test_rows_of_unseen_classes": 3219
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Wednesday",
+        "sha256": "111f6b504ff843bfd5ca15ec80892cae4f54855ba2f8423976c81a05e706b64e",
+        "train_rows": 104678,
+        "test_rows": 19856,
+        "classes": {
+          "train": {
+            "BENIGN": 81558,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 10000,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11795,
+            "DDoS": 8050,
+            "RCE Attempt": 11
+          },
+          "absent_from_training": [
+            "RCE Attempt"
+          ],
+          "attack_test_rows_of_unseen_classes": 11
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Thursday",
+        "sha256": "754ffee3f720bfca27ff665d47dc20ba352b3d4e65cf7264871898ca9878abed",
+        "train_rows": 100430,
+        "test_rows": 24104,
+        "classes": {
+          "train": {
+            "BENIGN": 71428,
+            "SSH Brute Force": 3219,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 5931
+          },
+          "test": {
+            "BENIGN": 21925,
+            "SQL Injection": 21,
+            "XSS Attempt": 652,
+            "Credential Stuffing": 1470,
+            "Lateral Movement": 36
+          },
+          "absent_from_training": [
+            "Lateral Movement",
+            "SQL Injection",
+            "XSS Attempt"
+          ],
+          "attack_test_rows_of_unseen_classes": 709
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Friday",
+        "sha256": "04a7f5d2983e65e58c9ee8bee334a1f058fce4ac2b6988b16eb4582a34cd2f11",
+        "train_rows": 77020,
+        "test_rows": 47514,
+        "classes": {
+          "train": {
+            "BENIGN": 57630,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "DDoS": 8050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 35723,
+            "Port Scan": 354,
+            "DDoS": 10000,
+            "Malware Beacon": 1437
+          },
+          "absent_from_training": [
+            "Malware Beacon",
+            "Port Scan"
+          ],
+          "attack_test_rows_of_unseen_classes": 1791
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      }
+    ],
+    "P4f": [
+      {
+        "fold": "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv",
+        "sha256": "bd6192c18ce636c902a73b70565abc01840175a5437bbc3f43525f0d757db617",
+        "train_rows": 102506,
+        "test_rows": 22028,
+        "classes": {
+          "train": {
+            "BENIGN": 81325,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 8050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 12028,
+            "DDoS": 10000
+          },
+          "absent_from_training": [],
+          "attack_test_rows_of_unseen_classes": 0
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv",
+        "sha256": "dc8c2966fd1a9c8b0f328319743ecf9208db45b000126e101e12e34a93f7d314",
+        "train_rows": 112459,
+        "test_rows": 12075,
+        "classes": {
+          "train": {
+            "BENIGN": 81632,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11721,
+            "Port Scan": 354
+          },
+          "absent_from_training": [
+            "Port Scan"
+          ],
+          "attack_test_rows_of_unseen_classes": 354
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Friday-WorkingHours-Morning.pcap_ISCX.csv",
+        "sha256": "aee788040357650377a1a12fa7505b36d814c6e92957235c4dce71c361d246ea",
+        "train_rows": 111123,
+        "test_rows": 13411,
+        "classes": {
+          "train": {
+            "BENIGN": 81379,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11974,
+            "Malware Beacon": 1437
+          },
+          "absent_from_training": [
+            "Malware Beacon"
+          ],
+          "attack_test_rows_of_unseen_classes": 1437
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Monday-WorkingHours.pcap_ISCX.csv",
+        "sha256": "5a172c8c00a22d8f735c41e62fb9d5c631c21beb241fc6269a2166c53cba8648",
+        "train_rows": 112512,
+        "test_rows": 12022,
+        "classes": {
+          "train": {
+            "BENIGN": 81331,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 12022
+          },
+          "absent_from_training": [],
+          "attack_test_rows_of_unseen_classes": 0
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+        "sha256": "1f8aedd0d0c49b107b8c169fd3e4be9fd4644686508f4b291809eed226cd26b8",
+        "train_rows": 114402,
+        "test_rows": 10132,
+        "classes": {
+          "train": {
+            "BENIGN": 83257,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401
+          },
+          "test": {
+            "BENIGN": 10096,
+            "Lateral Movement": 36
+          },
+          "absent_from_training": [
+            "Lateral Movement"
+          ],
+          "attack_test_rows_of_unseen_classes": 36
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv",
+        "sha256": "5d0b974d8bfa22c7ccb85a37ffdd1b898363d93d02f09d0e0427cedb79962c94",
+        "train_rows": 110562,
+        "test_rows": 13972,
+        "classes": {
+          "train": {
+            "BENIGN": 81524,
+            "SSH Brute Force": 3219,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 5931,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11829,
+            "SQL Injection": 21,
+            "XSS Attempt": 652,
+            "Credential Stuffing": 1470
+          },
+          "absent_from_training": [
+            "SQL Injection",
+            "XSS Attempt"
+          ],
+          "attack_test_rows_of_unseen_classes": 673
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Tuesday-WorkingHours.pcap_ISCX.csv",
+        "sha256": "57a48ae783cb29333f15d8d639da0ecf3c2386d6397f48ce94ae74c26b2bb47d",
+        "train_rows": 103496,
+        "test_rows": 21038,
+        "classes": {
+          "train": {
+            "BENIGN": 81465,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 18050,
+            "RCE Attempt": 11,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 1470,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11888,
+            "SSH Brute Force": 3219,
+            "Credential Stuffing": 5931
+          },
+          "absent_from_training": [
+            "SSH Brute Force"
+          ],
+          "attack_test_rows_of_unseen_classes": 3219
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      },
+      {
+        "fold": "Wednesday-workingHours.pcap_ISCX.csv",
+        "sha256": "111f6b504ff843bfd5ca15ec80892cae4f54855ba2f8423976c81a05e706b64e",
+        "train_rows": 104678,
+        "test_rows": 19856,
+        "classes": {
+          "train": {
+            "BENIGN": 81558,
+            "SSH Brute Force": 3219,
+            "SQL Injection": 21,
+            "Port Scan": 354,
+            "DDoS": 10000,
+            "XSS Attempt": 652,
+            "Malware Beacon": 1437,
+            "Credential Stuffing": 7401,
+            "Lateral Movement": 36
+          },
+          "test": {
+            "BENIGN": 11795,
+            "DDoS": 8050,
+            "RCE Attempt": 11
+          },
+          "absent_from_training": [
+            "RCE Attempt"
+          ],
+          "attack_test_rows_of_unseen_classes": 11
+        },
+        "estimated_fit_minutes": "~2 (size-scaled guess; unmeasured)"
+      }
+    ]
+  }
+}
