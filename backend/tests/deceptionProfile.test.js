@@ -58,7 +58,10 @@ describe('active deception profile', () => {
     // recommendation was computed from, "centos_7 (from default)".
     SystemSetting.findOne.mockResolvedValue(null)
     HoneypotSession.findOne.mockReturnValueOnce(previousQuery({ servedProfile: 'ubuntu_22' }))
-    await expect(honeypotService.getActiveProfile()).resolves.toEqual({ profile: 'ubuntu_22', source: 'latest_session' })
+    await expect(honeypotService.getActiveProfile()).resolves.toEqual({
+      profile: 'ubuntu_22',
+      source: 'latest_session',
+    })
 
     HoneypotSession.findOne.mockReturnValueOnce(previousQuery({ servedProfile: 'not_a_profile' }))
     await expect(honeypotService.getActiveProfile()).resolves.toEqual({ profile: 'centos_7', source: 'default' })

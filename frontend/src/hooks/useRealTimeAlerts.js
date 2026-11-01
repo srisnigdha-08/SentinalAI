@@ -60,7 +60,12 @@ export function useRealTimeAlerts() {
       toast.error(`🚫 ${denyListRecorded(data.ip)}`, { duration: 4000 })
     })
 
-    return () => { unsub?.(); unsubIP?.() }
+    // Manual unblock, containment rollback or TTL expiry ("System (TTL Expired)")
+    const unsubUnblock = on('ip_unblocked', (data) => {
+      toast.success(`IP ${data.ip} removed from deny-list by ${data.unblockedBy || 'System'}`, { duration: 4000 })
+    })
+
+    return () => { unsub?.(); unsubIP?.(); unsubUnblock?.() }
   }, [connected, on])
 
   const markRead = useCallback(async (id) => {

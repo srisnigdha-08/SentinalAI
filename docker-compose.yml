@@ -72,8 +72,10 @@ services:
       OUTBOX_STORE: mongo
       LOG_FORMAT: json
       METRICS_TOKEN: ${METRICS_TOKEN:-}
+    # Plain HTTP in development mode, so loopback only by default. A honeypot on another host needs to reach
+    # /api/honeypot/ingest: set BACKEND_BIND_ADDRESS to this host's lab-network IP (or 0.0.0.0) for that run.
     ports:
-      - "5000:5000" # honeypot hosts post to /api/honeypot/ingest
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:5000:5000"
 
   frontend:
     build: ./frontend
@@ -81,7 +83,7 @@ services:
     depends_on:
       - backend
     ports:
-      - "8080:8080"
+      - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:8080:8080"
 
   prometheus:
     image: prom/prometheus:v2.53.0

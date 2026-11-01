@@ -89,3 +89,38 @@ Backup of all pre-existing uncommitted work (taken before any edit): `audit/back
 - AI engine pytest: **594 passed**, 0 failed (6 InconsistentVersionWarnings: experiment pickles from scikit-learn 1.7.2, DEP-001).
 - Frontend: `npm test` **49/49 passed**; `npm run build` succeeded.
 - Still not run: Playwright E2E, real-firewall VM harness, live Cowrie (F1-001 / CORE-004).
+
+---
+
+# Fix batch 3 — baseline breakers and remaining P2/P3 rows (2026-11-01, at `a4f606d`; nothing committed)
+
+Baseline at `a4f606d` before any edit (this machine, Windows 11, `core.autocrlf=true`):
+- Backend Jest: 71 suites passed, 4 skipped; **1128 passed**, 13 skipped, 0 failed; exit 0.
+- Backend ESLint: **exit 1, 11,918 errors.** 11,914 are `Delete ␍` (CRLF checkout vs prettier's LF default). Linting the
+  committed (LF) blobs via `git show HEAD:<file> | eslint --stdin` leaves **4 real errors in 3 files**
+  (`services/honeypotService.js`, `tests/deceptionProfile.test.js`, `tests/reviewQueue.test.js`), so the CI lint step
+  fails at HEAD as well.
+- AI engine pytest: **1 failed, 593 passed** — `test_separate_processes_do_not_lose_each_others_learning`
+  (`PermissionError: [WinError 5]` from `os.replace` in `DeceptionQLearner.save`). Intermittent: 2 of 14 reruns failed.
+- Frontend: `npm test` 49/49 passed.
+
+| ID | Outcome | What was done |
+|---|---|---|
+| TEST-005 (new) Q-table save fails on Windows under concurrency | **FIXED** | Root cause: a learner's constructor `_load()` reads the table without the lock, and Windows refuses `os.replace` onto a file another process has open; a just-unlinked `.lock` is also "delete pending" and `O_EXCL` creation raises `PermissionError`. `save()` now retries the replace briefly (`_replace_with_retry`, ≤ 4.75 s total), and `_exclusive_lock` treats `PermissionError` as busy until its deadline, then re-raises it. POSIX behaviour unchanged. Test: `test_save_retries_a_replace_blocked_by_an_open_reader`. The two-process test passed 15/15 reruns after the fix. Files: `ai-engine/rl_engine/deception_scorer.py`, `ai-engine/tests/test_medium_fixes.py`. |
+| CI-002 (new) backend lint red | **FIXED** | `eslint --fix` on the 3 files (formatting only; `git diff -w` reviewed). `backend/.prettierrc` gets `"endOfLine": "auto"` so a Windows checkout lints the same as CI; git still stores LF. `npx eslint .` → exit 0. |
+| OPS-002 compose publishes the plain-HTTP API on all interfaces | **FIXED (not run: no Docker here)** | `docker-compose.yml` backend and dashboard ports bind `${BACKEND_BIND_ADDRESS:-127.0.0.1}` / `${DASHBOARD_BIND_ADDRESS:-127.0.0.1}`. A honeypot on another host needs `BACKEND_BIND_ADDRESS` set to the lab-network IP for that run (documented in the file and `deployment/.env.compose.example`). YAML parsed with PyYAML; `docker compose config` not run. |
+| OPS-004 collector session cache unbounded | **FIXED** | `honeypot/collectors/session_collector.js`: the sessionId → _id cache is capped at 10,000 entries (oldest evicted; a miss falls back to `findOne`). Test in `backend/tests/honeypotCollectorContract.test.js`. |
+| SEC-005 helmet CSP disabled | **FIXED** | `backend/server.js`: helmet's default CSP (`default-src 'self'`, `script-src 'self'`, `object-src 'none'`, `frame-ancestors 'self'`) minus `upgrade-insecure-requests` (would break `/api/docs` over plain HTTP). Test in `backend/tests/authHardening.test.js` checks the header and that the dev Swagger page has no inline scripts and its init script loads. The dashboard's own CSP (nginx / Vite) is unchanged and still absent. |
+| EVT-001 `ip_unblocked` has no UI listener | **FIXED** | `frontend/src/hooks/useRealTimeAlerts.js` toasts on `ip_unblocked` (manual unblock, rollback, TTL expiry). `critical_alert` is a duplicate of the CRITICAL `new_alert` toast already shown, so it stays unlistened. Verified by build + unit tests only; not exercised in a browser. |
+
+Still open (unchanged by this batch): SEC-001 remainder (honeypot-host key, history purge, the four leaked account
+passwords still valid), live Cowrie run (F1-001 / CORE-004), ML-004 LODO for the served XGB, ML-005 clean-commit
+retrain, RET-001 first promotion, TEST-003 cross-service E2E, OPS-003 Mongo auth in compose, DEP-001 dependency
+refresh, dashboard CSP, paper wording.
+
+## Verification after batch 3 (ran 2026-11-01)
+- Backend Jest: 71 suites passed, 4 skipped; **1130 passed** (+2 new), 13 skipped, 0 failed; exit 0.
+- Backend ESLint (`npx eslint .` on the Windows checkout): **exit 0** (was exit 1, 11,918 errors).
+- AI engine pytest: **595 passed** (+1 new), 0 failed; exit 0 (was 1 failed).
+- Frontend: `npm test` 49/49 passed; `npm run build` succeeded.
+- Not run: Playwright E2E, `docker compose config` (no Docker on this machine), live Cowrie, real-firewall VM harness.

@@ -53,6 +53,26 @@ def test_separate_processes_do_not_lose_each_others_learning(tmp_path):
     assert saved["episode_count"] == 50  # last-writer-wins would leave 25
 
 
+def test_save_retries_a_replace_blocked_by_an_open_reader(tmp_path):
+    # Windows refuses os.replace onto a file another process has open (WinError 5); a transient block is retried.
+    import os
+    real_replace, calls = os.replace, []
+
+    def flaky(src, dst):
+        calls.append(dst)
+        if len(calls) <= 2:
+            raise PermissionError(5, "Access is denied")
+        real_replace(src, dst)
+
+    learner = DeceptionQLearner(q_table_path=str(tmp_path / "q.json"))
+    with patch("rl_engine.deception_scorer.os.replace", side_effect=flaky), \
+         patch("rl_engine.deception_scorer.time.sleep"):
+        learner.update("centos_7", "centos_7", 1.0, "centos_7")
+    assert len(calls) == 3
+    assert json.loads((tmp_path / "q.json").read_text())["episode_count"] == 1
+    assert not list(tmp_path.glob("q.tmp_*"))
+
+
 def test_unreadable_table_is_reported_not_silently_ignored(tmp_path, caplog):
     path = tmp_path / "q.json"
     path.write_text("{not json")

@@ -22,7 +22,8 @@ const getActiveProfile = async () => {
   if (DECEPTION_PROFILES.includes(process.env.DECEPTION_ACTIVE_PROFILE))
     return { profile: process.env.DECEPTION_ACTIVE_PROFILE, source: 'env' }
   const latest = await findPreviousServedProfile(null)
-  if (DECEPTION_PROFILES.includes(latest?.servedProfile)) return { profile: latest.servedProfile, source: 'latest_session' }
+  if (DECEPTION_PROFILES.includes(latest?.servedProfile))
+    return { profile: latest.servedProfile, source: 'latest_session' }
   return { profile: 'centos_7', source: 'default' }
 }
 

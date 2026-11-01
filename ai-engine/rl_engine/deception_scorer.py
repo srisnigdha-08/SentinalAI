@@ -180,6 +180,12 @@ def _exclusive_lock(target: Path):
             if time.monotonic() > deadline:
                 raise TimeoutError(f"Q-table lock busy: {lock}")
             time.sleep(0.02)
+        except PermissionError:
+            # Windows: a lock another process just unlinked stays "delete pending" while its handle closes, and
+            # creating it again is refused. Busy, not fatal, unless it lasts (then e.g. a read-only directory).
+            if time.monotonic() > deadline:
+                raise
+            time.sleep(0.02)
     try:
         yield
     finally:
@@ -187,6 +193,22 @@ def _exclusive_lock(target: Path):
             lock.unlink()
         except OSError:
             pass
+
+
+REPLACE_RETRIES = 20
+
+
+def _replace_with_retry(src: Path, dst: Path):
+    """os.replace, retried briefly: on Windows it fails with PermissionError while any process has dst open
+    (an unlocked reader such as another learner's _load, or an antivirus scan); POSIX never takes this path."""
+    for attempt in range(REPLACE_RETRIES):
+        try:
+            os.replace(src, dst)
+            return
+        except PermissionError:
+            if attempt == REPLACE_RETRIES - 1:
+                raise
+            time.sleep(0.025 * (attempt + 1))
 
 
 class DeceptionQLearner:
@@ -341,7 +363,7 @@ class DeceptionQLearner:
                     json.dump(payload, f, indent=2)
                     f.flush()
                     os.fsync(f.fileno())
-                os.replace(tmp_target, target)
+                _replace_with_retry(tmp_target, target)
             except Exception:
                 if tmp_target.exists():
                     try:

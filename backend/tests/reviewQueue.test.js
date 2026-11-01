@@ -67,7 +67,12 @@ describe('H5 analyst review queue', () => {
   })
 
   test('ordinary predictions are not queued for review', async () => {
-    await aiService.storePrediction({ inputSource: 'network_traffic', predictedClass: 'BENIGN', threatScore: 0.1, action: 'ALLOW' })
+    await aiService.storePrediction({
+      inputSource: 'network_traffic',
+      predictedClass: 'BENIGN',
+      threatScore: 0.1,
+      action: 'ALLOW',
+    })
     expect(created.needsReview).toBe(false)
   })
 
@@ -88,7 +93,12 @@ describe('U4 honeypot corroboration', () => {
     jest.spyOn(aiEngineService, 'getBlockThreshold').mockResolvedValue(0.92)
   })
   afterEach(() => jest.restoreAllMocks())
-  const flow = (predictedClass) => ({ inputSource: 'network_traffic', sourceIP: '203.0.113.50', predictedClass, threatScore: 0.1 })
+  const flow = (predictedClass) => ({
+    inputSource: 'network_traffic',
+    sourceIP: '203.0.113.50',
+    predictedClass,
+    threatScore: 0.1,
+  })
 
   test('a BENIGN flow from a recent honeypot attacker is queued for review', async () => {
     jest.spyOn(HoneypotSession, 'exists').mockResolvedValue({ _id: 's1' })

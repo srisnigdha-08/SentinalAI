@@ -15,6 +15,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | 6 Tests | DONE — REPORT.md §5 (suites not re-run at a5856b7) |
 | 7 Ops/docs | DONE — OPS-002/003/004, EVT-001 |
 | Final report | DONE — REPORT.md |
+| Fix batch 3 | APPLIED 2026-11-01 — FIXES.md (baseline breakers: Windows Q-table race, CI lint; OPS-002/004, SEC-005, EVT-001) |
 
 ## Commands run in the final pass (read-only)
 - git log/diff/branch -r --contains/grep; value comparison of HONEYPOT_API_KEY vs history (match flag only)
@@ -26,5 +27,6 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 - Another session/process committed while the audit ran; confirm no one else is editing before acting on the roadmap.
 
 ## Next step
-Fix batch 2 done and suites re-run green on 2026-11-01 (FIXES.md). Remaining: SEC-001 host/history/passwords,
-the paper wording, and one live Cowrie run (F1-001, CORE-004).
+Fix batch 3 applied on 2026-11-01 (FIXES.md, with the baseline that found two red checks at `a4f606d`). Remaining:
+SEC-001 host key/history/passwords (user), live Cowrie run (F1-001, CORE-004), ML-004/ML-005/RET-001 (training and
+evaluation runs), TEST-003, OPS-003, DEP-001, dashboard CSP, paper wording.

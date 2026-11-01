@@ -102,3 +102,17 @@ test('download failure propagates and logs only error type, without captured pay
   ).rejects.toBeInstanceOf(TypeError)
   expect(logger.error).toHaveBeenCalledWith('[Collector] onFileDownload: TypeError')
 })
+test('the sessionId cache stays bounded when sessions are never closed (OPS-004)', async () => {
+  sessions.findOne.mockImplementation(async ({ sessionId }) => ({ _id: 'doc-' + sessionId, sessionId }))
+  const map = collector._sessionMap
+  map.clear()
+  for (let i = 0; i < collector.SESSION_MAP_MAX + 5; i++) {
+    await collector.onSessionOpened({ sessionId: 'never-closed-' + i, sourceIP: '192.0.2.10' })
+  }
+  expect(map.size).toBe(collector.SESSION_MAP_MAX)
+  expect(map.has('never-closed-0')).toBe(false)
+  expect(map.get('never-closed-' + (collector.SESSION_MAP_MAX + 4))).toBe(
+    'doc-never-closed-' + (collector.SESSION_MAP_MAX + 4)
+  )
+  map.clear()
+})

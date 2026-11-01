@@ -277,3 +277,22 @@ test('required shared revocation delivery outage rejects existing tokens and iss
   auth.setAvailability(null)
   await expect(auth.authorize(issued.token)).resolves.toHaveProperty('user')
 })
+
+test('API responses carry a self-only CSP that still lets the dev Swagger UI load its own scripts (SEC-005)', async () => {
+  const res = await request(app).get('/api/auth/csrf').set('Origin', process.env.CLIENT_URL)
+  const csp = res.headers['content-security-policy']
+  expect(csp).toContain("default-src 'self'")
+  expect(csp).toContain("script-src 'self'")
+  expect(csp).toContain("frame-ancestors 'self'")
+  expect(csp).toContain("object-src 'none'")
+  expect(csp).not.toContain('upgrade-insecure-requests')
+  const docs = await request(app).get('/api/docs/')
+  expect(docs.status).toBe(200)
+  const scripts = [...docs.text.matchAll(/<script([^>]*)>([^<]*)<\/script>/g)]
+  expect(scripts.length).toBeGreaterThan(0)
+  for (const [, attrs, body] of scripts) {
+    expect(attrs).toMatch(/src=/) // no inline script that the CSP would block
+    expect(body.trim()).toBe('')
+  }
+  expect((await request(app).get('/api/docs/swagger-ui-init.js')).status).toBe(200)
+})
