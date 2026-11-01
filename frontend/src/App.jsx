@@ -68,9 +68,8 @@ function ChangePasswordRoute() {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
 
-  if (!user.mustChangePassword) {
-    return <Navigate to="/dashboard" replace />;
-  }
+  // Open to every signed-in user: a forced change lands here, and anyone can rotate their own password
+  // (PUT /api/auth/update-password revokes all their other sessions).
 
   return <Outlet />;
 }

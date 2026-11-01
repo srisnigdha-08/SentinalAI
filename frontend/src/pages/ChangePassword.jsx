@@ -12,6 +12,8 @@ export default function ChangePassword() {
   const [formError, setFormError] = useState(null)
   const { user, updatePassword, logout } = useAuth()
   const navigate = useNavigate()
+  // Forced (first login, admin reset) vs. a user rotating their own password from the sidebar
+  const forced = Boolean(user?.mustChangePassword)
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault()
@@ -139,7 +141,7 @@ export default function ChangePassword() {
               marginBottom: '.5rem',
             }}
           >
-            PASSWORD CHANGE REQUIRED
+            {forced ? 'PASSWORD CHANGE REQUIRED' : 'CHANGE PASSWORD'}
           </div>
           <div
             style={{
@@ -149,7 +151,9 @@ export default function ChangePassword() {
               marginBottom: '1.5rem',
             }}
           >
-            // Operator {user?.name || user?.email}: Your initial credential must be updated before accessing platform features.
+            {forced
+              ? `// Operator ${user?.name || user?.email}: Your initial credential must be updated before accessing platform features.`
+              : `// Operator ${user?.name || user?.email}: Changing your password signs out every other session of this account.`}
           </div>
 
           {formError && (
@@ -258,7 +262,7 @@ export default function ChangePassword() {
           <div style={{ textAlign: 'center' }}>
             <button
               type="button"
-              onClick={handleLogout}
+              onClick={forced ? handleLogout : () => navigate('/dashboard')}
               style={{
                 background: 'transparent',
                 border: 'none',
@@ -269,7 +273,7 @@ export default function ChangePassword() {
                 textDecoration: 'underline',
               }}
             >
-              Cancel & Sign Out
+              {forced ? 'Cancel & Sign Out' : 'Cancel'}
             </button>
           </div>
         </div>

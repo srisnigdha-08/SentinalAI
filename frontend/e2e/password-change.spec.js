@@ -90,3 +90,34 @@ test.describe('MustChangePassword Workflow', () => {
     await expect(page.locator('.sentinel-sidebar')).toContainText(SEEDED_USERS.mustChange.email);
   });
 });
+
+test.describe('Voluntary password change (SEC-001 remediation path)', () => {
+  // Changes the seeded analyst's password; later specs and browser projects need the original back.
+  test.afterAll(async () => {
+    await restoreSeededUser('analyst');
+  });
+
+  test('a signed-in user opens Change password from the sidebar, changes it, and only the new password works', async ({ page, loginPage, changePasswordPage }) => {
+    const analyst = SEEDED_USERS.analyst;
+    await loginPage.goto();
+    await loginPage.login(analyst.email, analyst.password);
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.getByRole('button', { name: 'CHANGE PASSWORD' }).click();
+    await expect(page).toHaveURL(/\/change-password$/);
+    await expect(page.getByText('CHANGE PASSWORD', { exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cancel', exact: true })).toBeVisible(); // not "Cancel & Sign Out"
+
+    const newPass = 'VoluntaryRotation123!';
+    await changePasswordPage.changePassword(analyst.password, newPass, newPass);
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await page.getByRole('button', { name: 'LOGOUT', exact: true }).click();
+    await loginPage.goto();
+    await loginPage.login(analyst.email, analyst.password); // the old password
+    await expect(page.locator('.hot-toast-bar, [role="status"], [role="alert"]').filter({ hasText: /Login failed|Invalid credentials|Unauthorized/i }).first()).toBeVisible();
+    await expect(page).toHaveURL(/\/login/);
+    await loginPage.login(analyst.email, newPass);
+    await expect(page).toHaveURL(/\/dashboard$/);
+  });
+});
