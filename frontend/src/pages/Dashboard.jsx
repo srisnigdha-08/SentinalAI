@@ -112,6 +112,7 @@ export default function Dashboard() {
     load()
     const interval = setInterval(load, 30000) // refresh every 30s
     return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only poll; load only calls APIs and setters
   }, [])
 
   // ── Real Socket.IO telemetry & threat events ──

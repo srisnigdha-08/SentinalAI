@@ -145,6 +145,7 @@ export default function AIAnalytics() {
 
   useEffect(() => {
     load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
   // ── Listen for genuine live AI prediction events ──

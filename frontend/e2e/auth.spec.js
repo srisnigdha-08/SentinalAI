@@ -62,7 +62,8 @@ test.describe('Authentication & Session Management', () => {
     await expect(page).toHaveURL(/\/dashboard$/);
 
     let simulated401Count = 0;
-    // Intercept a telemetry request once with 401
+    let summaryRetried = false;
+    // Intercept a telemetry request once with 401; the next call to it is the client's retry
     await page.route('**/api/threats/analytics/summary', async (route) => {
       if (simulated401Count === 0) {
         simulated401Count++;
@@ -72,21 +73,27 @@ test.describe('Authentication & Session Management', () => {
           body: JSON.stringify({ success: false, error: 'Token expired' }),
         });
       } else {
+        summaryRetried = true;
         await route.continue();
       }
     });
 
-    // Track refresh token call
-    let refreshFired = false;
+    // Only a refresh that happens after the simulated 401 counts as the client's response to it
+    let refreshAfter401 = false;
     page.on('request', (req) => {
-      if (req.url().includes('/api/auth/refresh-token')) {
-        refreshFired = true;
+      if (req.url().includes('/api/auth/refresh-token') && simulated401Count === 1) {
+        refreshAfter401 = true;
       }
     });
 
-    // Trigger fetch on dashboard
-    await page.goto('/dashboard/ai');
-    await expect(page).toHaveURL(/\/dashboard\/ai$/);
+    // The main dashboard is the page that requests /api/threats/analytics/summary (the AI page does not; this test
+    // used to open /dashboard/ai, so the 401 was never served and the refresh path was never exercised)
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/dashboard$/);
+
+    await expect.poll(() => simulated401Count).toBe(1);
+    await expect.poll(() => refreshAfter401).toBe(true);
+    await expect.poll(() => summaryRetried).toBe(true);
 
     // Verify user remained logged in on the page
     await expect(page.locator('.sentinel-sidebar')).toContainText(SEEDED_USERS.analyst.email);

@@ -68,6 +68,7 @@ export default function ThreatLogs() {
 
   useEffect(() => {
     loadContainmentStatus()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
   // UI-003: filter and page changes can start overlapping requests; only the newest may update the table, so a
@@ -95,7 +96,11 @@ export default function ThreatLogs() {
     }
   }, [page, sevFilter, typeFilter, search])
 
+  // Deliberately keyed on the filter / page values, not on `load` (whose identity changes with them, which would
+  // double-fire); stale responses are discarded by the request guard in load (UI-003).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setPage(1); load(1) }, [sevFilter, typeFilter])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(page) }, [page])
 
   const handleSearch = (e) => {

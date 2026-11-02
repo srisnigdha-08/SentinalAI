@@ -227,6 +227,11 @@ def test_evaluate_dataset_empty(evaluator):
 
 def test_evaluate_cicids_held_out(evaluator):
     res = evaluator.evaluate_cicids_held_out(max_samples_per_file=50)
+    if res.get("status") == "UNAVAILABLE":
+        # The CICIDS2017 CSVs are git-ignored (size/licence), so CI has no dataset. The evaluator must then degrade
+        # gracefully with a reason instead of raising; the metric checks below need the real flows.
+        assert "CICIDS directory not found" in res.get("error", "")
+        pytest.skip("CICIDS2017 dataset not present (git-ignored); graceful UNAVAILABLE path verified")
     assert res["status"] == "EVALUATED"
     assert res["sampleCount"] > 0
     # Confirms that on real PCAP flows the model detects attacks (non-zero recall)

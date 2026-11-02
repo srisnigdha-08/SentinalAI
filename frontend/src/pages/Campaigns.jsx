@@ -36,6 +36,7 @@ export default function Campaigns() {
 
   useEffect(() => {
     loadCampaigns()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
   // Helper formatting functions

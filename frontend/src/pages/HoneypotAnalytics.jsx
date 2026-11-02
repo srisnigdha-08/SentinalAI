@@ -67,6 +67,7 @@ export default function HoneypotAnalytics() {
   useEffect(() => {
     load()
     loadDeception()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
   // Each event used to trigger three REST calls, so one busy session (a command per event) could exhaust

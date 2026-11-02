@@ -16,6 +16,7 @@ import sys
 import os
 import hashlib
 from pathlib import Path
+import json
 import pytest
 import numpy as np
 
@@ -351,6 +352,8 @@ def test_safety_invariants_no_side_effects():
         assert baseline_hash == "BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF", \
             f"Baseline Q-table altered! Hash={baseline_hash}"
 
-    # 3. Verify runtime Q-table exists and is untouched
+    # 3. Runtime Q-table: created by a running engine and git-ignored, so absent in a fresh checkout (CI);
+    #    when present it must be a readable Q-table, not a file this suite corrupted.
     runtime_qtable = AI_ENGINE_DIR / "runtime" / "q_table.json"
-    assert runtime_qtable.exists(), "Runtime Q-table must exist"
+    if runtime_qtable.exists():
+        json.loads(runtime_qtable.read_text(encoding="utf-8"))

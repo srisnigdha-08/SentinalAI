@@ -21,6 +21,25 @@ suite('Actual browser cookie, cross-tab session and cutover regressions', () => 
   let password
   const root = path.resolve(__dirname, '../..')
   const evidence = path.join(root, '.test-runtime/auth-timezone-db-20261014-01/evidence')
+  // BROWSER_EXECUTABLE wins; otherwise the usual Chrome location for this OS (GitHub's Ubuntu runners ship Chrome).
+  const browserExecutable = () => {
+    if (process.env.BROWSER_EXECUTABLE) return process.env.BROWSER_EXECUTABLE
+    const candidates =
+      process.platform === 'win32'
+        ? ['C:/Program Files/Google/Chrome/Application/chrome.exe']
+        : process.platform === 'darwin'
+          ? ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome']
+          : [
+              '/usr/bin/google-chrome',
+              '/usr/bin/google-chrome-stable',
+              '/usr/bin/chromium',
+              '/usr/bin/chromium-browser',
+            ]
+    const found = candidates.find((p) => fs.existsSync(p))
+    if (!found)
+      throw new Error('No Chrome/Chromium found; set BROWSER_EXECUTABLE (tried: ' + candidates.join(', ') + ')')
+    return found
+  }
   beforeAll(async () => {
     puppeteer = process.getBuiltinModule('module').createRequire(__filename)('puppeteer-core')
     const uri = new URL(process.env.AUTH_TEST_MONGO_URI)
@@ -49,6 +68,7 @@ suite('Actual browser cookie, cross-tab session and cutover regressions', () => 
       password,
       role: 'admin',
     })
+    fs.mkdirSync(evidence, { recursive: true }) // .test-runtime/ is git-ignored, so a fresh checkout (CI) has no folder
     const log = fs.openSync(path.join(evidence, 'vite-browser.log'), 'a')
     vite = spawn(
       process.execPath,
@@ -81,7 +101,7 @@ suite('Actual browser cookie, cross-tab session and cutover regressions', () => 
     if (!ready) throw new Error('Test Vite unavailable')
     browser = await puppeteer.launch({
       headless: true,
-      executablePath: process.env.BROWSER_EXECUTABLE || 'C:/Program Files/Google/Chrome/Application/chrome.exe',
+      executablePath: browserExecutable(),
       userDataDir: path.join(
         root,
         '.test-runtime/auth-timezone-db-20261014-01/browser-hardening-' + crypto.randomUUID()

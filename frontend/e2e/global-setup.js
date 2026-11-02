@@ -99,7 +99,7 @@ export async function restoreSeededUser(role) {
 
 export default async function globalSetup() {
   const mongoUri = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinelai_test';
-  const dbName = validateTestDatabaseName(mongoUri);
+  validateTestDatabaseName(mongoUri); // throws unless the URI names a test database
 
   console.log(`\n[Playwright Global Setup] Connecting to test DB: ${mongoUri}`);
   await mongoose.connect(mongoUri, { serverSelectionTimeoutMS: 5000 });

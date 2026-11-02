@@ -21,6 +21,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Batch 6 | DONE 2026-11-02 — P3/P4 measured (no cross-day generalisation, ML-007), weakness analysis, RL review, deployment procedure |
 | Batch 7 | DONE 2026-11-02 — generalisation root cause (tool fingerprints), ranked options, CSE-CIC-IDS2018 plan, hybrid-eval mode (not run), deployment doc safety |
 | Batch 8 | DONE 2026-11-02 — pre-registered development protocol (ML_DEV_PROTOCOL.md), protected-test guard, feature/taxonomy/runner infrastructure (plan only) |
+| Batch 12 | DONE 2026-11-03 — GitHub Actions failures reproduced on Linux and fixed (CI-001), job timeouts, TEST-007, REPRO-001, frontend lint 0 warnings; awaiting CI confirmation |
 | Batch 11 | DONE 2026-11-03 — per-threat SHAP (XAI-001), Threat Logs race (UI-003), frontend lint (LINT-001), E2E-002 experiment |
 | Batch 10 | DONE 2026-11-02 — engineering validation, verified Demo A/B/C runbook, UI-002 fix, TEST-006, XAI-001 documented, latency probe |
 | Batch 9 | DONE 2026-11-02 — 21-02 FP diagnostics, pipeline integrity, macro/pooled summary, protocol v2 (C4A/C4B, prediction dump; not run) |

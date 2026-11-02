@@ -26,16 +26,11 @@ const { dryRunRetention, applyRetention, restoreFromArchive } = require('../serv
 
 describe('Task 8: Data Retention Policy & Archival Engine', () => {
   let mongoServer
-  const HOST_MONGOD_PATH =
-    'C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete.native-integration\\mongodb-acceptance-20261014\\binaries\\mongod.exe'
 
   beforeAll(async () => {
-    // Start isolated in-memory MongoDB using host mongod binary
-    mongoServer = await MongoMemoryServer.create({
-      binary: {
-        systemBinary: HOST_MONGOD_PATH,
-      },
-    })
+    // Isolated in-memory MongoDB with the package-managed binary, like every other MongoMemoryServer suite. This suite
+    // used to pin a mongod.exe path that exists on one Windows machine only, so it failed on Linux CI (ENOENT).
+    mongoServer = await MongoMemoryServer.create()
     const uri = mongoServer.getUri()
     await mongoose.connect(uri)
   }, 30000)

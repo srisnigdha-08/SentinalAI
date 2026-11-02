@@ -763,3 +763,31 @@ New experiment: moving focus to the dialog's first button while Playwright fills
 Chromium, Firefox or WebKit (5/5 each), so the Modal's initial-focus timer is not the cause. Still not
 reproducible in isolation (40/40); no code changed for it.
 ```
+
+```
+ID: CI-001 | P1 | CONFIRMED (Linux reproduction) | FIXED 2026-11-03 (batch 12)
+GitHub Actions failed on three jobs since at least 2026-10-21 (not caused by batch 11). Logs need a signed-in
+account, so every failure was reproduced on Linux (WSL Ubuntu 26.04, Node 24.14, Python 3.11.11, fresh checkout):
+(a) backend Jest: tests/retentionPolicy.test.js pinned a mongod.exe path that exists on one Windows machine (5 tests,
+ENOENT) -> uses the package-managed binary like the other 10 MongoMemoryServer suites;
+(b) AI pytest: 8 tests required the git-ignored runtime/q_table.json, 1 the git-ignored CICIDS2017 CSVs -> protected-file
+checks compare state (hash or absent), which also proves tests never create the repo runtime file; the held-out test
+asserts graceful UNAVAILABLE without data and skips only its metric part;
+(c) MongoDB suites: the job env lacked JWT_SECRET / JWT_REFRESH_SECRET / CLIENT_URL (server config validation), and
+authBrowser assumed an existing .test-runtime folder and a Windows Chrome path -> CI-only placeholders added,
+folder created, platform-aware browser lookup.
+Also: no job had a timeout (a failed beforeAll could hang a runner up to 6 h) -> timeout-minutes on all jobs.
+```
+
+```
+ID: TEST-007 | P2 | CONFIRMED | FIXED 2026-11-03
+e2e/auth.spec.js "expired access token triggers transparent refresh and retry on 401" recorded refreshFired but never
+asserted it, and opened /dashboard/ai, which never requests the intercepted endpoint: the 401/refresh/retry path was
+never exercised. Now opens /dashboard and asserts 401 served, refresh after it, original request retried (3 browsers).
+```
+
+```
+ID: REPRO-001 | P3 | CONFIRMED | FIXED 2026-11-03
+Fresh Windows clones (core.autocrlf=true) converted hash-pinned ai-engine/models/q_table.json and golden_set.json to
+CRLF, breaking their SHA-256 pins. .gitattributes marks both -text (committed bytes unchanged).
+```

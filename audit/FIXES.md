@@ -326,3 +326,25 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - Integration with live Cowrie 42/42 (`runs/20261102_191411`), including the per-threat explanation on a replayed threat (90 ms end to end).
 - Engine latency (idle): `/explain/vector` p50 26 ms / p95 48 ms; `/predict/internal` p95 33 ms (unchanged).
 - `models/`, `runtime/` unchanged; registry hashes verified.
+
+---
+
+# Batch 12 — GitHub Actions failures (2026-11-03, at `596adcd`; nothing committed)
+
+| Item | Status | What |
+|---|---|---|
+| CI-001 backend Jest | **FIXED** | `backend/tests/retentionPolicy.test.js`: package-managed MongoDB binary. |
+| CI-001 AI pytest | **FIXED** | `test_q_table_safety.py` (state-based protected-file checks), `test_gate1_ml_remediation.py`, `experiments/gate1_phase3a_remediation/test_candidate_policy.py`, `test_model_evaluation.py`. |
+| CI-001 MongoDB suites | **FIXED** | `.github/workflows/ci.yml` env (JWT secrets, CLIENT_URL); `backend/tests/authBrowser.test.js` (evidence folder, browser lookup). |
+| CI timeouts | **ADDED** | `timeout-minutes` on all 7 jobs. |
+| TEST-007 | **FIXED** | `frontend/e2e/auth.spec.js` now exercises 401 → refresh → retry. |
+| REPRO-001 | **FIXED** | `.gitattributes` for hash-pinned model JSON. |
+| Frontend lint | **0 warnings** | Reviewed intentional effects annotated; dead E2E import/variable removed; fixture arguments kept. |
+
+## Verification (2026-11-03)
+- Linux, pristine `596adcd` + patch, env read from the patched ci.yml: Backend lint 0 / Jest 1,176 passed + 13 skipped;
+  pytest 646 passed + 2 skipped (runtime file still absent after the run); frontend lint 0 problems, unit and build OK;
+  MongoDB suites 13/13 (MongoDB 8.2.6 locally; CI uses 7), no hang.
+- Windows: Jest 1,176 / 13 skipped, ESLint clean, pytest 648, registry check OK, frontend unit 56/56, build OK,
+  E2E auth 33/33 and dashboard/threat-logs/race/explanation 30/30 on three browsers.
+- Not verifiable locally: MongoDB 7 service and the runner's Chrome. The CI run after an approved push is the check.

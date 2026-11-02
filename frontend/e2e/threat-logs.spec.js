@@ -1,4 +1,4 @@
-import { test, expect, SEEDED_USERS } from './fixtures/auth.fixture.js';
+import { test, expect } from './fixtures/auth.fixture.js';
 
 test.describe('Threat Logs Telemetry, Triage & Containment', () => {
   test.beforeEach(async ({ loginAs, page }) => {

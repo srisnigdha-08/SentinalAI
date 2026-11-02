@@ -1,6 +1,8 @@
 import { test, expect, SEEDED_USERS } from './fixtures/auth.fixture.js';
 
 test.describe('Dashboard Operations & Error Boundaries', () => {
+  // analystPage / dashboardPage are requested for their setup (sign-in, navigation), not used directly
+  // eslint-disable-next-line no-unused-vars
   test('KPIs, panels, and charts render accurately for analyst', async ({ page, analystPage, dashboardPage }) => {
     // Already logged in via analystPage fixture and at /dashboard
     await expect(page).toHaveURL(/\/dashboard$/);
@@ -22,6 +24,7 @@ test.describe('Dashboard Operations & Error Boundaries', () => {
     await expect(queueRows.first()).toBeVisible();
   });
 
+  // eslint-disable-next-line no-unused-vars -- analystPage signs the analyst in
   test('blocking an IP displays SUCCESS toast (not error) and refreshes queue', async ({ page, analystPage }) => {
     await expect(page).toHaveURL(/\/dashboard$/);
 
