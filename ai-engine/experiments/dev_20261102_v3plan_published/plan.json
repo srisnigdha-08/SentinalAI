@@ -1,0 +1,537 @@
+{
+  "generated_at": "2026-11-02T13:42:32.654700+00:00",
+  "mode": "plan",
+  "labels": {
+    "label_set": "published"
+  },
+  "versions": {
+    "python": "3.11.9",
+    "numpy": "1.26.4",
+    "pandas": "2.2.0",
+    "sklearn": "1.4.0",
+    "xgboost": "2.0.3",
+    "git_commit": "3b1f349e864c3143e97303bbb3d7a4b8c9fde83a",
+    "git_dirty": true
+  },
+  "seed": 42,
+  "caps_2018": {
+    "benign": 15000,
+    "each_attack_label": 10000
+  },
+  "pool": {
+    "rows_2017": 124534,
+    "rows_2018": 129374,
+    "build_seconds": 88.6,
+    "raw_label_counts": {
+      "2017:benign": 93353,
+      "2017:bot": 1437,
+      "2017:ddos": 10000,
+      "2017:dos goldeneye": 418,
+      "2017:dos hulk": 7213,
+      "2017:dos slowhttptest": 195,
+      "2017:dos slowloris": 224,
+      "2017:ftp patator": 5931,
+      "2017:heartbleed": 11,
+      "2017:infiltration": 36,
+      "2017:portscan": 354,
+      "2017:ssh patator": 3219,
+      "2017:web attack brute force": 1470,
+      "2017:web attack sql injection": 21,
+      "2017:web attack xss": 652,
+      "2018:benign": 81821,
+      "2018:bot": 5610,
+      "2018:brute force web": 340,
+      "2018:brute force xss": 150,
+      "2018:ddos attack hoic": 8193,
+      "2018:ddos attack loic udp": 1730,
+      "2018:dos attacks goldeneye": 9993,
+      "2018:dos attacks slowloris": 8854,
+      "2018:ftp bruteforce": 39,
+      "2018:infilteration": 7548,
+      "2018:sql injection": 51,
+      "2018:ssh bruteforce": 5045
+    },
+    "files_2018_used": [
+      "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+      "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+      "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+      "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
+      "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+      "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv"
+    ],
+    "protected_files_present_not_read": [],
+    "data_sha256": {
+      "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+      "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+      "Friday-WorkingHours-Morning.pcap_ISCX.csv": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+      "Monday-WorkingHours.pcap_ISCX.csv": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+      "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+      "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+      "Tuesday-WorkingHours.pcap_ISCX.csv": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+      "Wednesday-workingHours.pcap_ISCX.csv": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a",
+      "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": "d96f38e7496aba83475031e6fb8c6fdf1abf6aa1b71325a917798f3c7de93de1",
+      "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": "d0a7f5059d9823b6e9b392b759e306481a3502d190dea7a1b5502ae079ea069b",
+      "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv": "b0534c5d7d8b41e03df71c6966c995d116a8ed28e61f377c8b14cdf5d28f4edf",
+      "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": "fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b",
+      "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147",
+      "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": "a5f4a1c2689e0aa6566c03a58466de9c407c0be0cbd3cc69306544026611be04"
+    }
+  },
+  "candidates": {
+    "C0": {
+      "config": {
+        "features": "A",
+        "taxonomy": "T0",
+        "arch": "multiclass",
+        "model": "xgb",
+        "data": "2017",
+        "note": "served recipe (baseline)"
+      },
+      "features": [
+        "flow_duration",
+        "total_fwd_packets",
+        "total_bwd_packets",
+        "total_len_fwd_packets",
+        "total_len_bwd_packets",
+        "fwd_packet_len_max",
+        "fwd_packet_len_min",
+        "fwd_packet_len_mean",
+        "fwd_packet_len_std",
+        "bwd_packet_len_max",
+        "bwd_packet_len_min",
+        "bwd_packet_len_mean",
+        "bwd_packet_len_std",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "flow_iat_mean",
+        "flow_iat_std",
+        "flow_iat_max",
+        "flow_iat_min",
+        "fwd_iat_total",
+        "fwd_iat_mean",
+        "fwd_iat_std",
+        "fwd_iat_max",
+        "fwd_iat_min",
+        "bwd_iat_total",
+        "bwd_iat_mean",
+        "bwd_iat_std",
+        "bwd_iat_max",
+        "bwd_iat_min",
+        "fwd_psh_flags",
+        "bwd_psh_flags",
+        "fwd_urg_flags",
+        "bwd_urg_flags",
+        "fin_flag_count",
+        "syn_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "ack_flag_count",
+        "urg_flag_count",
+        "fwd_header_len",
+        "bwd_header_len",
+        "fwd_avg_bytes_per_bulk",
+        "bwd_avg_bytes_per_bulk",
+        "init_win_bytes_forward",
+        "init_win_bytes_backward",
+        "active_mean",
+        "active_std",
+        "idle_mean",
+        "idle_std",
+        "down_up_ratio",
+        "payload_entropy",
+        "time_of_day_sin",
+        "time_of_day_cos"
+      ],
+      "folds": [
+        {
+          "fold": "2017-Monday",
+          "train_rows": 112512,
+          "test_rows": 12022,
+          "manifest_sha256": "eb95057d5c4ec575272cc98022c5d220100bd3dee5fcd4f7ed7ecb05947f9116",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Tuesday",
+          "train_rows": 103496,
+          "test_rows": 21038,
+          "manifest_sha256": "08fad7a986465f8a480d4706c0d8f03e1e9b28e0cd2e48126f9d276682862952",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Wednesday",
+          "train_rows": 104678,
+          "test_rows": 19856,
+          "manifest_sha256": "8df35e20a0cd40a172d64e5ef82968e24d8947cdf554e28f1d561d6c2d0a0d34",
+          "test_families_absent_from_training": [
+            "Exploit"
+          ]
+        },
+        {
+          "fold": "2017-Thursday",
+          "train_rows": 100430,
+          "test_rows": 24104,
+          "manifest_sha256": "506388a1dbac8df7db5a37e546122d596a268091cfaadba5efe3bfe202d0cc93",
+          "test_families_absent_from_training": [
+            "Infiltration",
+            "Web Attack"
+          ]
+        },
+        {
+          "fold": "2017-Friday",
+          "train_rows": 77020,
+          "test_rows": 47514,
+          "manifest_sha256": "00a85e0854e2857525a9a2f7112129117fa4a4074474a672e79f096fc7fa6cdf",
+          "test_families_absent_from_training": [
+            "Botnet",
+            "Reconnaissance"
+          ]
+        },
+        {
+          "fold": "2018-01-03-2018",
+          "train_rows": 124534,
+          "test_rows": 20550,
+          "manifest_sha256": "2d114e300eb60b18867c208c302ccda6769251e69a074c9697dbf24e48bcd672",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-02-03-2018",
+          "train_rows": 124534,
+          "test_rows": 19853,
+          "manifest_sha256": "3b6066284925bad785386b7d4f119371d364622377cc2e7ac72ea36c40c7a450",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-14-02-2018",
+          "train_rows": 124534,
+          "test_rows": 17919,
+          "manifest_sha256": "81f6096ef41c0492d79f4f32e965c009a502845e6d5b829070f1fe748eaed31e",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-15-02-2018",
+          "train_rows": 124534,
+          "test_rows": 31936,
+          "manifest_sha256": "264f18e77e3e72a90fe4df12c25702af3b6d63dcb6bb3e9fde0b453962724c5d",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-21-02-2018",
+          "train_rows": 124534,
+          "test_rows": 24922,
+          "manifest_sha256": "731db146c03258885867884e6ed23eb385600f5cc1980bf5936b3c6fcca5152f",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-23-02-2018",
+          "train_rows": 124534,
+          "test_rows": 14194,
+          "manifest_sha256": "a207f97fc14c6d9582d649ca5427080061e7494ba25d7e408aa63c43d9711203",
+          "test_families_absent_from_training": []
+        }
+      ]
+    },
+    "C4A": {
+      "config": {
+        "features": "A",
+        "taxonomy": "T1",
+        "arch": "two_stage",
+        "model": "xgb",
+        "data": "2017+2018dev",
+        "note": "v2: multi-dataset, 53 features"
+      },
+      "features": [
+        "flow_duration",
+        "total_fwd_packets",
+        "total_bwd_packets",
+        "total_len_fwd_packets",
+        "total_len_bwd_packets",
+        "fwd_packet_len_max",
+        "fwd_packet_len_min",
+        "fwd_packet_len_mean",
+        "fwd_packet_len_std",
+        "bwd_packet_len_max",
+        "bwd_packet_len_min",
+        "bwd_packet_len_mean",
+        "bwd_packet_len_std",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "flow_iat_mean",
+        "flow_iat_std",
+        "flow_iat_max",
+        "flow_iat_min",
+        "fwd_iat_total",
+        "fwd_iat_mean",
+        "fwd_iat_std",
+        "fwd_iat_max",
+        "fwd_iat_min",
+        "bwd_iat_total",
+        "bwd_iat_mean",
+        "bwd_iat_std",
+        "bwd_iat_max",
+        "bwd_iat_min",
+        "fwd_psh_flags",
+        "bwd_psh_flags",
+        "fwd_urg_flags",
+        "bwd_urg_flags",
+        "fin_flag_count",
+        "syn_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "ack_flag_count",
+        "urg_flag_count",
+        "fwd_header_len",
+        "bwd_header_len",
+        "fwd_avg_bytes_per_bulk",
+        "bwd_avg_bytes_per_bulk",
+        "init_win_bytes_forward",
+        "init_win_bytes_backward",
+        "active_mean",
+        "active_std",
+        "idle_mean",
+        "idle_std",
+        "down_up_ratio",
+        "payload_entropy",
+        "time_of_day_sin",
+        "time_of_day_cos"
+      ],
+      "folds": [
+        {
+          "fold": "2017-Monday",
+          "train_rows": 241886,
+          "test_rows": 12022,
+          "manifest_sha256": "255238b2d259b2e26863eb1bf5816321377847f7b340b84f3126c0653459e49c",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Tuesday",
+          "train_rows": 232870,
+          "test_rows": 21038,
+          "manifest_sha256": "3d14517b25b155ae5209a18203b3846c762ee56ad3ad02863132448445596fa1",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Wednesday",
+          "train_rows": 234052,
+          "test_rows": 19856,
+          "manifest_sha256": "6611391f612fb54c3dc63cfdc20869595cc7a9e0e9cab9a221bae10e944bdc75",
+          "test_families_absent_from_training": [
+            "Exploit"
+          ]
+        },
+        {
+          "fold": "2017-Thursday",
+          "train_rows": 229804,
+          "test_rows": 24104,
+          "manifest_sha256": "c22360f2b2db69e94e1422271a7dba3c53eef3c48da159aa7bb3398845362f6b",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Friday",
+          "train_rows": 206394,
+          "test_rows": 47514,
+          "manifest_sha256": "c0c5a93ec5587882c082dae525f056006023563f43794fb4ed443770f29128f2",
+          "test_families_absent_from_training": [
+            "Reconnaissance"
+          ]
+        },
+        {
+          "fold": "2018-01-03-2018",
+          "train_rows": 233358,
+          "test_rows": 20550,
+          "manifest_sha256": "4bf8163dd43a73064fa6805f8dd82c8f256b3f53448987088821ee0518053f50",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-02-03-2018",
+          "train_rows": 234055,
+          "test_rows": 19853,
+          "manifest_sha256": "be8f1a5ffbd6bf0a9e0b0ac6929145b3191fcfd48ec4c96814eaab766b816501",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-14-02-2018",
+          "train_rows": 235989,
+          "test_rows": 17919,
+          "manifest_sha256": "ede8adc7e2f206e7c0050c7690b4d53faf222f3484f492cb1cd4076d8b8b5e57",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-15-02-2018",
+          "train_rows": 221972,
+          "test_rows": 31936,
+          "manifest_sha256": "b4055f851a58f8bf2c0ea8e68b9c1a2a13d83db5bd4399fb10f43fb41de75a98",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-21-02-2018",
+          "train_rows": 228986,
+          "test_rows": 24922,
+          "manifest_sha256": "3b1a8ef848292b192b28f383ea1e68c10856089b1c2e7079767002bfb62d6904",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-23-02-2018",
+          "train_rows": 239714,
+          "test_rows": 14194,
+          "manifest_sha256": "3a04a8bde0e1c504222e0b144f9b3eea4f656b25a55bfd76d03a4435d0418426",
+          "test_families_absent_from_training": []
+        }
+      ]
+    },
+    "C4AI": {
+      "config": {
+        "features": "A",
+        "taxonomy": "T1",
+        "arch": "two_stage",
+        "model": "xgb",
+        "data": "2017+2018dev",
+        "exclude_train_families": [
+          "Infiltration"
+        ],
+        "note": "v3: C4-A, infiltration excluded from training"
+      },
+      "features": [
+        "flow_duration",
+        "total_fwd_packets",
+        "total_bwd_packets",
+        "total_len_fwd_packets",
+        "total_len_bwd_packets",
+        "fwd_packet_len_max",
+        "fwd_packet_len_min",
+        "fwd_packet_len_mean",
+        "fwd_packet_len_std",
+        "bwd_packet_len_max",
+        "bwd_packet_len_min",
+        "bwd_packet_len_mean",
+        "bwd_packet_len_std",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "flow_iat_mean",
+        "flow_iat_std",
+        "flow_iat_max",
+        "flow_iat_min",
+        "fwd_iat_total",
+        "fwd_iat_mean",
+        "fwd_iat_std",
+        "fwd_iat_max",
+        "fwd_iat_min",
+        "bwd_iat_total",
+        "bwd_iat_mean",
+        "bwd_iat_std",
+        "bwd_iat_max",
+        "bwd_iat_min",
+        "fwd_psh_flags",
+        "bwd_psh_flags",
+        "fwd_urg_flags",
+        "bwd_urg_flags",
+        "fin_flag_count",
+        "syn_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "ack_flag_count",
+        "urg_flag_count",
+        "fwd_header_len",
+        "bwd_header_len",
+        "fwd_avg_bytes_per_bulk",
+        "bwd_avg_bytes_per_bulk",
+        "init_win_bytes_forward",
+        "init_win_bytes_backward",
+        "active_mean",
+        "active_std",
+        "idle_mean",
+        "idle_std",
+        "down_up_ratio",
+        "payload_entropy",
+        "time_of_day_sin",
+        "time_of_day_cos"
+      ],
+      "folds": [
+        {
+          "fold": "2017-Monday",
+          "train_rows": 234302,
+          "test_rows": 12022,
+          "manifest_sha256": "217d4ac16c9471f4da5e663325d5511a6a8834e212689a8764b9d0c485a46fac",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Tuesday",
+          "train_rows": 225286,
+          "test_rows": 21038,
+          "manifest_sha256": "e08dfc845ce11b504976fdcf5da9f3d6d9e9cf6221a87bd0ef4fae9147008686",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Wednesday",
+          "train_rows": 226468,
+          "test_rows": 19856,
+          "manifest_sha256": "f55a3f8efc94840d7fc1bd351d78ea959e6bf63d398b0f6016637d90cdffc562",
+          "test_families_absent_from_training": [
+            "Exploit"
+          ]
+        },
+        {
+          "fold": "2017-Thursday",
+          "train_rows": 222256,
+          "test_rows": 24104,
+          "manifest_sha256": "f0b09a0790b9e9ce27f5ccc15ff52d3a2d49205c9c7838fb731927184b4b07b5",
+          "test_families_absent_from_training": [
+            "Infiltration"
+          ]
+        },
+        {
+          "fold": "2017-Friday",
+          "train_rows": 198810,
+          "test_rows": 47514,
+          "manifest_sha256": "dc846187babbd84e78f56941a5dc6a5fea8c2b13c1f8ef4da28a86087790e784",
+          "test_families_absent_from_training": [
+            "Reconnaissance"
+          ]
+        },
+        {
+          "fold": "2018-01-03-2018",
+          "train_rows": 233322,
+          "test_rows": 20550,
+          "manifest_sha256": "66fa422e99f1c16d8847cb0c59d3189fb707f206a9452ba01a2a2c813b81dfec",
+          "test_families_absent_from_training": [
+            "Infiltration"
+          ]
+        },
+        {
+          "fold": "2018-02-03-2018",
+          "train_rows": 226471,
+          "test_rows": 19853,
+          "manifest_sha256": "8840333d49c65d94268bd7297750d95f57afd445f16101c626d981f58a112408",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-14-02-2018",
+          "train_rows": 228405,
+          "test_rows": 17919,
+          "manifest_sha256": "658e28c04f6c2e041a3359492c58ed0fcca98b74ca229ef62e1a2169562505cb",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-15-02-2018",
+          "train_rows": 214388,
+          "test_rows": 31936,
+          "manifest_sha256": "6d07e1b658f56d80bf344c8bdf699cc46dbf6b72d141fdfebf773f968fd5abb9",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-21-02-2018",
+          "train_rows": 221402,
+          "test_rows": 24922,
+          "manifest_sha256": "fab91f1bc84a0c950ccf2fd9a8a4f80ad51d1e6d8b6bb693870d84aab90d408b",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-23-02-2018",
+          "train_rows": 232130,
+          "test_rows": 14194,
+          "manifest_sha256": "10a0c7c8c4725aa32b1c6dffade18fe2e671bb0fd2a39199ec338f37709bcc69",
+          "test_families_absent_from_training": []
+        }
+      ]
+    }
+  }
+}

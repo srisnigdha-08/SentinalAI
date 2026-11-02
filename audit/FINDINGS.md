@@ -624,3 +624,75 @@ Multi-dataset training (C4) is the only change that lifts cross-testbed recall a
 held-out 2018 day (21-02) then shows 24.3 % benign FPR; cause unverified (label windows vs benign/attack overlap).
 audit/ML_DEV_RESULTS.md.
 ```
+
+```
+ID: DATA-004 | P2 | CONFIRMED (ran: read-only diagnostics)
+CSE-CIC-IDS2018 21-02: 358,523 of 360,833 benign rows (99.4 %) share one pattern (init windows 65535/32768, 5 fwd
+packets, 935-byte max fwd packet, ephemeral dst ports, during HOIC); other days' top pattern 1.7-5.0 %. The fold's
+benign FPR is one observation, not 15k. Hypothesis (unverified, needs IPs/PCAP): server-side HOIC flows labelled
+benign. Not relabelled. audit/ML_DEV_PROTOCOL_V2.md §2.
+```
+
+```
+ID: ML-013 | P2 | CONFIRMED (ran: dev_summary.py on v1 results)
+C4's FPR problem is not only 21-02: without that fold D18 FPR is 2.88 % mean, 6.98 % on 15-02 (C0 0.45 %).
+Macro and pooled recall differ widely (C0 D18 11.1 vs 25.1 %); both are now reported, selection stays macro.
+```
+
+```
+ID: ML-014 | P3 | CONFIRMED (ran: pipeline_integrity.py)
+Pipeline checks pass: all 53 features accounted for in 2018, time-of-day zero in both corpora, no ID/time feature,
+six variant-B features constant in both pools, folds disjoint. Exact-vector overlap and contradictory labels are
+much higher under features C than A (dropping TCP windows merges flows); reported, not removed.
+```
+
+```
+ID: ML-015 | P2 | CONFIRMED (ran: v2 batch 1)
+Restoring init_win_bytes_* in multi-dataset training (C4-A; C4-B identical) cuts D18 benign FPs 5,573 -> 1,269 and
+raises D18 recall 32.3 -> 53.2 % (C0 11.1 %); 21-02 FPs 3,647 -> 8. Still not eligible under v1 §7 (D18 mean FPR
+1.58 %, folds 15-02 5.13 %, 02-03 2.64 %, 2017-Thu 4.20 %). C4's 21-02 FPs were one repeated pattern.
+```
+
+```
+ID: ML-016 | P2 | CONFIRMED (ran: row-level analysis)
+84 % of C4-A's D18 benign FPs are predicted "Lateral Movement" (infiltration), whose own recall on unseen days is
+1.5-2.8 %. 2017 Thursday FPs (~900 for every candidate incl. C0) are mostly predicted "Port Scan". Next proposal:
+C4-A without infiltration training rows; Thursday needs a model-free look first. audit/ML_DEV_RESULTS.md.
+```
+
+```
+ID: DATA-005 | P2 | CONFIRMED pattern / UNVERIFIED label error (ran: thursday_fp_2017.py, no training)
+823 of C4-A's 920 2017-Thursday benign FPs are one probe shape (fwd init window 1024, <= 2 packets each way).
+In the raw files that signature is PortScan in 77,984 of 77,987 Friday rows and BENIGN in all 63,022 Thursday-
+afternoon rows (1,001 ports, inside the infiltration period). Likely mislabelled scan traffic; needs IPs/timestamps
+to verify. Not relabelled. Under current labels no scan-detecting model can pass the 2 % Thursday fold limit.
+```
+
+```
+ID: DATA-005-V | P2 | VERIFIED (ran: verify_labels_2017.py, pre-registered rule; no training, no relabelling)
+The 2017-Thursday probe flows are the CIC-scheduled port scan from 192.168.10.8: 60,030 of 63,022 BENIGN-labelled
+signature rows meet all three conditions (IP 98.4 %, 15:00-15:50 95.3 %, 11 internal peers; join 100 %). C4-A flags
+810 of the 816 such rows in its Thursday test fold. Source: HF mirror (not CIC), integrity checked by row join.
+audit/LABEL_VERIFICATION_PLAN.md §8.
+```
+
+```
+ID: ML-017 | P1 | CONFIRMED (ran: v3, approved)
+Under v3 (verified Thursday correction, unchanged §7 rule, C0 on the same labels), C4-A-I is the only eligible
+candidate: D17/D18 mean FPR 0.25 / 0.35 % (limits 0.378 / 0.450 %), worst fold 1.42 %, recall +31 points (D18) over C0.
+Selected and recommended for the external test, which has NOT been run. Not promoted. ML_DEV_RESULTS.md (v3).
+```
+
+```
+ID: ML-018 | P2 | CONFIRMED (ran: v3)
+Fold recall is unstable: relabelling 0.3 % of the pool moved single-fold recall by up to 55 points (FPR far less).
+C4-A-I also loses per-family detection vs C4-A (botnet 94 -> 63 %, brute force 97 -> 43 %). Operating line and seed
+stability should be settled before the one-shot external test.
+```
+
+```
+ID: ML-019 | P1 | CONFIRMED (ran: operating_line.py, no training)
+Frozen external-test lines (pooled dev FPR Wilson UB <= 0.10 %): C4-A-I p_attack >= 0.915614, C0 >= 0.974834.
+At these lines C4-A-I keeps 19.1 % pooled / 7.5 % D18 recall (C0 9.4 % / 5.8 %): D18 advantage +1.7 points. The
+deployment criterion (+10 points at <= 0.10 % FPR UB) is unlikely to be met. audit/OPERATING_LINE_V3.md.
+```

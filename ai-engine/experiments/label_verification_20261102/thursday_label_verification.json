@@ -1,0 +1,53 @@
+{
+  "ml_rows": 288602,
+  "labelled_rows": 288602,
+  "join_agreement": 1.0,
+  "rule": {
+    "scanner": "192.168.10.8",
+    "window": [
+      "15:00:00",
+      "15:50:00"
+    ],
+    "threshold": 0.95,
+    "min_internal_peers": 3,
+    "min_join": 0.99
+  },
+  "signature": {
+    "verdict": "VERIFIED",
+    "rows": 63022,
+    "share_scanner_ip": 0.9842,
+    "share_in_window": 0.9526,
+    "distinct_internal_peers": 11,
+    "rows_meeting_all": 60030,
+    "source_ip_top": {
+      "192.168.10.8": 62026,
+      "172.16.0.1": 975,
+      "192.168.10.5": 19,
+      "168.62.105.45": 1,
+      "204.79.197.200": 1
+    },
+    "destination_ip_top": {
+      "192.168.10.5": 11976,
+      "192.168.10.14": 7984,
+      "192.168.10.15": 7984,
+      "192.168.10.25": 6149,
+      "192.168.10.9": 5136
+    },
+    "time_range": [
+      "13:16:00",
+      "16:43:00"
+    ]
+  },
+  "verdict": "VERIFIED",
+  "correction": {
+    "file": "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+    "rows": 60030,
+    "sha256": "c4e3f1c19567b24c192d347985c506aef835aba4ae86314ebdc40ba4547e6807"
+  },
+  "infiltration_labelled_rows": {
+    "rows": 36,
+    "source_ip_top": {
+      "192.168.10.8": 36
+    }
+  }
+}

@@ -258,3 +258,28 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
   (C1/C2 raise benign FPR 2–10×); recall gains 3.5–6 points. Served model unchanged. `ML_DEV_RESULTS.md`.
 - Batch 3 (approved) — C4 multi-dataset: D18 recall 11.1 → 32.3 % (2018 botnet 0 → 61 %, web 0 → 61 %) but benign FPR
   6.45 % mean / 24.3 % on 21-02 → **not eligible**. Nothing goes to the external test; served model unchanged.
+
+---
+
+# Batch 9 — protocol v2 preparation (2026-11-02, at `3b1f349`; nothing committed, nothing trained)
+
+| Item | Status | What |
+|---|---|---|
+| SEC-001 | **REQUIRES USER ACTION** | unchanged (9 records). |
+| 21-02 FP root cause | **PARTLY RESOLVED** | homogeneous out-of-distribution benign pattern confirmed (DATA-004); row-level cause needs predictions (v2 batch). |
+| Pipeline integrity | **VERIFIED** | `evaluation/pipeline_integrity.py` (ML-014). |
+| Reporting | **ADDED** | `evaluation/dev_summary.py`: macro + pooled + worst fold + without-homogeneous-fold view (ML-013). |
+| Protocol v2 | **PRE-REGISTERED** | `audit/ML_DEV_PROTOCOL_V2.md`; C4A/C4B frozen in `dev_experiments.py`; `--dump-predictions` (needs `--run --approved`). v2 plan manifests equal batch 3's. |
+
+## Verification
+- `pytest tests/test_dev_protocol_v2.py tests/test_dev_experiments.py tests/test_xgb_holdout_eval.py`: 24/24.
+- `models/`, `runtime/` unchanged; protected days not on disk and not read.
+- v2 batch 1 (approved), C4/C4-A/C4-B: manifests equal the plan; C4 reproduces batch 3 exactly; models/runtime
+  unchanged. **No candidate eligible** (ML-015); C4-A/B best so far (D18 recall 53.2 %, FPR 1.58 %). Nothing
+  promoted; no thresholds changed. Row-level analysis in `evaluation/fp_rows_v2.py` (ML-016).
+- 2017-Thursday FP analysis (model-free): DATA-005; `evaluation/thursday_fp_2017.py`; 1 new test (19/19 in the v2 + dev suites).
+- Label verification plan for DATA-005 pre-registered (`audit/LABEL_VERIFICATION_PLAN.md`); read-only checker `evaluation/verify_labels_2017.py` + 2 tests (not run: needs the GeneratedLabelledFlows file).
+- DATA-005 label check run (approved by the owner; mirror download): **VERIFIED**. Checker comparison bug (48 vs 48.0) fixed before the verdict; +1 test (9/9).
+- Protocol v3 pre-registered (`audit/ML_DEV_PROTOCOL_V3.md`): frozen verified correction list (sha256 c4e3f1c1…), `--labels corrected_v3`, candidate C4AI; plan runs only (manifests unchanged); +4 tests (32/32).
+- v3 runs (approved): manifests equal plan; models/runtime unchanged. **C4-A-I (corrected labels) eligible and selected** (ML-017); recall instability and per-family cost recorded (ML-018). `evaluation/v3_report.py` (+1 test, 33/33). External test not run.
+- Operating line pre-registered then computed (`audit/OPERATING_LINE_V3.md`, `evaluation/operating_line.py`, +1 test): C4-A-I 0.915614, C0 0.974834 (ML-019). External test not run.

@@ -38,7 +38,19 @@ CANDIDATES = {
     "C2": {"features": "C", "taxonomy": "T1", "arch": "two_stage", "model": "xgb", "data": "2017", "note": "binary-first"},
     "C3": {"features": "C", "taxonomy": "T2", "arch": "multiclass", "model": "xgb", "data": "2017", "note": "family taxonomy"},
     "C4": {"features": "C", "taxonomy": "T1", "arch": "two_stage", "model": "xgb", "data": "2017+2018dev", "note": "multi-dataset"},
+    # Protocol v2 (audit/ML_DEV_PROTOCOL_V2.md §4): C4 with the TCP-window features kept; C4 itself is C4-C
+    "C4A": {"features": "A", "taxonomy": "T1", "arch": "two_stage", "model": "xgb", "data": "2017+2018dev", "note": "v2: multi-dataset, 53 features"},
+    "C4B": {"features": "B", "taxonomy": "T1", "arch": "two_stage", "model": "xgb", "data": "2017+2018dev", "note": "v2: multi-dataset, 47 features (constants removed)"},
+    # Protocol v3 (audit/ML_DEV_PROTOCOL_V3.md §3): C4-A without infiltration rows in training (still in every test fold)
+    "C4AI": {"features": "A", "taxonomy": "T1", "arch": "two_stage", "model": "xgb", "data": "2017+2018dev",
+             "exclude_train_families": ["Infiltration"], "note": "v3: C4-A, infiltration excluded from training"},
 }
+# Protocol v3 label set "corrected_v3": the independently verified 2017-Thursday scan rows (audit/LABEL_VERIFICATION_PLAN.md
+# §8), frozen as row positions of one file and pinned by hash. Applied after pooling, so fold manifests do not change.
+CORRECTION_V3 = {"file": "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv",
+                 "rows_csv": ENGINE / "evaluation" / "label_corrections" / "cicids2017_thursday_scan_v3.csv",
+                 "sha256": "c4e3f1c19567b24c192d347985c506aef835aba4ae86314ebdc40ba4547e6807",
+                 "from": "benign", "to": "portscan"}
 FOLD_SETS = ("D17", "D18")  # 2017 leave-one-day-out (5) ; 2018 leave-one-development-day-out (6)
 
 
@@ -213,6 +225,45 @@ def score(cfg, raw, te, pred, p_attack):
     return out
 
 
+def apply_label_set(meta: pd.DataFrame, label_set: str):
+    """Returns (raw labels, report). 'published' = as distributed; 'corrected_v3' = CORRECTION_V3 applied (hash-checked)."""
+    raw = meta["raw"].to_numpy().copy()
+    if label_set == "published":
+        return raw, {"label_set": "published"}
+    if label_set != "corrected_v3":
+        raise KeyError(label_set)
+    c = CORRECTION_V3
+    body = Path(c["rows_csv"]).read_bytes()
+    if hashlib.sha256(body).hexdigest() != c["sha256"]:
+        raise RuntimeError("label correction file does not match its pinned sha256")
+    rows = set(pd.read_csv(Path(c["rows_csv"]))["row"].astype(int))
+    hit = (meta["corpus"] == "2017").to_numpy() & (meta["file"] == c["file"]).to_numpy() & meta["row"].isin(rows).to_numpy()
+    changed = hit & (raw == c["from"])
+    raw[changed] = c["to"]
+    return raw, {"label_set": "corrected_v3", "correction_sha256": c["sha256"], "pool_rows_in_list": int(hit.sum()),
+                 "pool_rows_changed": int(changed.sum()), "change": f"{c['from']} -> {c['to']}"}
+
+
+def train_mask(cfg, raw, tr):
+    """Training rows of a fold, minus any families the candidate excludes from training (test rows are unaffected)."""
+    excl = cfg.get("exclude_train_families")
+    if not excl:
+        return tr
+    return tr & ~np.isin(np.array([taxonomies.RAW_LABELS[r][1] for r in raw]), excl)
+
+
+def prediction_rows(meta, te, fold, pred, p_attack, labels_used=None):
+    """One row per test row: identifiers of the pooled row (corpus/file/row), raw label, prediction, p(attack);
+    with a corrected label set also the label the run used."""
+    d = meta.loc[te, ["corpus", "day", "file", "row", "raw"]].reset_index(drop=True)
+    if labels_used is not None:
+        d["label_used"] = labels_used[te]
+    d.insert(0, "fold", fold)
+    d["pred"] = pred
+    d["p_attack"] = np.round(p_attack, 6)
+    return d
+
+
 # ── main ──────────────────────────────────────────────────────────────────────────────────────────────────────
 def main():
     ap = argparse.ArgumentParser()
@@ -223,7 +274,13 @@ def main():
     ap.add_argument("--folds", default=",".join(FOLD_SETS))
     ap.add_argument("--run", action="store_true")
     ap.add_argument("--approved", action="store_true", help="the owner approved this training batch")
+    ap.add_argument("--labels", default="published", choices=["published", "corrected_v3"],
+                    help="label set (audit/ML_DEV_PROTOCOL_V3.md); corrected_v3 applies the verified Thursday scan correction")
+    ap.add_argument("--dump-predictions", action="store_true",
+                    help="with --run: write each test row's prediction (predictions_<candidate>.csv; development rows only)")
     args = ap.parse_args()
+    if args.dump_predictions and not args.run:
+        sys.exit("--dump-predictions needs --run")
     if args.run and not args.approved:
         sys.exit("--run trains models: pass --approved only with the owner's approval (audit/ML_DEV_PROTOCOL.md §9)")
     out = Path(args.out)
@@ -234,8 +291,8 @@ def main():
     X18, m18 = pool_2018(Path(args.data18), files18) if files18 else (np.empty((0, len(FEATURE_NAMES))), m17.iloc[:0])
     X = np.vstack([X17, X18])
     meta = pd.concat([m17, m18], ignore_index=True)
-    raw = meta["raw"].to_numpy()
-    report = {"generated_at": datetime.now(timezone.utc).isoformat(), "mode": "run" if args.run else "plan",
+    raw, label_report = apply_label_set(meta, args.labels)
+    report = {"generated_at": datetime.now(timezone.utc).isoformat(), "mode": "run" if args.run else "plan", "labels": label_report,
               "versions": _versions(), "seed": SEED, "caps_2018": {**CAPS_2018, "each_attack_label": CAP_2018_ATTACK},
               "pool": {"rows_2017": int(len(m17)), "rows_2018": int(len(m18)), "build_seconds": round(time.time() - t0, 1),
                        "raw_label_counts": {f"{c}:{r}": int(n) for (c, r), n in meta.groupby(["corpus", "raw"]).size().items()},
@@ -244,9 +301,11 @@ def main():
               "candidates": {}}
     for cid in args.candidates.split(","):
         cfg = CANDIDATES[cid]
+        dumps = []
         entry = {"config": cfg, "features": feature_sets.variant(X[:1], cfg["features"])[1], "folds": []}
         for fs in args.folds.split(","):
             for name, tr, te in folds(meta, fs, cfg["data"]):
+                tr = train_mask(cfg, raw, tr)
                 f = {"fold": name, "train_rows": int(tr.sum()), "test_rows": int(te.sum()), "manifest_sha256": manifest_hash(meta, tr, te),
                      "test_families_absent_from_training": sorted(
                          {taxonomies.RAW_LABELS[r][1] for r in raw[te]} - {taxonomies.RAW_LABELS[r][1] for r in raw[tr]})}
@@ -255,7 +314,11 @@ def main():
                     pred, p_attack, fit_s, pred_s, size = fit_predict(cfg, X, raw, tr, te)
                     f.update(score(cfg, raw, te, pred, p_attack), fit_seconds=round(fit_s, 1),
                              predict_us_per_row=round(pred_s * 1e6 / max(1, te.sum()), 2), model_bytes=size)
+                    if args.dump_predictions:
+                        dumps.append(prediction_rows(meta, te, name, pred, p_attack, raw))
                 entry["folds"].append(f)
+        if dumps:
+            pd.concat(dumps, ignore_index=True).to_csv(out / f"predictions_{cid}.csv", index=False)
         report["candidates"][cid] = entry
     (out / ("results.json" if args.run else "plan.json")).write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
     print(json.dumps(report["pool"], indent=1, default=str)[:3000])

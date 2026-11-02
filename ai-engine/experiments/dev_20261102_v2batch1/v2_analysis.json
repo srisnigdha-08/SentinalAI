@@ -1,0 +1,616 @@
+{
+  "manifests_equal_plan": true,
+  "c4_reproduction": {
+    "2017-Monday": true,
+    "2017-Tuesday": true,
+    "2017-Wednesday": true,
+    "2017-Thursday": true,
+    "2017-Friday": true,
+    "2018-01-03-2018": true,
+    "2018-02-03-2018": true,
+    "2018-14-02-2018": true,
+    "2018-15-02-2018": true,
+    "2018-21-02-2018": true,
+    "2018-23-02-2018": true
+  },
+  "c4_mismatch_detail": {},
+  "summary": {
+    "C0 D17": {
+      "folds": 5,
+      "macro_recall": 0.1932,
+      "macro_fpr": 0.015349,
+      "pooled_recall": 0.1963,
+      "pooled_fpr": 0.021113,
+      "pooled": {
+        "tp": 6120,
+        "fp": 1971,
+        "fn": 25061,
+        "tn": 91382
+      },
+      "worst_fold_fpr": [
+        "2017-Thursday",
+        0.041186
+      ]
+    },
+    "C0 D18": {
+      "folds": 6,
+      "macro_recall": 0.1106,
+      "macro_fpr": 0.00372,
+      "pooled_recall": 0.2511,
+      "pooled_fpr": 0.003581,
+      "pooled": {
+        "tp": 11942,
+        "fp": 293,
+        "fn": 35611,
+        "tn": 81528
+      },
+      "worst_fold_fpr": [
+        "2018-01-03-2018",
+        0.016844
+      ],
+      "without_homogeneous_folds": {
+        "macro_recall": 0.1327,
+        "macro_fpr": 0.00445,
+        "pooled_recall": 0.3174,
+        "pooled_fpr": 0.00437,
+        "worst_fold_fpr": [
+          "2018-01-03-2018",
+          0.016844
+        ]
+      }
+    },
+    "C4 D17": {
+      "folds": 5,
+      "macro_recall": 0.2871,
+      "macro_fpr": 0.015236,
+      "pooled_recall": 0.3641,
+      "pooled_fpr": 0.016261,
+      "pooled": {
+        "tp": 11352,
+        "fp": 1518,
+        "fn": 19829,
+        "tn": 91835
+      },
+      "worst_fold_fpr": [
+        "2017-Thursday",
+        0.04187
+      ]
+    },
+    "C4 D18": {
+      "folds": 6,
+      "macro_recall": 0.3229,
+      "macro_fpr": 0.064504,
+      "pooled_recall": 0.3562,
+      "pooled_fpr": 0.068112,
+      "pooled": {
+        "tp": 16940,
+        "fp": 5573,
+        "fn": 30613,
+        "tn": 76248
+      },
+      "worst_fold_fpr": [
+        "2018-21-02-2018",
+        0.24315
+      ],
+      "without_homogeneous_folds": {
+        "macro_recall": 0.3373,
+        "macro_fpr": 0.028775,
+        "pooled_recall": 0.3839,
+        "pooled_fpr": 0.028823,
+        "worst_fold_fpr": [
+          "2018-15-02-2018",
+          0.069753
+        ]
+      }
+    },
+    "C4A D17": {
+      "folds": 5,
+      "macro_recall": 0.3612,
+      "macro_fpr": 0.012154,
+      "pooled_recall": 0.4242,
+      "pooled_fpr": 0.013272,
+      "pooled": {
+        "tp": 13226,
+        "fp": 1239,
+        "fn": 17955,
+        "tn": 92114
+      },
+      "worst_fold_fpr": [
+        "2017-Thursday",
+        0.041961
+      ]
+    },
+    "C4A D18": {
+      "folds": 6,
+      "macro_recall": 0.5316,
+      "macro_fpr": 0.015751,
+      "pooled_recall": 0.5554,
+      "pooled_fpr": 0.015509,
+      "pooled": {
+        "tp": 26409,
+        "fp": 1269,
+        "fn": 21144,
+        "tn": 80552
+      },
+      "worst_fold_fpr": [
+        "2018-15-02-2018",
+        0.051264
+      ],
+      "without_homogeneous_folds": {
+        "macro_recall": 0.6281,
+        "macro_fpr": 0.018794,
+        "pooled_recall": 0.6889,
+        "pooled_fpr": 0.018871,
+        "worst_fold_fpr": [
+          "2018-15-02-2018",
+          0.051264
+        ]
+      }
+    },
+    "C4B D17": {
+      "folds": 5,
+      "macro_recall": 0.3612,
+      "macro_fpr": 0.012154,
+      "pooled_recall": 0.4242,
+      "pooled_fpr": 0.013272,
+      "pooled": {
+        "tp": 13226,
+        "fp": 1239,
+        "fn": 17955,
+        "tn": 92114
+      },
+      "worst_fold_fpr": [
+        "2017-Thursday",
+        0.041961
+      ]
+    },
+    "C4B D18": {
+      "folds": 6,
+      "macro_recall": 0.5316,
+      "macro_fpr": 0.015751,
+      "pooled_recall": 0.5554,
+      "pooled_fpr": 0.015509,
+      "pooled": {
+        "tp": 26409,
+        "fp": 1269,
+        "fn": 21144,
+        "tn": 80552
+      },
+      "worst_fold_fpr": [
+        "2018-15-02-2018",
+        0.051264
+      ],
+      "without_homogeneous_folds": {
+        "macro_recall": 0.6281,
+        "macro_fpr": 0.018794,
+        "pooled_recall": 0.6889,
+        "pooled_fpr": 0.018871,
+        "worst_fold_fpr": [
+          "2018-15-02-2018",
+          0.051264
+        ]
+      }
+    }
+  },
+  "per_fold": {
+    "C4": {
+      "2017-Monday": {
+        "recall": 0.0,
+        "fpr": 0.006239,
+        "fp": 75,
+        "prec": 0.0,
+        "pr_auc": null,
+        "brier": null,
+        "us": 89.18,
+        "mb": 4.64,
+        "fit_s": 66.8
+      },
+      "2017-Tuesday": {
+        "recall": 0.3213,
+        "fpr": 0.018085,
+        "fp": 215,
+        "prec": 0.9319,
+        "pr_auc": 0.7935,
+        "brier": 0.25026,
+        "us": 51.76,
+        "mb": 4.35,
+        "fit_s": 59.9
+      },
+      "2017-Wednesday": {
+        "recall": 0.2637,
+        "fpr": 0.00195,
+        "fp": 23,
+        "prec": 0.9893,
+        "pr_auc": 0.9158,
+        "brier": 0.22137,
+        "us": 55.81,
+        "mb": 4.42,
+        "fit_s": 55.6
+      },
+      "2017-Thursday": {
+        "recall": 0.0372,
+        "fpr": 0.04187,
+        "fp": 918,
+        "prec": 0.0811,
+        "pr_auc": 0.2362,
+        "brier": 0.0976,
+        "us": 49.84,
+        "mb": 4.15,
+        "fit_s": 64.5
+      },
+      "2017-Friday": {
+        "recall": 0.5262,
+        "fpr": 0.008034,
+        "fp": 287,
+        "prec": 0.9558,
+        "pr_auc": 0.8223,
+        "brier": 0.11602,
+        "us": 36.0,
+        "mb": 4.32,
+        "fit_s": 54.7
+      },
+      "2018-01-03-2018": {
+        "recall": 0.0225,
+        "fpr": 0.016767,
+        "fp": 218,
+        "prec": 0.4381,
+        "pr_auc": 0.4158,
+        "brier": 0.35528,
+        "us": 53.76,
+        "mb": 4.12,
+        "fit_s": 58.6
+      },
+      "2018-02-03-2018": {
+        "recall": 0.608,
+        "fpr": 0.035105,
+        "fp": 500,
+        "prec": 0.8722,
+        "pr_auc": 0.8437,
+        "brier": 0.10417,
+        "us": 52.71,
+        "mb": 4.48,
+        "fit_s": 73.7
+      },
+      "2018-14-02-2018": {
+        "recall": 0.0197,
+        "fpr": 0.010752,
+        "fp": 138,
+        "prec": 0.4202,
+        "pr_auc": 0.7308,
+        "brier": 0.15295,
+        "us": 52.59,
+        "mb": 4.67,
+        "fit_s": 62.4
+      },
+      "2018-15-02-2018": {
+        "recall": 0.5574,
+        "fpr": 0.069753,
+        "fp": 913,
+        "prec": 0.92,
+        "pr_auc": 0.8796,
+        "brier": 0.19497,
+        "us": 46.57,
+        "mb": 4.56,
+        "fit_s": 60.1
+      },
+      "2018-21-02-2018": {
+        "recall": 0.2513,
+        "fpr": 0.24315,
+        "fp": 3647,
+        "prec": 0.4061,
+        "pr_auc": 0.4315,
+        "brier": 0.34675,
+        "us": 43.08,
+        "mb": 4.61,
+        "fit_s": 61.2
+      },
+      "2018-23-02-2018": {
+        "recall": 0.4787,
+        "fpr": 0.011499,
+        "fp": 157,
+        "prec": 0.6226,
+        "pr_auc": 0.4062,
+        "brier": 0.04966,
+        "us": 53.87,
+        "mb": 4.45,
+        "fit_s": 64.4
+      }
+    },
+    "C4A": {
+      "2017-Monday": {
+        "recall": 0.0,
+        "fpr": 0.002495,
+        "fp": 30,
+        "prec": 0.0,
+        "pr_auc": null,
+        "brier": null,
+        "us": 68.69,
+        "mb": 4.45,
+        "fit_s": 72.1
+      },
+      "2017-Tuesday": {
+        "recall": 0.0151,
+        "fpr": 0.008496,
+        "fp": 101,
+        "prec": 0.5774,
+        "pr_auc": 0.7931,
+        "brier": 0.31557,
+        "us": 57.27,
+        "mb": 4.26,
+        "fit_s": 64.1
+      },
+      "2017-Wednesday": {
+        "recall": 0.8179,
+        "fpr": 0.003815,
+        "fp": 45,
+        "prec": 0.9932,
+        "pr_auc": 0.9896,
+        "brier": 0.06397,
+        "us": 47.63,
+        "mb": 4.24,
+        "fit_s": 63.4
+      },
+      "2017-Thursday": {
+        "recall": 0.0748,
+        "fpr": 0.041961,
+        "fp": 920,
+        "prec": 0.1505,
+        "pr_auc": 0.3232,
+        "brier": 0.09293,
+        "us": 56.38,
+        "mb": 3.87,
+        "fit_s": 66.9
+      },
+      "2017-Friday": {
+        "recall": 0.537,
+        "fpr": 0.004003,
+        "fp": 143,
+        "prec": 0.9779,
+        "pr_auc": 0.8952,
+        "brier": 0.10048,
+        "us": 40.68,
+        "mb": 4.13,
+        "fit_s": 59.5
+      },
+      "2018-01-03-2018": {
+        "recall": 0.0147,
+        "fpr": 0.008076,
+        "fp": 105,
+        "prec": 0.5139,
+        "pr_auc": 0.4085,
+        "brier": 0.35787,
+        "us": 41.59,
+        "mb": 3.87,
+        "fit_s": 63.7
+      },
+      "2018-02-03-2018": {
+        "recall": 0.9467,
+        "fpr": 0.026399,
+        "fp": 376,
+        "prec": 0.9339,
+        "pr_auc": 0.9759,
+        "brier": 0.04481,
+        "us": 28.11,
+        "mb": 4.29,
+        "fit_s": 66.7
+      },
+      "2018-14-02-2018": {
+        "recall": 0.7372,
+        "fpr": 0.004129,
+        "fp": 53,
+        "prec": 0.9861,
+        "pr_auc": 0.9749,
+        "brier": 0.07911,
+        "us": 49.17,
+        "mb": 4.37,
+        "fit_s": 64.8
+      },
+      "2018-15-02-2018": {
+        "recall": 0.8727,
+        "fpr": 0.051264,
+        "fp": 671,
+        "prec": 0.9608,
+        "pr_auc": 0.9795,
+        "brier": 0.09249,
+        "us": 44.84,
+        "mb": 4.34,
+        "fit_s": 63.3
+      },
+      "2018-21-02-2018": {
+        "recall": 0.0488,
+        "fpr": 0.000533,
+        "fp": 8,
+        "prec": 0.9837,
+        "pr_auc": 0.7732,
+        "brier": 0.28162,
+        "us": 25.58,
+        "mb": 4.45,
+        "fit_s": 73.7
+      },
+      "2018-23-02-2018": {
+        "recall": 0.5693,
+        "fpr": 0.004102,
+        "fp": 56,
+        "prec": 0.8462,
+        "pr_auc": 0.6241,
+        "brier": 0.04155,
+        "us": 38.58,
+        "mb": 4.17,
+        "fit_s": 103.4
+      }
+    },
+    "C4B": {
+      "2017-Monday": {
+        "recall": 0.0,
+        "fpr": 0.002495,
+        "fp": 30,
+        "prec": 0.0,
+        "pr_auc": null,
+        "brier": null,
+        "us": 84.33,
+        "mb": 4.45,
+        "fit_s": 72.9
+      },
+      "2017-Tuesday": {
+        "recall": 0.0151,
+        "fpr": 0.008496,
+        "fp": 101,
+        "prec": 0.5774,
+        "pr_auc": 0.7931,
+        "brier": 0.31557,
+        "us": 41.53,
+        "mb": 4.26,
+        "fit_s": 61.3
+      },
+      "2017-Wednesday": {
+        "recall": 0.8179,
+        "fpr": 0.003815,
+        "fp": 45,
+        "prec": 0.9932,
+        "pr_auc": 0.9896,
+        "brier": 0.06397,
+        "us": 25.27,
+        "mb": 4.24,
+        "fit_s": 60.9
+      },
+      "2017-Thursday": {
+        "recall": 0.0748,
+        "fpr": 0.041961,
+        "fp": 920,
+        "prec": 0.1505,
+        "pr_auc": 0.3232,
+        "brier": 0.09293,
+        "us": 43.6,
+        "mb": 3.87,
+        "fit_s": 65.9
+      },
+      "2017-Friday": {
+        "recall": 0.537,
+        "fpr": 0.004003,
+        "fp": 143,
+        "prec": 0.9779,
+        "pr_auc": 0.8952,
+        "brier": 0.10048,
+        "us": 36.68,
+        "mb": 4.13,
+        "fit_s": 57.3
+      },
+      "2018-01-03-2018": {
+        "recall": 0.0147,
+        "fpr": 0.008076,
+        "fp": 105,
+        "prec": 0.5139,
+        "pr_auc": 0.4085,
+        "brier": 0.35787,
+        "us": 49.65,
+        "mb": 3.87,
+        "fit_s": 62.1
+      },
+      "2018-02-03-2018": {
+        "recall": 0.9467,
+        "fpr": 0.026399,
+        "fp": 376,
+        "prec": 0.9339,
+        "pr_auc": 0.9759,
+        "brier": 0.04481,
+        "us": 48.62,
+        "mb": 4.29,
+        "fit_s": 65.0
+      },
+      "2018-14-02-2018": {
+        "recall": 0.7372,
+        "fpr": 0.004129,
+        "fp": 53,
+        "prec": 0.9861,
+        "pr_auc": 0.9749,
+        "brier": 0.07911,
+        "us": 48.46,
+        "mb": 4.37,
+        "fit_s": 68.1
+      },
+      "2018-15-02-2018": {
+        "recall": 0.8727,
+        "fpr": 0.051264,
+        "fp": 671,
+        "prec": 0.9608,
+        "pr_auc": 0.9795,
+        "brier": 0.09249,
+        "us": 43.38,
+        "mb": 4.34,
+        "fit_s": 77.3
+      },
+      "2018-21-02-2018": {
+        "recall": 0.0488,
+        "fpr": 0.000533,
+        "fp": 8,
+        "prec": 0.9837,
+        "pr_auc": 0.7732,
+        "brier": 0.28162,
+        "us": 48.28,
+        "mb": 4.45,
+        "fit_s": 76.6
+      },
+      "2018-23-02-2018": {
+        "recall": 0.5693,
+        "fpr": 0.004102,
+        "fp": 56,
+        "prec": 0.8462,
+        "pr_auc": 0.6241,
+        "brier": 0.04155,
+        "us": 54.73,
+        "mb": 4.17,
+        "fit_s": 78.3
+      }
+    }
+  },
+  "by_family_D18": {
+    "C4": {
+      "Infiltration": 0.023,
+      "Botnet": 0.608,
+      "Brute Force": 0.044,
+      "DoS/DDoS": 0.452,
+      "Web Attack": 0.612
+    },
+    "C4A": {
+      "Infiltration": 0.015,
+      "Botnet": 0.947,
+      "Brute Force": 0.718,
+      "DoS/DDoS": 0.588,
+      "Web Attack": 0.791
+    },
+    "C4B": {
+      "Infiltration": 0.015,
+      "Botnet": 0.947,
+      "Brute Force": 0.718,
+      "DoS/DDoS": 0.588,
+      "Web Attack": 0.791
+    }
+  },
+  "eligibility": {
+    "C4": {
+      "eligible": false,
+      "reasons": [
+        "D17 fold 2017-Thursday 4.19% > 2%",
+        "D18 mean FPR 6.4504% > 0.4720%",
+        "D18 fold 2018-21-02-2018 24.32% > 2%"
+      ]
+    },
+    "C4A": {
+      "eligible": false,
+      "reasons": [
+        "D17 fold 2017-Thursday 4.20% > 2%",
+        "D18 mean FPR 1.5751% > 0.4720%",
+        "D18 fold 2018-15-02-2018 5.13% > 2%"
+      ]
+    },
+    "C4B": {
+      "eligible": false,
+      "reasons": [
+        "D17 fold 2017-Thursday 4.20% > 2%",
+        "D18 mean FPR 1.5751% > 0.4720%",
+        "D18 fold 2018-15-02-2018 5.13% > 2%"
+      ]
+    }
+  },
+  "note": "row-level analysis is in v2_rows.json (evaluation/fp_rows_v2.py); an earlier 21_02 section here used the wrong label spelling and was removed"
+}

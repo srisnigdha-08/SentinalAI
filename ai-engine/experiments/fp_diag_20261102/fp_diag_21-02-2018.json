@@ -1,0 +1,292 @@
+{
+  "day": "21-02-2018",
+  "file": "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv",
+  "model_free": true,
+  "rows": {
+    "test": 24922,
+    "test_benign": 14999,
+    "test_attack_by_raw": {
+      "ddos attack hoic": "8193",
+      "ddos attack loic udp": "1730"
+    },
+    "train": 228986
+  },
+  "nn_family_of_benign_test_rows_features_C": {
+    "Benign": 14988,
+    "Infiltration": 9,
+    "Brute Force": 2
+  },
+  "nn_attack_share_features_C": 0.0007,
+  "exact_duplicates_benign_test_vs_train_attack_features_C": 0,
+  "exact_duplicates_benign_test_vs_train_benign_features_C": 0,
+  "nn_family_of_benign_test_rows_features_A": {
+    "Benign": 14988,
+    "Infiltration": 10,
+    "Brute Force": 1
+  },
+  "nn_attack_share_features_A": 0.0007,
+  "exact_duplicates_benign_test_vs_train_attack_features_A": 0,
+  "exact_duplicates_benign_test_vs_train_benign_features_A": 0,
+  "ks_benign_day_vs_other_2018_benign": {
+    "init_win_bytes_forward": 0.992,
+    "fwd_packet_len_std": 0.988,
+    "fwd_packet_len_max": 0.981,
+    "fwd_packet_len_mean": 0.977,
+    "rst_flag_count": 0.854,
+    "init_win_bytes_backward": 0.821,
+    "total_len_fwd_packets": 0.774,
+    "flow_iat_min": 0.733
+  },
+  "ks_benign_day_vs_2017_benign": {
+    "rst_flag_count": 0.993,
+    "init_win_bytes_forward": 0.966,
+    "init_win_bytes_backward": 0.963,
+    "fwd_packet_len_std": 0.948,
+    "fwd_packet_len_mean": 0.935,
+    "fwd_packet_len_max": 0.929,
+    "bwd_iat_min": 0.912,
+    "total_len_fwd_packets": 0.861
+  },
+  "ks_benign_day_vs_own_attacks": {
+    "fwd_packet_len_max": 0.994,
+    "fwd_packet_len_mean": 0.993,
+    "fwd_packet_len_std": 0.993,
+    "init_win_bytes_backward": 0.993,
+    "bwd_iat_min": 0.99,
+    "total_fwd_packets": 0.825,
+    "fwd_header_len": 0.824,
+    "total_len_fwd_packets": 0.823
+  },
+  "init_win_bytes_forward_benign_day": {
+    "n": 14999,
+    "median": 65535.0,
+    "p10": 65535.0,
+    "p90": 65535.0,
+    "top_values": {
+      "65535.0": 14892,
+      "-1.0": 94,
+      "27200.0": 5,
+      "8192.0": 3,
+      "14600.0": 1
+    }
+  },
+  "init_win_bytes_backward_benign_day": {
+    "n": 14999,
+    "median": 32768.0,
+    "p10": 32768.0,
+    "p90": 32768.0,
+    "top_values": {
+      "32768.0": 14892,
+      "-1.0": 95,
+      "210.0": 5,
+      "0.0": 4,
+      "230.0": 1
+    }
+  },
+  "flow_duration_benign_day": {
+    "n": 14999,
+    "median": 1458.0,
+    "p10": 1146.0,
+    "p90": 17886.4,
+    "top_values": {
+      "1216.0": 38,
+      "1213.0": 36,
+      "1190.0": 35,
+      "1250.0": 35,
+      "1246.0": 35
+    }
+  },
+  "total_fwd_packets_benign_day": {
+    "n": 14999,
+    "median": 5.0,
+    "p10": 5.0,
+    "p90": 5.0,
+    "top_values": {
+      "5.0": 14899,
+      "13.0": 18,
+      "12.0": 12,
+      "15.0": 10,
+      "11.0": 10
+    }
+  },
+  "init_win_bytes_forward_benign_other_2018": {
+    "n": 66822,
+    "median": 513.0,
+    "p10": -1.0,
+    "p90": 8192.0,
+    "top_values": {
+      "8192.0": 27512,
+      "-1.0": 23181,
+      "279.0": 1734,
+      "256.0": 1023,
+      "253.0": 678
+    }
+  },
+  "init_win_bytes_backward_benign_other_2018": {
+    "n": 66822,
+    "median": 0.0,
+    "p10": -1.0,
+    "p90": 62856.0,
+    "top_values": {
+      "-1.0": 33036,
+      "0.0": 3798,
+      "62852.0": 2487,
+      "149.0": 2219,
+      "62872.0": 2095
+    }
+  },
+  "flow_duration_benign_other_2018": {
+    "n": 66822,
+    "median": 147672.5,
+    "p10": 252.0,
+    "p90": 86262265.6,
+    "top_values": {
+      "1.0": 238,
+      "19.0": 95,
+      "20.0": 95,
+      "21.0": 94,
+      "43.0": 86
+    }
+  },
+  "total_fwd_packets_benign_other_2018": {
+    "n": 66822,
+    "median": 3.0,
+    "p10": 1.0,
+    "p90": 13.0,
+    "top_values": {
+      "1.0": 19774,
+      "2.0": 13319,
+      "3.0": 8663,
+      "8.0": 6004,
+      "9.0": 2701
+    }
+  },
+  "init_win_bytes_forward_attacks_day": {
+    "n": 9923,
+    "median": 32738.0,
+    "p10": -1.0,
+    "p90": 65535.0,
+    "top_values": {
+      "32738.0": 5886,
+      "65535.0": 2307,
+      "-1.0": 1730
+    }
+  },
+  "init_win_bytes_backward_attacks_day": {
+    "n": 9923,
+    "median": -1.0,
+    "p10": -1.0,
+    "p90": 219.0,
+    "top_values": {
+      "-1.0": 7616,
+      "219.0": 2305,
+      "211.0": 2
+    }
+  },
+  "flow_duration_attacks_day": {
+    "n": 9923,
+    "median": 11763.0,
+    "p10": 1449.2,
+    "p90": 119743155.2,
+    "top_values": {
+      "119999960.0": 12,
+      "119999984.0": 9,
+      "119999968.0": 8,
+      "1301.0": 5,
+      "119999808.0": 5
+    }
+  },
+  "total_fwd_packets_attacks_day": {
+    "n": 9923,
+    "median": 2.0,
+    "p10": 2.0,
+    "p90": 116131.2000000001,
+    "top_values": {
+      "2.0": 5886,
+      "3.0": 2307,
+      "4098.0": 8,
+      "131639.0": 3,
+      "117392.0": 2
+    }
+  },
+  "attack_windows": {
+    "DDOS attack-HOIC": [
+      "2018-02-21 02:11:08",
+      "2018-02-21 02:33:29"
+    ],
+    "DDOS attack-LOIC-UDP": [
+      "2018-02-21 10:08:51",
+      "2018-02-21 10:43:16"
+    ]
+  },
+  "benign_in_attack_window": {
+    "rows": 14986,
+    "of": 14999,
+    "nn_attack_share_in_window": 0.0007,
+    "nn_attack_share_outside": 0.0
+  },
+  "benign_by_hour": {
+    "1": {
+      "rows": 1,
+      "nn_attack_share": 0.0
+    },
+    "2": {
+      "rows": 14899,
+      "nn_attack_share": 0.0001
+    },
+    "8": {
+      "rows": 4,
+      "nn_attack_share": 0.0
+    },
+    "9": {
+      "rows": 4,
+      "nn_attack_share": 0.0
+    },
+    "10": {
+      "rows": 91,
+      "nn_attack_share": 0.1099
+    }
+  },
+  "benign_dst_port_top": {
+    "80": {
+      "rows": 83,
+      "nn_attack_share": 0.0964
+    },
+    "22": {
+      "rows": 7,
+      "nn_attack_share": 0.2857
+    },
+    "500": {
+      "rows": 7,
+      "nn_attack_share": 0.0
+    },
+    "53580": {
+      "rows": 6,
+      "nn_attack_share": 0.0
+    },
+    "54888": {
+      "rows": 6,
+      "nn_attack_share": 0.0
+    },
+    "55977": {
+      "rows": 6,
+      "nn_attack_share": 0.0
+    },
+    "56202": {
+      "rows": 6,
+      "nn_attack_share": 0.0
+    },
+    "49272": {
+      "rows": 5,
+      "nn_attack_share": 0.0
+    }
+  },
+  "attack_dst_port_top": {
+    "80": 9923
+  },
+  "benign_protocol": {
+    "6": 14905,
+    "17": 90,
+    "0": 4
+  }
+}
