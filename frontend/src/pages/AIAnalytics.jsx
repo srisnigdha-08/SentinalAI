@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
-import { BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
+import { BarChart, Bar,
          XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { aiAPI, CANONICAL_CLASSES, trainingSampleAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'

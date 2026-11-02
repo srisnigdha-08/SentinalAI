@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import { useState } from 'react'
 import { threatAPI } from '../services/api.js'
 import toast from 'react-hot-toast'
 import Modal from './Modal.jsx'

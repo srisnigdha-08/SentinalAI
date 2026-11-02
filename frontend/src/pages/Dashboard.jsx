@@ -100,7 +100,7 @@ export default function Dashboard() {
         }
       })
       setVectorData(Object.values(dateMap).slice(-7))
-    } catch (err) {
+    } catch {
       setSystemHealth(null)
       setError('Dashboard data is unavailable. Any displayed values may be stale.')
     } finally {

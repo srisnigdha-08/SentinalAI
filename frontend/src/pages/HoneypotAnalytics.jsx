@@ -3,7 +3,7 @@ import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { honeypotAPI, threatAPI } from '../services/api.js'
+import { honeypotAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth.js'
@@ -90,7 +90,6 @@ export default function HoneypotAnalytics() {
 
   const kpis   = analytics?.kpis   || {}
   const charts = analytics?.charts || {}
-  const intel  = analytics?.intelligence || {}
 
   const cmdData   = (charts.topCommands    || []).map(c=>({ cmd:c._id.length>20?c._id.slice(0,20)+'…':c._id, count:c.count }))
   const dailyData = (charts.dailySessions  || []).map(d=>({ date:d._id?.slice(5)||d._id, sessions:d.sessions }))

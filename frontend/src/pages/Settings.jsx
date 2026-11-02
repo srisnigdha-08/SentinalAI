@@ -36,7 +36,7 @@ export default function Settings() {
       setBlockedIPs(blockedRes.data?.data?.blockedIPs || [])
       setContainmentStatus(containmentRes.data?.data || null)
       setAuditLogs(auditRes.data?.data || [])
-    } catch (err) {
+    } catch {
       setError('System configuration is unavailable. Retry to load firewall and blocklist state.')
       toast.error('Failed to load settings data')
     } finally {
