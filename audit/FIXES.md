@@ -306,3 +306,23 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - Integration with live Cowrie: 41/41 (`runs/20261102_145846`); MongoDB `--auth` least privilege: 35/35 (`runs/20261102_150153`).
 - Registry: classifier, anomaly and golden-set hashes verified; `models/`, `runtime/` unchanged.
 - Not run: Docker Compose, nginx/TLS, real firewall adapter.
+
+---
+
+# Batch 11 — per-threat SHAP, frontend reliability (2026-11-03, at `4bd562c`; nothing committed)
+
+| Item | Status | What |
+|---|---|---|
+| XAI-001 per-threat SHAP | **FIXED** | Engine `SentinelPredictor.explain_vector` + `POST /explain/vector` (key-gated, side-effect free; explainer missing → 200 `explainerAvailable:false`, so the backend's circuit breaker is never tripped by explanations). Backend `services/threatExplanationService.js`, `GET /api/threats/:id/explanation` (analyst/admin; reason codes NO_LINKED_PREDICTION, PREDICTION_MISSING, NOT_A_FLOW, NO_STORED_VECTOR, SCHEMA_MISMATCH, MODEL_VERSION_MISMATCH, NOT_REPRODUCED, ENGINE_UNAVAILABLE, EXPLAINER_UNAVAILABLE). Frontend `ExplanationModal.jsx` (bar chart, guidance), `utils/threatExplanation.js`, Explain button on Threat Logs for threats with a prediction. No new storage; scoring unchanged. |
+| UI-003 Threat Logs stale-response race | **FIXED** | Request sequence guard in `pages/ThreatLogs.jsx`; `e2e/threat-logs-race.spec.js` failed before, passes after (3 browsers). |
+| LINT-001 frontend lint | **FIXED** | `frontend/eslint.config.js`, `npm run lint`, CI step; dead code removed in 9 files; 0 errors. |
+| E2E-002 | **OPEN** | focus-steal hypothesis refuted by experiment; no code change. |
+| SEC-001 | **OPEN (risk accepted by the owner)** | out of scope. |
+
+## Verification (2026-11-03)
+- AI engine pytest 648 passed (12 new in `tests/test_explain_vector.py`, real served model: 20/20 reproduced, SHAP additivity).
+- Backend Jest 1,176 passed / 13 skipped (`threatExplanation.test.js` 24 new; role matrix +1 route). Backend ESLint clean.
+- Frontend unit 56/56 (3 new); lint 0 errors / 13 warnings; production build OK.
+- Integration with live Cowrie 42/42 (`runs/20261102_191411`), including the per-threat explanation on a replayed threat (90 ms end to end).
+- Engine latency (idle): `/explain/vector` p50 26 ms / p95 48 ms; `/predict/internal` p95 33 ms (unchanged).
+- `models/`, `runtime/` unchanged; registry hashes verified.

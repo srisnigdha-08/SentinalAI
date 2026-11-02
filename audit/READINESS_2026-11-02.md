@@ -156,3 +156,34 @@ Working tree: the files below, plus `.claude/` and local run logs (excluded).
 
 Not committed: `.claude/` (including the local `launch.json` entries added for this session), run logs under
 `ai-engine/experiments/*_stdout.txt`, `scripts/integration/runs/` (git-ignored), Playwright reports.
+
+## Addendum — batch 11 (2026-11-03)
+
+- **Per-threat SHAP (XAI-001) implemented.**
+  - Threat Logs → Explain (analyst/admin) shows class, confidence, score, model version and a contribution chart.
+  - It is computed on demand from the vector stored with that prediction and shown only if re-scoring reproduces
+    it; otherwise it states the reason.
+  - No new storage; scoring unchanged.
+  - Engine `/explain/vector` p50 26 ms / p95 48 ms; 90 ms end to end.
+- **Threat Logs stale-response race (UI-003) fixed**; reproduced first, regression-tested on three browsers.
+- **Frontend lint (LINT-001)** added to CI: 0 errors.
+- **Tests:**
+
+  | Suite | Result |
+  |---|---|
+  | Backend Jest | 1,176 passed / 13 skipped |
+  | Backend ESLint | clean |
+  | AI engine pytest | 648 passed |
+  | Frontend unit | 56/56 |
+  | Frontend lint | 0 errors / 13 warnings |
+  | Production build | OK |
+  | Playwright (Chromium/Firefox/WebKit) | **180/180** |
+  | Integration, live Cowrie | **42/42** |
+
+- **Demo B** now includes the per-threat explanation (`docs/DEMO_ABC_RUNBOOK.md` §3 step 8). Demos A and C are
+  unchanged and re-verified by the 42/42 run.
+- **Remaining:**
+  - E2E-002 open (did not occur in this run);
+  - SEC-001 open (risk accepted);
+  - honeypot `topAttackers` sent but not rendered;
+  - explanations cover the classifier, not the Isolation Forest part of the score.

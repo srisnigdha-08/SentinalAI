@@ -24,10 +24,11 @@ session walkthrough: [`DEMO_RUNBOOK.md`](DEMO_RUNBOOK.md).
 
 | Check | Result | Evidence |
 |---|---|---|
-| Integration harness with live WSL Cowrie (Demos A, A-live, B, C, auth, outage) | **41 passed, 0 failed** | `scripts/integration/runs/20261102_145846` |
+| Integration harness with live WSL Cowrie (Demos A, A-live, B, C, auth, outage) | **41 passed, 0 failed** (2026-11-02); **42 passed, 0 failed** with the per-threat explanation check (2026-11-03) | `scripts/integration/runs/20261102_145846`, `20261102_191411` |
 | Same on MongoDB with `--auth` as least-privilege `sentinel_app` | **35 passed, 0 failed** | `scripts/integration/runs/20261102_150153` |
 | Browser E2E: Chromium, Firefox, WebKit | 167 passed, 1 failed (known intermittent Firefox E2E-002; 40/40 when repeated alone) | `frontend/playwright-report` |
 | Single-flow inference, idle machine | p95 **35 ms**; with SHAP p95 **47 ms**; engine ready in 4.6–6.1 s, 272 MB | `scripts/perf/engine_latency.py` |
+| Per-threat explanation (batch 11, 2026-11-03) | engine `/explain/vector` p50 26 ms / p95 48 ms, 20/20 reproduced; end to end through the backend 90 ms on a replayed threat | `scripts/perf/engine_latency.py`; integration run `20261102_191411` (42/42) |
 
 Not run, so not claimed: Docker Compose (Docker is not installed), nginx/TLS, real firewall enforcement.
 
@@ -107,7 +108,7 @@ outcome; say so.
 | 5 | **Threat Logs** | Every non-BENIGN prediction at or above the **0.90 alert line** becomes a ThreatLog |
 | 6 | Threat row | Severity from the score: **CRITICAL** at or above the 0.92 block line, **HIGH** from 0.90; attack type; AI confidence |
 | 7 | **Dashboard** | Live feed and counters update without reload (`new_threat`, `ai_prediction`) |
-| 8 | **AI Analytics** | The **global** SHAP view: which features drive the engine's recent decisions. Per-flow attributions exist at the engine API (`/predict/internal?explain=true`; verified for 20/20 golden flows), but the threat pipeline does not request them, so individual threats show no per-flow explanation |
+| 8 | **Threat Logs → Explain** on a replayed threat (analyst/admin) | The per-threat SHAP explanation: predicted class, confidence, threat score, model version and a red/blue bar chart of the strongest feature contributions. It is computed from the feature vector stored with **that** prediction and shown only if re-scoring reproduces the same class, score and model version; otherwise the panel states the reason. Say: "contributions explain the XGBoost classifier, in log-odds units; the threat score also includes the anomaly detector, which SHAP does not break down." **AI Analytics** shows the global view |
 | 9 | Alerts bell | One alert per HIGH or CRITICAL threat |
 | 10 | Admin: **Settings → audit log** (latest 20) | Sign-ins and analyst actions are recorded |
 
@@ -168,4 +169,4 @@ it only when you mean to. Never reset `sentinel-db`.
 node scripts/integration/run_integration.cjs --cowrie
 ```
 
-Expect `41 passed, 0 failed`. It restores `cowrie.cfg` and Cowrie's running state itself.
+Expect `42 passed, 0 failed`. It restores `cowrie.cfg` and Cowrie's running state itself.

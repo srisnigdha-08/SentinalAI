@@ -728,3 +728,38 @@ replayed traffic produced no such score in either integration run (belowBlockLin
 test (containmentPolicy TEST 5b): threat stored, not blocked, no deny-list row, no ip_blocked event. Behaviour was
 already correct.
 ```
+
+```
+ID: XAI-001 | P2 | FIXED 2026-11-03 (batch 11)
+Per-threat SHAP implemented on demand without new storage: AIPrediction already stored the exact 53-value vector
+the engine scored (featureVector, hidden from all responses) and ThreatLog.predictionId links to it. New engine
+POST /explain/vector re-scores that vector through the normal scoring path (no stats/drift/callbacks) and returns
+SHAP contributions; backend GET /api/threats/:id/explanation (analyst/admin) explains only when the re-score
+reproduces the stored class, score (±1e-4) and model version, otherwise refuses with a reason code. Vectors are
+never accepted from clients and never returned. Verified on the served model (20/20 golden vectors reproduce;
+SHAP sums to the booster margin) and end to end on a live replayed threat (integration B).
+```
+
+```
+ID: UI-003 | P2 | CONFIRMED (E2E reproduction) | FIXED 2026-11-03
+Threat Logs started overlapping list requests (mount, filter change + page reset) and applied whichever response
+arrived last; a slow response for the previous filter overwrote the current filter's rows. Reproduced with a
+delayed-response E2E test (non-CRITICAL rows shown under the CRITICAL filter); fixed with a request sequence guard
+(only the newest request updates rows, loading or error). e2e/threat-logs-race.spec.js, 3 browsers.
+```
+
+```
+ID: LINT-001 | P3 | FIXED 2026-11-03
+Frontend had no lint configuration. Added ESLint 9 flat config (correctness rules: JS recommended, React, hooks; no
+formatting rules), `npm run lint`, and a CI step. 34 findings → 0 errors, 13 warnings: dead imports/variables
+removed; jsx-no-comment-textnodes disabled (the UI's "// LABEL" texts are intentional); remaining warnings are
+Playwright fixture arguments that must stay and mount-only effects. Frontend: honeypot analytics
+`intelligence.topAttackers` is sent but not rendered (unused data, not an inconsistency).
+```
+
+```
+ID: E2E-002 | update 2026-11-03 | OPEN
+New experiment: moving focus to the dialog's first button while Playwright fills the textarea loses no text in
+Chromium, Firefox or WebKit (5/5 each), so the Modal's initial-focus timer is not the cause. Still not
+reproducible in isolation (40/40); no code changed for it.
+```

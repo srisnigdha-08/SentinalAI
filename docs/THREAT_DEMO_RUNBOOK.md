@@ -132,7 +132,7 @@ Socket.IO **[RUN]** (`scratchpad/socket_probe.js`, admin socket after `join_room
 | XGBoost classifier (served) | `models/registry.json`, `predictor.load` (sha256 + 20-row golden check) | **WORKING (I ran it)** | `"verified": true, "goldenCheck": "20 golden rows reproduced"` |
 | Isolation Forest + hybrid score | `anomaly_signal`, `combine_threat_score` | **WORKING (I ran it)** | "Unknown 0.55" verdicts in the 200-row runs |
 | Random Forest | `rf_classifier_cicids_v3.pkl` | **Trained, NOT served** | registry |
-| SHAP explanations | `predictor.get_explanation` | **WORKING at the engine API** (20/20 golden flows return attributions, 2026-11-02); global view on AI Analytics; the threat pipeline does **not** request per-flow explanations, so threats show none | `scripts/perf/engine_latency.py` |
+| SHAP explanations | `predictor.explain_vector`, `GET /api/threats/:id/explanation`, `ExplanationModal.jsx` | **WORKING per threat (2026-11-03)**: on demand from the stored vector, verified to reproduce the stored class, score and model version (integration B, live replay); global view on AI Analytics; classifier only | integration `20261102_191411` |
 | Auto-block decision | `aiService`, `honeypotService.analyseClosure`, `containmentService.executeAutoBlock` | **WORKING (I ran it)**, off by default | Q5 |
 | Containment adapter | `containment/MockContainmentAdapter.js` | **MOCK** | `enforcementBackend: 'mock'` |
 | Windows Firewall enforcement | `containment/WindowsFirewallAdapter.js` | **NOT IMPLEMENTED in practice** (code exists, gated off, never run live) | env + docs |
