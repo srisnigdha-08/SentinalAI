@@ -20,6 +20,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Fix batch 5 | APPLIED 2026-11-02 — FIXES.md (SEC-001 sessions verified, self-service password change, scanner hardening, P5, P3/P4 plan, RL-001 decisions, Firefox E2E stall; all suites green) |
 | Batch 6 | DONE 2026-11-02 — P3/P4 measured (no cross-day generalisation, ML-007), weakness analysis, RL review, deployment procedure |
 | Batch 7 | DONE 2026-11-02 — generalisation root cause (tool fingerprints), ranked options, CSE-CIC-IDS2018 plan, hybrid-eval mode (not run), deployment doc safety |
+| Batch 8 | DONE 2026-11-02 — pre-registered development protocol (ML_DEV_PROTOCOL.md), protected-test guard, feature/taxonomy/runner infrastructure (plan only) |
 
 ## Commands run in the final pass (read-only)
 - git log/diff/branch -r --contains/grep; value comparison of HONEYPOT_API_KEY vs history (match flag only)
@@ -31,6 +32,5 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 - Another session/process committed while the audit ran; confirm no one else is editing before acting on the roadmap.
 
 ## Next step
-Batch 7 done 2026-11-02, uncommitted. Full-hybrid P3/P4 (approved) done. Approvals pending: Experiment A
-(download 4 untouched 2018 days, 4.98 GB; inference only), Experiment B (training). User action: SEC-001 passwords.
-Plan: audit/ML_GENERALIZATION_PLAN.md.
+Batch 8 done 2026-11-02, uncommitted. Dev batches 1 (C0, C1, C2) and 3 (C4) run: nothing eligible
+(ML_DEV_RESULTS.md). Next needs protocol v2 + approval (21-02 benign FPR analysis; C4 with features A/B); later the one-shot external test (download of the protected days). User action: SEC-001.

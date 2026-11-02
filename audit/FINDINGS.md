@@ -584,3 +584,43 @@ ID: ML-007 (update) | P1 | full served hybrid score measured: alert-line recall 
 10.4 % (Tue-Fri), benign FPR 0.025-3.97 %; identical to the classifier-only lower bound. On unseen days the
 deployed detector alerts on at most about 1 attack in 8.
 ```
+
+---
+
+## Batch 8 (2026-11-02)
+
+```
+ID: DATA-002 | P1 for any multi-corpus work | CONFIRMED (static)
+Phase 8's 2018 loader (standardize_df) fills time_of_day_sin/cos from the 2018 Timestamp while the 2017 pipeline
+leaves them zero, and zero-fills non-finite values where 2017 drops the row. In a mixed pool "time-of-day == 0"
+identifies 2017 rows and real hours leak attack schedules. The new loader (evaluation/dev_experiments.py) renames 2018
+columns to the feature names and uses the 2017 cleaning + prepare_features path (time-of-day zero, non-finite rows
+dropped). Phase 8 candidate results should be read with this in mind.
+```
+
+```
+ID: DATA-003 | P3 | CONFIRMED (ran: plan mode)
+2018 FTP brute force: 10,000 sampled rows -> 39 unique vectors (like 2017 Port Scan). Per-class FTP results on 2018
+rest on very few distinct flows.
+```
+
+```
+ID: ML-010 | P3 | CONFIRMED (static)
+Tree models are invariant to monotone per-feature transforms (beyond histogram binning): the "log1p timing" part of
+Phase 8's Schema F cannot by itself change XGBoost/RF decisions; only its non-monotone parts (dropped features,
+per-packet header ratios) can. Encoded as variants D vs E in the protocol.
+```
+
+```
+ID: ML-011 | P2 | CONFIRMED (ran: dev batch 1)
+Removing init_win_bytes_* (variant C) raises cross-day recall slightly and lets web attacks transfer to 2018, but
+multiplies benign FPR 2-10x: the TCP-window fields also anchor each testbed's benign traffic. 2017-only training
+leaves 2018 botnet and brute force at 0-1.4 % for all candidates. audit/ML_DEV_RESULTS.md.
+```
+
+```
+ID: ML-012 | P2 | CONFIRMED (ran: dev batch 3)
+Multi-dataset training (C4) is the only change that lifts cross-testbed recall above the bar (D18 +21 points), but a
+held-out 2018 day (21-02) then shows 24.3 % benign FPR; cause unverified (label windows vs benign/attack overlap).
+audit/ML_DEV_RESULTS.md.
+```

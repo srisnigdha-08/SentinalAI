@@ -237,3 +237,24 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - `pytest tests/test_xgb_holdout_eval.py`: 6/6. Shift analysis exit 0. Model hashes match. Secret scan: tree 0 findings.
 - Firefox threat-logs spec ×30: 90/90 passed (8.0 min). Since the warmup fix: 1 empty-note failure in 174 runs, 0 in the last 135; E2E-002 stays DEFERRED (not reproducible).
 - Full-hybrid P3/P4 (follow-up, approved) — **VERIFIED (measured)**: 6 reproduction-checked XGBoost re-fits + 6 benign-only IF fits; hybrid recall at 0.90 equals classifier-only (P3 12.14 %, P4 0.2–10.4 %); the IF adds review signal on Wednesday DoS (46 % "Unknown"), not alerts. `ML_EVAL_PLAN.md` §5c-2.
+
+---
+
+# Batch 8 — controlled development protocol and infrastructure (2026-11-02, at `f831af5`; nothing committed, nothing trained)
+
+| Item | Status | What |
+|---|---|---|
+| SEC-001 | **REQUIRES USER ACTION** | unchanged (9 records). |
+| Baseline | **VERIFIED** | git, model/registry hashes, Q-table hash, frozen manifests, P5/P3/P4/hybrid metrics. |
+| Protected external test | **RESOLVED (enforced)** | `evaluation/protected_data.py`: 16/20/22/28-02-2018 cannot be read by development code; tested. |
+| Feature ablation | **PREPARED** | `evaluation/feature_sets.py` variants A–E (stateless, row-wise; tested for no cross-split dependence). |
+| Taxonomy | **PREPARED** | `evaluation/taxonomies.py` T0 (deployed), T1 (split Credential Stuffing), T2 (families), TB (binary); every raw label of both corpora mapped; unknown labels raise; T0 equals the deployed LABEL_MAP. |
+| Development runner | **PREPARED (plan run only)** | `evaluation/dev_experiments.py`: 2017 + 2018-dev pools with identical preprocessing (DATA-002 avoided), D17/D18 folds, 7 frozen candidates, multiclass and two-stage architectures, metrics incl. PR-AUC, Brier, per-family, latency, model size; `--run` needs `--approved`. Plan run: `experiments/dev_20261102/plan.json`. |
+| Protocol | **PRE-REGISTERED** | `audit/ML_DEV_PROTOCOL.md` v1: matrix, folds, selection rule, acceptance, resources, first-batch approval. |
+
+## Verification (2026-11-02)
+- `pytest tests/test_dev_experiments.py`: 13/13. Plan run exit 0 (73 s pool build). `models/`, `runtime/` unchanged.
+- Batch 1 (approved) — C0, C1, C2 on D17 + D18: all manifests equal the plan; **no candidate eligible under §7**
+  (C1/C2 raise benign FPR 2–10×); recall gains 3.5–6 points. Served model unchanged. `ML_DEV_RESULTS.md`.
+- Batch 3 (approved) — C4 multi-dataset: D18 recall 11.1 → 32.3 % (2018 botnet 0 → 61 %, web 0 → 61 %) but benign FPR
+  6.45 % mean / 24.3 % on 21-02 → **not eligible**. Nothing goes to the external test; served model unchanged.
