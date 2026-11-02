@@ -7,7 +7,7 @@ import { honeypotAPI, threatAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth.js'
-import { recommendationSummary, learnerProvenanceSummary } from '../utils/modelHealth.js'
+import { recommendationSummary, learnerProvenanceSummary, decisionStatusSummary } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -275,18 +275,21 @@ export default function HoneypotAnalytics() {
             {canSeeRecommendation && !recError && recommendation && (
               <span data-testid="learner-provenance" style={{ color:'#3a6a88', fontSize:10 }}>{learnerProvenanceSummary(recommendation.provenance)}</span>
             )}
+            {canSeeRecommendation && !recError && decisionStatusSummary(recommendation) && (
+              <span data-testid="decision-status" style={{ color:'#3a6a88', fontSize:10 }}>{decisionStatusSummary(recommendation)}</span>
+            )}
           </div>
           {canSeeRecommendation && (
             <button
               onClick={loadDeception}
               style={{ background:'transparent', border:'1px solid #00d4ff', color:'#00d4ff', padding:'3px 10px', borderRadius:2, fontSize:10, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}
             >
-              ASK AGAIN
+              REFRESH
             </button>
           )}
         </div>
         <div style={{ marginTop:10, fontSize:10, color:'#3a6a88' }}>
-          The recommendation is epsilon-greedy, so asking again can return a different exploration pick. It is applied to Cowrie by the deception rotator on the honeypot host, not from this dashboard.
+          The learner draws one decision per served persona (epsilon-greedy, so it may be an exploration pick) and keeps it until the deception rotator on the honeypot host applies it or it expires; refreshing shows that same decision. Personas are switched by the rotator, not from this dashboard.
         </div>
       </Panel>
 

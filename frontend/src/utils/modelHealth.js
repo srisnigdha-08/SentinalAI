@@ -67,6 +67,17 @@ export function learnerProvenanceSummary(prov) {
   return `${sessions}; ${prov.seedEpisodes} inherited from a synthetic warm start, not attacker data.`
 }
 
+/**
+ * RL-001: the recommendation endpoints return the persisted pending decision, drawn once per served persona and
+ * reused until the rotator applies it or its TTL expires, so a refresh shows the same decision, not a new draw.
+ */
+export function decisionStatusSummary(rec) {
+  if (!rec?.decisionId) return null
+  const id = String(rec.decisionId).slice(-8)
+  const state = rec.decisionReused ? 'already pending' : 'just drawn'
+  return `Decision …${id} (${state}): reused for this persona until the rotator applies it or it expires.`
+}
+
 export function recommendationSummary(rec) {
   if (!rec?.nextProfile) return null
   if (rec.nextProfile === rec.activeProfile) {

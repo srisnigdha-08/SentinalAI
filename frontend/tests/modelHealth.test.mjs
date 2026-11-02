@@ -57,3 +57,13 @@ test('learner provenance never presents the synthetic seed as attacker data', ()
   assert.equal(learnerProvenanceSummary({ seedEpisodes: 0, sessionEpisodes: 4, synthetic: false }),
     '4 updates from scored sessions; started from an empty table.')
 })
+
+test('decision status names the persisted decision and says a refresh reuses it (RL-001)', async () => {
+  const { decisionStatusSummary } = await import('../src/utils/modelHealth.js')
+  assert.equal(decisionStatusSummary(null), null)
+  assert.equal(decisionStatusSummary({ nextProfile: 'aws_ec2' }), null)
+  const s = decisionStatusSummary({ decisionId: '6721a0c3f1e2d3c4b5a69788', decisionReused: true })
+  assert.match(s, /…b5a69788 \(already pending\)/)
+  assert.match(s, /until the rotator applies it or it expires/)
+  assert.match(decisionStatusSummary({ decisionId: 'abc', decisionReused: false }), /just drawn/)
+})
