@@ -33,6 +33,6 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 - Another session/process committed while the audit ran; confirm no one else is editing before acting on the roadmap.
 
 ## Next step
-v3 + operating line done 2026-11-02, uncommitted. C4-A-I eligible (ML-017); frozen lines 0.915614 / C0 0.974834 (ML-019),
-at which dev data predict the deployment criterion will likely not be met. Owner decides: seed-stability check and/or
-the one-shot external test (4.98 GB download), each needing approval. User action: SEC-001.
+v3 + operating line + stability check done 2026-11-02. C4-A-I eligibility and frozen lines robust (ML-020); at the lines
+the 2018 recall advantage over C0 is +0.9 to +7.3 points, so the deployment criterion is predicted to fail. Owner
+decides whether to spend the one-shot external test (4.98 GB). Served model stays. User action: SEC-001.

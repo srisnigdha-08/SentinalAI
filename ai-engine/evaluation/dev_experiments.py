@@ -9,7 +9,7 @@ Data: CICIDS2017 (8 files) and the six CSE-CIC-IDS2018 development days. The fou
   .venv/Scripts/python evaluation/dev_experiments.py                                  # plan
   .venv/Scripts/python evaluation/dev_experiments.py --run --approved --candidates C0,C1 --folds D17
 """
-import argparse, hashlib, json, sys, time
+import argparse, hashlib, json, sys, time, zlib
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -252,6 +252,18 @@ def train_mask(cfg, raw, tr):
     return tr & ~np.isin(np.array([taxonomies.RAW_LABELS[r][1] for r in raw]), excl)
 
 
+def subsample_train(tr, frac: float, seed: int, fold: str):
+    """Stability check (ML_DEV_PROTOCOL_V3.md §10): a seeded random `frac` of the fold's training rows. Seeded per
+    (seed, fold name) so every candidate sees the same subsample of a fold; test rows are never touched."""
+    if frac >= 1:
+        return tr
+    idx = np.flatnonzero(tr)
+    rng = np.random.default_rng([seed, zlib.crc32(fold.encode())])
+    keep = np.zeros_like(tr)
+    keep[rng.choice(idx, size=int(round(frac * len(idx))), replace=False)] = True
+    return keep
+
+
 def prediction_rows(meta, te, fold, pred, p_attack, labels_used=None):
     """One row per test row: identifiers of the pooled row (corpus/file/row), raw label, prediction, p(attack);
     with a corrected label set also the label the run used."""
@@ -276,9 +288,13 @@ def main():
     ap.add_argument("--approved", action="store_true", help="the owner approved this training batch")
     ap.add_argument("--labels", default="published", choices=["published", "corrected_v3"],
                     help="label set (audit/ML_DEV_PROTOCOL_V3.md); corrected_v3 applies the verified Thursday scan correction")
+    ap.add_argument("--train-subsample", type=float, default=1.0, help="stability check: fraction of each fold's training rows")
+    ap.add_argument("--subsample-seed", type=int, default=0)
     ap.add_argument("--dump-predictions", action="store_true",
                     help="with --run: write each test row's prediction (predictions_<candidate>.csv; development rows only)")
     args = ap.parse_args()
+    if not 0 < args.train_subsample <= 1:
+        sys.exit("--train-subsample must be in (0, 1]")
     if args.dump_predictions and not args.run:
         sys.exit("--dump-predictions needs --run")
     if args.run and not args.approved:
@@ -293,6 +309,7 @@ def main():
     meta = pd.concat([m17, m18], ignore_index=True)
     raw, label_report = apply_label_set(meta, args.labels)
     report = {"generated_at": datetime.now(timezone.utc).isoformat(), "mode": "run" if args.run else "plan", "labels": label_report,
+              "train_subsample": {"fraction": args.train_subsample, "seed": args.subsample_seed},
               "versions": _versions(), "seed": SEED, "caps_2018": {**CAPS_2018, "each_attack_label": CAP_2018_ATTACK},
               "pool": {"rows_2017": int(len(m17)), "rows_2018": int(len(m18)), "build_seconds": round(time.time() - t0, 1),
                        "raw_label_counts": {f"{c}:{r}": int(n) for (c, r), n in meta.groupby(["corpus", "raw"]).size().items()},
@@ -305,7 +322,7 @@ def main():
         entry = {"config": cfg, "features": feature_sets.variant(X[:1], cfg["features"])[1], "folds": []}
         for fs in args.folds.split(","):
             for name, tr, te in folds(meta, fs, cfg["data"]):
-                tr = train_mask(cfg, raw, tr)
+                tr = train_mask(cfg, raw, subsample_train(tr, args.train_subsample, args.subsample_seed, name))
                 f = {"fold": name, "train_rows": int(tr.sum()), "test_rows": int(te.sum()), "manifest_sha256": manifest_hash(meta, tr, te),
                      "test_families_absent_from_training": sorted(
                          {taxonomies.RAW_LABELS[r][1] for r in raw[te]} - {taxonomies.RAW_LABELS[r][1] for r in raw[tr]})}

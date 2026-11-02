@@ -283,3 +283,4 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - Protocol v3 pre-registered (`audit/ML_DEV_PROTOCOL_V3.md`): frozen verified correction list (sha256 c4e3f1c1…), `--labels corrected_v3`, candidate C4AI; plan runs only (manifests unchanged); +4 tests (32/32).
 - v3 runs (approved): manifests equal plan; models/runtime unchanged. **C4-A-I (corrected labels) eligible and selected** (ML-017); recall instability and per-family cost recorded (ML-018). `evaluation/v3_report.py` (+1 test, 33/33). External test not run.
 - Operating line pre-registered then computed (`audit/OPERATING_LINE_V3.md`, `evaluation/operating_line.py`, +1 test): C4-A-I 0.915614, C0 0.974834 (ML-019). External test not run.
+- v3 stability check (approved): `--train-subsample/--subsample-seed` (+1 test), `evaluation/stability_report.py`; eligibility and lines robust, deployment criterion predicted to fail (ML-020).

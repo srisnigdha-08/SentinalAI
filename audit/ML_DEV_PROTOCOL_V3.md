@@ -142,3 +142,31 @@ cd ai-engine
 
 After the runs come verification (manifests, models/runtime unchanged) and analysis against §5. Nothing is
 promoted, no threshold changes, and the protected days are not downloaded without a further, separate approval.
+
+## 10. Addendum (2026-11-02, written before running): stability check
+
+**Why not seeds.** The fold models use XGBoost without row or column subsampling, so `random_state` has no effect.
+This was checked: identical predictions for seeds 42, 1 and 2 on synthetic data. "More seeds" would only reproduce
+the same models. The instability seen in v3 (single-fold recall moving by up to 55 points after relabelling 0.3 % of
+rows) is sensitivity to the **training sample**, so that is what the check perturbs.
+
+**Design.**
+- 2 replicates (`--train-subsample 0.9 --subsample-seed 1` and `2`).
+- In each replicate, every fold trains on a seeded random 90 % of its training rows.
+- Test folds are unchanged, so test rows and counts are identical to v3.
+- Candidates C4AI and C0 on `corrected_v3` labels; D17 + D18; predictions dumped.
+- The full-data v3 run is the reference.
+
+**Reported (descriptive only; nothing below changes the selection, the frozen lines or any threshold):**
+- per replicate: macro and pooled recall and FPR at the argmax decision, and whether §5 eligibility would still hold;
+- at the **frozen** lines (C4AI 0.915614, C0 0.974834): recall, FPR, Wilson upper bound and per-fold FPR;
+- the line §2 of `OPERATING_LINE_V3.md` would choose on each replicate (for information; the frozen line stays);
+- the spread (min–max) across the three models of each fold's recall and FPR.
+
+**Command (approved by the owner 2026-11-02):**
+
+```powershell
+cd ai-engine
+foreach ($s in 1,2) { .venv\Scripts\python evaluation\dev_experiments.py --run --approved --dump-predictions --labels corrected_v3 `
+  --candidates C0,C4AI --folds D17,D18 --train-subsample 0.9 --subsample-seed $s --out experiments\dev_20261102_v3_stab_s$s }
+```

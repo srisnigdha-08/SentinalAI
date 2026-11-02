@@ -77,3 +77,9 @@ C4-A-I's cross-day 2018 recall almost vanishes once false alarms are held at 0.1
 that the deployment criterion will **most likely not be met**. The external test can still be run (v3 §5 recommends
 it on the argmax rule), but it is a single, irreversible use of the protected days. That decision is yours. Running
 the seed-stability check first would also show whether these lines are stable.
+
+### Stability (2026-11-02, after freezing; see ML_DEV_RESULTS.md, v3 stability check)
+
+Across the full-data model and two 90 %-training-subsample replicates, the line §2 would choose moves by at most 0.007
+(C4-A-I 0.909–0.916, C0 0.969–0.975), and the FPR bound at the frozen lines stays ≤ 0.10 %. The frozen lines are kept.
+The 2018-fold recall advantage of C4-A-I over C0 at the lines is +0.9 / +4.4 / +7.3 points: below +10 in every replicate.

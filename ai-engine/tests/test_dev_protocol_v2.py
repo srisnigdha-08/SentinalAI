@@ -157,3 +157,12 @@ def test_operating_line_picks_smallest_threshold_meeting_wilson_bound():
     # at t=0.5 or 0.6 -> 100 FPs (UB > 0.1 %); at 0.9 -> 50 FPs of 100100 (UB ~ 0.066 %) qualifies
     assert line["t"] == 0.9 and line["fp"] == 50 and line["wilson_ub"] <= 0.001
     assert L.choose_line(np.full(100, 0.99)) is None
+
+
+def test_train_subsample_is_seeded_shared_and_leaves_test_alone():
+    tr = np.array([True] * 100 + [False] * 20)
+    a = D.subsample_train(tr, 0.9, 1, "2017-Monday")
+    assert a.sum() == 90 and not a[100:].any() and (a <= tr).all()
+    assert (a == D.subsample_train(tr, 0.9, 1, "2017-Monday")).all()        # same for every candidate
+    assert not (a == D.subsample_train(tr, 0.9, 2, "2017-Monday")).all()    # seed matters
+    assert (D.subsample_train(tr, 1.0, 1, "x") == tr).all()                  # default: unchanged

@@ -696,3 +696,11 @@ Frozen external-test lines (pooled dev FPR Wilson UB <= 0.10 %): C4-A-I p_attack
 At these lines C4-A-I keeps 19.1 % pooled / 7.5 % D18 recall (C0 9.4 % / 5.8 %): D18 advantage +1.7 points. The
 deployment criterion (+10 points at <= 0.10 % FPR UB) is unlikely to be met. audit/OPERATING_LINE_V3.md.
 ```
+
+```
+ID: ML-020 | P1 | CONFIRMED (ran: v3 stability check, approved)
+XGBoost seed is inert here; the check retrained C0/C4-A-I on seeded 90 % training subsamples (2 replicates).
+C4-A-I stays eligible in all 3 models (FPR stable, 2018 0.35-0.39 %); fold recall is not (14-02 44-99 %). Frozen lines
+stable (±0.007). At the lines the 2018 recall advantage over C0 is +0.9 / +4.4 / +7.3 points (< 10): deployment
+criterion predicted to fail. External test not run.
+```

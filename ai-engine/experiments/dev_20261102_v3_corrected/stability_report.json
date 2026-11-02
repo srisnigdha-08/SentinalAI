@@ -1,0 +1,838 @@
+{
+ "frozen_lines": {
+  "C4AI": 0.915614,
+  "C0": 0.974834
+ },
+ "replicates": {
+  "full": {
+   "train_subsample": {
+    "fraction": 1.0
+   },
+   "argmax": {
+    "C4AI": {
+     "D17": {
+      "macro_recall": 0.4059,
+      "pooled_recall": 0.3959,
+      "macro_fpr": 0.002519,
+      "pooled_fpr": 0.002096,
+      "worst_fold_fpr": [
+       "2017-Tuesday",
+       0.003617
+      ]
+     },
+     "D18": {
+      "macro_recall": 0.3751,
+      "pooled_recall": 0.435,
+      "macro_fpr": 0.003521,
+      "pooled_fpr": 0.003398,
+      "worst_fold_fpr": [
+       "2018-01-03-2018",
+       0.014229
+      ]
+     }
+    },
+    "C0": {
+     "D17": {
+      "macro_recall": 0.247,
+      "pooled_recall": 0.2434,
+      "macro_fpr": 0.002779,
+      "pooled_fpr": 0.002485,
+      "worst_fold_fpr": [
+       "2017-Thursday",
+       0.004121
+      ]
+     },
+     "D18": {
+      "macro_recall": 0.065,
+      "pooled_recall": 0.1421,
+      "macro_fpr": 0.003495,
+      "pooled_fpr": 0.003361,
+      "worst_fold_fpr": [
+       "2018-01-03-2018",
+       0.015844
+      ]
+     }
+    }
+   },
+   "frozen_line": {
+    "C4AI": {
+     "pooled_recall": 0.191,
+     "pooled_fpr": 0.000849,
+     "wilson_ub": 0.000997,
+     "macro_recall_2017": 0.2423,
+     "macro_recall_2018": 0.0746,
+     "per_fold": {
+      "2017-Monday": {
+       "recall": null,
+       "fpr": 0.000416,
+       "fp": 5
+      },
+      "2017-Tuesday": {
+       "recall": 0.0002,
+       "fpr": 0.000841,
+       "fp": 10
+      },
+      "2017-Wednesday": {
+       "recall": 0.2243,
+       "fpr": 0.000339,
+       "fp": 4
+      },
+      "2017-Thursday": {
+       "recall": 0.2417,
+       "fpr": 0.001848,
+       "fp": 39
+      },
+      "2017-Friday": {
+       "recall": 0.5029,
+       "fpr": 0.000112,
+       "fp": 4
+      },
+      "2018-01-03-2018": {
+       "recall": 0.0033,
+       "fpr": 0.004922,
+       "fp": 64
+      },
+      "2018-02-03-2018": {
+       "recall": 0.0668,
+       "fpr": 0.000281,
+       "fp": 4
+      },
+      "2018-14-02-2018": {
+       "recall": 0.0,
+       "fpr": 7.8e-05,
+       "fp": 1
+      },
+      "2018-15-02-2018": {
+       "recall": 0.3348,
+       "fpr": 0.00107,
+       "fp": 14
+      },
+      "2018-21-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.0,
+       "fp": 0
+      },
+      "2018-23-02-2018": {
+       "recall": 0.0425,
+       "fpr": 0.00022,
+       "fp": 3
+      }
+     }
+    },
+    "C0": {
+     "pooled_recall": 0.0939,
+     "pooled_fpr": 0.000849,
+     "wilson_ub": 0.000997,
+     "macro_recall_2017": 0.0762,
+     "macro_recall_2018": 0.058,
+     "per_fold": {
+      "2017-Monday": {
+       "recall": null,
+       "fpr": 0.00025,
+       "fp": 3
+      },
+      "2017-Tuesday": {
+       "recall": 0.0017,
+       "fpr": 0.000505,
+       "fp": 6
+      },
+      "2017-Wednesday": {
+       "recall": 0.0115,
+       "fpr": 0.000509,
+       "fp": 6
+      },
+      "2017-Thursday": {
+       "recall": 0.2728,
+       "fpr": 0.002037,
+       "fp": 43
+      },
+      "2017-Friday": {
+       "recall": 0.019,
+       "fpr": 8.4e-05,
+       "fp": 3
+      },
+      "2018-01-03-2018": {
+       "recall": 0.0114,
+       "fpr": 0.005461,
+       "fp": 71
+      },
+      "2018-02-03-2018": {
+       "recall": 0.0,
+       "fpr": 0.000281,
+       "fp": 4
+      },
+      "2018-14-02-2018": {
+       "recall": 0.0083,
+       "fpr": 0.000234,
+       "fp": 3
+      },
+      "2018-15-02-2018": {
+       "recall": 0.3284,
+       "fpr": 0.000153,
+       "fp": 2
+      },
+      "2018-21-02-2018": {
+       "recall": 0.0,
+       "fpr": 6.7e-05,
+       "fp": 1
+      },
+      "2018-23-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.000439,
+       "fp": 6
+      }
+     }
+    }
+   },
+   "line_would_be": {
+    "C4AI": {
+     "t": 0.915614,
+     "fp": 148,
+     "benign": 174358,
+     "fpr": 0.0008488282728638778,
+     "wilson_ub": 0.0009969604925930875
+    },
+    "C0": {
+     "t": 0.974834,
+     "fp": 148,
+     "benign": 174358,
+     "fpr": 0.0008488282728638778,
+     "wilson_ub": 0.0009969604925930875
+    }
+   },
+   "eligibility_C4AI_vs_C0": {
+    "eligible": true,
+    "reasons": [],
+    "meets_external_test_recall_rule": true
+   }
+  },
+  "s1": {
+   "train_subsample": {
+    "fraction": 0.9,
+    "seed": 1
+   },
+   "argmax": {
+    "C4AI": {
+     "D17": {
+      "macro_recall": 0.4202,
+      "pooled_recall": 0.3924,
+      "macro_fpr": 0.002588,
+      "pooled_fpr": 0.002237,
+      "worst_fold_fpr": [
+       "2017-Tuesday",
+       0.003701
+      ]
+     },
+     "D18": {
+      "macro_recall": 0.4738,
+      "pooled_recall": 0.4829,
+      "macro_fpr": 0.003819,
+      "pooled_fpr": 0.003679,
+      "worst_fold_fpr": [
+       "2018-01-03-2018",
+       0.013921
+      ]
+     }
+    },
+    "C0": {
+     "D17": {
+      "macro_recall": 0.2521,
+      "pooled_recall": 0.2548,
+      "macro_fpr": 0.005037,
+      "pooled_fpr": 0.007176,
+      "worst_fold_fpr": [
+       "2017-Friday",
+       0.013829
+      ]
+     },
+     "D18": {
+      "macro_recall": 0.0746,
+      "pooled_recall": 0.1654,
+      "macro_fpr": 0.003324,
+      "pooled_fpr": 0.003202,
+      "worst_fold_fpr": [
+       "2018-01-03-2018",
+       0.014921
+      ]
+     }
+    }
+   },
+   "frozen_line": {
+    "C4AI": {
+     "pooled_recall": 0.1696,
+     "pooled_fpr": 0.00082,
+     "wilson_ub": 0.000966,
+     "macro_recall_2017": 0.1713,
+     "macro_recall_2018": 0.0728,
+     "per_fold": {
+      "2017-Monday": {
+       "recall": null,
+       "fpr": 0.000416,
+       "fp": 5
+      },
+      "2017-Tuesday": {
+       "recall": 0.0001,
+       "fpr": 0.000673,
+       "fp": 8
+      },
+      "2017-Wednesday": {
+       "recall": 0.152,
+       "fpr": 0.00017,
+       "fp": 2
+      },
+      "2017-Thursday": {
+       "recall": 0.0434,
+       "fpr": 0.001753,
+       "fp": 37
+      },
+      "2017-Friday": {
+       "recall": 0.4897,
+       "fpr": 0.000112,
+       "fp": 4
+      },
+      "2018-01-03-2018": {
+       "recall": 0.0037,
+       "fpr": 0.004768,
+       "fp": 62
+      },
+      "2018-02-03-2018": {
+       "recall": 0.0512,
+       "fpr": 0.000281,
+       "fp": 4
+      },
+      "2018-14-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.0,
+       "fp": 0
+      },
+      "2018-15-02-2018": {
+       "recall": 0.3189,
+       "fpr": 0.001375,
+       "fp": 18
+      },
+      "2018-21-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.0,
+       "fp": 0
+      },
+      "2018-23-02-2018": {
+       "recall": 0.0628,
+       "fpr": 0.00022,
+       "fp": 3
+      }
+     }
+    },
+    "C0": {
+     "pooled_recall": 0.0656,
+     "pooled_fpr": 0.000705,
+     "wilson_ub": 0.000842,
+     "macro_recall_2017": 0.0713,
+     "macro_recall_2018": 0.04,
+     "per_fold": {
+      "2017-Monday": {
+       "recall": null,
+       "fpr": 0.00025,
+       "fp": 3
+      },
+      "2017-Tuesday": {
+       "recall": 0.002,
+       "fpr": 0.000505,
+       "fp": 6
+      },
+      "2017-Wednesday": {
+       "recall": 0.0089,
+       "fpr": 0.000678,
+       "fp": 8
+      },
+      "2017-Thursday": {
+       "recall": 0.2731,
+       "fpr": 0.002084,
+       "fp": 44
+      },
+      "2017-Friday": {
+       "recall": 0.0012,
+       "fpr": 0.00014,
+       "fp": 5
+      },
+      "2018-01-03-2018": {
+       "recall": 0.0101,
+       "fpr": 0.00323,
+       "fp": 42
+      },
+      "2018-02-03-2018": {
+       "recall": 0.0,
+       "fpr": 0.000281,
+       "fp": 4
+      },
+      "2018-14-02-2018": {
+       "recall": 0.0083,
+       "fpr": 0.000234,
+       "fp": 3
+      },
+      "2018-15-02-2018": {
+       "recall": 0.2217,
+       "fpr": 0.000153,
+       "fp": 2
+      },
+      "2018-21-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.0,
+       "fp": 0
+      },
+      "2018-23-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.000439,
+       "fp": 6
+      }
+     }
+    }
+   },
+   "line_would_be": {
+    "C4AI": {
+     "t": 0.909423,
+     "fp": 146,
+     "benign": 174358,
+     "fpr": 0.0008373576205278795,
+     "wilson_ub": 0.0009845671487085483
+    },
+    "C0": {
+     "t": 0.969945,
+     "fp": 147,
+     "benign": 174358,
+     "fpr": 0.0008430929466958786,
+     "wilson_ub": 0.0009907646023690092
+    }
+   },
+   "eligibility_C4AI_vs_C0": {
+    "eligible": true,
+    "reasons": [],
+    "meets_external_test_recall_rule": true
+   }
+  },
+  "s2": {
+   "train_subsample": {
+    "fraction": 0.9,
+    "seed": 2
+   },
+   "argmax": {
+    "C4AI": {
+     "D17": {
+      "macro_recall": 0.5244,
+      "pooled_recall": 0.4435,
+      "macro_fpr": 0.002461,
+      "pooled_fpr": 0.002107,
+      "worst_fold_fpr": [
+       "2017-Thursday",
+       0.003458
+      ]
+     },
+     "D18": {
+      "macro_recall": 0.4413,
+      "pooled_recall": 0.4547,
+      "macro_fpr": 0.00388,
+      "pooled_fpr": 0.00374,
+      "worst_fold_fpr": [
+       "2018-01-03-2018",
+       0.014229
+      ]
+     }
+    },
+    "C0": {
+     "D17": {
+      "macro_recall": 0.3148,
+      "pooled_recall": 0.3202,
+      "macro_fpr": 0.006685,
+      "pooled_fpr": 0.010104,
+      "worst_fold_fpr": [
+       "2017-Friday",
+       0.020995
+      ]
+     },
+     "D18": {
+      "macro_recall": 0.0662,
+      "pooled_recall": 0.1439,
+      "macro_fpr": 0.003324,
+      "pooled_fpr": 0.00319,
+      "worst_fold_fpr": [
+       "2018-01-03-2018",
+       0.015228
+      ]
+     }
+    }
+   },
+   "frozen_line": {
+    "C4AI": {
+     "pooled_recall": 0.2162,
+     "pooled_fpr": 0.000843,
+     "wilson_ub": 0.000991,
+     "macro_recall_2017": 0.1777,
+     "macro_recall_2018": 0.1315,
+     "per_fold": {
+      "2017-Monday": {
+       "recall": null,
+       "fpr": 0.000333,
+       "fp": 4
+      },
+      "2017-Tuesday": {
+       "recall": 0.0003,
+       "fpr": 0.000505,
+       "fp": 6
+      },
+      "2017-Wednesday": {
+       "recall": 0.1707,
+       "fpr": 0.000339,
+       "fp": 4
+      },
+      "2017-Thursday": {
+       "recall": 0.0257,
+       "fpr": 0.001658,
+       "fp": 35
+      },
+      "2017-Friday": {
+       "recall": 0.5142,
+       "fpr": 0.00014,
+       "fp": 5
+      },
+      "2018-01-03-2018": {
+       "recall": 0.0029,
+       "fpr": 0.005307,
+       "fp": 69
+      },
+      "2018-02-03-2018": {
+       "recall": 0.3178,
+       "fpr": 0.000281,
+       "fp": 4
+      },
+      "2018-14-02-2018": {
+       "recall": 0.0,
+       "fpr": 7.8e-05,
+       "fp": 1
+      },
+      "2018-15-02-2018": {
+       "recall": 0.4165,
+       "fpr": 0.001222,
+       "fp": 16
+      },
+      "2018-21-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.0,
+       "fp": 0
+      },
+      "2018-23-02-2018": {
+       "recall": 0.0518,
+       "fpr": 0.00022,
+       "fp": 3
+      }
+     }
+    },
+    "C0": {
+     "pooled_recall": 0.0912,
+     "pooled_fpr": 0.000803,
+     "wilson_ub": 0.000947,
+     "macro_recall_2017": 0.0732,
+     "macro_recall_2018": 0.0575,
+     "per_fold": {
+      "2017-Monday": {
+       "recall": null,
+       "fpr": 0.000333,
+       "fp": 4
+      },
+      "2017-Tuesday": {
+       "recall": 0.0001,
+       "fpr": 0.000505,
+       "fp": 6
+      },
+      "2017-Wednesday": {
+       "recall": 0.0139,
+       "fpr": 0.000593,
+       "fp": 7
+      },
+      "2017-Thursday": {
+       "recall": 0.2728,
+       "fpr": 0.002037,
+       "fp": 43
+      },
+      "2017-Friday": {
+       "recall": 0.0059,
+       "fpr": 0.000168,
+       "fp": 6
+      },
+      "2018-01-03-2018": {
+       "recall": 0.0121,
+       "fpr": 0.004384,
+       "fp": 57
+      },
+      "2018-02-03-2018": {
+       "recall": 0.0,
+       "fpr": 0.000351,
+       "fp": 5
+      },
+      "2018-14-02-2018": {
+       "recall": 0.0083,
+       "fpr": 0.000234,
+       "fp": 3
+      },
+      "2018-15-02-2018": {
+       "recall": 0.3247,
+       "fpr": 0.000153,
+       "fp": 2
+      },
+      "2018-21-02-2018": {
+       "recall": 0.0,
+       "fpr": 6.7e-05,
+       "fp": 1
+      },
+      "2018-23-02-2018": {
+       "recall": 0.0,
+       "fpr": 0.000439,
+       "fp": 6
+      }
+     }
+    }
+   },
+   "line_would_be": {
+    "C4AI": {
+     "t": 0.916444,
+     "fp": 147,
+     "benign": 174358,
+     "fpr": 0.0008430929466958786,
+     "wilson_ub": 0.0009907646023690092
+    },
+    "C0": {
+     "t": 0.968837,
+     "fp": 148,
+     "benign": 174358,
+     "fpr": 0.0008488282728638778,
+     "wilson_ub": 0.0009969604925930875
+    }
+   },
+   "eligibility_C4AI_vs_C0": {
+    "eligible": true,
+    "reasons": [],
+    "meets_external_test_recall_rule": true
+   }
+  }
+ },
+ "spread": {
+  "C4AI 2017-Monday": {
+   "recall_min_max": [
+    0.0,
+    0.0
+   ],
+   "fpr_min_max": [
+    0.002579,
+    0.002745
+   ]
+  },
+  "C4AI 2017-Tuesday": {
+   "recall_min_max": [
+    0.0026,
+    0.0031
+   ],
+   "fpr_min_max": [
+    0.003365,
+    0.003701
+   ]
+  },
+  "C4AI 2017-Wednesday": {
+   "recall_min_max": [
+    0.5512,
+    0.618
+   ],
+   "fpr_min_max": [
+    0.00212,
+    0.002289
+   ]
+  },
+  "C4AI 2017-Thursday": {
+   "recall_min_max": [
+    0.4785,
+    0.9359
+   ],
+   "fpr_min_max": [
+    0.003458,
+    0.003553
+   ]
+  },
+  "C4AI 2017-Friday": {
+   "recall_min_max": [
+    0.5358,
+    0.5408
+   ],
+   "fpr_min_max": [
+    0.000476,
+    0.000868
+   ]
+  },
+  "C4AI 2018-01-03-2018": {
+   "recall_min_max": [
+    0.0094,
+    0.0168
+   ],
+   "fpr_min_max": [
+    0.013921,
+    0.014229
+   ]
+  },
+  "C4AI 2018-02-03-2018": {
+   "recall_min_max": [
+    0.6258,
+    0.6262
+   ],
+   "fpr_min_max": [
+    0.001474,
+    0.001474
+   ]
+  },
+  "C4AI 2018-14-02-2018": {
+   "recall_min_max": [
+    0.4359,
+    0.9892
+   ],
+   "fpr_min_max": [
+    0.000857,
+    0.001091
+   ]
+  },
+  "C4AI 2018-15-02-2018": {
+   "recall_min_max": [
+    0.6557,
+    0.7451
+   ],
+   "fpr_min_max": [
+    0.003132,
+    0.005424
+   ]
+  },
+  "C4AI 2018-21-02-2018": {
+   "recall_min_max": [
+    0.0,
+    0.1239
+   ],
+   "fpr_min_max": [
+    6.7e-05,
+    0.000333
+   ]
+  },
+  "C4AI 2018-23-02-2018": {
+   "recall_min_max": [
+    0.329,
+    0.4658
+   ],
+   "fpr_min_max": [
+    0.000952,
+    0.001318
+   ]
+  },
+  "C0 2017-Monday": {
+   "recall_min_max": [
+    0.0,
+    0.0
+   ],
+   "fpr_min_max": [
+    0.002412,
+    0.002495
+   ]
+  },
+  "C0 2017-Tuesday": {
+   "recall_min_max": [
+    0.0141,
+    0.0223
+   ],
+   "fpr_min_max": [
+    0.002271,
+    0.003701
+   ]
+  },
+  "C0 2017-Wednesday": {
+   "recall_min_max": [
+    0.0805,
+    0.348
+   ],
+   "fpr_min_max": [
+    0.002543,
+    0.002798
+   ]
+  },
+  "C0 2017-Thursday": {
+   "recall_min_max": [
+    0.3432,
+    0.3983
+   ],
+   "fpr_min_max": [
+    0.00379,
+    0.004121
+   ]
+  },
+  "C0 2017-Friday": {
+   "recall_min_max": [
+    0.4665,
+    0.5257
+   ],
+   "fpr_min_max": [
+    0.00112,
+    0.020995
+   ]
+  },
+  "C0 2018-01-03-2018": {
+   "recall_min_max": [
+    0.0329,
+    0.0356
+   ],
+   "fpr_min_max": [
+    0.014921,
+    0.015844
+   ]
+  },
+  "C0 2018-02-03-2018": {
+   "recall_min_max": [
+    0.0,
+    0.0
+   ],
+   "fpr_min_max": [
+    0.000702,
+    0.001474
+   ]
+  },
+  "C0 2018-14-02-2018": {
+   "recall_min_max": [
+    0.0108,
+    0.0116
+   ],
+   "fpr_min_max": [
+    0.000857,
+    0.001091
+   ]
+  },
+  "C0 2018-15-02-2018": {
+   "recall_min_max": [
+    0.341,
+    0.401
+   ],
+   "fpr_min_max": [
+    0.001452,
+    0.001757
+   ]
+  },
+  "C0 2018-21-02-2018": {
+   "recall_min_max": [
+    0.0,
+    0.0
+   ],
+   "fpr_min_max": [
+    6.7e-05,
+    6.7e-05
+   ]
+  },
+  "C0 2018-23-02-2018": {
+   "recall_min_max": [
+    0.0018,
+    0.0055
+   ],
+   "fpr_min_max": [
+    0.001099,
+    0.001172
+   ]
+  }
+ }
+}

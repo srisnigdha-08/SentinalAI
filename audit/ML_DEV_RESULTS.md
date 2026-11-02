@@ -344,3 +344,58 @@ Limits derived from C0 on the same labels: D17 mean FPR ≤ 0.378 %, D18 mean FP
    seen above before the single external run.
 3. **External test:** download the four protected days (4.98 GB), then one run of C4-A-I and C0 with the frozen
    line, published 2018 labels, and the latency measurement.
+
+## v3 stability check (`ML_DEV_PROTOCOL_V3.md` §10; run 2026-11-02, approved)
+
+**Why the training data and not the XGBoost seed.** The XGBoost seed is inert in this configuration: identical
+predictions for seeds 42, 1 and 2. The check therefore retrains C0 and C4-A-I (corrected labels, D17 + D18) on a seeded
+random 90 % of each fold's training rows.
+- Replicates: seeds 1 and 2. Both candidates see the same subsample of each fold.
+- Checks: both exit 0; test rows identical to v3; training exactly 90 %; correction applied (816 rows); `models/` and
+  `runtime/` unchanged; protected days not read.
+- Report: `evaluation/stability_report.py` writes `experiments/dev_20261102_v3_corrected/stability_report.json`.
+
+### Argmax decision (as used by §5 eligibility)
+
+| | full | 90 % seed 1 | 90 % seed 2 |
+|---|---|---|---|
+| C4-A-I D17 recall / FPR | 40.6 / 0.25 % | 42.0 / 0.26 % | 52.4 / 0.25 % |
+| C4-A-I D18 recall / FPR | 37.5 / 0.35 % | 47.4 / 0.38 % | 44.1 / 0.39 % |
+| C4-A-I worst fold FPR | 1.42 % | 1.39 % | 1.42 % |
+| C0 D17 recall / FPR | 24.7 / 0.28 % | 25.2 / 0.50 % | 31.5 / 0.67 % (Fri 2.10 %) |
+| C0 D18 recall / FPR | 6.5 / 0.35 % | 7.5 / 0.33 % | 6.6 / 0.33 % |
+| **C4-A-I eligible (§5)?** | yes | **yes** | **yes** |
+
+C4-A-I also stays within the full-run limits (D17 ≤ 0.378 %, D18 ≤ 0.450 %) in both replicates, so its eligibility
+does not depend on C0 getting worse. **FPR is stable** (D18 0.35–0.39 %). **Recall is not:**
+- C4-A-I D18 macro recall ranges 37.5–47.4 %.
+- Single folds swing widely: 14-02 43.6–98.9 %, 2017 Thursday 47.9–93.6 %, C0 Wednesday 8.1–34.8 %.
+- The argmax recall lead over C0 stays above 30 points in every replicate.
+
+### Frozen operating lines (C4-A-I 0.915614, C0 0.974834)
+
+| | full | 90 % seed 1 | 90 % seed 2 |
+|---|---|---|---|
+| C4-A-I pooled FPR / Wilson UB | 0.085 / 0.0997 % | 0.082 / 0.0966 % | 0.084 / 0.0991 % |
+| C0 pooled FPR / Wilson UB | 0.085 / 0.0997 % | 0.071 / 0.0842 % | 0.080 / 0.0947 % |
+| Line §2 would choose: C4-A-I / C0 | 0.9156 / 0.9748 | 0.9094 / 0.9699 | 0.9164 / 0.9688 |
+| **2018 folds pooled recall: C4-A-I / C0** | 14.2 / 13.3 % (+0.9) | 13.4 / 9.0 % (+4.4) | 20.4 / 13.1 % (+7.3) |
+| 2018 DoS/DDoS at line: C4-A-I / C0 | 21.9 / 21.5 % | 20.9 / 14.5 % | 27.3 / 21.3 % |
+| 2018 macro recall: C4-A-I / C0 | 7.5 / 5.8 % | 7.3 / 4.0 % | 13.2 / 5.8 % |
+
+- **The lines are stable.** The line §2 would choose moves by at most 0.007, and at the frozen lines the FPR bound
+  stays ≤ 0.10 % in every replicate. The frozen lines stay as they are.
+- **At those lines the advantage on 2018 traffic is +0.9 to +7.3 points.** That is below the +10 points the deployment
+  criterion requires, in every replicate. The protected days are 2018 days dominated by DoS/DDoS (20-02, LOIC-HTTP, is
+  most of the volume), and C4-A-I is no better than C0 on 2018 DoS/DDoS at these lines in the full run
+  (21.9 vs 21.5 %).
+
+### Conclusion
+
+1. C4-A-I's selection under §5 is **robust**: eligible in all three models, with a stable FPR.
+2. The frozen lines are **robust**.
+3. The development evidence consistently predicts that the **deployment criterion would fail** on the protected 2018
+   days. This is now shown on three models, not one.
+
+The rules are not changed. The one-shot external test can still be run as registered; on this evidence it would most
+likely confirm "do not deploy" and would use up the protected days. The served model stays either way.
