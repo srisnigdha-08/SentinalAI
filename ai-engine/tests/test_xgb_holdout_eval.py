@@ -51,8 +51,14 @@ def test_a_class_absent_from_training_is_flagged_and_scored_only_as_attack_vs_be
     assert table["absent_from_training"] == ["Port Scan"] and table["attack_test_rows_of_unseen_classes"] == 20
     res = H.fit_and_score(X, y, tr, te, make_model=lambda: DecisionTreeClassifier(random_state=0))
     assert set(res["per_class_seen"]) == {"BENIGN", "DDoS"}  # no per-class number for the unseen class
-    assert res["unseen_attack_rows"] == 20 and res["unseen_attack_rows_flagged"] == 20  # flagged as an attack class
-    assert res["binary"]["tp"] + res["binary"]["fn"] == 30
+    ps = res["unseen_classes"]["Port Scan"]
+    assert ps["rows"] == 20 and ps["flagged_as_attack"] == 20 and ps["predicted_as"] == {"DDoS": 20}
+    b = res["binary_classifier_argmax"]
+    assert b["tp"] + b["fn"] == 30 and b["fp"] + b["tn"] == 10
+    assert res["confusion_matrix"]["labels"] == ["BENIGN", "Port Scan", "DDoS"]
+    # the lines are a subset of the argmax decision (lower bound without the Isolation Forest term)
+    assert res["binary_alert_line_0.90_lower_bound"]["tp"] <= b["tp"]
+    assert res["collisions"] == {"test_rows_vector_in_train_same_label": 0, "test_rows_vector_in_train_other_label": 0}
 
 
 def test_run_refuses_without_explicit_approval(monkeypatch, capsys):
