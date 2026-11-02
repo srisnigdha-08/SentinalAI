@@ -643,7 +643,21 @@ const triageThreat = async (req, res, next) => {
   }
 }
 
+/** GET /threats/:id/explanation: on-demand SHAP explanation from the stored vector (XAI-001). */
+const explainThreat = async (req, res, next) => {
+  const { explainThreat: explain, ExplanationError } = require('../services/threatExplanationService')
+  try {
+    sendSuccess(res, await explain(req.params.id), 'Threat explanation')
+  } catch (err) {
+    if (err instanceof ExplanationError) {
+      return sendError(res, err.message, err.statusCode, { reason: err.reason, ...(err.detail || {}) })
+    }
+    next(err)
+  }
+}
+
 module.exports = {
+  explainThreat,
   getThreats,
   getAnalytics,
   getVectorTrend,

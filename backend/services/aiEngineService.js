@@ -316,6 +316,17 @@ const getGlobalExplanation = async () => {
   }
 }
 
+/**
+ * SHAP explanation of a stored feature vector (threatExplanationService). Throws on failure so the caller can
+ * tell a schema conflict (409) or a bad vector (422) from an outage. Stateless on the engine, so it may retry.
+ */
+const explainVector = async (featureVector, featureSchemaVersion) =>
+  (
+    await guarded(() => ai.post('/explain/vector', { featureVector, featureSchemaVersion }, { timeout: 15000 }), {
+      retry: true,
+    })
+  ).data?.result
+
 const getDeceptionRecommendation = async (currentProfile) => {
   try {
     return (
@@ -328,6 +339,7 @@ const getDeceptionRecommendation = async (currentProfile) => {
 
 module.exports = {
   getHealth,
+  explainVector,
   getModelInfo,
   getModelStats,
   predictRecord,

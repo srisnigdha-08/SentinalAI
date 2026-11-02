@@ -428,6 +428,53 @@ class SentinelPredictor:
             log.error(f"SHAP explanation error: {e}")
             return []
 
+    def explain_vector(self, vector) -> dict:
+        """
+        On-demand explanation of a feature vector the engine produced earlier (the backend's stored copy for a
+        threat). The exact vector is re-scored through the same path as predict_many (_classify_many, the
+        Isolation Forest, _assemble), so the caller can check that the stored prediction is reproduced before
+        showing anything; nothing is recorded (no stats, drift or callbacks). SHAP covers the classifier only.
+        Raises ValueError for a malformed vector and ModelUnavailableError when the models are not loaded.
+        """
+        if not self._loaded:
+            raise ModelUnavailableError("Required models are not loaded")
+        x = np.asarray(vector, dtype=float).reshape(-1)
+        if x.shape[0] != len(FEATURE_NAMES):
+            raise ValueError(f"featureVector must have {len(FEATURE_NAMES)} values, got {x.shape[0]}")
+        if not np.isfinite(x).all():
+            raise ValueError("featureVector must contain finite numbers only")
+        X = x.reshape(1, -1)
+        try:
+            labels, proba, cls_pos = self._classify_many(X)
+            if_score = float(np.asarray(self.ifo.named_steps["if"].score_samples(
+                self.ifo.named_steps["scaler"].transform(X)), dtype=float).reshape(-1)[0])
+        except Exception as e:
+            raise ModelUnavailableError("Inference failed") from e
+        scored = self._assemble({}, x, labels[0], proba[0], int(cls_pos[0]), if_score, 0.0, False, None)
+        contributions = self.get_explanation(None, top_n=len(FEATURE_NAMES), X=X, cls_pos=int(cls_pos[0]))
+        values = dict(zip(FEATURE_NAMES, (float(v) for v in x)))
+        for c in contributions:
+            c["value"] = values.get(c["feature"])
+        base = None
+        try:
+            ev = np.asarray(self.explainer.expected_value, dtype=float).reshape(-1)
+            base = float(ev[int(cls_pos[0])] if ev.size > 1 else ev[0])
+        except Exception:
+            base = None
+        return {
+            "predictedClass": scored["predictedClass"],
+            "explainedClass": LABEL_NAMES.get(int(labels[0]), "BENIGN"),
+            "threatScore": scored["threatScore"],
+            "confidence": scored["confidence"],
+            "classProbabilities": scored["classProbabilities"],
+            "isAnomaly": scored["isAnomaly"],
+            "modelVersion": scored["modelVersion"],
+            "featureSchemaVersion": FEATURE_SCHEMA_VERSION,
+            "contributions": contributions,
+            "baseValue": base,
+            "units": "classifier margin (log-odds) for explainedClass",
+        }
+
     def predict(self, record: dict, explain: bool = False) -> dict:
         return self.predict_many([record], explain=explain)[0]
 

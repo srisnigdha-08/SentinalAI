@@ -90,6 +90,22 @@ def main():
                 lat.append(ms)
             rep[label] = {"status_codes": sorted(codes), "mean_ms": round(statistics.mean(lat), 2), "p50_ms": pct(lat, 50),
                           "p95_ms": pct(lat, 95), "p99_ms": pct(lat, 99), "max_ms": round(max(lat), 2)}
+        # On-demand per-threat explanation (batch 11): the stored vector, as /predict/internal returns it
+        stored = [post_json(base + "/predict/internal", key, b)["result"] for b in bodies]
+        lat, codes, reproduced = [], set(), 0
+        for i in range(a.n):
+            r0 = stored[i % len(stored)]
+            c, ms = req(base + "/explain/vector", key, {"featureVector": r0["featureVector"],
+                                                        "featureSchemaVersion": r0["featureSchemaVersion"]})
+            codes.add(c)
+            lat.append(ms)
+        for r0 in stored:
+            e = post_json(base + "/explain/vector", key, {"featureVector": r0["featureVector"],
+                                                           "featureSchemaVersion": r0["featureSchemaVersion"]})["result"]
+            reproduced += int(e["predictedClass"] == r0["predictedClass"] and e["threatScore"] == r0["threatScore"])
+        rep["explain_vector"] = {"status_codes": sorted(codes), "mean_ms": round(statistics.mean(lat), 2), "p50_ms": pct(lat, 50),
+                                 "p95_ms": pct(lat, 95), "p99_ms": pct(lat, 99), "max_ms": round(max(lat), 2),
+                                 "reproduced": f"{reproduced}/{len(stored)}"}
         # SHAP content check (not timed): how many golden flows come back with a non-empty explanation
         shap = [post_json(base + "/predict/internal?explain=true", key, b)["result"] for b in bodies]
         non_empty = [r for r in shap if r.get("featureImportance")]

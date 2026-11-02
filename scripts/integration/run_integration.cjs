@@ -455,6 +455,29 @@ async function main() {
     assert(preds > 0 || live > 0, 'no ai_prediction/new_threat socket event received')
     return { threatLogs: threats, newThreatEvents: live, aiPredictionEvents: preds }
   })
+  await check('B', 'per-threat SHAP explanation reproduces the stored prediction (analyst); viewer and unlinked threats refused', async () => {
+    const t = await ThreatLog.findOne({ predictionId: { $ne: null } }).sort({ createdAt: -1 }).lean()
+    assert(t, 'no replayed threat with a linked prediction')
+    const p = await AIPrediction.findById(t.predictionId).select('+featureVector').lean()
+    assert(Array.isArray(p?.featureVector) && p.featureVector.length === 53, 'prediction has no stored 53-value vector')
+    const t0 = Date.now()
+    const r = await analyst.call('GET', `/api/threats/${t._id}/explanation`)
+    const ms = Date.now() - t0
+    assert(r.status === 200, 'analyst explanation ' + r.status + ' ' + JSON.stringify(r.body).slice(0, 200))
+    const e = r.body.data
+    assert(e.reproduced === true && e.predictionId === String(p._id), 'explanation not linked to the threat’s prediction')
+    assert(e.predictedClass === p.predictedClass && e.threatScore === p.threatScore && e.modelVersion === p.modelVersion,
+      `class/score/model differ: ${e.predictedClass}/${e.threatScore}/${e.modelVersion} vs ${p.predictedClass}/${p.threatScore}/${p.modelVersion}`)
+    assert(Array.isArray(e.contributions) && e.contributions.length === 53, 'expected 53 contributions')
+    assert(!('featureVector' in e) && !JSON.stringify(r.body).includes('featureVector'), 'stored vector leaked')
+    const v = await viewer.call('GET', `/api/threats/${t._id}/explanation`)
+    assert(v.status === 403, 'viewer explanation ' + v.status)
+    const unlinked = await ThreatLog.create({ severity: 'HIGH', sourceIP: '198.51.100.250', attackType: t.attackType })
+    const u = await analyst.call('GET', `/api/threats/${unlinked._id}/explanation`)
+    assert(u.status === 409 && u.body?.errors?.reason === 'NO_LINKED_PREDICTION', 'unlinked threat ' + u.status + ' ' + JSON.stringify(u.body?.errors))
+    await ThreatLog.deleteOne({ _id: unlinked._id })
+    return { threat: String(t._id), class: e.predictedClass, score: e.threatScore, model: e.modelVersion, top3: e.contributions.slice(0, 3).map((c) => c.feature), latencyMs: ms }
+  })
 
   // ── B: Cowrie log -> parser -> ingest -> closure analysis ───────────────────
   const HoneypotSession = require(path.join(root, 'backend/models/HoneypotSession'))

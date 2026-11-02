@@ -20,6 +20,7 @@ export const threatAPI = {
   create:      (data)     => api.post('/threats', data),
   update:      (id, data) => api.put(`/threats/${id}`, data),
   triage:      (id, data) => api.patch(`/threats/${id}/triage`, data),
+  explain:     (id)       => api.get(`/threats/${id}/explanation`),
   delete:      (id)       => api.delete(`/threats/${id}`),
 
   blockIP:     (id)       => api.post(`/threats/${id}/block`),

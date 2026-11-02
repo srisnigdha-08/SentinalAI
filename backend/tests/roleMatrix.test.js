@@ -58,6 +58,11 @@ jest.mock('../services/threatService', () => ({
   deleteThreat: jest.fn().mockResolvedValue({ _id: 'dummy' }),
 }))
 
+jest.mock('../services/threatExplanationService', () => ({
+  explainThreat: jest.fn().mockResolvedValue({ threatId: 'dummy', predictedClass: 'DDoS', contributions: [] }),
+  ExplanationError: class ExplanationError extends Error {},
+}))
+
 jest.mock('../services/trainingSampleService', () => ({
   listSamples: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
   getSampleById: jest.fn().mockResolvedValue({ _id: 'dummy-sample-id', status: 'PENDING' }),
@@ -549,6 +554,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       method: 'patch',
       path: '/api/threats/:id/triage',
       body: { status: 'INVESTIGATING', triageNotes: 'Note' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/threats/:id/explanation',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
     },
 

@@ -6,6 +6,7 @@ import Panel from '../components/Panel.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
 import TriageModal from '../components/TriageModal.jsx'
+import ExplanationModal from '../components/ExplanationModal.jsx'
 import { threatAPI, containmentAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 import { usePermission } from '../hooks/usePermission.js'
@@ -32,6 +33,8 @@ export default function ThreatLogs() {
   const { hasPermission } = usePermission()
   const canTriage = hasPermission('threats:triage')
   const canBlock = hasPermission('threats:block')
+  // XAI-001: explanations are served to analysts and admins (backend restrictTo), for threats from a scored flow
+  const canExplain = user?.role === 'admin' || user?.role === 'analyst'
 
   const [threats, setThreats] = useState([])
   const [total,   setTotal]   = useState(0)
@@ -51,6 +54,7 @@ export default function ThreatLogs() {
   const [triageModalOpen, setTriageModalOpen] = useState(false)
   const [triageThreat, setTriageThreat] = useState(null)
   const [triageReadOnly, setTriageReadOnly] = useState(false)
+  const [explainThreat, setExplainThreat] = useState(null)
 
   const loadContainmentStatus = async () => {
     if (user?.role === 'viewer') return
@@ -301,6 +305,24 @@ export default function ThreatLogs() {
                           Triage
                         </button>
                       )}
+                      {canExplain && l.predictionId && (
+                        <button
+                          onClick={() => setExplainThreat(l)}
+                          title="Why did the model flag this flow? (SHAP)"
+                          style={{
+                            background: 'rgba(139, 92, 246, 0.1)',
+                            border: '1px solid rgba(139, 92, 246, 0.35)',
+                            color: '#b49cff',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                          }}
+                        >
+                          Explain
+                        </button>
+                      )}
                       {l.status !== 'BLOCKED' && (
                         canBlock ? (
                           <button onClick={() => openContainmentModal(l)} style={{
@@ -393,6 +415,13 @@ export default function ThreatLogs() {
         isReadOnly={triageReadOnly}
         onClose={() => { setTriageModalOpen(false); setTriageThreat(null) }}
         onSuccess={() => load(page)}
+      />
+
+      <ExplanationModal
+        key={explainThreat?._id || 'none'}
+        isOpen={!!explainThreat}
+        threat={explainThreat}
+        onClose={() => setExplainThreat(null)}
       />
     </DashboardLayout>
   )

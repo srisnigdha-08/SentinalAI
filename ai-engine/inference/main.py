@@ -23,7 +23,7 @@ from inference import deception
 from inference.deception import get_scorer, save_scorer
 from inference.errors import ModelUnavailableError
 from monitoring.drift import DriftMonitor
-from utils.features import FEATURE_NAMES, CANDIDATES, LABEL_NAMES
+from utils.features import FEATURE_NAMES, CANDIDATES, LABEL_NAMES, FEATURE_SCHEMA_VERSION
 
 def pred_label(cls: int) -> str:
     return LABEL_NAMES.get(cls, f"c{cls}")
@@ -460,6 +460,31 @@ def predict_eval(record: Record, explain: bool = False):
     if not predictor: raise HTTPException(503, "Not ready")
     r = _score(record, explain)
     return {"success":True,"evaluation":True,"sourceIP":record.sourceIP,"result":_public_result(r),"timestamp":datetime.now(timezone.utc).isoformat()}
+
+
+class VectorExplainRequest(BaseModel):
+    featureVector: List[float]
+    featureSchemaVersion: str
+
+
+@app.post("/explain/vector", dependencies=[Depends(verify_api_key)])
+def explain_vector(req: VectorExplainRequest):
+    """
+    On-demand SHAP explanation of a feature vector this engine produced earlier (the backend sends the copy it
+    stored with the prediction; clients never supply it). Re-scores the vector with the normal scoring path so the
+    backend can confirm it reproduces the stored prediction. No stats, drift, callbacks or persistence.
+    """
+    if not predictor: raise HTTPException(503, "Not ready")
+    if req.featureSchemaVersion != FEATURE_SCHEMA_VERSION:
+        raise HTTPException(409, f"Feature schema {req.featureSchemaVersion!r} differs from the engine's {FEATURE_SCHEMA_VERSION!r}")
+    try:
+        r = predictor.explain_vector(req.featureVector)
+    except ValueError as e:
+        raise HTTPException(422, str(e))
+    # No SHAP explainer is not an outage: answer 200 so the backend's circuit breaker (which counts 5xx) is not
+    # tripped by explanation requests and threat scoring keeps working; the backend refuses with its own reason.
+    r["explainerAvailable"] = bool(r["contributions"])
+    return {"success": True, "result": r}
 
 
 @app.post("/predict/batch", dependencies=[Depends(verify_api_key)])
