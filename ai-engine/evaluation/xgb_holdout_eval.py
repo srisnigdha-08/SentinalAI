@@ -107,7 +107,7 @@ def collisions(X, y, tr, te):
     return {"test_rows_vector_in_train_same_label": same, "test_rows_vector_in_train_other_label": diff}
 
 
-def fit_and_score(X, y, tr, te, make_model=None):
+def fit_and_score(X, y, tr, te, make_model=None, make_if=None):
     """One fold of the served recipe. Labels are re-encoded to 0..k-1 over the classes present in training
     (XGBoost needs contiguous labels); a test row of a class absent from training can only be right on the binary
     attack-vs-benign question, so per-class metrics are reported for classes seen in training only.
@@ -164,7 +164,38 @@ def fit_and_score(X, y, tr, te, make_model=None):
             "macro_f1_seen_classes": round(float(f1_score(yt[seen], pred[seen], labels=seen_test, average="macro", zero_division=0)), 4) if seen_test else None,
             "unseen_classes": unseen,
             "confusion_matrix": {"labels": [LABEL_NAMES[int(c)] for c in present], "rows_true_cols_pred": cm.tolist()},
-            "collisions": collisions(X, y, tr, te)}
+            "collisions": collisions(X, y, tr, te),
+            **({"hybrid": hybrid(X, y, tr, te, pred, max_p, make_if)} if make_if else {})}
+
+
+def hybrid(X, y, tr, te, pred, max_p, make_if):
+    """The served threat score on a fold: an Isolation Forest fitted on the fold's BENIGN training rows only (as
+    train.py does), then inference/predictor.py's own combination — anomaly_signal (fixed boundary -0.55, span 0.20),
+    combine_threat_score, the BENIGN->Unknown override (score >= 0.55) and the REVIEW tier — at the served alert and
+    block lines. Nothing from the held-out day is used for fitting, calibration or line selection."""
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+    from inference import predictor as P
+    benign_train = tr & (y == 0)
+    ifo = Pipeline([("scaler", StandardScaler()), ("if", make_if())])
+    t0 = time.time()
+    ifo.fit(X[benign_train])
+    fit_s = time.time() - t0
+    if_scores = np.asarray(ifo.score_samples(X[te]), dtype=float)
+    is_attack = pred != 0
+    rf_s = np.where(is_attack, max_p, 1 - max_p)
+    if_sig = P.anomaly_signal(if_scores)
+    score = np.round(P.combine_threat_score(rf_s, if_sig, is_attack), 4)
+    unknown = (~is_attack) & (if_scores < P.ANOMALY_THRESHOLD)
+    score = np.where(unknown, np.maximum(score, 0.55), score)
+    review = unknown & (if_sig >= P.REVIEW_MIN_SIGNAL) & (score < P.MONITOR_THRESHOLD)
+    attack = y[te] != 0
+    return {"if_fit_seconds": round(fit_s, 1), "if_benign_training_rows": int(benign_train.sum()),
+            "lines": {"alert": P.MONITOR_THRESHOLD, "block": P.BLOCK_THRESHOLD, "anomaly_boundary": P.ANOMALY_THRESHOLD},
+            "alert_line": binary(is_attack & (score >= P.MONITOR_THRESHOLD), attack),
+            "block_line": binary(is_attack & (score >= P.BLOCK_THRESHOLD), attack),
+            "unknown_override_rows": {"benign": int((unknown & ~attack).sum()), "attack": int((unknown & attack).sum())},
+            "review_queue": {"benign": int((review & ~attack).sum()), "attack": int((review & attack).sum())}}
 
 
 def _versions():
@@ -191,9 +222,19 @@ def main():
     ap.add_argument("--protocols", default="P3,P4,P4f")
     ap.add_argument("--run", action="store_true", help="train and score (needs --approved)")
     ap.add_argument("--approved", action="store_true", help="the owner approved training throwaway fold models")
+    ap.add_argument("--with-if", action="store_true", help="also fit an Isolation Forest per fold (full served score)")
+    ap.add_argument("--approved-if", action="store_true", help="the owner approved the per-fold Isolation Forest fits")
+    ap.add_argument("--expect", help="earlier results.json: the refitted classifiers must reproduce its argmax metrics")
     args = ap.parse_args()
     if args.run and not args.approved:
         sys.exit("--run trains models: pass --approved only with the owner's approval (audit/ML_EVAL_PLAN.md §6)")
+    if args.with_if and not (args.run and args.approved_if):
+        sys.exit("--with-if fits Isolation Forests: needs --run and --approved-if (owner approval, ML_EVAL_PLAN.md §5e)")
+    expected = {}
+    if args.expect:
+        for name, rows in json.loads(Path(args.expect).read_text(encoding="utf-8"))["protocols"].items():
+            for r in rows:
+                expected[(name, r["fold"])] = r["result"]["binary_classifier_argmax"]
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
     t0 = time.time()
@@ -237,7 +278,16 @@ def main():
             entry = {"fold": fold, **man, "classes": class_table(y, tr, te),
                      "estimated_fit_minutes": f"~{max(1, round(tr.sum() / SERVED_TRAIN_ROWS * 2))} (size-scaled guess; unmeasured)"}
             if args.run:
-                entry["result"] = fit_and_score(X, y, tr, te)
+                make_if = None
+                if args.with_if:
+                    from sklearn.ensemble import IsolationForest
+                    from training.train import IF_PARAMS
+                    make_if = lambda: IsolationForest(**IF_PARAMS)  # noqa: E731
+                entry["result"] = fit_and_score(X, y, tr, te, make_if=make_if)
+                if (name, fold) in expected:
+                    same = entry["result"]["binary_classifier_argmax"] == expected[(name, fold)]
+                    entry["result"]["reproduces_expected_argmax"] = same
+                    assert same, f"{name} {fold}: refitted classifier differs from {args.expect}; stopping"
             rows.append(entry)
         report["protocols"][name] = rows
     (out / "plan.json" if not args.run else out / "results.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

@@ -69,3 +69,36 @@ def test_run_refuses_without_explicit_approval(monkeypatch, capsys):
         assert "approval" in str(e.code)
     else:
         raise AssertionError("--run without --approved did not stop")
+
+
+def test_hybrid_scoring_fits_the_forest_on_benign_training_rows_only():
+    from sklearn.ensemble import IsolationForest
+    rng = np.random.default_rng(1)
+    X = np.vstack([rng.normal(0, 1, (80, 3)), rng.normal(6, 1, (40, 3))])
+    y = np.array([0] * 80 + [4] * 40)
+    tr = np.array([True] * 60 + [False] * 20 + [True] * 30 + [False] * 10)
+    seen = []
+
+    class Spy(IsolationForest):
+        def fit(self, Xf, *a, **k):
+            seen.append(len(Xf))
+            return super().fit(Xf, *a, **k)
+
+    res = H.fit_and_score(X, y, tr, ~tr, make_model=lambda: DecisionTreeClassifier(random_state=0),
+                          make_if=lambda: Spy(n_estimators=20, random_state=0))
+    assert seen == [60]  # benign rows of the training fold, never the held-out rows or attacks
+    h = res["hybrid"]
+    assert h["if_benign_training_rows"] == 60 and h["lines"]["alert"] == 0.9
+    assert h["alert_line"]["tp"] + h["alert_line"]["fn"] == 10  # every held-out attack is accounted for
+    # the served rule can only raise an attack score: hybrid recall >= classifier-only lower bound
+    assert h["alert_line"]["tp"] >= res["binary_alert_line_0.90_lower_bound"]["tp"]
+
+
+def test_hybrid_mode_refuses_without_its_own_approval(monkeypatch):
+    monkeypatch.setattr(sys, "argv", ["xgb_holdout_eval.py", "--run", "--approved", "--with-if"])
+    try:
+        H.main()
+    except SystemExit as e:
+        assert "approved-if" in str(e.code)
+    else:
+        raise AssertionError("--with-if without --approved-if did not stop")
