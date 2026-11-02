@@ -30,17 +30,35 @@ curl.exe -s -o NUL -w "%{http_code}`n" http://127.0.0.1:5000/health          # 2
 curl.exe -sI http://127.0.0.1:8080/ | Select-String "Content-Security-Policy|X-Content-Type-Options|Referrer-Policy"
 docker compose exec mongo mongosh --quiet --eval "db.getSiblingDB('sentinel-db').users.findOne()"
 # expected: "requires authentication" (auth is on)
-docker compose exec mongo mongosh -u root -p <MONGO_ROOT_PASSWORD from .env> --authenticationDatabase admin --quiet --eval "db.getSiblingDB('sentinel-db').getUsers().users.map(u=>u.user)"
+# Authenticate with the credentials already in the container's environment (read by mongosh's process.env inside
+# --eval), so no password is typed, echoed, stored in shell history or visible in a process list:
+docker compose exec mongo mongosh --quiet --eval "db.getSiblingDB('admin').auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD); db.getSiblingDB('sentinel-db').getUsers().users.map(u=>u.user)"
 # expected: [ 'sentinel_app', 'sentinel_audit' ]
 ```
+
+Never put a password after `-p` on a command line, and never paste `.env` contents into a terminal or ticket.
 
 Then run the integration harness against the compose stack: open the dashboard on http://127.0.0.1:8080, sign in,
 check the browser console for CSP violations on every page, and replay flows
 (`ai-engine/demo/replay_cicids.py --target backend --backend-url http://127.0.0.1:5000 --origin http://localhost:8080`).
 
-Existing volume created before auth was enabled: `mongo-init.js` runs only on an empty volume; run it once by hand
-(`docker compose exec mongo mongosh -u root -p … --authenticationDatabase admin /docker-entrypoint-initdb.d/mongo-init.js`
-with `SENTINEL_APP_PASSWORD` / `SENTINEL_AUDIT_PASSWORD` set) or start from a fresh volume.
+**Existing volume created before auth was enabled — do not delete it.** The image creates the root user and runs
+`mongo-init.js` only on an empty data directory, so an existing `mongo-data` volume keeps its data but may have no
+users. Back it up first, then provision in place:
+
+```powershell
+# 1. Back up (to a host folder that is not inside the repository)
+docker compose exec mongo mongodump --archive=/tmp/pre-auth.archive --quiet
+docker compose cp mongo:/tmp/pre-auth.archive D:\backups\sentinel-pre-auth.archive
+# 2. First user through MongoDB's localhost exception (only works while the database has no users); credentials
+#    from the container environment, never from the command line
+docker compose exec mongo mongosh --quiet admin --eval "db.createUser({user: process.env.MONGO_INITDB_ROOT_USERNAME, pwd: process.env.MONGO_INITDB_ROOT_PASSWORD, roles: ['root']})"
+# 3. App and audit users (mongo-init.js reads SENTINEL_APP_PASSWORD / SENTINEL_AUDIT_PASSWORD from the same environment)
+docker compose exec mongo mongosh --quiet --eval "db.getSiblingDB('admin').auth(process.env.MONGO_INITDB_ROOT_USERNAME, process.env.MONGO_INITDB_ROOT_PASSWORD); load('/docker-entrypoint-initdb.d/mongo-init.js')"
+```
+
+If step 2 reports that users already exist, the volume was provisioned before: skip to step 3 only if `sentinel_app`
+is missing. None of these commands has been executed on this machine.
 
 ## Production blockers (not addressed)
 

@@ -19,6 +19,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Fix batch 4 | APPLIED 2026-11-01 — FIXES.md, READINESS_2026-11-01.md, SEC001_REMEDIATION.md, ML_EVAL_PLAN.md (integration A-D + live Cowrie + auth Mongo verified; E2E 177/177) |
 | Fix batch 5 | APPLIED 2026-11-02 — FIXES.md (SEC-001 sessions verified, self-service password change, scanner hardening, P5, P3/P4 plan, RL-001 decisions, Firefox E2E stall; all suites green) |
 | Batch 6 | DONE 2026-11-02 — P3/P4 measured (no cross-day generalisation, ML-007), weakness analysis, RL review, deployment procedure |
+| Batch 7 | DONE 2026-11-02 — generalisation root cause (tool fingerprints), ranked options, CSE-CIC-IDS2018 plan, hybrid-eval mode (not run), deployment doc safety |
 
 ## Commands run in the final pass (read-only)
 - git log/diff/branch -r --contains/grep; value comparison of HONEYPOT_API_KEY vs history (match flag only)
@@ -30,6 +31,6 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 - Another session/process committed while the audit ran; confirm no one else is editing before acting on the roadmap.
 
 ## Next step
-Batch 6 done 2026-11-02, uncommitted. Waiting on the user: SEC-001 password changes (9 records), approval for a
-retrain experiment (taxonomy fix + multi-corpus, evaluated on P3/P4/CSE-2018), a Docker/nginx host. Open: ML-007,
-RL-001 remainder, E2E-002 (not reproduced), DEP-001, paper wording.
+Batch 7 done 2026-11-02, uncommitted. Full-hybrid P3/P4 (approved) done. Approvals pending: Experiment A
+(download 4 untouched 2018 days, 4.98 GB; inference only), Experiment B (training). User action: SEC-001 passwords.
+Plan: audit/ML_GENERALIZATION_PLAN.md.

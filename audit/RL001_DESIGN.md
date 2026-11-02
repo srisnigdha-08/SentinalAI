@@ -140,3 +140,15 @@ confounded by the attacker population (bots vs humans, time of day), which the p
 
 Until that experiment runs, the justified claim is: "a tabular Q-learning / bandit recommender selects personas and
 the system applies them safely and auditably"; **not** "adaptive deception improves engagement".
+
+## Recommended defaults (2026-11-02; not implemented — they change the policy, so they need your approval)
+
+| Choice | Recommendation | Effect on behaviour | Effect on the Demo A rotation |
+|---|---|---|---|
+| Per-session `recommendedProfile` | **Rename** to `greedyProfileAtClose` and store the greedy choice (no draw at closure); keep the field for analytics. Engine: `process_session` returns `greedyProfile`; backend stores it | removes the misleading second "recommendation"; one draw per rotation decision only | none |
+| Minimum real-session evidence | `DECEPTION_MIN_SESSIONS=5` closed, non-synthetic (`demo-*` excluded), non-own-IP sessions under the current persona before a new decision is drawn; otherwise the recommendation endpoint answers "keep" without drawing | no exploration away from a persona with no observations | the scripted demo has only 1–2 sessions: run `cowrie-demo-mode.sh rotate --once --force` with `DECEPTION_MIN_SESSIONS=0` for the demo, stated as a demo override |
+| Minimum dwell | `DECEPTION_MIN_DWELL_HOURS=24` since the last applied decision | ≤ 1 OS change per day — less of a honeypot tell, cleaner reward attribution | same override for the demo |
+| Fixed-persona baseline | arm "fixed `centos_7`" and arm "uniform random", alternated in 24 h blocks with randomised order, same host; needs a new rotator option (proposed `--policy fixed|random|learner`; does not exist yet) | enables the comparison in "Evidence needed" above | none |
+
+Until the baseline comparison has run, documentation and the viva say: "persona selection by a tabular Q-learning /
+bandit recommender, applied safely and auditably; effectiveness versus a fixed persona not yet measured".

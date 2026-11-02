@@ -551,3 +551,36 @@ ID: E2E-002 (update) | P3 | not reproduced: 0 failures in 45 further Firefox run
 total). Pre-save assertions added (status and note value visible before Save), so a recurrence shows whether the DOM
 value or the submitted state was lost. DEFERRED.
 ```
+
+---
+
+## Batch 7 (2026-11-02)
+
+```
+ID: ML-009 | P1 | CONFIRMED (ran: shift analysis, no model fitted)
+Root cause of ML-007: benign traffic barely shifts between days (mean KS 0.02-0.05), but the same attack class from
+another tool barely overlaps (mean KS 0.42 DDoS, 0.52 Credential Stuffing; init_win_bytes_backward KS 0.87/1.00). The
+classifier learns tool/testbed fingerprints. 6 of 53 features are constant. Corroborated by Phase 7/8 (2018: 0 %
+recall for RF v2; dropping TCP-window features helped brute force/botnet, not DDoS).
+Evidence: ai-engine/experiments/shift_analysis_20261102/shift.json; audit/ML_GENERALIZATION_PLAN.md §2.
+```
+
+```
+ID: DATA-001 | P2 | CONFIRMED (ran)
+The 6 local CSE-CIC-IDS2018 days were used by Phase 7 (evaluation) and Phase 8 (training): they cannot be an
+external holdout. 4 days were never downloaded (4.98 GB) and are the only untouched 2018 data. Thursday-01-03 has 25
+repeated header lines; 4 files stop at 1,048,575 rows upstream.
+```
+
+```
+ID: DOC-004 | P2 | CONFIRMED (static) | RESOLVED
+DEPLOYMENT_VALIDATION.md put the Mongo root password on a command line (-p <value>) and suggested a fresh volume
+for re-initialisation. Replaced with container-environment authentication inside --eval and an in-place,
+backed-up provisioning procedure (still not executed: no Docker here).
+```
+
+```
+ID: ML-007 (update) | P1 | full served hybrid score measured: alert-line recall P3 12.14 %, P4 0.64 / 1.65 / 0.18 /
+10.4 % (Tue-Fri), benign FPR 0.025-3.97 %; identical to the classifier-only lower bound. On unseen days the
+deployed detector alerts on at most about 1 attack in 8.
+```

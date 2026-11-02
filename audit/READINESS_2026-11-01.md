@@ -1,5 +1,10 @@
 # SentinelAI readiness assessment — 2026-11-01, updated 2026-11-02 (after batch 6)
 
+**Batch 7 (root cause).** The cross-day failure is attack-tool fingerprinting, not benign drift (benign KS 0.02–0.05
+between days; same class, other tool KS 0.42–0.52). A plan with ranked fixes and a properly isolated
+CSE-CIC-IDS2018 evaluation is in `ML_GENERALIZATION_PLAN.md`; nothing has been retrained. The full served hybrid
+score on unseen days (approved run) alerts on 0.2–12 % of attacks — the anomaly model adds review signal, not alerts.
+
 **Batch 6 (cross-day ML).** The approved P3/P4 evaluation shows the served XGBoost recipe **does not generalise** to
 capture days or tools it has not seen: attack recall 50.6 % (P3, classifier decision; 12.1 % at the alert line) and
 3–33 % on held-out days, with benign FPR up to 4.1 %. The 98.97 % accuracy is an in-distribution figure only

@@ -191,7 +191,7 @@ sample weights), no hyperparameter search, labels re-encoded per fold. Python 3.
 scikit-learn 1.4.0, xgboost 2.0.3, git `c44f0c8` (+ uncommitted evaluator changes). Fit time 3.7–11.2 s per fold
 (16 cores). `models/` and `runtime/` unchanged (git status).
 
-**Operating lines are lower bounds.** The served threat score for an attack prediction is
+**Operating lines in the first table are lower bounds** (full served score: §5c-2). The served threat score for an attack prediction is
 max(confidence, 0.7·confidence + 0.3·IF signal); the Isolation Forest was not refitted per fold (outside the six
 approved fits; reusing the served IF would leak held-out-day benign traffic), so "line" rows use confidence only.
 Attack recall at a line can only rise with the IF term; benign rows that the IF would push over the line are missing.
@@ -236,6 +236,35 @@ BENIGN/DDoS 4, BENIGN/Malware Beacon 2. They are kept by design (train.py de-dup
 folds, 0 test rows repeat a training vector with the same label (no exact leakage across days); 3, 0, 3, 29 and 28
 test rows (P3, Tue, Wed, Thu, Fri) repeat a training vector with a **different** label — irreducible label noise
 the model cannot get right. In P5 the same effect is the 15 shared vectors.
+
+### 5c-2. Full-hybrid P3/P4 (run 2026-11-02, approved: 6 XGBoost re-fits + 6 Isolation Forest fits)
+
+Command (from `ai-engine/`): `.venv\Scripts\python evaluation\xgb_holdout_eval.py --run --approved --with-if
+--approved-if --protocols P3,P4 --out experiments\xgb_holdout_hybrid_20261102 --expect
+experiments\xgb_holdout_20261102\results.json`. The frozen `plan.json` was copied into the output folder first, so
+every manifest hash was checked. All six refitted classifiers reproduced the earlier argmax metrics exactly; each
+Isolation Forest was fitted on its fold's benign training rows only (35,705–81,558 rows, 0.7–1.0 s); the deployed
+scoring constants were not changed. Output: `ai-engine/experiments/xgb_holdout_hybrid_20261102/results.json`.
+
+| Fold | Recall at 0.90, served score (95 % CI) | Benign FPR at 0.90 (95 % CI) | Precision at 0.90 | Recall at 0.92 | Attacks scored "Unknown" (BENIGN + anomalous) | REVIEW queue: attack / benign |
+|---|---|---|---|---|---|---|
+| P3 Mon–Wed → Thu+Fri | 12.14 % (11.6–12.7) | 0.062 % (0.05–0.09) | 0.979 | 11.93 % | 67 | 9 / 1,338 |
+| P4 Monday (benign only) | – | 0.067 % (0.03–0.13) | – | – | 0 | 0 / 35 |
+| P4 Tuesday | 0.64 % (0.50–0.83) | 0.067 % (0.03–0.13) | 0.881 | 0.44 % | 2 | 0 / 39 |
+| P4 Wednesday | 1.65 % (1.39–1.95) | 0.093 % (0.05–0.17) | 0.924 | 1.49 % | **3,747** | **209 / 55** |
+| P4 Thursday | 0.18 % (0.07–0.47) | **3.97 %** (3.72–4.23) | 0.005 | 0.05 % | 115 | 6 / 88 |
+| P4 Friday | 10.40 % (9.86–11.0) | 0.025 % (0.01–0.05) | 0.993 | 8.16 % | 35 | 2 / 310 |
+
+Findings:
+- **The Isolation Forest term changes almost nothing at the operating lines.** Hybrid recall equals the
+  classifier-only lower bound (P3: +1 flow; P4 identical), and FPR is unchanged. On unseen days the deployed hybrid
+  score alerts on 0.2–12 % of attacks at the 0.90 line.
+- **The anomaly model does see unseen DoS.** On Wednesday 3,747 of 8,061 attacks (46 %) are classified BENIGN but
+  scored anomalous ("Unknown"), against 570 of 11,795 benign flows (4.8 %). By design "Unknown" never alerts; 209
+  attacks and 55 benign flows reach the REVIEW queue. This is the only place the hybrid adds signal — as an
+  analyst-review input, not as an alert (a 4.8 % benign "Unknown" rate is far too high to alert on).
+- Thursday's alerts are almost all false (precision 0.005): benign flows predicted as an attack class with high
+  confidence. The Isolation Forest cannot lower an attack prediction's score.
 
 ### What the results justify
 

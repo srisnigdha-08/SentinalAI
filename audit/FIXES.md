@@ -217,3 +217,23 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - Evaluator unit tests 4/4; P3/P4 run exit 0 (six fits, 3.7–11.2 s each); threshold sweep reproduces P5 at 0.90/0.92.
 - Playwright threat-logs spec: Firefox 45/45 (×15), Chromium + WebKit 6/6. Secret scan: tree 0 findings.
 - Not re-run (no code change in those areas since batch 5's green run): backend Jest, full pytest, full E2E, integration.
+
+---
+
+# Batch 7 — generalisation root causes and plans (2026-11-02, at `c73efa0`; nothing committed)
+
+| ID | Final status | What was done |
+|---|---|---|
+| SEC-001 | **REQUIRES USER ACTION** | Re-checked: 9 records still accept the leaked passwords. |
+| Model integrity | **VERIFIED** | classifier, anomaly and golden-set sha256 equal `registry.json`. |
+| Full-hybrid P3/P4 | **REQUIRES APPROVAL (implemented, not run)** | `xgb_holdout_eval.py --with-if --approved-if`: IF on benign training rows only, served combination, Unknown/REVIEW, reproduction check `--expect` (stops if a refit differs). 2 new tests (6/6). |
+| ML-009 root cause | **VERIFIED** | `evaluation/shift_analysis.py` (no fitting) → tool fingerprints, not benign drift. |
+| Improvement options | **DOCUMENTED** | `ML_GENERALIZATION_PLAN.md` §3: 8 ranked options with hypothesis, cost, data, success criteria, failure modes. |
+| CSE-CIC-IDS2018 | **DOCUMENTED** | availability, terms (citation required), schema, labels, quality, touched vs untouched days, sizes from the public bucket listing; Experiments A/B with acceptance criteria. Nothing downloaded. |
+| DOC-004 | **RESOLVED** | Deployment procedure no longer exposes passwords or suggests deleting a volume. |
+| RL defaults | **DOCUMENTED (needs approval)** | rename per-session field, min 5 real sessions, 24 h dwell, fixed/random baselines; demo override. |
+
+## Verification (2026-11-02)
+- `pytest tests/test_xgb_holdout_eval.py`: 6/6. Shift analysis exit 0. Model hashes match. Secret scan: tree 0 findings.
+- Firefox threat-logs spec ×30: 90/90 passed (8.0 min). Since the warmup fix: 1 empty-note failure in 174 runs, 0 in the last 135; E2E-002 stays DEFERRED (not reproducible).
+- Full-hybrid P3/P4 (follow-up, approved) — **VERIFIED (measured)**: 6 reproduction-checked XGBoost re-fits + 6 benign-only IF fits; hybrid recall at 0.90 equals classifier-only (P3 12.14 %, P4 0.2–10.4 %); the IF adds review signal on Wednesday DoS (46 % "Unknown"), not alerts. `ML_EVAL_PLAN.md` §5c-2.
