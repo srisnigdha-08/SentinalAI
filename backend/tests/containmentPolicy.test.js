@@ -326,6 +326,39 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
       expect(mockSocketManager.emitIPBlocked).toHaveBeenCalledWith('185.220.101.47', 'AI Engine', 'threat-5')
     })
 
+    // Demo C gap (readiness 2026-11-01): with auto-block on, a flow between the alert line (0.90) and the block line
+    // (0.92) must become a threat but must not be contained. The integration replay may not produce such a score.
+    test('TEST 5b: score = 0.91 and autoBlockEnabled = true -> threat stored, NOT BLOCKED, no BlockedIP', async () => {
+      mockSystemSettingFindOne.mockResolvedValue({ key: 'autoBlockEnabled', value: true })
+      mockAIPredictionCreate.mockResolvedValue({
+        _id: 'pred-5b',
+        threatScore: 0.91,
+        predictedClass: 'SSH Brute Force',
+        sourceIP: '185.220.101.48',
+        save: jest.fn().mockResolvedValue(true),
+      })
+      mockThreatLogCreate.mockResolvedValue({
+        _id: 'threat-5b',
+        status: 'MONITORING',
+        sourceIP: '185.220.101.48',
+        severity: 'HIGH',
+        save: jest.fn().mockResolvedValue(true),
+      })
+
+      await aiService.storePrediction({
+        threatScore: 0.91,
+        predictedClass: 'SSH Brute Force',
+        sourceIP: '185.220.101.48',
+      })
+
+      expect(mockThreatLogCreate).toHaveBeenCalledTimes(1)
+      const created = mockThreatLogCreate.mock.calls[0][0]
+      expect(created.status).not.toBe('BLOCKED')
+      expect(created.autonomousAction).toEqual({ taken: false, actionType: null, actionTime: null })
+      expect(mockBlockedIPFindOneAndUpdate).not.toHaveBeenCalled()
+      expect(mockSocketManager.emitIPBlocked).not.toHaveBeenCalled()
+    })
+
     test('TEST 6: score = 0.96 and autoBlockEnabled = true -> BLOCKED, BlockedIP created', async () => {
       mockSystemSettingFindOne.mockResolvedValue({ key: 'autoBlockEnabled', value: true })
       const mockPred = {
