@@ -519,3 +519,35 @@ long-polling hypothesis tested and rejected. Residual empty-note failure: 1/39 F
 ID: RL-001 (update) | P3 | PARTIALLY RESOLVED — persisted decisions applied by id (audit/RL001_DESIGN.md).
 Remaining by design choice: closure-time draws stored as session.recommendedProfile; no evidence threshold.
 ```
+
+---
+
+## Batch 6 (2026-11-02)
+
+```
+ID: ML-007 | P1 | CONFIRMED (ran: approved P3/P4 evaluation fits)
+The served XGBoost recipe does not generalise across capture days or attack tools. P3 (Mon-Wed -> Thu+Fri): attack
+recall 50.6 % at the classifier decision, 12.1 % at the 0.90 line (classifier term, lower bound). P4 day folds:
+3.1 / 33.4 / 17.3 / 23.4 % (Tue/Wed/Thu/Fri); benign FPR 4.1 % (Thu), 2.7 % (Fri). Classes in training but from a
+different tool: DDoS LOIC -> DoS tools 0 %, web brute force -> FTP-Patator 0 %. The P5 98.97 % is in-distribution only.
+Evidence: ai-engine/experiments/xgb_holdout_20261102/results.json; audit/ML_EVAL_PLAN.md §5c.
+```
+
+```
+ID: ML-008 | P2 | CONFIRMED (ran: 5-NN analysis)
+"Credential Stuffing" merges two unrelated clusters (FTP-Patator: 99.9 % self-neighbours; HTTP brute force) and XSS
+flows sit inside the HTTP brute-force cluster (57.5 % of XSS 5-NN are web brute force). Labelling/observability,
+not tuning. Fix proposal in ML_EVAL_PLAN.md §5d (needs a retrain, so approval).
+```
+
+```
+ID: DOC-003 | P2 | CONFIRMED (static) | RESOLVED
+README claimed containment requires "multi-event correlation"; it does not (a single flow >= 0.92 auto-blocks when
+auto-block is enabled — integration run). README also said the XGB cross-day evaluation had not been run. Corrected.
+```
+
+```
+ID: E2E-002 (update) | P3 | not reproduced: 0 failures in 45 further Firefox runs of the spec (1 in 84 today in
+total). Pre-save assertions added (status and note value visible before Save), so a recurrence shows whether the DOM
+value or the submitted state was lost. DEFERRED.
+```

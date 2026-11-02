@@ -1,4 +1,10 @@
-# SentinelAI readiness assessment — 2026-11-01, updated 2026-11-02 (after fix batch 5)
+# SentinelAI readiness assessment — 2026-11-01, updated 2026-11-02 (after batch 6)
+
+**Batch 6 (cross-day ML).** The approved P3/P4 evaluation shows the served XGBoost recipe **does not generalise** to
+capture days or tools it has not seen: attack recall 50.6 % (P3, classifier decision; 12.1 % at the alert line) and
+3–33 % on held-out days, with benign FPR up to 4.1 %. The 98.97 % accuracy is an in-distribution figure only
+(`ML_EVAL_PLAN.md` §5c). SEC-001 still requires your action (unchanged).
+
 
 **2026-11-02 update.** All suites green on the batch-5 tree: Jest 1147, pytest 604, frontend 52 + build, Playwright
 180/180 (3 browsers), secret scan clean, integration 41/41 with live Cowrie, least-privilege MongoDB 35/35. New
@@ -50,20 +56,21 @@ Not run: Docker Compose (Docker not installed), real Windows Firewall adapter / 
   `cowrie.cfg` and restarting Cowrie (verified live). Since 2026-11-02 each rotation applies one persisted decision
   (RL-001); the per-session `recommendedProfile` is still a separate closure-time draw (informational). No evidence
   yet that learning improves engagement over a fixed persona.
-- ML metrics (accuracy 0.9897, macro F1 0.8738 — reproduced by the inference-only P5 run on 2026-11-02) are from a
-  random split of the same capture sessions; benign FPR at the alert line is 0.23 % there. Cross-day generalisation
-  of the served XGB is **unmeasured** (`audit/ML_EVAL_PLAN.md`).
+- ML metrics (accuracy 0.9897, macro F1 0.8738 — reproduced by the inference-only P5 run) are from a random split of
+  the same capture sessions; benign FPR at the alert line is 0.23 % there. **Measured cross-day (P3/P4, 2026-11-02):
+  attack recall 3–51 %, benign FPR up to 4.1 %** — say "high accuracy on CICIDS2017's random split; poor on unseen
+  days", never "detects novel attacks".
 
 ## 4. Demo readiness
 
 | Demo | Ready? | Notes |
 |---|---|---|
 | Demo A — Honeypot Intelligence | **Yes** | WSL Cowrie (`scripts/demo/cowrie-demo-mode.sh`), parser, dashboard; rotation can be shown live with `rotate --once` |
-| Demo B — AI Threat Detection | **Yes, as replay** | `replay_cicids.py --target backend`; say "replayed flow records" |
+| Demo B — AI Threat Detection | **Yes, as replay** | `replay_cicids.py --target backend`; say "replayed flow records" and quote P3/P4 next to the 98.97 % |
 | Demo C — Autonomous Incident Response | **Yes, simulated** | manual block / unblock / TTL expiry with the mock adapter; say "simulated firewall rule" |
 
 Final-year demonstration: ready, once the five passwords are changed. Production deployment: **not ready** — no TLS
-deployment has been run, compose with auth is untested, real enforcement untested, model generalisation unmeasured,
+deployment has been run, compose with auth is untested, real enforcement untested, the model does not generalise across days (measured),
 dependency pins are early-2024.
 
 ## 5. Test results

@@ -93,3 +93,50 @@ decision, compare-and-set refusals, supersede by state and TTL, failure, engine 
 `honeypotRotatorKey.test.js` and `roleMatrix.test.js`, rotator tests in `ai-engine/tests/test_deception_rotator.py`
 (switch / keep / failed restart / deferred), and the live lab check in `run_integration.cjs --cowrie` asserts that the
 applied persona equals the APPLIED decision's action.
+
+## Review of the remaining design choices (2026-11-02, evidence-based)
+
+**What is verified** (tests + live lab, batch 5): one draw → one `decisionId`; 6 concurrent first requests → 1
+decision (unique pending lock); the rotator applies, acknowledges or fails that id (compare-and-set, 409 otherwise);
+stale/wrong-state decisions are superseded and cannot be applied; a failed restart restores `cowrie.cfg` and marks the
+decision FAILED; the served persona is read from `cowrie.cfg` and credited (`servedProfile`); the Q-learning update
+code and its tests are unchanged (pytest 604 green); least-privilege role includes `deceptiondecisions`.
+
+**Retention:** one decision per rotation (hourly by default ≈ 8,800 small documents per year). Not covered by
+`retentionService`; harmless at this size, but if it is wanted: add `deceptiondecisions` (APPLIED/FAILED/SUPERSEDED
+older than N days) to the retention job. Not changed.
+
+**Per-session `recommendedProfile`:** the engine draws at every closure and the backend stores it; nothing applies
+or displays it. Recommendation: stop storing it (or store the greedy choice as `greedyProfileAtClose`) — an engine +
+backend change and two test updates; it changes no learning. Awaiting your choice.
+
+**Minimum evidence before switching:** today a rotation can draw while the served persona has 0 closed sessions.
+Measured data: `sentinel-db` has 8 sessions (7 synthetic `demo-*`), `sentinel-demo` 12 (all from integration runs,
+all `ubuntu_22`) — so every Q-value in use comes from the synthetic seed. Switching with no observations is pure
+exploration. A rule "≥ N closed real sessions under the current persona, or ≥ T hours" (e.g. N = 5, T = 24) is
+justified; it changes the rotation cadence, i.e. the policy, so it needs your decision.
+
+**Instability:** each switch restarts Cowrie (drops live sessions; the rotator waits while any are open) and changes
+the host's OS, kernel string and filesystem. A host whose OS changes every hour is itself a honeypot tell for a
+returning attacker. Switching is also the treatment being evaluated, so frequent switching makes attribution of
+rewards noisier. Both argue for a longer dwell (above).
+
+**Reward:** `calc_reward` (`rl_engine/deception_scorer.py`) = 2·log(1 + minutes) + 0.3·commands + intent bonuses +
+0.5·IOCs + 2 (login) − fingerprint penalty, clipped to [−10, 20]. It measures **engagement / intelligence collected**,
+not a defensive outcome (blocked follow-up attacks, analyst-useful IOCs, attacker deception confirmed). It is also
+confounded by the attacker population (bots vs humans, time of day), which the persona does not control.
+
+### Evidence needed before claiming RL beats a fixed persona
+
+1. **Baseline arm:** a fixed persona (e.g. the shipped `centos_7`) and a uniform-random rotation arm.
+2. **Assignment:** alternate arms in fixed time blocks (e.g. 24 h), same host, same exposure, randomised block order,
+   pre-registered length; or two identical honeypots on adjacent addresses, one per arm.
+3. **Metric:** mean per-session reward (pre-registered), plus non-reward outcomes: sessions with ≥ 1 command, unique
+   IOCs per day, fingerprint-command rate (a direct "detected the honeypot" proxy), session length.
+4. **Size:** n per arm from the observed reward variance: n ≈ 2·(1.96 + 0.84)²·σ²/δ² for δ the smallest effect of
+   interest (80 % power). σ is unknown today (the 12 real sessions are self-generated); estimate it from the first week.
+5. **Only real attacker sessions** (exclude `demo-*`, integration sessions, own IPs).
+6. **Report:** effect with CI, per arm, plus the learner's Q-table trajectory; a non-significant result is reported as such.
+
+Until that experiment runs, the justified claim is: "a tabular Q-learning / bandit recommender selects personas and
+the system applies them safely and auditably"; **not** "adaptive deception improves engagement".

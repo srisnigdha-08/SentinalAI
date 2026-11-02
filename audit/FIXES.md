@@ -191,3 +191,29 @@ is new and untracked.
 - Secret scan: 9/9 tests; tree 0 findings; history 0 new (25 reviewed in the baseline).
 - Integration: `run_integration.cjs --cowrie` **41/41**; `run_with_mongo_auth.cjs` **35/35** (no authorization errors).
 - Not run: Docker Compose, nginx, real firewall adapter, P3/P4 training.
+
+---
+
+# Batch 6 — cross-day ML validation, weakness analysis, RL review (2026-11-02, at `c44f0c8`; nothing committed)
+
+| ID | Final status | What was done |
+|---|---|---|
+| SEC-001 | **REQUIRES USER ACTION** | Read-only re-check: the leaked passwords still open the same 9 account records; no change since the last check. Checklist and verified session behaviour unchanged (`SEC001_REMEDIATION.md`). |
+| ML-004 / P3+P4 | **RESOLVED (measured)** | Six approved evaluation fits (P3 + 5 day folds), frozen manifests verified against `plan.json`, train/test disjoint asserted, scaler fitted on training rows only, no tuning; nothing saved; `models/` untouched. Results `ML_EVAL_PLAN.md` §5c → ML-007. |
+| ML-007 (new) | **OPEN (finding)** | No cross-day/cross-tool generalisation (see FINDINGS). |
+| ML-008 (new) | **REQUIRES APPROVAL** (retrain) | Taxonomy root cause of XSS/Credential Stuffing confusion. |
+| Threat-line trade-off | **VERIFIED** | Descriptive sweep on the P5 test split with the served scoring path (`evaluation/p5_threshold_sweep.py`, `experiments/p5_served_eval_20261102/threshold_sweep.json`): 0.10 % FPR only at 0.999 (recall 86.2 %). No threshold changed. |
+| RL review | **VERIFIED / DOCUMENTED** | `RL001_DESIGN.md` review: reward measures engagement, not defence; 20 sessions in total in the two databases (7 synthetic, 12 self-generated) so no effectiveness evidence exists; A/B design with fixed-persona and random baselines. No policy change. |
+| E2E-002 | **DEFERRED** | 0/45 failures in further Firefox repeats; diagnostic pre-save assertions added. |
+| DOC-003 (new) | **RESOLVED** | README: cross-day XGB table; false "multi-event correlation" claim corrected. |
+| Deployment | **BLOCKED (tools)** | `audit/DEPLOYMENT_VALIDATION.md`: what was checked here and the exact Docker/nginx procedure (not run). |
+
+Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, manifest verification, versions),
+`ai-engine/evaluation/p5_threshold_sweep.py` (new), `ai-engine/tests/test_xgb_holdout_eval.py`,
+`ai-engine/experiments/xgb_holdout_20261102/results.json`, `ai-engine/experiments/p5_served_eval_20261102/threshold_sweep.json`,
+`frontend/e2e/threat-logs.spec.js`, `README.md`, `audit/*`.
+
+## Verification (2026-11-02)
+- Evaluator unit tests 4/4; P3/P4 run exit 0 (six fits, 3.7–11.2 s each); threshold sweep reproduces P5 at 0.90/0.92.
+- Playwright threat-logs spec: Firefox 45/45 (×15), Chromium + WebKit 6/6. Secret scan: tree 0 findings.
+- Not re-run (no code change in those areas since batch 5's green run): backend Jest, full pytest, full E2E, integration.

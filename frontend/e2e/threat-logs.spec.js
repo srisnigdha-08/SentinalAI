@@ -81,10 +81,13 @@ test.describe('Threat Logs Telemetry, Triage & Containment', () => {
 
     // Update status to INVESTIGATING
     await page.locator('#triage-status').selectOption('INVESTIGATING');
+    await expect(page.locator('#triage-status')).toHaveValue('INVESTIGATING');
 
     // Add forensic note
     const noteText = 'Automated triage verification note: high anomalous entropy detected.';
     await page.locator('#triage-notes').fill(noteText);
+    // What the analyst sees before saving (E2E-002: separates a lost DOM value from a stale submit handler)
+    await expect(page.locator('#triage-notes')).toHaveValue(noteText);
 
     // Click Save Triage
     await page.getByRole('button', { name: 'Save Triage' }).click();

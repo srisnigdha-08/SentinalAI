@@ -143,7 +143,15 @@ so each figure says which split it comes from (full method and results:
 | **Chronological per class** (train on earlier flows, test on later ones) | **97.57%** | **0.74** | Honest in-distribution estimate; rare classes (bot/C2, XSS, SQLi) are weak |
 | Leave one capture day out | 59–94% | 0.19–0.29 | Attacks from a day never trained on are almost all missed |
 
-The **served** model is XGBoost `xgb_cicids_v1` (`ai-engine/models/registry.json`): on a de-duplicated random 80/20 split it reaches 98.97% accuracy and 0.874 macro F1 (`xgb_classifier_xgb_cicids_v1_meta.json`). Chronological and leave-one-day-out results above were measured with the Random Forest recipe; the same evaluation has not yet been run for the XGBoost model. Several classes have very little test data (SQL Injection 4 rows, RCE 2, Lateral Movement 7, no Data Exfiltration), so per-class results for them are not meaningful.
+The **served** model is XGBoost `xgb_cicids_v1` (`ai-engine/models/registry.json`). Measured 2026-11-02 (`audit/ML_EVAL_PLAN.md` §5–5c):
+
+| Served XGBoost recipe | Attack recall (classifier decision) | Benign false-positive rate | What it measures |
+|---|---|---|---|
+| Random 80/20 split (P5, the served model, split reproduced exactly) | 99.8% (95.2% at the 0.90 alert line) | 0.36% (0.23% at the alert line) | In-distribution: same capture sessions in train and test; accuracy 98.97%, macro F1 0.874 |
+| Train Mon–Wed, test Thu+Fri (P3) | **50.6%** | 0.12% | Forward in time; 5 of the test attack classes were never trained on |
+| Leave one calendar day out (P4, 4 days with attacks) | **3.1–33.4%** | 0.24–4.1% | Unseen days and tools; even trained classes from a new tool are missed (DDoS LOIC → DoS tools: 0%) |
+
+**The model does not generalise to capture days or attack tools it has not seen.** Several classes have very little data (SQL Injection 21 flows in total, RCE 11, Lateral Movement 36, Data Exfiltration none), so per-class results for them are not meaningful.
 
 ### Alerting (backend threat/alert creation)
 The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),
@@ -155,7 +163,7 @@ detected. See `docs/CRITICAL_FIXES_REPORT.md`.
 ### 🔍 Scientific Transparency: Addressing Real-World Class Imbalance
 In alignment with academic honesty and scientific rigor, SentinelAI documents performance boundaries when deploying models into live networks:
 * **The Base-Rate Challenge:** In production environments where benign traffic vastly outnumbers malicious flows, precision on rare attack classes (such as SSH Brute Force or Infiltration) can degrade due to the class imbalance base-rate effect.
-* **SentinelAI Mitigation Strategy:** SentinelAI prevents automated false-positive overreactions by employing an **Analyst Verification Loop** and requiring multi-event correlation before executing irreversible containment actions.
+* **SentinelAI Mitigation Strategy:** automatic containment is **off by default**. When an admin enables it, a single flow at or above the 0.92 block line is contained (there is no multi-event correlation); protected targets (`CONTAINMENT_PROTECTED_TARGETS`, loopback, link-local) are refused, every containment expires (TTL) and can be rolled back, and enforcement is the mock adapter unless the Windows Firewall adapter is deliberately enabled. Flows the classifier calls benign but the anomaly tier flags go to an analyst review queue instead of becoming threats (`GET /api/ai/predictions?review=true`).
 
 ---
 
