@@ -166,3 +166,14 @@ def test_train_subsample_is_seeded_shared_and_leaves_test_alone():
     assert (a == D.subsample_train(tr, 0.9, 1, "2017-Monday")).all()        # same for every candidate
     assert not (a == D.subsample_train(tr, 0.9, 2, "2017-Monday")).all()    # seed matters
     assert (D.subsample_train(tr, 1.0, 1, "x") == tr).all()                  # default: unchanged
+
+
+def test_cluster_bootstrap_is_wider_when_errors_cluster():
+    from evaluation import error_breakdown as E
+    flags = np.zeros(10000, dtype=bool)
+    flags[:20] = True
+    spread = np.arange(10000) % 1000          # the 20 errors fall in 20 different clusters
+    clumped = np.where(np.arange(10000) < 20, 0, 1 + np.arange(10000) % 999)  # all 20 in one cluster
+    ub_spread, _ = E.cluster_bootstrap_ub(flags, spread, b=500)
+    ub_clumped, _ = E.cluster_bootstrap_ub(flags, clumped, b=500)
+    assert ub_clumped > ub_spread

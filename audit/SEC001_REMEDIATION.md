@@ -37,6 +37,25 @@ replayed directly. Instead the integration harness (`scripts/integration/run_int
 So the 114 rows are unusable today, and step 1 below revokes them in the database as well. After rotation, the
 checker separates them from legitimate sessions by `createdAt` (before vs after the change) and `authVersion`.
 
+**Re-check after the owner reported "passwords rotated" (2026-11-02, evening; read-only):** no change recorded.
+All 9 records still accept the leaked password, none has a new `passwordChangedAt`, and none shows a sign-in after
+2026-10-18 (pallavi: 2026-10-23); `sentinel-db` still holds 75 / 1 / 2 / 36 unrevoked sessions. This machine has
+one MongoDB (`mongod` on 127.0.0.1:27017; Docker not installed; WSL stopped), the one both stacks use. SEC-001 stays
+**open**; the changes were most likely made against another database or did not complete.
+
+**Owner decision (2026-11-02):** the owner chose to leave the nine passwords unchanged. SEC-001 therefore stays
+**OPEN (risk accepted by the owner)**; it is **not** resolved. Conditions under which the accepted risk holds (verified
+2026-11-02):
+- the normal backend binds loopback; the demo backend binds the Windows side of the WSL virtual network (`$WinIp`
+  in `scripts/demo/start-demo.ps1`), not the LAN; MongoDB listens on 127.0.0.1 only;
+- the honeypot key is already rotated and the old key is refused.
+
+The risk becomes unacceptable, and the rotation below is required first, if any of these happen: the backend is
+bound to a LAN or public address (for example the viva network or a port forward), a copy of `sentinel-db` or
+`sentinel-demo` is moved to another machine or a server, the databases are used for anything beyond the local demo,
+or the same passwords are used on any other service. The leaked values remain readable in the public repository's
+history.
+
 ## Account checklist
 
 Status per account at 2026-11-02 (`leaked pw` = the leaked password still matches the stored hash).

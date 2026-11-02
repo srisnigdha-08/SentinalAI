@@ -35,4 +35,4 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 ## Next step
 v3 + operating line + stability check done 2026-11-02. C4-A-I eligibility and frozen lines robust (ML-020); at the lines
 the 2018 recall advantage over C0 is +0.9 to +7.3 points, so the deployment criterion is predicted to fail. Owner
-decides whether to spend the one-shot external test (4.98 GB). Served model stays. User action: SEC-001.
+decides whether to spend the one-shot external test (4.98 GB). Served model stays. SEC-001: OPEN, risk accepted by the owner 2026-11-02 (passwords left unchanged; local-only exposure; SEC001_REMEDIATION.md).

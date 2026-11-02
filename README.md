@@ -27,7 +27,7 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 **SentinelAI** is a full-stack cyber defence prototype, designed toward autonomous operation, that combines ML threat detection, adaptive honeypot deception and a policy-governed containment workflow (enforcement is simulated by default). SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
 1. **Multi-Model Anomaly & Intrusion Detection:** XGBoost (served) and Random Forest classifiers plus an Isolation Forest, trained on **CICIDS2017** flow records. Input is flow records sent on demand or replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`); there is no live packet capture.
 2. **Explainable AI (XAI):** Real-time **SHAP** (SHapley Additive exPlanations) attribution that visualizes feature weights directly for SOC security analysts.
-3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` can apply the recommendation to Cowrie. The rotator has not yet been validated against a live Cowrie instance.
+3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` applies it to Cowrie. Persona switching was exercised against a live Cowrie instance in WSL by the integration harness (`run_integration.cjs --cowrie`); whether learned rotation keeps attackers engaged longer than a fixed persona has **not** been measured (`audit/RL001_DESIGN.md`).
 4. **Live SOC Operations Interface:** A React dashboard with Socket.IO telemetry, MITRE ATT&CK technique mapping of honeypot sessions, and analyst triage governance.
 
 > **Academic Attribution:**  
@@ -41,7 +41,7 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 
 * **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised classification (XGBoost `xgb_cicids_v1` is the served model, pinned in `ai-engine/models/registry.json`) with Isolation Forest anomaly scoring over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) to compute a `ThreatScore`.
 * **🧠 Explainable AI (SHAP):** Deploys tree-based SHAP explainers to demystify black-box predictions, presenting analysts with top positive and negative contributing flow features per incident.
-* **🎯 Reinforcement Learning Deception (Q-Learning):** Learns which decoy persona (e.g. Ubuntu, CentOS, Windows) keeps attackers engaged and recommends the next one; the rotator script switches the Cowrie persona between sessions (not yet validated live).
+* **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (e.g. Ubuntu, CentOS, Windows); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona has not been measured.
 * **🏷️ MITRE ATT&CK Matrix Tagging:** Maps honeypot shell commands to MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
 * **⚡ Real-Time Dispatcher:** Event propagation via Socket.IO from backend ingestion to analyst dashboards (end-to-end latency not yet measured).
 * **🔒 Enterprise Security & Session Management:** Session-backed authentication architecture featuring 15-minute access JWTs, 30-day absolute refresh token rotation, strict CORS isolation, and Asia/Kolkata timezone normalization.
@@ -152,6 +152,14 @@ The **served** model is XGBoost `xgb_cicids_v1` (`ai-engine/models/registry.json
 | Leave one calendar day out (P4, 4 days with attacks) | **3.1–33.4%** | 0.24–4.1% | Unseen days and tools; even trained classes from a new tool are missed (DDoS LOIC → DoS tools: 0%) |
 
 **The model does not generalise to capture days or attack tools it has not seen.** Several classes have very little data (SQL Injection 21 flows in total, RCE 11, Lateral Movement 36, Data Exfiltration none), so per-class results for them are not meaningful.
+
+**Cross-dataset development (not deployed).** Pre-registered experiments on CICIDS2017 plus six CSE-CIC-IDS2018
+development days ([`audit/ML_DEV_RESULTS.md`](audit/ML_DEV_RESULTS.md)) found one candidate (two-stage XGBoost, both
+datasets, infiltration excluded from training) that meets the development false-positive limits, after a verified
+correction of 2017-Thursday port-scan labels that was decided after earlier results were seen. Held to a 0.1 % false-alarm line its
+recall on unseen 2018 days drops to about 7–13 % (served recipe: 4–6 %), it has no infiltration class, and its recall
+is unstable across retraining. It is **not** deployed; four 2018 days are kept untouched for a one-shot external test
+that has not been run.
 
 ### Alerting (backend threat/alert creation)
 The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),
