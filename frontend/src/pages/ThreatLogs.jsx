@@ -1,6 +1,6 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { threatEvidenceLabel } from '../utils/threatEvidence.js'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
@@ -70,7 +70,12 @@ export default function ThreatLogs() {
     loadContainmentStatus()
   }, [])
 
+  // UI-003: filter and page changes can start overlapping requests; only the newest may update the table, so a
+  // slow response for an older filter cannot overwrite the current one.
+  const latestRequest = useRef(0)
   const load = useCallback(async (p = page) => {
+    const requestId = ++latestRequest.current
+    const isLatest = () => requestId === latestRequest.current
     setLoading(true)
     setError(null)
     try {
@@ -80,10 +85,14 @@ export default function ThreatLogs() {
         ...(typeFilter && { type: typeFilter }),
         ...(search     && { search }),
       })
+      if (!isLatest()) return
       setThreats(res.data.data || [])
       setTotal(res.data.pagination?.total || 0)
-    } catch { setError('Threat logs are unavailable. Retry to load current data.') }
-    finally { setLoading(false) }
+    } catch {
+      if (isLatest()) setError('Threat logs are unavailable. Retry to load current data.')
+    } finally {
+      if (isLatest()) setLoading(false)
+    }
   }, [page, sevFilter, typeFilter, search])
 
   useEffect(() => { setPage(1); load(1) }, [sevFilter, typeFilter])
