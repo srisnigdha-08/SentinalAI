@@ -284,3 +284,25 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - v3 runs (approved): manifests equal plan; models/runtime unchanged. **C4-A-I (corrected labels) eligible and selected** (ML-017); recall instability and per-family cost recorded (ML-018). `evaluation/v3_report.py` (+1 test, 33/33). External test not run.
 - Operating line pre-registered then computed (`audit/OPERATING_LINE_V3.md`, `evaluation/operating_line.py`, +1 test): C4-A-I 0.915614, C0 0.974834 (ML-019). External test not run.
 - v3 stability check (approved): `--train-subsample/--subsample-seed` (+1 test), `evaluation/stability_report.py`; eligibility and lines robust, deployment criterion predicted to fail (ML-020).
+
+---
+
+# Batch 10 — engineering validation and demo readiness (2026-11-02, at `6672b26`; nothing committed)
+
+| Item | Status | What |
+|---|---|---|
+| UI-002 Adaptive Deception wording | **FIXED** | Panel text, REFRESH button and a decision line (`decisionStatusSummary`: id, "already pending / just drawn", reused until applied or expired). `frontend/src/utils/modelHealth.js`, `pages/HoneypotAnalytics.jsx`; unit test. |
+| TEST-006 below-block-line branch | **FIXED (coverage)** | `backend/tests/containmentPolicy.test.js` TEST 5b. |
+| XAI-001 per-flow SHAP not in pipeline | **DOCUMENTED** | README (2 places), runbooks corrected; next work. |
+| E2E-002 Firefox triage note | **DEFERRED** | 1 failure in the full 3-browser run (167/168); 40/40 when repeated alone with traces; the screenshot shows the status kept (no remount) and the note empty; no cause found in code; no speculative change. About 2 failures in ~380 Firefox executions overall. |
+| Demo runbook | **ADDED** | `docs/DEMO_ABC_RUNBOOK.md` (verified operator procedure, A/B/C steps, outage, recovery); stale reality-matrix rows in `THREAT_DEMO_RUNBOOK.md` updated with today's evidence. |
+| Performance probe | **ADDED** | `scripts/perf/engine_latency.py` (idle machine): p95 35 ms, 47 ms with SHAP; ready 4.6–6.1 s; 272 MB. |
+| SEC-001 | **OPEN (risk accepted by the owner)** | out of scope this batch; unchanged. |
+
+## Verification (2026-11-02)
+- Backend Jest 1,148 passed / 13 skipped (73 suites + 4 skipped); after TEST 5b the containment suite is 25/25. Backend ESLint clean.
+- AI engine pytest 636 passed. Frontend unit 53/53. Frontend production build OK. Frontend has no ESLint configuration (not run).
+- Playwright Chromium/Firefox/WebKit: 167 passed, 1 failed (E2E-002); affected specs after the UI change: 42/42.
+- Integration with live Cowrie: 41/41 (`runs/20261102_145846`); MongoDB `--auth` least privilege: 35/35 (`runs/20261102_150153`).
+- Registry: classifier, anomaly and golden-set hashes verified; `models/`, `runtime/` unchanged.
+- Not run: Docker Compose, nginx/TLS, real firewall adapter.

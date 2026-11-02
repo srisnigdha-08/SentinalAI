@@ -1,5 +1,8 @@
 # SentinelAI Threat Demonstration Runbook (Demo A: Honeypot Intelligence, Demo B: AI Threat Detection, Demo C: Autonomous Incident Response)
 
+> **Short, verified operator procedure (2026-11-02): [`DEMO_ABC_RUNBOOK.md`](DEMO_ABC_RUNBOOK.md).** This file keeps the
+> talk track, examiner questions and honesty table; where they disagree, the newer runbook and its evidence win.
+
 Audited and run on 2026-10-22 (IST) on this laptop. Everything marked **[RUN]** was executed today and the output is pasted unedited (excerpted where long, never altered). **[CODE]** = verified by reading the file only. **NOT RUN** = expected output unverified.
 
 > **Update 14:30 (see `docs/DEMO_READINESS_REPORT.md`, which supersedes this file where they differ):** v3 rules are committed and were verified live (download-only → RCE 0.91, no block; with `chmod +x` + `./payload.sh` → 0.99, blocked). The deployed Cowrie now listens on 127.0.0.1, which can never be auto-blocked: bind it to the WSL IP for Part C (report §5). Restart your :8000 engine: it predates v3 and its deception scorer returns 500. The dashboard now shows the persona Cowrie reports, and no Block IP button on already-blocked threats.
@@ -122,19 +125,19 @@ Socket.IO **[RUN]** (`scratchpad/socket_probe.js`, admin socket after `join_room
 | Session classification | `utils/features.py` `classify_honeypot_session`, `predictor.predict_from_honeypot` | **WORKING (I ran it); rule-based, not ML**; v2/v3 in flux | `aiClassificationMethod: 'honeypot_rules'`, `aipredictions.modelType: ["rules"]` |
 | HASSH campaign clustering | `backend/services/campaignService.js` (exact hassh **or** Jaccard ≥ 0.65 over ≥ 3 commands) | **WORKING (I ran it)** | `CAMP-B1DC0807`, 4 sessions, hassh `6372ee6957562199b2fb773b0be1bf34`, `threatLevel CRITICAL` |
 | Persona attribution from Cowrie cfg | parser `COWRIE_CFG` → collector | **WORKING (I ran it)** | `servedProfile: 'ubuntu_22'` + warning "crediting ubuntu_22" |
-| Q-learning persona scorer | `rl_engine/deception_scorer.py` | **WORKING (I ran it on :8001); failing (500) on your :8000** | see Q8 |
-| Persona rotator | `honeypot/deception_rotator.py` | **WORKING (code-read only)** today; demonstrated once 2026-10-21 per `HONEYPOT_LIVE_EVIDENCE.md` | — |
+| Q-learning persona scorer | `rl_engine/deception_scorer.py` | **WORKING**: scored live sessions; Q-table persisted (integration A / A-live, 2026-11-02); the earlier :8000 500 no longer occurs | `scripts/integration/runs/20261102_145846` |
+| Persona rotator | `honeypot/deception_rotator.py` | **WORKING (ran live 2026-11-02)**: applied the persisted decision (`APPLIED`, `ubuntu_22 → debian_11`), restarted Cowrie, and the next real SSH session saw `debian-prod-01` and was credited to `debian_11`; effectiveness vs a fixed persona not measured | integration A-live |
 | CICIDS replay, engine target | `demo/replay_cicids.py` `EngineTarget` → `/predict/eval` | **WORKING (I ran it)** | 10/10, 198/200, 196/200 |
 | CICIDS replay, backend target | `BackendTarget` → `/api/ai/analyze` → `aiService.storePrediction` | **WORKING (I ran it)** | Q7 |
 | XGBoost classifier (served) | `models/registry.json`, `predictor.load` (sha256 + 20-row golden check) | **WORKING (I ran it)** | `"verified": true, "goldenCheck": "20 golden rows reproduced"` |
 | Isolation Forest + hybrid score | `anomaly_signal`, `combine_threat_score` | **WORKING (I ran it)** | "Unknown 0.55" verdicts in the 200-row runs |
 | Random Forest | `rf_classifier_cicids_v3.pkl` | **Trained, NOT served** | registry |
-| SHAP explanations | `predictor.get_explanation` | **WORKING (code-read only)** | TreeExplainer init logged |
+| SHAP explanations | `predictor.get_explanation` | **WORKING at the engine API** (20/20 golden flows return attributions, 2026-11-02); global view on AI Analytics; the threat pipeline does **not** request per-flow explanations, so threats show none | `scripts/perf/engine_latency.py` |
 | Auto-block decision | `aiService`, `honeypotService.analyseClosure`, `containmentService.executeAutoBlock` | **WORKING (I ran it)**, off by default | Q5 |
 | Containment adapter | `containment/MockContainmentAdapter.js` | **MOCK** | `enforcementBackend: 'mock'` |
 | Windows Firewall enforcement | `containment/WindowsFirewallAdapter.js` | **NOT IMPLEMENTED in practice** (code exists, gated off, never run live) | env + docs |
 | Honeypot-level drop on reconnect | `honeypot/cowrie/sentinelblocker.py` `patch_ssh`, `_start_sync_thread` | **WORKING (I ran it)** in daemon and foreground mode (daemon fixed today) | Q5 |
-| Socket.IO live dashboard | `websocket/socketManager.js` | **WORKING (I ran it)** at protocol level; browser UI **NOT RUN** today | Q7 |
+| Socket.IO live dashboard | `websocket/socketManager.js` | **WORKING**: protocol level (integration B/D: 15 `new_threat` for 15 threats, reconnect after a backend restart) and in browsers (Playwright `realtime.spec.js`, Chromium/Firefox/WebKit, 2026-11-02) | integration + E2E |
 | Docker honeypot stack, iptables egress | `honeypot/docker-compose.honeypot.yml`, `egress-rules.sh` | **NOT IMPLEMENTED (never run)** | no Docker installed |
 | Mock AI engine | `scratch/mock_ai_engine.js` (old runbook "Option B") | **MOCK**: never use it for the threat demo | — |
 | `log_parser.py --demo`, `npm run seed` | `demo-*` sessions | **MOCK** (badged in UI) | — |

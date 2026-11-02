@@ -704,3 +704,27 @@ C4-A-I stays eligible in all 3 models (FPR stable, 2018 0.35-0.39 %); fold recal
 stable (±0.007). At the lines the 2018 recall advantage over C0 is +0.9 / +4.4 / +7.3 points (< 10): deployment
 criterion predicted to fail. External test not run.
 ```
+
+```
+ID: UI-002 | P3 | CONFIRMED (static + live API) | FIXED 2026-11-02
+Honeypot Analytics "Adaptive Deception" still said the recommendation is epsilon-greedy so "asking again can return a
+different exploration pick" (ASK AGAIN button). Since RL-001 the endpoints return the persisted pending decision,
+drawn once per served persona and reused until applied or expired, so the text misdescribed the system in Demo A.
+```
+
+```
+ID: XAI-001 | P2 | CONFIRMED (code + engine run) | DOCUMENTED, not fixed
+Per-flow SHAP works at the engine API (20/20 golden flows return featureImportance with ?explain=true), but the
+backend never requests it (aiEngineService.predictRecord posts /predict/internal without explain) and
+AIPrediction.featureImportance is never filled, so threats carry no per-flow explanation; the dashboard shows only
+the global SHAP summary (AI Analytics). README claimed per-incident SHAP; corrected. Adding it is pipeline work
+(~14 ms extra per flow at p50) and is listed as next work.
+```
+
+```
+ID: TEST-006 | P3 | CONFIRMED (run) | FIXED (test added) 2026-11-02
+Demo C's "auto-block on, score between the 0.90 alert line and the 0.92 block line" branch was never exercised:
+replayed traffic produced no such score in either integration run (belowBlockLine: 0). Added a deterministic unit
+test (containmentPolicy TEST 5b): threat stored, not blocked, no deny-list row, no ip_blocked event. Behaviour was
+already correct.
+```

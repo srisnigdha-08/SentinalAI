@@ -26,7 +26,7 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 
 **SentinelAI** is a full-stack cyber defence prototype, designed toward autonomous operation, that combines ML threat detection, adaptive honeypot deception and a policy-governed containment workflow (enforcement is simulated by default). SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
 1. **Multi-Model Anomaly & Intrusion Detection:** XGBoost (served) and Random Forest classifiers plus an Isolation Forest, trained on **CICIDS2017** flow records. Input is flow records sent on demand or replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`); there is no live packet capture.
-2. **Explainable AI (XAI):** Real-time **SHAP** (SHapley Additive exPlanations) attribution that visualizes feature weights directly for SOC security analysts.
+2. **Explainable AI (XAI):** **SHAP** (SHapley Additive exPlanations): the AI Analytics page shows which features drive the engine's recent decisions (global view); per-flow attributions are available from the engine API (`/predict/internal?explain=true`) but are not yet shown per threat in the dashboard.
 3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` applies it to Cowrie. Persona switching was exercised against a live Cowrie instance in WSL by the integration harness (`run_integration.cjs --cowrie`); whether learned rotation keeps attackers engaged longer than a fixed persona has **not** been measured (`audit/RL001_DESIGN.md`).
 4. **Live SOC Operations Interface:** A React dashboard with Socket.IO telemetry, MITRE ATT&CK technique mapping of honeypot sessions, and analyst triage governance.
 
@@ -40,7 +40,7 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 ## 🌟 Key Features
 
 * **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised classification (XGBoost `xgb_cicids_v1` is the served model, pinned in `ai-engine/models/registry.json`) with Isolation Forest anomaly scoring over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) to compute a `ThreatScore`.
-* **🧠 Explainable AI (SHAP):** Deploys tree-based SHAP explainers to demystify black-box predictions, presenting analysts with top positive and negative contributing flow features per incident.
+* **🧠 Explainable AI (SHAP):** A tree-based SHAP explainer computes the top positive and negative feature contributions for a flow on request (engine API) and a global summary over recent flows (AI Analytics page); per-incident explanations are not yet displayed in the threat view.
 * **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (e.g. Ubuntu, CentOS, Windows); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona has not been measured.
 * **🏷️ MITRE ATT&CK Matrix Tagging:** Maps honeypot shell commands to MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
 * **⚡ Real-Time Dispatcher:** Event propagation via Socket.IO from backend ingestion to analyst dashboards (end-to-end latency not yet measured).
@@ -312,6 +312,7 @@ Beyond the unit suites:
 | Cross-service integration (Demos A–C + auth) | `node scripts/integration/run_integration.cjs` (`--cowrie` adds live WSL Cowrie) | real engine + backend + MongoDB on a throwaway DB; see [`scripts/integration/README.md`](scripts/integration/README.md) |
 | Browser E2E (Chromium, Firefox, WebKit) | `cd frontend && npx playwright test` | uses the `sentinelai_test` database |
 | Served-model evaluation (inference only) | `ai-engine/.venv/Scripts/python ai-engine/evaluation/p5_served_model_eval.py` | reconstructs the training split; [`audit/ML_EVAL_PLAN.md`](audit/ML_EVAL_PLAN.md) |
+| Engine latency (single flow, with/without SHAP) | `ai-engine/.venv/Scripts/python scripts/perf/engine_latency.py` | starts its own engine on a free port with a throwaway key; idle-machine result 2026-11-02: p95 35 ms (47 ms with SHAP) |
 | Secret scan | `node scripts/security/secret_scan.cjs` (`--staged`, `--history`) | never prints values; opt-in hook: `git config core.hooksPath .githooks` |
 
 Continuous integration runs on every push and pull request via **GitHub Actions** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, unit suites, secret scan.
@@ -320,7 +321,8 @@ Continuous integration runs on every push and pull request via **GitHub Actions*
 
 ## 🎬 Demonstrations
 
-The three demos keep the same letters in every document and script:
+The three demos keep the same letters in every document and script.
+Step-by-step procedure, verified 2026-11-02: [`docs/DEMO_ABC_RUNBOOK.md`](docs/DEMO_ABC_RUNBOOK.md).
 
 | Demo | What it shows | Runbook | Say in the viva |
 | :--- | :--- | :--- | :--- |
