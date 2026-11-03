@@ -313,6 +313,7 @@ Beyond the unit suites:
 | Cross-service integration (Demos A–C + auth) | `node scripts/integration/run_integration.cjs` (`--cowrie` adds live WSL Cowrie) | real engine + backend + MongoDB on a throwaway DB; see [`scripts/integration/README.md`](scripts/integration/README.md) |
 | Browser E2E (Chromium, Firefox, WebKit) | `cd frontend && npx playwright test` | uses the `sentinelai_test` database |
 | Served-model evaluation (inference only) | `ai-engine/.venv/Scripts/python ai-engine/evaluation/p5_served_model_eval.py` | reconstructs the training split; [`audit/ML_EVAL_PLAN.md`](audit/ML_EVAL_PLAN.md) |
+| Load, concurrency and failure recovery | `node scripts/perf/load_resilience.cjs`; `ai-engine/.venv/Scripts/python scripts/perf/engine_latency.py --concurrency 1,5,10,20` | throwaway mongod/engine/backend; results and procedures in [`docs/PERFORMANCE_AND_RESILIENCE.md`](docs/PERFORMANCE_AND_RESILIENCE.md) |
 | Engine latency (single flow, with/without SHAP) | `ai-engine/.venv/Scripts/python scripts/perf/engine_latency.py` | starts its own engine on a free port with a throwaway key; idle-machine result 2026-11-02: p95 35 ms (47 ms with SHAP) |
 | Secret scan | `node scripts/security/secret_scan.cjs` (`--staged`, `--history`) | never prints values; opt-in hook: `git config core.hooksPath .githooks` |
 

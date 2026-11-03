@@ -140,6 +140,9 @@ simulated by a mock adapter, and the honeypot refuses the deny-listed IP".
 
 ## 5. Stop, reset and recover
 
+Measured failure behaviour and recovery times: [`PERFORMANCE_AND_RESILIENCE.md`](PERFORMANCE_AND_RESILIENCE.md) §4 and §6.
+If MongoDB or the backend restarts during a demo, open dashboards reconnect their live feed by themselves.
+
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\demo\stop-demo.ps1     # closes the four demo windows
 ```

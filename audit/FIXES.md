@@ -348,3 +348,34 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - Windows: Jest 1,176 / 13 skipped, ESLint clean, pytest 648, registry check OK, frontend unit 56/56, build OK,
   E2E auth 33/33 and dashboard/threat-logs/race/explanation 30/30 on three browsers.
 - Not verifiable locally: MongoDB 7 service and the runner's Chrome. The CI run after an approved push is the check.
+
+---
+
+# Batch 13 — performance, resilience, stability (2026-11-03, at `94dc068`; nothing committed)
+
+| Item | Status | What |
+|---|---|---|
+| PERF-001 engine thread oversubscription | **FIXED** | `ai-engine/inference/predictor.py` `_set_inference_threads`; `tests/test_inference_threads.py` (3). |
+| WS-001 dashboard not reconnecting after server disconnect | **FIXED** | `frontend/src/context/SocketContext.jsx`, `utils/socketReconnect.js`; unit test (2) and `e2e/realtime.spec.js`. |
+| UI-004 duplicate React keys | **FIXED** | `frontend/src/pages/ThreatLogs.jsx`; check in `e2e/explanation.spec.js`. |
+| Probes | **ADDED** | `scripts/perf/load_resilience.cjs` (15 checks), `db_query_scale.cjs`, `njobs_breakdown.py`, engine concurrency mode; `e2e/page-performance.spec.js`. |
+| Docs | **ADDED** | `docs/PERFORMANCE_AND_RESILIENCE.md`. |
+| WS-001 follow-up: retry refused handshakes while MongoDB is down | **FIXED** | found in the finalization review; `socketReconnect.js` also retries "Authentication service unavailable"; harness outage now held past the first retries; revoked/expired-session check; 2 more E2E tests. |
+| PERF-001 re-measurement | **DOCUMENTED** | CPU reduction reproduced; throughput gain load-dependent (see FINDINGS, docs §2). |
+| E2E-002 | **OPEN** | not seen in this batch's runs; no change. |
+| TEST-008 | **OPEN (environment)** | Firefox login stall traced to a frozen content process under memory pressure; see FINDINGS. |
+| TEST-009 | **OPEN** | unhandled cancelled-fetch rejections in alert/containment pollers (WebKit smoke, pre-existing). |
+
+## Verification (2026-11-03)
+- Backend Jest 1,176 passed / 13 skipped; ESLint clean. AI pytest 651 passed. Registry check OK.
+- Frontend unit 58/58; lint 0 problems; build OK.
+- Integration harness (A, B, C, D, outage) 36/36. Load/resilience harness 14/14. Page performance spec 18/18 (3 browsers × 3).
+- Playwright full run 189/192 under heavy background load (TEST-008); realtime 12/12, explanation + perf 15/15 when run alone.
+
+## Finalization verification (2026-11-03; other apps using ~20-50 % CPU, 0.7-0.9 GB of 7.7 GB free)
+- Backend Jest 1,176 passed / 13 skipped (74 suites, 4 skipped); ESLint clean. AI pytest 653 passed. Registry and golden check OK.
+- Frontend unit 59/59; lint clean; build OK. Secret-scan tests 9/9; tree scan 0 findings.
+- Load/resilience harness 15/15 (full levels). Realtime spec 54/54 (3 repeats × 3 browsers).
+- Playwright full run: 209 passed, 1 failed (TEST-009, WebKit smoke, pre-existing), 10.8 min.
+- Models, registry (5f76c136) and runtime Q-table (08209e99) unchanged.
+- `models/`, `runtime/` unchanged; registry hashes verified.

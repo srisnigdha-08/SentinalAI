@@ -791,3 +791,73 @@ ID: REPRO-001 | P3 | CONFIRMED | FIXED 2026-11-03
 Fresh Windows clones (core.autocrlf=true) converted hash-pinned ai-engine/models/q_table.json and golden_set.json to
 CRLF, breaking their SHA-256 pins. .gitattributes marks both -text (committed bytes unchanged).
 ```
+
+```
+ID: PERF-001 | P2 | CONFIRMED (measured) | FIXED 2026-11-03 (batch 13)
+Served models were saved with n_jobs=-1: every single-flow request started all-core XGBoost/OpenMP and Isolation
+Forest pools. Engine throughput stayed ~70 req/s from 1 to 20 clients while using ~50 % of a 16-core machine; one-row
+predict was 5.0 ms in process vs 2.8 ms single-threaded, outputs bit-identical. The predictor now runs each call
+single-threaded (INFERENCE_N_JOBS overrides; applied before the golden check; model files unchanged). Result: 20
+clients 68 -> 132 req/s, p99 607 -> 230 ms, CPU ~50 % -> ~7 %. Trade-off: one idle client p50 ~10 -> ~16 ms (Windows
+timer granularity), p95 unchanged or better. Re-measured the same day on a busier machine (2 pairs, 0.7-0.9 GB free):
+CPU reduction reproduced every time (~60 % -> ~8 %); throughput +15-45 % at 5-10 clients, none at 20 clients, where
+p99 was not better; one client p95 ~20 -> ~34 ms. The 2x figure is therefore load-dependent, not a guaranteed
+result. docs/PERFORMANCE_AND_RESILIENCE.md.
+```
+
+```
+ID: WS-001 | P2 | CONFIRMED (load harness + E2E) | FIXED 2026-11-03
+During a MongoDB outage the 15 s socket session re-check fails closed and the server disconnects every socket
+(deliberate). Socket.IO does not reconnect after a server-side disconnect, and the dashboard did not either: its live
+feed stayed dead until a reload or the next token refresh (up to 15 min). The dashboard now retries the (fully
+re-authorised) handshake with backoff after 'io server disconnect' and rejoins its rooms. E2E (injected server
+DISCONNECT packet) fails on the old client, passes on the new one in 3 browsers; load harness: all role sockets
+reconnect and receive threats after the outage.
+Finalization review (same day): the first version retried only 'io server disconnect'. When MongoDB was still down at
+the first retry, the handshake was refused with 'Authentication service unavailable' (503), which Socket.IO never
+retries, so a dashboard stayed offline after any outage longer than ~2 s past the disconnect. Reproduced with the load
+harness (outage held 8 s past the disconnects: 3 refusals, sockets never reconnected; 10/11); fixed by giving that
+refusal the same backoff (12/12). Rejected tokens ('Authentication rejected') are still never retried: a logged-out
+session and an expired, correctly signed token are each refused once and stay out (harness), and signing out while a
+retry is pending opens no connection (E2E; a mutant without the timer cleanup opened 8).
+```
+
+```
+ID: UI-004 | P3 | CONFIRMED | FIXED 2026-11-03
+Threat Logs rendered TriageModal and ExplanationModal with the same fallback key 'none' (React "two children with
+the same key"); introduced in batch 11. Keys are now prefixed per component. E2E check fails before, passes after.
+```
+
+```
+ID: TEST-008 | P3 | OBSERVED 2026-11-03 | OPEN (environment)
+Full 3-browser E2E run under heavy background CPU load (34.8 min vs ~8.5 min normally): 189/192. Two login tests did
+not reproduce in isolation (4/4 each); the WebKit panel error-boundary test rendered the correct fallback but after
+its 10 s assertion timeout (screenshot), and fails equally with the pre-batch client. Timing under load, not a
+functional regression; timeouts were not raised.
+Finalization investigation: the Firefox login failure recurred once in 8 runs. Its trace shows the login request
+answered 200 in 375 ms, then no screencast frame, network request or navigation for 16 s; the page then continued by
+itself to /dashboard. The whole content process stalled (0.7-0.9 GB of 7.7 GB memory free, ~20-35 % CPU from other
+apps); the client code after the response has no I/O to wait on. The WebKit error-boundary test passed 10/10 in
+isolation and in its spec. Repeating the dashboard spec with --repeat-each on one seeded database fails "Block IP" by
+design once the 4 blockable seed threats are used up (an artefact of repetition, not of a normal run).
+Two further intermittent failures in the finalization full runs, both investigated:
+- realtime "reconnects ... keeps receiving threats" (WebKit, new in this batch): the test emitted a threat as soon as
+  socket.connected was true, before the server had processed join_room. Test race, fixed by waiting for the server's
+  'connected' acknowledgement (54/54 over 3 repeats x 3 browsers). Product note: an event emitted in the moment
+  between a reconnect and the room join is not replayed (true of every connection, pre-existing).
+- password-change "double-submit guard" (Chromium): the test's mocked response hands the app a fake token; the socket
+  handshake with it is rejected and races the session refresh. Fails 1/5 with the pre-batch SocketContext and 0/5
+  with the current one: pre-existing test design, not changed here.
+- smoke "analyst dashboard routes" (WebKit): when page.goto replaces the page, WebKit reports the cancelled alert and
+  containment polls as page errors ("Fetch API cannot load ... due to access control checks"), meaning those fetch
+  rejections reach the page unhandled. 1/6 with the current and 1/6 with the pre-batch client. Pre-existing; left
+  open (TEST-009) rather than filtering the message out of the test.
+Final full run (machine ~48 % CPU and 0.8 GB free from other apps): 209 passed, 1 failed (this smoke test), 10.8 min.
+```
+
+```
+ID: TEST-009 | P3 | CONFIRMED (ran) | OPEN
+Alert-bell and containment-status polls leave a cancelled fetch's rejection unhandled; WebKit surfaces it as a page
+error when a full navigation cancels them (intermittent smoke.spec failure, ~1 in 6, before and after batch 13).
+Suggested fix (not done): catch aborted/cancelled requests in those pollers.
+```
