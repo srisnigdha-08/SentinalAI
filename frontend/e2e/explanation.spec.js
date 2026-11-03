@@ -93,3 +93,16 @@ test.describe('Threat explanation (SHAP)', () => {
     await expect(page.getByRole('button', { name: 'Explain' })).toHaveCount(0);
   });
 });
+
+// UI-004: the triage and explanation modals both fell back to key 'none' when closed, giving React two siblings with
+// the same key ("Encountered two children with the same key") on every Threat Logs render.
+test('Threat Logs renders without duplicate React keys', async ({ loginAs, page }) => {
+  const dupKeys = [];
+  page.on('console', (m) => { if (/two children with the same key/i.test(m.text())) dupKeys.push(m.text().slice(0, 160)); });
+  await loginAs('analyst');
+  await page.goto('/dashboard/threats');
+  await expect(page.locator('.sentinel-table-scroll table tbody tr').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Triage' }).first().click();
+  await page.getByRole('dialog').getByRole('button', { name: /cancel/i }).click();
+  expect(dupKeys).toEqual([]);
+});

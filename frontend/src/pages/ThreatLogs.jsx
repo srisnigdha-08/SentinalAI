@@ -423,7 +423,7 @@ export default function ThreatLogs() {
       />
 
       <TriageModal
-        key={triageThreat?._id || 'none'}
+        key={'triage-' + (triageThreat?._id || 'none')} // unique among siblings (UI-004)
         isOpen={triageModalOpen}
         threat={triageThreat}
         isReadOnly={triageReadOnly}
@@ -432,7 +432,7 @@ export default function ThreatLogs() {
       />
 
       <ExplanationModal
-        key={explainThreat?._id || 'none'}
+        key={'explain-' + (explainThreat?._id || 'none')}
         isOpen={!!explainThreat}
         threat={explainThreat}
         onClose={() => setExplainThreat(null)}
