@@ -179,7 +179,7 @@ In alignment with academic honesty and scientific rigor, SentinelAI documents pe
 
 ### Prerequisites
 * **Node.js**: `v24.x` (or LTS `v20+`)
-* **Python**: `v3.11.x`
+* **Python**: `v3.11.x` (the only version tested)
 * **MongoDB Community Server**: `v7.0+`
 * **Git**: `v2.40+`
 
@@ -190,6 +190,11 @@ In alignment with academic honesty and scientific rigor, SentinelAI documents pe
 git clone https://github.com/srisnigdha-08/SentinalAI.git
 cd SentinalAI
 ```
+
+**Windows:** clone into a short folder (for example `C:\Projects\SentinalAI`). The longest tracked path is 114
+characters, and Windows' 260-character path limit then breaks the checkout ("Filename too long") and later the
+Python virtual environment's DLL loading when the clone sits more than about 140 characters deep. For Git alone,
+`git clone -c core.longpaths=true …` also works, but the Python environment still needs a short path.
 
 ---
 
@@ -206,12 +211,19 @@ mongosh --eval "db.adminCommand('ping')"
 ```bash
 cd backend
 
-# Install dependencies
-npm install
+# Install the exact locked dependencies
+npm ci
 
 # Configure environment variables
 cp .env.example .env
-# Edit .env to set secure JWT_SECRET and SENTINEL_KEY values
+# Replace EVERY CHANGE_ME value, or the backend refuses to start: JWT_SECRET, JWT_REFRESH_SECRET,
+# HONEYPOT_API_KEY, SENTINEL_KEY (32+ random characters each; e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+# and ADMIN_INITIAL_PASSWORD (or delete that line to skip creating the first admin). Set MONGO_URI's database name.
+
+# First run on a new, empty database only: create the first admin (ADMIN_EMAIL / ADMIN_INITIAL_PASSWORD).
+# The seed deletes users, threats, sessions, alerts, predictions, blocked IPs and campaigns in the named database,
+# so it refuses to run unless you repeat that database's name:
+npm run seed -- --confirm=<database name from MONGO_URI>
 
 # Start the development server
 npm run dev
@@ -224,8 +236,8 @@ npm run dev
 ```bash
 cd ../ai-engine
 
-# Create and activate Python virtual environment
-python -m venv .venv
+# Create and activate a Python 3.11 virtual environment (CI and all measurements use 3.11; other versions are untested)
+python -m venv .venv          # Windows with several Pythons installed: py -3.11 -m venv .venv
 
 # Windows:
 .venv\Scripts\activate
@@ -251,8 +263,8 @@ uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file .env --reload
 ```bash
 cd ../frontend
 
-# Install dependencies
-npm install
+# Install the exact locked dependencies
+npm ci
 
 # Start Vite development server
 npm run dev

@@ -91,15 +91,15 @@ The following decisions require owner instruction per Contract Sections 7 & 8:
 
 ## 5. Deliverables Created in Phase 14.1
 
-- Evidence Directory: [`ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/`](file:///c:/Users/srisn/Desktop/Projects/sentinelai-complete/ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/)
-  - [`HANDOFF.md`](file:///c:/Users/srisn/Desktop/Projects/sentinelai-complete/ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/HANDOFF.md)
-  - [`evidence_adjudication_matrix.md`](file:///c:/Users/srisn/Desktop/Projects/sentinelai-complete/ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/evidence_adjudication_matrix.md)
-  - [`q_table_incident_review.md`](file:///c:/Users/srisn/Desktop/Projects/sentinelai-complete/ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/q_table_incident_review.md)
-  - [`acceptance_criteria_mapping.md`](file:///c:/Users/srisn/Desktop/Projects/sentinelai-complete/ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/acceptance_criteria_mapping.md)
+- Evidence Directory: [`ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/`](ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/)
+  - [`HANDOFF.md`](ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/HANDOFF.md)
+  - [`evidence_adjudication_matrix.md`](ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/evidence_adjudication_matrix.md)
+  - [`q_table_incident_review.md`](ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/q_table_incident_review.md)
+  - [`acceptance_criteria_mapping.md`](ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/acceptance_criteria_mapping.md)
   - `raw_logs/protected_asset_hashes.txt`
   - `raw_logs/git_status.txt`
   - `raw_logs/model_feature_inspection.txt`
-- Root [`HANDOFF.md`](file:///c:/Users/srisn/Desktop/Projects/sentinelai-complete/HANDOFF.md) (Synchronized)
+- Root [`HANDOFF.md`](HANDOFF.md) (Synchronized)
 
 ---
 
