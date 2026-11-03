@@ -253,7 +253,9 @@ class SentinelPredictor:
             self.clf = joblib.load(clf_path)
             self.rf = self.clf  # Keep self.rf referencing self.clf for backwards compatibility
             self.ifo = joblib.load(if_p)
-            
+            # Before the golden check below, so every start re-proves the setting reproduces the pinned predictions
+            self._set_inference_threads()
+
             if meta_path and meta_path.exists():
                 with open(meta_path) as f:
                     self.rf_meta = json.load(f)
@@ -427,6 +429,30 @@ class SentinelPredictor:
         except Exception as e:
             log.error(f"SHAP explanation error: {e}")
             return []
+
+    def _set_inference_threads(self):
+        """
+        PERF-001: the models were saved with n_jobs=-1, so every single-flow request started an all-core XGBoost/OpenMP
+        team and an all-core Isolation Forest pool. For one row the coordination cost exceeds the work (5.0 -> 2.8 ms
+        p50 in process) and concurrent requests oversubscribe the CPU (throughput stayed at ~70 req/s from 1 to 20
+        clients while using ~half the machine). The engine is served one request per thread, so each model call runs
+        single-threaded by default. Outputs are bit-identical (golden check below; scripts/perf/njobs_breakdown.py).
+        INFERENCE_N_JOBS overrides it (e.g. -1 restores the saved behaviour). In memory only; model files are untouched.
+        """
+        n = int(os.getenv("INFERENCE_N_JOBS", "1"))
+        for pipe in (self.clf, self.ifo):
+            for _, step in getattr(pipe, "steps", [("model", pipe)]):
+                for est in (step, getattr(step, "model_", None)):
+                    if est is None or "n_jobs" not in getattr(est, "get_params", lambda: {})():
+                        continue
+                    est.set_params(n_jobs=n)
+                    booster = getattr(est, "get_booster", None)
+                    if booster is not None:
+                        try:
+                            booster().set_param({"nthread": n})  # the booster SHAP's TreeExplainer uses
+                        except Exception:
+                            pass
+        self.inference_n_jobs = n
 
     def explain_vector(self, vector) -> dict:
         """
