@@ -861,3 +861,95 @@ Alert-bell and containment-status polls leave a cancelled fetch's rejection unha
 error when a full navigation cancels them (intermittent smoke.spec failure, ~1 in 6, before and after batch 13).
 Suggested fix (not done): catch aborted/cancelled requests in those pollers.
 ```
+
+---
+
+## Batch 14 (2026-11-03) — final validation
+
+```
+ID: TEST-009 (correction) | P3 | ROOT CAUSE ESTABLISHED | FIXED (test)
+The batch 13 entry was wrong: the pollers do not leave rejections unhandled. Diagnostics in WebKit (rapid page.goto
+between dashboard routes, 4 runs): 32 page errors "XMLHttpRequest cannot load <same-origin url> due to access control
+checks", raised at request creation (axios dispatchXhrRequest, socket.io-client _create), 0 'unhandledrejection' and
+0 'error' events inside the page. Most of the refused requests never reached the network (no Playwright request
+event): WebKit refuses requests the outgoing document creates or holds and Playwright reports each as a page error.
+Many came from Socket.IO's own transport, not app code. The smoke test's filter ignored anything mentioning
+'socket.io' (which would hide a real socket failure) and missed axios cancellations. Fix (test only): ignore a WebKit
+"cannot load ... access control checks" error only for a same-origin URL (a same-origin request cannot fail CORS);
+cross-origin refusals and every other page error stay fatal (4 unit tests); a new E2E test asserts no in-page
+'unhandledrejection'/'error' during rapid navigation. Product pollers unchanged (intervals cleared on unmount, all
+rejections caught). Limitation: the original failure was intermittent (~1 in 6); the old rule also passed 3/3 in a
+mutation run, so there is no deterministic fail-before test.
+```
+
+```
+ID: WS-002 | P2 | CONFIRMED (real backend E2E) | FIXED 2026-11-03
+Live Attack Feed, two defects found while evaluating the reconnect gap:
+1. Duplicate rows: for every threat the server emits new_threat and live_feed_event (different text), and the hook
+   rendered both: 2 rows per threat for admin/analyst. Honeypot events were likewise doubled.
+2. Missed threats: the feed loaded recent threats only on mount, so every new_threat emitted while the socket was
+   down (outage, restart, sleep, the reconnect-to-rejoin window) never appeared until a reload.
+Fix (useRealTimeFeed): one source per kind (threats from new_threat keyed by id; block/unblock/honeypot from the
+server-formatted, per-role-redacted live_feed_event); after the server acknowledges the room rejoin following a
+disconnect, one bounded catch-up (GET /api/threats/recent?limit=20: authenticated, role-redacted on the server) adds
+only threats newer than the newest seen and not yet shown. No new server code. Tests: e2e/live-feed.spec.js against
+the real backend (POST /api/threats): old hook 3/3 fail (2 rows; 0 rows; viewer not shown), new hook 27/27 (3
+browsers x 3); unit tests for the selection rule (no duplicates, no old rows resurfacing, bounded).
+```
+
+```
+ID: E2E-002 (update) | P3 | NOT REPRODUCED
+threat-logs.spec on Firefox x10 (30/30, no failure artefacts) after 1/39 earlier. Left open; no speculative change.
+```
+
+```
+ID: SETUP-001 | P2 | CONFIRMED (clean clone) | FIXED (docs)
+Following README step 3 literally left ADMIN_INITIAL_PASSWORD (and other CHANGE_ME values) in backend/.env; the backend
+correctly refuses to start. README now lists all five secrets, the seed command with its --confirm guard, npm ci,
+and Python 3.11 as the only tested version.
+```
+
+```
+ID: SETUP-002 | P3 | CONFIRMED (clean clone) | DOCUMENTED
+On Windows a clone ~145 characters deep fails ("Filename too long", longest tracked path 114 characters) and the venv
+then cannot load scikit-learn DLLs. README: clone into a short folder. Root HANDOFF.md links to file:///c:/Users/...
+made repo-relative.
+```
+
+```
+ID: SETUP-003 | P3 | CONFIRMED | DOCUMENTED
+~35 backend and ~15 engine environment variables are read with defaults but appear in no .env.example; the
+safety-relevant ones (containment backend, firewall enforcement, HOST, INFERENCE_N_JOBS, Q_TABLE_PATH, circuit
+breaker, retention) are documented with their defaults in docs/FINAL_PROJECT_GUIDE.md §7.
+```
+
+```
+ID: WS-002 (finalization review) | P2 | CONFIRMED (real backend E2E) | FIXED 2026-11-03
+Three further defects in the first WS-002 version, found by review and reproduced before fixing:
+1. Recovery race: the catch-up kept only threats newer than the newest threat seen when the REST response arrived. A
+   live threat delivered after the rejoin but before the response raised that mark, and the older threats missed
+   during the outage were silently dropped (E2E with the catch-up response held: missed threat 0 rows). Fix: the
+   cut-off is the newest threat seen at the moment the connection dropped (earliest across rapid reconnects); ">="
+   so a same-millisecond threat is not lost (ids already shown are excluded first).
+2. Distinct threats merged: live threats still passed the old 2 s "ip::message" de-duplication, so two detections
+   from one address with the same type and score showed as one row (E2E: 1 row instead of 2). Threats are now
+   de-duplicated by id only; the initial load no longer drops threats whose IP is already shown.
+3. Ordering: recovered rows were put on top even above newer live rows; rows are now kept newest first by server time.
+Bounds: catch-up limit 20 per rejoin (server caps at 100); the feed shows 30 rows; older missed threats remain in
+Threat Logs and MongoDB. Revoked sessions: the catch-up uses the authenticated REST client (401 -> refresh -> sign
+out); socket handshakes with revoked or expired tokens are refused (load harness, integration D).
+Test-isolation fix: the live-feed spec creates MEDIUM threats (no alerts), after HIGH threats pushed the shared unread
+alert count to 9 and broke the alert-bell test's arithmetic ("9+" badge by design).
+```
+
+```
+ID: TEST-009 (re-review) | P3 | FIXED (test) — blind spot closed
+Measured in all three engines with induced failures: a refused API connection, an HTTP 500 and a refused Socket.IO
+transport never produce a page error (the app handles them); they appear only as failed requests or console messages.
+So the smoke tests could never detect them, under the old or the new filter; the same-origin rule cannot hide them.
+The tracker now also reports same-origin /api and /socket.io requests that fail for any reason other than a navigation
+cancellation (Load request cancelled / NS_BINDING_ABORTED / net::ERR_ABORTED). Negative controls
+(e2e/page-errors.spec.js, 12/12 over 3 browsers): a thrown exception, an unhandled rejection, an API connection failure
+and a refused Socket.IO transport are all reported. Smoke spec 36/36 (x3, 3 browsers): no false positives.
+HTTP error statuses (4xx/5xx answers) are handled by the app and remain the job of functional tests.
+```

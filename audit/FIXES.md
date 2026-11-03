@@ -379,3 +379,31 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
 - Playwright full run: 209 passed, 1 failed (TEST-009, WebKit smoke, pre-existing), 10.8 min.
 - Models, registry (5f76c136) and runtime Q-table (08209e99) unchanged.
 - `models/`, `runtime/` unchanged; registry hashes verified.
+
+---
+
+# Batch 14 — final validation and handover (2026-11-03, from `7902115`; nothing committed)
+
+| Item | Status | What |
+|---|---|---|
+| WS-002 Live Feed duplicates, missed threats, recovery race, merged detections, ordering | **FIXED** | `frontend/src/hooks/useRealTimeFeed.js`, `src/utils/liveFeedSync.js`; `e2e/live-feed.spec.js` (5 tests, real backend), `tests/liveFeedSync.test.mjs` (6) |
+| TEST-009 WebKit navigation-cancellation reports | **FIXED (test)** | root cause established (not the pollers); `e2e/fixtures/navigationErrors.js`; smoke spec updated + rapid-navigation test; negative controls `e2e/page-errors.spec.js` (4 tests); `tests/navigationErrors.test.mjs` (5) |
+| SETUP-001 README omitted required secrets and the seed | **FIXED (docs)** | README steps 1, 3, 4, 5 |
+| SETUP-002 Windows path length; machine-specific links | **DOCUMENTED / FIXED** | README step 1; `HANDOFF.md` links made relative |
+| SETUP-003 undocumented optional variables | **DOCUMENTED** | `docs/FINAL_PROJECT_GUIDE.md` §7 |
+| Final documentation | **ADDED** | `docs/FINAL_PROJECT_GUIDE.md`, `docs/VIVA_GUIDE.md` |
+| E2E-002 | **OPEN (not reproduced)** | Firefox x10, 30/30 |
+| TEST-008 | **OPEN (environment)** | none in this batch's runs |
+
+## Verification (2026-11-03; other apps using ~25 % CPU, 0.9 GB of 7.7 GB free)
+- Clean clone (short path) → `npm ci` x2 → production build → Python 3.11 venv → registry check → throwaway MongoDB
+  7.0.45 → `seed` (refused without `--confirm`, then OK) → engine, backend, `vite preview` up in ~65 s → login (CSRF)
+  → `/auth/me` → analyze a golden vector → threat list: all 200; 0 errors in service logs; everything removed after.
+- Integration harness with live WSL Cowrie: **42 passed, 0 failed** (`scripts/integration/runs/20261103_061910`);
+  `cowrie.cfg` hash and stopped state restored exactly.
+- `start-demo.ps1` (three UP in 61 s), `cowrie-demo-mode.sh on` (check-block HTTP 200, blocker thread alive) / `off`,
+  `stop-demo.ps1` (four windows closed, ports free); Cowrie restored to its exact prior state.
+- Backend Jest 1,176 passed / 13 skipped (74 suites, 4 skipped); ESLint clean. AI pytest 653 passed. Registry and
+  golden set OK. Frontend unit 70/70; lint clean; build OK. Secret scan 0 findings (scanner tests 9/9).
+- Playwright full run (Chromium, Firefox, WebKit + device projects): **240 passed, 0 failed, 0 skipped** (12.7 min).
+- Models, registry (`5f76c136`), runtime Q-table (`08209e99`) and seed Q-table (`bf9b46a1`) unchanged.

@@ -24,9 +24,10 @@ session walkthrough: [`DEMO_RUNBOOK.md`](DEMO_RUNBOOK.md).
 
 | Check | Result | Evidence |
 |---|---|---|
-| Integration harness with live WSL Cowrie (Demos A, A-live, B, C, auth, outage) | **41 passed, 0 failed** (2026-11-02); **42 passed, 0 failed** with the per-threat explanation check (2026-11-03) | `scripts/integration/runs/20261102_145846`, `20261102_191411` |
+| Integration harness with live WSL Cowrie (Demos A, A-live, B, C, auth, outage) | **41 passed, 0 failed** (2026-11-02); **42 passed, 0 failed** with the per-threat explanation check (2026-11-03, re-run for the batch 14 handover: 42/42) | `scripts/integration/runs/20261102_145846`, `20261102_191411`, `20261103_061910` |
+| Demo scripts (batch 14) | `start-demo.ps1` three UP; `cowrie-demo-mode.sh on` check-block 200; `off`; `stop-demo.ps1` clean | 2026-11-03 |
 | Same on MongoDB with `--auth` as least-privilege `sentinel_app` | **35 passed, 0 failed** | `scripts/integration/runs/20261102_150153` |
-| Browser E2E: Chromium, Firefox, WebKit | 167 passed, 1 failed (known intermittent Firefox E2E-002; 40/40 when repeated alone) | `frontend/playwright-report` |
+| Browser E2E: Chromium, Firefox, WebKit | 167 passed, 1 failed (2026-11-02, known intermittent Firefox E2E-002); **240 passed, 0 failed** (2026-11-03, batch 14) | `frontend/playwright-report` |
 | Single-flow inference, idle machine | p95 **35 ms**; with SHAP p95 **47 ms**; engine ready in 4.6–6.1 s, 272 MB | `scripts/perf/engine_latency.py` |
 | Per-threat explanation (batch 11, 2026-11-03) | engine `/explain/vector` p50 26 ms / p95 48 ms, 20/20 reproduced; end to end through the backend 90 ms on a replayed threat | `scripts/perf/engine_latency.py`; integration run `20261102_191411` (42/42) |
 
