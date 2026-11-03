@@ -1,4 +1,8 @@
 import { test, expect } from './fixtures/auth.fixture.js';
+import { trackPageErrors } from './fixtures/navigationErrors.js';
+
+// The Vite dev server reports a lazy route module whose load a full navigation cancelled as a page error (E2E-002).
+const LAZY_MODULE_CANCELLED = /dynamically imported module|Importing a module script failed/;
 
 test.describe('End-to-End Smoke & Navigation Stability', () => {
   test('public showcase routes render cleanly without console errors or page errors', async ({ page }) => {
@@ -29,10 +33,7 @@ test.describe('End-to-End Smoke & Navigation Stability', () => {
   });
 
   test('analyst dashboard routes render smoothly without uncaught errors', async ({ page, loginAs }) => {
-    const pageErrors = [];
-    page.on('pageerror', (err) => {
-      pageErrors.push({ url: page.url(), error: err.message });
-    });
+    const pageErrors = trackPageErrors(page);
 
     await loginAs('analyst');
 
@@ -50,16 +51,13 @@ test.describe('End-to-End Smoke & Navigation Stability', () => {
       }
       await expect(page).toHaveURL(new RegExp(`${path}$`));
       await expect(page.locator('.dashboard-main').getByText(heading).first()).toBeVisible({ timeout: 10000 });
-      const fatalErrors = pageErrors.filter(e => !e.error.includes('dynamically imported module') && !e.error.includes('Importing a module script failed') && !e.error.includes('socket.io'));
+      const fatalErrors = pageErrors.fatal().filter((e) => !LAZY_MODULE_CANCELLED.test(e.error));
       expect(fatalErrors).toEqual([]);
     }
   });
 
   test('admin governance routes render smoothly without uncaught errors', async ({ page, loginAs }) => {
-    const pageErrors = [];
-    page.on('pageerror', (err) => {
-      pageErrors.push({ url: page.url(), error: err.message });
-    });
+    const pageErrors = trackPageErrors(page);
 
     await loginAs('admin');
 
@@ -74,8 +72,30 @@ test.describe('End-to-End Smoke & Navigation Stability', () => {
       }
       await expect(page).toHaveURL(new RegExp(`${path}$`));
       await expect(page.locator('.dashboard-main').getByText(heading).first()).toBeVisible({ timeout: 10000 });
-      const fatalErrors = pageErrors.filter(e => !e.error.includes('dynamically imported module') && !e.error.includes('Importing a module script failed') && !e.error.includes('socket.io'));
+      const fatalErrors = pageErrors.fatal().filter((e) => !LAZY_MODULE_CANCELLED.test(e.error));
       expect(fatalErrors).toEqual([]);
     }
+  });
+
+  // TEST-009: deep links in quick succession cancel the previous page's pollers and Socket.IO requests. The app must
+  // handle those cancellations itself: no 'unhandledrejection' or 'error' event inside the page.
+  test('rapid deep-link navigation leaves no unhandled errors in the app', async ({ page, loginAs }) => {
+    const inPage = [];
+    await page.exposeFunction('__reportPageEvent', (e) => inPage.push(e));
+    await page.addInitScript(() => {
+      window.addEventListener('unhandledrejection', (e) => window.__reportPageEvent({ type: 'unhandledrejection', path: location.pathname, reason: String(e.reason?.message || e.reason) }));
+      window.addEventListener('error', (e) => window.__reportPageEvent({ type: 'error', path: location.pathname, reason: String(e.message) }));
+    });
+    const pageErrors = trackPageErrors(page);
+    await loginAs('analyst');
+    for (let round = 0; round < 2; round++) {
+      for (const path of ['/dashboard', '/dashboard/threats', '/dashboard/honeypot', '/dashboard/campaigns', '/dashboard/ai']) {
+        await page.goto(path);
+        await page.waitForTimeout(150 + 150 * round);
+      }
+    }
+    await expect(page.locator('.dashboard-main')).toBeVisible();
+    expect(inPage.filter((e) => !LAZY_MODULE_CANCELLED.test(e.reason))).toEqual([]);
+    expect(pageErrors.fatal().filter((e) => !LAZY_MODULE_CANCELLED.test(e.error))).toEqual([]);
   });
 });
