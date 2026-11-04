@@ -77,7 +77,21 @@ def gate(candidate: dict, baseline: dict) -> dict:
 MODEL_NAMES = {"rf": ("rf_classifier", "RandomForestClassifier"), "xgboost": ("xgb_classifier", "XGBClassifier")}
 
 
-def promote(out_dir: Path, model_dir: Path, version: str, report: dict, classifier: str = "rf") -> dict:
+def training_metadata(train: pd.DataFrame) -> dict:
+    """
+    Meta the engine reads from a served model, computed from the rows the candidate was trained on (ML-021):
+    class_counts drives classProvenance / lowTrainingDataClass, drift_reference the PSI drift report. training/
+    train.py writes both; a promoted model without them would report rare classes as adequately trained and fall
+    back to the scaler-statistics drift method.
+    """
+    from monitoring.drift import benign_reference
+    benign = train.loc[train["y"] == LABEL_MAP["BENIGN"], FEATURE_NAMES].to_numpy(dtype=float)
+    return {"class_counts": {"train": {str(k): int(v) for k, v in train["target"].value_counts().items()}},
+            "drift_reference": benign_reference(benign)}
+
+
+def promote(out_dir: Path, model_dir: Path, version: str, report: dict, classifier: str = "rf",
+            training_meta: dict = None) -> dict:
     """Copy candidate files into model_dir under new versioned names and re-pin the registry."""
     prefix, model_type = MODEL_NAMES[classifier]
     clf_name, if_name = f"{prefix}_{version}.pkl", f"isolation_forest_{version}.pkl"
@@ -90,7 +104,7 @@ def promote(out_dir: Path, model_dir: Path, version: str, report: dict, classifi
             "n_features": len(FEATURE_NAMES), "feature_names": FEATURE_NAMES, "classes": LABEL_MAP,
             "metrics": {k: report["candidate"][k] for k in ("accuracy", "f1_weighted", "f1_macro")},
             "evaluation": {"split": "chronological_per_class", "independent_holdout": True},
-            "analyst_samples": report["analyst_samples"]}
+            "analyst_samples": report["analyst_samples"], **(training_meta or {})}
     (model_dir / f"{prefix}_{version}_meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
     (model_dir / f"isolation_forest_{version}_meta.json").write_text(json.dumps(
         {"model_type": "IsolationForest", "version": version, "n_features": len(FEATURE_NAMES)}, indent=2), encoding="utf-8")
@@ -150,9 +164,11 @@ def main():
     baseline = ev.evaluate(base_rf, base_if, test)
     if len(samples):
         print("Training candidate (with analyst samples)...", flush=True)
-        rf, ifo = ev.fit(pd.concat([train, samples], ignore_index=True), args.n_estimators)
+        candidate_rows = pd.concat([train, samples], ignore_index=True)
+        rf, ifo = ev.fit(candidate_rows, args.n_estimators)
         candidate = ev.evaluate(rf, ifo, test)
     else:
+        candidate_rows = train
         rf, ifo, candidate = base_rf, base_if, baseline
 
     joblib.dump(rf, out_dir / "rf_classifier.pkl")
@@ -177,7 +193,8 @@ def main():
             report["promoted"] = False
             print("Gate failed: candidate NOT promoted.")
         else:
-            report["registry"] = promote(out_dir, Path(args.model_dir), version, report, args.classifier)
+            report["registry"] = promote(out_dir, Path(args.model_dir), version, report, args.classifier,
+                                         training_metadata(candidate_rows))
             report["promoted"] = True
             print(f"Promoted {version}; call POST /model/reload (or restart the engine) to serve it.")
     (out_dir / "report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")

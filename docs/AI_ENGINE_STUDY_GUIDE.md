@@ -615,10 +615,22 @@ What to do (Phase 5, M-1):
    - loads them, rejecting any with a different schema version, an unknown label, or non-finite values (`:39-54`);
    - trains a baseline and a candidate on the **chronological** train portion (`:122-133`);
    - scores both on the sealed chronological test.
-4. Gates (`:34-35`): macro F1 may not drop by more than 0.005, and the benign alert rate must be ≤ 0.1%.
-5. `--promote` writes **new versioned files** (it never overwrites), re-pins `registry.json`, and keeps `registry.previous.json` for rollback (`promote`, `:57-103`).
+4. Gates (`gate`): macro F1 may not drop by more than 0.005 against the baseline, and the benign alert rate may not
+   exceed the baseline's by more than 0.02 points. The absolute 0.1% target is reported (`meets_alert_fpr_target`)
+   but no longer blocks.
+5. `--promote` writes **new versioned files** (it never overwrites), re-pins `registry.json`, and copies the previous
+   registry to `experiments/retraining/<version>/registry.previous.json`. Since ML-021 the new meta also carries
+   `class_counts` (low-training-data flags) and the benign `drift_reference` (PSI drift), computed from the rows the
+   candidate was trained on.
 6. `POST /model/reload` hot-swaps the new model.
 7. `GET /model/drift` (`monitoring/drift.py`) is the trigger signal.
+
+**Rolling back a promotion** (old model files are never overwritten, so this is a registry change only):
+1. Copy `experiments/retraining/<version>/registry.previous.json` over `ai-engine/models/registry.json`.
+2. Run `python training/register_model.py --check`; it must print OK for all three files.
+3. If `MODEL_REGISTRY_SHA256` is set, set it to the hash `--check` prints and **restart** the engine: the pin is read
+   from the process environment, so `POST /model/reload` returns 409 until the engine restarts with the new value.
+   Without the pin, `POST /api/ai/engine/reload` (admin) swaps the old model back in.
 
 **But:** it has **never been run** (no `experiments/retraining/`; the registry was later re-pinned to `cicids_v3` by the C2 retrain, not by this pipeline). It is **manual**: a human runs a CLI and passes `--promote`. The SGD `partial_fit` "online learner" your paper describes is **NOT FOUND** in code (only an unused root `models/sgd_classifier_cicids.pkl`).
 

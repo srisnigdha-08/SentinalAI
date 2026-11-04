@@ -173,6 +173,35 @@ def test_promote_writes_new_files_and_repins_registry(tmp_path):
         retrain.promote(out, models, "retrained_test", report)  # never overwrites
 
 
+def test_promoted_meta_keeps_class_counts_and_psi_reference(tmp_path):
+    """ML-021: promotion wrote neither, so a promoted model lost lowTrainingDataClass and the PSI drift method."""
+    import pandas as pd
+    from monitoring.drift import DriftMonitor
+    from utils.features import FEATURE_NAMES, LABEL_MAP
+    rng = np.random.default_rng(0)
+    frame = pd.DataFrame(rng.normal(size=(300, len(FEATURE_NAMES))), columns=FEATURE_NAMES)
+    frame["target"] = ["BENIGN"] * 250 + ["RCE Attempt"] * 50
+    frame["y"] = frame["target"].map(LABEL_MAP)
+    meta = retrain.training_metadata(frame)
+    assert meta["class_counts"]["train"] == {"BENIGN": 250, "RCE Attempt": 50}
+
+    out, models = tmp_path / "cand", tmp_path / "models"
+    out.mkdir(); models.mkdir()
+    from tests.test_phase5_improvements import _tiny_models
+    _tiny_models(out)
+    (out / "clf_t.pkl").rename(out / "rf_classifier.pkl")
+    (out / "if_t.pkl").rename(out / "isolation_forest.pkl")
+    report = {"trained_at": "t", "analyst_samples": 0, "candidate": {"accuracy": 0.9, "f1_weighted": 0.9, "f1_macro": 0.8}}
+    retrain.promote(out, models, "retrained_meta", report, training_meta=meta)
+    written = json.loads((models / "rf_classifier_retrained_meta_meta.json").read_text())
+    assert written["class_counts"]["train"]["RCE Attempt"] == 50
+    # The stored reference is what GET /model/drift uses for the PSI method
+    monitor = DriftMonitor(min_samples=10)
+    for row in rng.normal(size=(20, len(FEATURE_NAMES))):
+        monitor.record(row.tolist(), "BENIGN")
+    assert monitor.report_psi(written["drift_reference"], FEATURE_NAMES)["status"] in ("ok", "drift")
+
+
 # ── Sniffer mapping ───────────────────────────────────────────────────────────
 def test_cicflowmeter_row_maps_to_detection_payload():
     spec = importlib.util.spec_from_file_location("flow_mapping", ENGINE.parent / "honeypot/sniffer/flow_mapping.py")
