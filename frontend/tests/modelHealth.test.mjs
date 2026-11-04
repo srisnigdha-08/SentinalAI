@@ -35,6 +35,15 @@ test('recommendation wording distinguishes keep, switch and exploration', () => 
   assert.match(recommendationSummary({ activeProfile: 'centos_7', nextProfile: 'aws_ec2', explored: true }), /centos_7 → aws_ec2 \(exploration pick\)/)
 })
 
+test('PSI drift counts only benign-classified flows, as the engine does (UI-005)', () => {
+  // 500 recent flows, 150 of them classified BENIGN: the engine needs 200 benign ones before it assesses drift
+  const waiting = driftSummary({ method: 'psi_benign_quantiles', status: 'insufficient_data', samples: 500, benign_samples: 150, min_samples: 200 })
+  assert.match(waiting.detail, /150 of 200 benign-classified flows/)
+  const ok = driftSummary({ method: 'psi_benign_quantiles', status: 'ok', samples: 2000, benign_samples: 1800,
+    informative_features: 40, drifted_fraction: 0, drifted_features: [] })
+  assert.match(ok.detail, /over the last 1800 benign-classified flows/)
+})
+
 test('PSI drift rows show the PSI value', () => {
   const rows = topShiftRows({ drifted_features: ['a'], top_shifts: [{ feature: 'a', psi: 0.4123 }] })
   assert.deepEqual(rows, [{ feature: 'a', value: 'PSI 0.412', flagged: true }])

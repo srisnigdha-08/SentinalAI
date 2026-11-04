@@ -12,16 +12,19 @@ export function driftSummary(report) {
     return { label: 'UNAVAILABLE', badgeType: 'live', color: '#ff2d55', detail: 'AI engine drift report unavailable.' }
   }
   const tone = TONES[report.status] || { label: String(report.status || 'UNKNOWN').toUpperCase(), badgeType: 'info', color: '#7ab3cc' }
-  const samples = Number(report.samples) || 0
+  // PSI reports assess (and count toward min_samples) only flows classified BENIGN (UI-005)
+  const psi = report.method === 'psi_benign_quantiles'
+  const samples = Number(psi ? report.benign_samples : report.samples) || 0
+  const unit = psi ? 'benign-classified flows' : 'flows'
   const minSamples = Number(report.min_samples) || 0
   let detail
   if (report.status === 'insufficient_data') {
-    detail = `${samples} of ${minSamples} live flows needed before drift is assessed.`
+    detail = `${samples} of ${minSamples} ${psi ? unit : 'live flows'} needed before drift is assessed.`
   } else {
     const drifted = Array.isArray(report.drifted_features) ? report.drifted_features.length : 0
     const informative = Number(report.informative_features) || 0
     const pct = typeof report.drifted_fraction === 'number' ? (report.drifted_fraction * 100).toFixed(1) : '—'
-    detail = `${drifted} of ${informative} features outside training range (${pct}%) over the last ${samples} flows.`
+    detail = `${drifted} of ${informative} features outside training range (${pct}%) over the last ${samples} ${unit}.`
   }
   return { ...tone, detail }
 }
