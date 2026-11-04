@@ -75,11 +75,13 @@ async function restoreDatabase() {
         const meta = JSON.parse(fs.readFileSync(metaFile, 'utf8'));
         if (Array.isArray(meta.indexes)) {
           for (const idx of meta.indexes) {
-            if (idx.name !== '_id_') {
-              const options = {};
-              if (idx.unique) options.unique = true;
-              if (idx.name) options.name = idx.name;
-              await coll.createIndex(idx.key, options);
+            if (idx.name === '_id_') continue;
+            // Every recorded option (unique, sparse, partialFilterExpression, expireAfterSeconds, collation, ...)
+            const { v, key, ns, background, ...options } = idx;
+            try {
+              await coll.createIndex(key, options);
+            } catch (oneErr) {
+              console.warn(`  Warning: index ${idx.name} on ${collName} not recreated: ${oneErr.message}`);
             }
           }
         }

@@ -29,14 +29,10 @@ async function dumpDatabase() {
 
     // 1. Fetch indexes & metadata
     const indexes = await coll.indexes();
+    // Keep every index option (sparse, partialFilterExpression, expireAfterSeconds, collation, ...): dropping
+    // `sparse` lost the unique sparse containmentactions.targetLock index on restore (batch 15 round-trip test).
     const metadata = {
-      indexes: indexes.map(idx => ({
-        v: idx.v,
-        key: idx.key,
-        name: idx.name,
-        unique: idx.unique || undefined,
-        background: idx.background || undefined
-      }))
+      indexes: indexes.map(({ ns, ...idx }) => idx)
     };
     fs.writeFileSync(
       path.join(backupDir, `${collName}.metadata.json`),
