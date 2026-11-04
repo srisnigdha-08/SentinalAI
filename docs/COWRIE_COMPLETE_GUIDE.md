@@ -106,10 +106,10 @@ Related docs: `docs/HONEYPOT_STUDY_GUIDE.md` is the earlier audit, and `docs/HON
 ## 2.2 Version and install method
 
 - **Install: git clone + Python venv inside WSL Ubuntu** (not Docker, not pip-from-PyPI). [Live 2026-10-22]
-  - Path `/home/srisnigdha/sentinelai-cowrie-test/cowrie`, venv `../env`.
+  - Path `/home/<wsl-user>/sentinelai-cowrie-test/cowrie`, venv `../env`.
   - Git commit **`c7773f4`** (2026-10-15). pip metadata reports `cowrie 3.1.3`; treat the commit as the authoritative version.
   - **Twisted 26.4.0, Python 3.14.4, paramiko 5.1.0.**
-- It runs as your normal user `srisnigdha`, **not root** (`ls -la` of `var/` shows owner `srisnigdha`).
+- It runs as your normal user `<wsl-user>`, **not root** (`ls -la` of `var/` shows owner `<wsl-user>`).
 - The Docker path (`honeypot/docker-compose.honeypot.yml:29`) uses `cowrie/cowrie:latest`. That tag is **unpinned**, and the stack has **never been run** (no Docker on this machine; `docker` is not installed).
 
 ## 2.3 cowrie.cfg, section by section
