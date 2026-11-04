@@ -10,7 +10,7 @@
 
 | File | What it is |
 |---|---|
-| `rf_classifier_cicids_v3.pkl`, `isolation_forest_cicids_v3.pkl` | De-duplicated Random Forest (served after C2, until XGBoost won M-5) |
+| `rf_classifier_cicids_v3.pkl`, `isolation_forest_cicids_v3.pkl` | De-duplicated Random Forest (served after C2, until XGBoost won M-5). The registry's previous model (`registry_history.jsonl`, sha256 `482d1fc6…`): the one-step rollback target, kept deliberately (HYG-001); procedure in `docs/AI_ENGINE_STUDY_GUIDE.md` §3.5 |
 | `rf_classifier_cicids_v2.pkl`, `isolation_forest_cicids.pkl` | August models (served before C2; trained on a split with duplicates, SMOTE) |
 | `rf_classifier_cicids.pkl` | Older RF v1 |
 | `xgb_classifier_cicids.pkl` | XGBoost on real CICIDS2017 (not deployed) |

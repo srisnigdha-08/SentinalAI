@@ -1204,3 +1204,66 @@ Three-browser runs of live-feed.spec: nextIp() is time-based modulo 200, so a lo
 browser created, and "appears exactly once" then sees 2 rows (WebKit, 1 of 3 runs; 15/15 in isolation).
 E2E-002 (Firefox containment-modal justification lost) recurred 2 of 3 three-browser runs; 9/9 in isolation.
 ```
+
+---
+
+## Batch 19 (2026-11-04) — containment fencing, recovery visibility, test stability (at `f90d23a`)
+
+CI on f90d23a: 7/7 jobs passed (run 41827646046). No pull request exists. Registry check OK; demo, seed and repo
+runtime Q-table hashes unchanged at the end of the batch (90b310ba…, bf9b46a1…, 08209e99…).
+
+```
+ID: CONT-004 | P2 | CONFIRMED (deterministic test) | FIXED 2026-11-04 (uncommitted)
+CONT-003's recovery could decide a request was abandoned while it was still running. requestContainment's later saves
+were by _id only, so a superseded request (a) saved ACTIVE over recovery's FAILED although recovery had removed the
+rule, (b) created its rule after recovery had confirmed "no rule" and released the lock, leaving it untracked, and
+(c) continued from APPROVED/APPLYING after recovery failed the action and applied a rule anyway.
+backend/tests/containmentApplyRace.test.js (controlled-promise adapter): 7 of 8 failed before (the request resolved
+as successful after recovery released it), 11/11 after (with the operator-view tests).
+Fix: ContainmentAction uses optimisticConcurrency (every save version-checked); recovery's claim increments __v, so
+the original request's next save raises VersionError -> CONTAINMENT_SUPERSEDED (409). A request fenced after its
+adapter call removes its own rule (rules are per containmentId) and confirms it with inspectRule; recovery.lateRule
+records REMOVED or PRESENT_UNREMOVED, and removeLateRules() (every reconciliation pass) retries the latter until
+the adapter confirms ABSENT. UNKNOWN or unavailable keeps the flag. A MongoDB failure on the ACTIVE save is unchanged:
+the action stays APPLYING and recovery inspects the rule after the grace period.
+Residual: removeLateRules runs every pass with no back-off; the Windows adapter's inspectRule is tested only with a
+fake runner; a request stalled > grace inside syncLegacyBlockState (after ACTIVE) is not affected by fencing.
+```
+
+```
+ID: OBS-001 | P3 | CONFIRMED | FIXED 2026-11-04 (uncommitted)
+Unresolved recoveries were visible only in logs and raw documents. Added (read-only, nothing releases a lock):
+GET /api/containment/recovery (admin/analyst, same as other containment reads; role matrix: viewer 403, anonymous
+401) listing stuck VALIDATING/APPROVED/APPLYING actions and unconfirmed late rules with attempts, last outcome,
+seconds stuck, ruleVerified and needsInvestigation; gauge sentinel_containment_recovery_unresolved from the last
+reconciliation pass; Prometheus alert SentinelContainmentRecoveryUnresolved (> 0 for 15 min) with a promtool test.
+No manual force-unlock was added: releasing a lock needs a verified rule inspection first (not designed here).
+```
+
+```
+ID: THR-004 | P3 | CONFIRMED (tests) | FIXED 2026-11-04 (uncommitted)
+GET /api/ai/score-lines returned identical { alert, block } for engine-confirmed values, last-confirmed values kept
+through an outage and never-confirmed defaults. aiEngineService.getScoreLines() now adds source ('engine' |
+'engine-cached' | 'default') and confirmedAt; values and fallbacks unchanged. The frontend provider keeps the source,
+resets to the defaults on sign-out and reloads the lines when the live connection changes (an engine restarted with
+other lines is picked up). Lifecycle checks 1-9: defaults, overrides, consistent fallbacks (0.90/0.92 both sides),
+all roles, no other configuration exposed, reload invalidates the backend cache: as designed. Tests:
+backend tests/scoreLinesSource.test.js 4 (4/4 failed before), frontend linesFromResponse test (failed before).
+```
+
+```
+ID: TEST-010 | P3 | FIXED 2026-11-04 (uncommitted)
+frontend/e2e/fixtures/testData.js: deterministic addresses (198.18/15, per project, test slot, repeat, retry and
+index; a separate /24 per project/repeat/retry for the viewer-redaction test). Unit test proves uniqueness over
+23,400 combinations. live-feed.spec uses it. globalSetup already clears threats and alerts per run.
+```
+
+```
+ID: E2E-002 (update) | P3 | NOT REPRODUCED | TEST SYNCHRONISED
+Firefox, same six specs in the shared-state order, repeat-each 2 with traces: the containment-modal test passed both
+times (other failures in that run were page.goto timeouts while the dev server rebuilt files edited mid-run; the run
+was discarded). No product cause found (the modal key is stable while open; no live reload in Threat Logs). The test
+now waits for the TTL select and the justification field to show their values before confirming; the payload
+assertion is unchanged. Clean runs: 72/72 (3 browsers), then threat-logs + live-feed + score-lines x3 per browser
+126/126.
+```
