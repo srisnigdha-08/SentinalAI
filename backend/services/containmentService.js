@@ -836,11 +836,18 @@ const unblockIPManual = async ({ ip }) => {
 
   const savedBlockedDoc = blockedDoc.toObject ? blockedDoc.toObject() : { ...blockedDoc }
 
-  // Scoped query: identify ThreatLogs specifically tagged with this containment event
+  // Scoped query: ThreatLogs tagged with this containment event. A block tags them with the BlockedIP id, but an
+  // adapter-backed containment (auto-block, policy block) tags every open threat for the address with its
+  // ContainmentAction id; the actions still active here are the ones this unblock releases (CONT-001). Threats from
+  // older, finished containments keep their state (historical protection).
+  const activeActions = await ContainmentAction.find(
+    { normalizedTarget: normalizeTarget(cleanIP), enforcementStatus: { $in: ['ACTIVE', 'ROLLBACK_FAILED'] } },
+    { _id: 1 }
+  )
   let threatsToRestore = await ThreatLog.find({
     sourceIP: cleanIP,
     status: 'BLOCKED',
-    containmentId: blockedDoc._id,
+    containmentId: { $in: [blockedDoc._id, ...(activeActions || []).map((a) => a._id)] },
   })
 
   // Fallback for legacy single-threat containment if containmentId was null but threatRef matched

@@ -124,6 +124,7 @@ const aiService = require('../services/aiService')
 const threatService = require('../services/threatService')
 const threatController = require('../controllers/threatController')
 const containmentService = require('../services/containmentService')
+const ContainmentAction = require('../models/ContainmentAction')
 
 describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
   beforeEach(() => {
@@ -134,6 +135,9 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
       .mockResolvedValue({ success: true, action: { enforcementStatus: 'ACTIVE', enforcementBackend: 'mock' } })
     // Manual unblock also removes adapter rules (CORE-001b); covered in manualBlockEnforcement.test.js
     jest.spyOn(containmentService, 'releaseManualBlock').mockResolvedValue([])
+    // ...and looks up the target's still-active ContainmentActions (CONT-001; real-database cases are in
+    // unblockRepeatDetections.test.js). No database here: none are active.
+    jest.spyOn(ContainmentAction, 'find').mockResolvedValue([])
     mockGetBlockThreshold.mockResolvedValue(0.92)
     mockBlockedIPFind.mockReturnValue({
       populate: jest.fn().mockReturnThis(),
@@ -686,7 +690,8 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
 
       // Mock find to return ONLY threats matching new-containment-id
       mockThreatLogFind.mockImplementation((query) => {
-        if (query.containmentId === 'new-containment-id') {
+        const ids = query.containmentId?.$in || [query.containmentId]
+        if (ids.includes('new-containment-id')) {
           return Promise.resolve([activeThreat])
         }
         return Promise.resolve([])
