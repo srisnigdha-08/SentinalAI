@@ -28,6 +28,7 @@ const {
 const { getContainmentAdapter } = require('./containment/adapterFactory')
 const { logContainmentAudit } = require('../utils/containmentAudit')
 const logger = require('../utils/logger')
+const { restoreStatusFor } = require('../utils/severity')
 const { isValidIP } = require('../utils/querySecurity')
 const { v4: uuidv4 } = require('uuid')
 const mongoose = require('mongoose')
@@ -499,7 +500,7 @@ const releaseLegacyBlockState = async (actionDoc, operator) => {
       status: 'BLOCKED',
     })
     for (const t of threatsToRestore) {
-      t.status = t.preBlockStatus || (t.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+      t.status = restoreStatusFor(t)
       t.preBlockStatus = null
       t.containmentId = null
       t.autonomousAction = { taken: false, actionType: null, actionTime: null }
@@ -867,7 +868,7 @@ const unblockIPManual = async ({ ip }) => {
   const restoredThreats = []
   try {
     for (const t of threatsToRestore) {
-      const targetStatus = t.preBlockStatus || (t.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+      const targetStatus = restoreStatusFor(t)
       t.status = targetStatus
       t.preBlockStatus = null
       t.containmentId = null
@@ -913,7 +914,7 @@ const unblockIPManual = async ({ ip }) => {
  * Compensation: If BlockedIP fails, ThreatLog status is rolled back to priorStatus.
  */
 const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sourceRef = null }) => {
-  const priorStatus = threat.preBlockStatus || (threat.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+  const priorStatus = restoreStatusFor(threat)
   const priorAutonomousAction = threat.autonomousAction
     ? {
         taken: threat.autonomousAction.taken,

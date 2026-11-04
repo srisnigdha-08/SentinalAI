@@ -6,6 +6,7 @@ const BlockedIP = require('../models/BlockedIP')
 const ThreatLog = require('../models/ThreatLog')
 const logger = require('../utils/logger')
 const { logContainmentAudit } = require('../utils/containmentAudit')
+const { restoreStatusFor } = require('../utils/severity')
 
 /**
  * ContainmentReconciliationService
@@ -134,7 +135,7 @@ class ContainmentReconciliationService {
           status: 'BLOCKED',
         })
         for (const t of threatsToRestore) {
-          t.status = t.preBlockStatus || (t.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+          t.status = restoreStatusFor(t)
           t.preBlockStatus = null
           t.containmentId = null
           t.autonomousAction = { taken: false, actionType: null, actionTime: null }

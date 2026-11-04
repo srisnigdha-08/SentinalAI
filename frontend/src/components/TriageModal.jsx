@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { threatAPI } from '../services/api.js'
 import toast from 'react-hot-toast'
 import Modal from './Modal.jsx'
+import { scoreColor } from '../utils/scoreBands.js'
 
 const ALLOWED_STATUSES = [
   'DETECTED',
@@ -87,7 +88,7 @@ export default function TriageModal({
         {threat.aiScore !== undefined && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AI CONFIDENCE SCORE:</span>
-            <span style={{ fontSize: 12, color: threat.aiScore >= 0.9 ? '#ff2d55' : threat.aiScore >= 0.7 ? '#ffaa00' : '#00d4ff', fontFamily: 'Share Tech Mono,monospace' }}>
+            <span style={{ fontSize: 12, color: scoreColor(threat.aiScore), fontFamily: 'Share Tech Mono,monospace' }}>
               {Math.round(threat.aiScore * 100)}%
             </span>
           </div>

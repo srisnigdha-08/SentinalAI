@@ -22,6 +22,9 @@ const AIPrediction = require('../models/AIPrediction')
 const BlockedIP = require('../models/BlockedIP')
 const Campaign = require('../models/Campaign')
 const { redactCapturedCredentials } = require('./redact')
+// Same operating lines as the AI pipeline (THR-002): threats at/above the alert line are MONITORING, at/above the
+// block line BLOCKED. The seed runs without the engine, so it uses the engine's defaults.
+const { DEFAULT_ALERT_THRESHOLD: ALERT_LINE, DEFAULT_BLOCK_THRESHOLD: BLOCK_LINE } = require('./severity')
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db'
 require('./destructiveGuard').requireDatabaseConfirmation(MONGO_URI, 'seed', [
   'users',
@@ -108,11 +111,12 @@ async function seed() {
       attackType: a.type,
       aiScore: score,
       confidence: parseFloat(Math.min(score + randF(-0.03, 0.05), 1).toFixed(3)),
-      status: score >= 0.92 ? 'BLOCKED' : score >= 0.7 ? 'MONITORING' : 'DETECTED',
+      status: score >= BLOCK_LINE ? 'BLOCKED' : score >= ALERT_LINE ? 'MONITORING' : 'DETECTED',
+      preBlockStatus: score >= BLOCK_LINE ? 'MONITORING' : null,
       autonomousAction: {
-        taken: score >= 0.92,
-        actionType: score >= 0.92 ? 'IP_BLOCKED' : null,
-        actionTime: score >= 0.92 ? created : null,
+        taken: score >= BLOCK_LINE,
+        actionType: score >= BLOCK_LINE ? 'IP_BLOCKED' : null,
+        actionTime: score >= BLOCK_LINE ? created : null,
       },
       geoLocation: { country: attk.country, city: 'Unknown' },
       createdAt: created,
@@ -173,7 +177,7 @@ async function seed() {
       inferenceTimeMs: parseFloat(randF(12, 85).toFixed(1)),
       verified: Math.random() > 0.6,
       actualClass: cls,
-      generatedThreat: score >= 0.7 ? threats[i % threats.length]._id : null,
+      generatedThreat: score >= ALERT_LINE ? threats[i % threats.length]._id : null,
       createdAt: created,
     }
   })

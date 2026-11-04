@@ -245,8 +245,7 @@ const getDeceptionScore = async (session) => {
 
 // Thresholds come from the AI engine (/model/info) so the engine and the backend use one alert line and
 // one block line. Fallbacks apply only until the first successful fetch.
-const DEFAULT_BLOCK_THRESHOLD = 0.92
-const DEFAULT_ALERT_THRESHOLD = 0.9
+const { DEFAULT_ALERT_THRESHOLD, DEFAULT_BLOCK_THRESHOLD, recordAlertLine } = require('../utils/severity')
 let cachedBlockThreshold = DEFAULT_BLOCK_THRESHOLD
 let cachedAlertThreshold = DEFAULT_ALERT_THRESHOLD
 let lastFetchedTime = 0
@@ -261,7 +260,10 @@ const refreshThresholds = async () => {
   try {
     const info = (await guarded(() => ai.get('/model/info', { timeout: THRESHOLD_FETCH_TIMEOUT_MS }))).data
     if (typeof info?.thresholds?.block === 'number') cachedBlockThreshold = info.thresholds.block
-    if (typeof info?.thresholds?.monitor === 'number') cachedAlertThreshold = info.thresholds.monitor
+    if (typeof info?.thresholds?.monitor === 'number') {
+      cachedAlertThreshold = info.thresholds.monitor
+      recordAlertLine(cachedAlertThreshold) // restore fallbacks use the same line (THR-002)
+    }
   } catch (e) {
     logger.debug('[AI] Failed to fetch thresholds from AI engine, using cached values: ' + e.message)
   }

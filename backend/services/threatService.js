@@ -3,6 +3,7 @@ const ThreatLog = require('../models/ThreatLog')
 const SystemSetting = require('../models/SystemSetting')
 const Alert = require('../models/Alert')
 const logger = require('../utils/logger')
+const { currentAlertLine } = require('../utils/severity')
 const { escapeRegex, parsePagination, parseSort, parseDate } = require('../utils/querySecurity')
 
 const ALLOWED_THREAT_SORT_FIELDS = [
@@ -92,6 +93,8 @@ const createThreat = async (data) => {
   const setting = await SystemSetting.findOne({ key: 'autoBlockEnabled' })
   const autoBlockEnabled = setting ? setting.value === true : false
   const blockThreshold = await aiEngineService.getBlockThreshold()
+  // Same alert line as the AI pipeline (THR-002; was a fixed 0.70). Read after getBlockThreshold refreshed the cache.
+  const alertThreshold = currentAlertLine()
 
   const shouldBlock = isAiGenerated && score >= blockThreshold && autoBlockEnabled
   const actionTaken = shouldBlock
@@ -101,7 +104,7 @@ const createThreat = async (data) => {
     status = 'DEGRADED'
   } else if (shouldBlock) {
     status = 'BLOCKED'
-  } else if (score >= 0.7) {
+  } else if (score >= alertThreshold) {
     status = 'MONITORING'
   } else if (data.status && ALLOWED_STATUSES.includes(data.status)) {
     status = data.status
@@ -112,7 +115,7 @@ const createThreat = async (data) => {
     aiScore: score,
     confidence: isAiGenerated ? data.confidence || 0 : 0,
     status,
-    preBlockStatus: shouldBlock ? (score >= 0.7 ? 'MONITORING' : 'DETECTED') : null,
+    preBlockStatus: shouldBlock ? (score >= alertThreshold ? 'MONITORING' : 'DETECTED') : null,
     autonomousAction: {
       taken: actionTaken,
       actionType: actionTaken ? 'IP_BLOCKED' : null,
@@ -135,7 +138,7 @@ const createThreat = async (data) => {
   }
 
   // Asynchronous Threat Intelligence Enrichment (Phase 2.4B - Option B)
-  if (threat.aiScore >= 0.7) {
+  if (threat.aiScore >= alertThreshold) {
     try {
       const threatIntelService = require('./threatIntelService')
       setImmediate(() => {

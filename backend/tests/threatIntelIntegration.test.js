@@ -52,7 +52,7 @@ jest.mock('../services/alertService', () => mockAlertService)
 
 const mockAiEngineService = {
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
-  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.9),
 }
 jest.mock('../services/aiEngineService', () => mockAiEngineService)
 
@@ -127,7 +127,7 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
       sourceIP: '185.220.101.5',
       targetIP: '10.0.0.1',
       predictedClass: 'Port Scan',
-      threatScore: 0.8,
+      threatScore: 0.95,
       confidence: 0.8,
       modelVersion: 'v2.1',
       action: 'MONITOR',
@@ -137,7 +137,7 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
       _id: 'threat-integration-001',
       severity: 'HIGH',
       sourceIP: '185.220.101.5',
-      aiScore: 0.8,
+      aiScore: 0.95,
       status: 'MONITORING',
       threatIntel: {
         provider: 'AbuseIPDB',

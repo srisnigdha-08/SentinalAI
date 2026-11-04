@@ -12,6 +12,7 @@ import { useAuth } from '../hooks/useAuth.js'
 import { usePermission } from '../hooks/usePermission.js'
 import toast from 'react-hot-toast'
 import { containmentOutcome } from '../utils/containmentLabels.js'
+import { scoreColor } from '../utils/scoreBands.js'
 
 const STATUS_STYLES = {
   BLOCKED:        { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
@@ -257,7 +258,7 @@ export default function ThreatLogs() {
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>{l.targetService}</td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:12,
-                    color:l.aiScore>=0.9?'#ff2d55':l.aiScore>=0.7?'#ffaa00':'#00d4ff' }}>
+                    color:scoreColor(l.aiScore) }}>
                     {((l.aiScore||0)*100).toFixed(0)}%
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>

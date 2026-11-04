@@ -1,4 +1,4 @@
-const { severityFor } = require('../utils/severity')
+const { severityFor, currentAlertLine } = require('../utils/severity')
 const reportTime = require('../utils/reportingTime')
 const mongoose = require('mongoose')
 const AIPrediction = require('../models/AIPrediction')
@@ -339,7 +339,8 @@ const getModelStats = async (now = new Date()) => {
           $group: {
             _id: reportTime.dayGroup(),
             count: { $sum: 1 },
-            threats: { $sum: { $cond: [{ $gte: ['$threatScore', 0.7] }, 1, 0] } },
+            // Predictions at/above the alert line, where the pipeline raises threats (THR-002; was 0.70)
+            threats: { $sum: { $cond: [{ $gte: ['$threatScore', currentAlertLine()] }, 1, 0] } },
           },
         },
         { $sort: { _id: 1 } },

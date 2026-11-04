@@ -14,6 +14,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSocket } from './useSocket.js'
 import { threatAPI } from '../services/api.js'
 import { feedThreatsToRecover, insertByTime } from '../utils/liveFeedSync.js'
+import { isAlertScore, liveSeverity } from '../utils/scoreBands.js'
 
 const CATCH_UP_LIMIT = 20
 
@@ -75,10 +76,10 @@ export function useRealTimeFeed(maxItems = 30) {
       setFeed(prev => insertByTime(prev, [threatItem(data)], maxItems))
     })
     const unsubAI    = on('ai_prediction', (data) => {
-      if (data.threatScore >= 0.7) addItem({
+      if (isAlertScore(data.threatScore)) addItem({
         ip:  data.sourceIP,
         msg: `AI: ${data.predictedClass} (${((data.threatScore||0)*100).toFixed(0)}%) → ${data.action}`,
-        sev: data.severity || 'HIGH',
+        sev: liveSeverity(data),
       })
     })
 

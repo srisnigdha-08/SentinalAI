@@ -18,6 +18,7 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 ) : null
 
 import { useSocket } from '../hooks/useSocket.js'
+import { scoreColor, scoreLogType } from '../utils/scoreBands.js'
 
 export default function AIAnalytics() {
   const { user } = useAuth()
@@ -155,7 +156,7 @@ export default function AIAnalytics() {
       setPreds(prev => [data, ...prev.filter(x => (x._id || x.id) !== (data._id || data.id))].slice(0, 12))
       setLiveLogs(prev => [
         {
-          type: data.threatScore >= 0.9 ? 'err' : data.threatScore >= 0.7 ? 'warn' : 'out',
+          type: scoreLogType(data.threatScore),
           text: `[INFER] ${data.sourceIP} → score=${((data.threatScore || 0) * 100).toFixed(0)}% → ${data.predictedClass} [${data.action || 'EVALUATED'}]`,
           ts: new Date().toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
         },
@@ -411,10 +412,10 @@ export default function AIAnalytics() {
                     <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
                       <div style={{ height:4, width:60, background:'#0d3352', borderRadius:2 }}>
                         <div style={{ height:'100%', width:`${(p.threatScore||0)*100}%`,
-                          background:p.threatScore>=0.9?'#ff2d55':p.threatScore>=0.7?'#ffaa00':'#00d4ff', borderRadius:2 }} />
+                          background:scoreColor(p.threatScore), borderRadius:2 }} />
                       </div>
                       <span style={{ fontFamily:'Orbitron,sans-serif', fontSize:12, fontWeight:700,
-                        color:p.threatScore>=0.9?'#ff2d55':p.threatScore>=0.7?'#ffaa00':'#00d4ff' }}>
+                        color:scoreColor(p.threatScore) }}>
                         {((p.threatScore||0)*100).toFixed(0)}%
                       </span>
                     </div>
@@ -574,7 +575,7 @@ export default function AIAnalytics() {
             [
               ...liveLogs,
               ...preds.map(p => ({
-                type: p.threatScore >= 0.9 ? 'err' : p.threatScore >= 0.7 ? 'warn' : 'out',
+                type: scoreLogType(p.threatScore),
                 text: `[INFER] ${p.sourceIP} → score=${((p.threatScore||0)*100).toFixed(0)}% → ${p.predictedClass} [${p.modelType || 'RandomForest'}]`,
                 ts: new Date(p.createdAt || Date.now()).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
               }))

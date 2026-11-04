@@ -17,6 +17,7 @@ import { useSocket } from '../hooks/useSocket.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
 import { manualBlockOutcome } from '../utils/containmentLabels.js'
+import { scoreColor } from '../utils/scoreBands.js'
 
 const SEV_COLORS = { CRITICAL:'#ff2d55', HIGH:'#ff6400', MEDIUM:'#ffaa00', LOW:'#00d4ff' }
 // The queue lists the latest threats whatever their state; these need no Block IP button and are not "open".
@@ -218,7 +219,7 @@ export default function Dashboard() {
                 {new Date(t.createdAt).toLocaleTimeString('en-IN',{ timeZone: REPORT_TIME_ZONE,hour12:false})}
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:12,
-                color:t.aiScore>=0.9?'#ff2d55':t.aiScore>=0.7?'#ffaa00':'#00d4ff' }}>
+                color:scoreColor(t.aiScore) }}>
                 {((t.aiScore||0)*100).toFixed(0)}%
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>

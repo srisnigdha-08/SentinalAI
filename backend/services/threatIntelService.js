@@ -17,6 +17,7 @@ const axios = require('axios')
 const ThreatLog = require('../models/ThreatLog')
 const socketManager = require('../websocket/socketManager')
 const logger = require('../utils/logger')
+const { currentAlertLine } = require('../utils/severity')
 
 // ── In-Memory Bounded Reputation Cache ───────────────────────────────────────
 // Key: sanitized IP string -> Value: { intel: Object, timestamp: number }
@@ -279,7 +280,7 @@ async function queryAbuseIPDB(ipStr) {
  * Asynchronously enriches a ThreatLog document with AbuseIPDB threat intelligence.
  *
  * Trigger Policy:
- * Only threats with aiScore >= 0.70 are enriched (monitoring threshold policy).
+ * Only threats at or above the shared alert line (default 0.90, /model/info) are enriched (THR-002).
  *
  * Strict Isolation:
  * Under NO circumstances modifies aiScore, severity, status, or containment.
@@ -292,8 +293,8 @@ async function enrichThreat(threat) {
 
   const score = threat.aiScore !== undefined ? threat.aiScore : threat.threatScore || 0
 
-  // 1. Trigger policy: initial enrichment trigger is aiScore >= 0.70
-  if (score < 0.7) {
+  // 1. Trigger policy: the alert line threats are raised at (callers gate on it too)
+  if (score < currentAlertLine()) {
     return null
   }
 
