@@ -45,6 +45,69 @@ const userRef = (requester) => {
   return id && mongoose.isValidObjectId(id) ? id : null
 }
 
+// CONT-003 fencing: recovery (containmentReconciliationService) claims an action it considers abandoned by bumping its
+// version. A request that was in fact still running then gets VersionError on its next save: it must stop, and if its
+// adapter call already created the rule, remove that rule (rules are per containmentId, so a newer action's rule for
+// the same target is untouched).
+const isFenced = (err) => err?.name === 'VersionError'
+
+const supersededError = (actionDoc) => {
+  const error = new Error('Containment request was superseded by recovery; no containment from this request is active')
+  error.statusCode = 409
+  error.code = 'CONTAINMENT_SUPERSEDED'
+  error.action = actionDoc
+  return error
+}
+
+/** Saves a request-owned transition; a fenced save becomes CONTAINMENT_SUPERSEDED. */
+const fencedSave = async (actionDoc) => {
+  try {
+    await actionDoc.save()
+  } catch (err) {
+    if (isFenced(err)) throw supersededError(actionDoc)
+    throw err
+  }
+}
+
+/**
+ * The request was fenced out after its adapter call succeeded: remove the rule it created and confirm it is gone.
+ * The outcome is written to recovery.lateRule without a version check (it only adds information); a removal that
+ * cannot be confirmed stays PRESENT_UNREMOVED for the reconciliation pass (removeLateRules) and the operator view.
+ */
+const compensateLateRule = async (actionDoc, adapter, rule) => {
+  let state = null
+  let detail = null
+  try {
+    const removed = await adapter.removeRule(rule)
+    if (!removed?.success) detail = removed?.stderr || 'removeRule failed'
+    state = (await adapter.inspectRule(rule))?.state
+  } catch (err) {
+    detail = err.message
+  }
+  const lateRule = state === 'ABSENT' ? 'REMOVED' : 'PRESENT_UNREMOVED'
+  try {
+    await ContainmentAction.updateOne(
+      { _id: actionDoc._id },
+      { $set: { 'recovery.lateRule': lateRule, 'recovery.lateRuleAt': new Date() } }
+    )
+  } catch (err) {
+    logger.error(`[Containment] Could not record late rule for ${actionDoc.containmentId}: ${err.message}`)
+  }
+  logContainmentAudit({
+    action: lateRule === 'REMOVED' ? 'LATE_RULE_REMOVED' : 'LATE_RULE_UNREMOVED',
+    containmentId: actionDoc.containmentId,
+    target: actionDoc.normalizedTarget,
+    details: { inspectState: state, detail },
+  })
+  if (lateRule !== 'REMOVED') {
+    logger.error(
+      `[Containment] ${actionDoc.containmentId} (${actionDoc.normalizedTarget}): rule created after recovery released ` +
+        `the action could not be confirmed removed (${state || 'no answer'}); flagged for reconciliation`
+    )
+  }
+  return lateRule
+}
+
 /**
  * Executes a fully typed, policy-governed containment request (Phase 4).
  *
@@ -192,7 +255,7 @@ const requestContainment = async ({
     actionDoc.transitionTo('REJECTED', {
       failureReason: policyResult.reason,
     })
-    await actionDoc.save()
+    await fencedSave(actionDoc)
 
     logContainmentAudit({
       action: 'CONTAINMENT_REJECTED',
@@ -217,11 +280,11 @@ const requestContainment = async ({
   actionDoc.transitionTo('APPROVED', {
     approvedBy: userRef(requester),
   })
-  await actionDoc.save()
+  await fencedSave(actionDoc)
 
-  // Step 8: Transition APPROVED -> APPLYING
+  // Step 8: Transition APPROVED -> APPLYING (fenced: a superseded request stops here, before any adapter call)
   actionDoc.transitionTo('APPLYING')
-  await actionDoc.save()
+  await fencedSave(actionDoc)
 
   // Step 9: Invoke Adapter
   let adapterResult
@@ -255,7 +318,7 @@ const requestContainment = async ({
         executionDurationMs: adapterResult.executionDurationMs,
       },
     })
-    await actionDoc.save()
+    await fencedSave(actionDoc)
 
     logContainmentAudit({
       action: 'ENFORCEMENT_FAILED',
@@ -286,7 +349,19 @@ const requestContainment = async ({
       executionDurationMs: adapterResult.executionDurationMs,
     },
   })
-  await actionDoc.save()
+  try {
+    await actionDoc.save()
+  } catch (err) {
+    if (!isFenced(err)) throw err // e.g. MongoDB down: the action stays APPLYING and recovery inspects the rule later
+    // Recovery released this action while the adapter call was in flight: the rule must not outlive it
+    await compensateLateRule(actionDoc, adapter, {
+      containmentId: actionDoc.containmentId,
+      ruleId: adapterResult.ruleId,
+      target: normalized,
+      ruleName: adapterResult.ruleName || `SentinelAI-Rule-${actionDoc.containmentId}`,
+    })
+    throw supersededError(actionDoc)
+  }
 
   logContainmentAudit({
     action: 'CONTAINMENT_ACTIVE',

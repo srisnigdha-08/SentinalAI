@@ -170,6 +170,10 @@ const ContainmentActionSchema = new mongoose.Schema(
       // BACKEND_MISMATCH
       lastOutcome: { type: String, default: null },
       lastDetail: { type: String, default: null, maxlength: 500 },
+      // A request fenced out by recovery after its adapter call created a rule: REMOVED once removal was confirmed,
+      // PRESENT_UNREMOVED while the rule may still exist (retried by the reconciliation pass, never silently dropped)
+      lateRule: { type: String, enum: [null, 'REMOVED', 'PRESENT_UNREMOVED'], default: null },
+      lateRuleAt: { type: Date, default: null },
     },
     correlationId: {
       type: String,
@@ -193,6 +197,9 @@ const ContainmentActionSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    // Every save is checked against the document version and bumps it (fencing, CONT-003): once recovery has claimed
+    // an action, the original request's later saves fail with VersionError instead of overwriting recovery's state.
+    optimisticConcurrency: true,
   }
 )
 

@@ -66,6 +66,14 @@ metrics.gauge('sentinel_ai_circuit_open', '1 while the AI engine circuit breaker
 metrics.gauge('sentinel_ai_drift_status', 'Last drift check: 1 drift, 0 ok, -1 not assessed', () =>
   require('./services/driftMonitorService').defaultDriftMonitorService.statusValue()
 )
+// CONT-003: containment requests whose recovery needs a person (stuck after an attempt, or a late rule not confirmed
+// removed), from the last reconciliation pass; details at GET /api/containment/recovery
+metrics.gauge(
+  'sentinel_containment_recovery_unresolved',
+  'Containment actions whose recovery needs investigation (last reconciliation pass)',
+  () =>
+    require('./services/containmentReconciliationService').defaultReconciliationService.lastCounts.needsInvestigation
+)
 // Helmet's default CSP (self-only scripts, no framing, no plugins) suits a JSON API and the dev Swagger UI, whose
 // scripts are same-origin files. upgrade-insecure-requests is dropped: the dev stack is plain HTTP, and upgrading
 // Swagger's own asset requests to https would break /api/docs there (SEC-005).

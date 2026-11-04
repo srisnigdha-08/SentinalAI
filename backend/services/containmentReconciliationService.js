@@ -18,11 +18,14 @@ const { restoreStatusFor } = require('../utils/severity')
 // stopped mid-rollback) keeps its targetLock forever unless something picks it up again. After this grace period
 // without an update it is treated as abandoned and its removal is completed (removeRule is idempotent).
 const STUCK_GRACE_MS = () => parseInt(process.env.CONTAINMENT_STUCK_GRACE_MS, 10) || 5 * 60000
+// Statuses of a request that holds targetLock but has not reached ACTIVE or FAILED
+const IN_FLIGHT_STATUSES = ['VALIDATING', 'APPROVED', 'APPLYING']
 
 class ContainmentReconciliationService {
   constructor(options = {}) {
     this.intervalMs = options.intervalMs || 60000 // 1 minute default
     this.stuckGraceMs = options.stuckGraceMs || STUCK_GRACE_MS()
+    this.lastCounts = { stuck: 0, lateRulesUnremoved: 0, needsInvestigation: 0 } // from the last periodic pass
     this.timer = null
     this.isRunning = false
   }
@@ -187,7 +190,7 @@ class ContainmentReconciliationService {
     const now = new Date()
     const cutoff = new Date(now.getTime() - this.stuckGraceMs)
     const candidates = await ContainmentAction.find({
-      enforcementStatus: { $in: ['VALIDATING', 'APPROVED', 'APPLYING'] },
+      enforcementStatus: { $in: IN_FLIGHT_STATUSES },
       updatedAt: { $lte: cutoff },
     })
       .select('_id updatedAt')
@@ -199,9 +202,10 @@ class ContainmentReconciliationService {
         {
           _id: candidate._id,
           updatedAt: candidate.updatedAt,
-          enforcementStatus: { $in: ['VALIDATING', 'APPROVED', 'APPLYING'] },
+          enforcementStatus: { $in: IN_FLIGHT_STATUSES },
         },
-        { $inc: { 'recovery.attempts': 1 }, $set: { 'recovery.lastAttemptAt': now } },
+        // __v + 1 fences the original request: its next version-checked save fails instead of overwriting recovery
+        { $inc: { 'recovery.attempts': 1, __v: 1 }, $set: { 'recovery.lastAttemptAt': now } },
         { new: true }
       )
       if (!action) continue // another pass claimed it, or the request finished meanwhile
@@ -269,11 +273,113 @@ class ContainmentReconciliationService {
     return { outcome: 'RULE_REMOVED' }
   }
 
-  /** One periodic pass: TTL reconciliation, then recovery of interrupted applications. */
+  /**
+   * CONT-003: rules created by a request after recovery had released its action, whose removal the request could not
+   * confirm (recovery.lateRule PRESENT_UNREMOVED). Removed and confirmed ABSENT -> REMOVED; anything else stays
+   * flagged (never assumed gone) and is retried on the next pass.
+   */
+  async removeLateRules() {
+    const flagged = await ContainmentAction.find({ 'recovery.lateRule': 'PRESENT_UNREMOVED' })
+    const summary = { processed: 0, removed: 0, unresolved: 0 }
+    const adapter = getContainmentAdapter()
+    for (const action of flagged || []) {
+      summary.processed++
+      const rule = {
+        containmentId: action.containmentId,
+        ruleId: action.enforcementDetails?.ruleId || undefined,
+        target: action.normalizedTarget,
+        ruleName: action.enforcementDetails?.ruleName || `SentinelAI-Rule-${action.containmentId}`,
+      }
+      let state = null
+      try {
+        if (action.enforcementBackend && action.enforcementBackend !== adapter.getBackendType()) {
+          state = 'BACKEND_MISMATCH'
+        } else {
+          state = (await adapter.inspectRule(rule))?.state
+          if (state === 'PRESENT') {
+            await adapter.removeRule(rule)
+            state = (await adapter.inspectRule(rule))?.state
+          }
+        }
+      } catch (err) {
+        state = `UNAVAILABLE: ${err.message}`
+      }
+      if (state === 'ABSENT') {
+        await ContainmentAction.updateOne(
+          { _id: action._id, 'recovery.lateRule': 'PRESENT_UNREMOVED' },
+          { $set: { 'recovery.lateRule': 'REMOVED', 'recovery.lateRuleAt': new Date() } }
+        )
+        summary.removed++
+        logContainmentAudit({ action: 'LATE_RULE_REMOVED', containmentId: action.containmentId, target: rule.target })
+      } else {
+        summary.unresolved++
+        logger.warn(
+          `[ContainmentReconciliation] late rule of ${action.containmentId} (${rule.target}) still unconfirmed: ${state}`
+        )
+      }
+    }
+    return summary
+  }
+
+  /**
+   * Operator view of recovery problems (read-only; GET /api/containment/recovery). Lists requests stuck in
+   * VALIDATING/APPROVED/APPLYING past the grace period and rules flagged by a fenced request, with how long each has
+   * been stuck, the recovery attempts, the last outcome and whether the rule state was verified. Nothing here
+   * releases a lock: an action whose rule state cannot be verified keeps it until the adapter answers.
+   */
+  async getRecoveryReport(now = new Date()) {
+    const VERIFIED = { NOT_APPLIED: 'not applied', RULE_ABSENT: 'absent', RULE_REMOVED: 'removed' }
+    const cutoff = new Date(now.getTime() - this.stuckGraceMs)
+    const [stuck, late] = await Promise.all([
+      ContainmentAction.find({ enforcementStatus: { $in: IN_FLIGHT_STATUSES }, updatedAt: { $lte: cutoff } })
+        .sort({ updatedAt: 1 })
+        .limit(100)
+        .lean(),
+      ContainmentAction.find({ 'recovery.lateRule': 'PRESENT_UNREMOVED' }).limit(100).lean(),
+    ])
+    const view = (a) => {
+      const recovery = a.recovery || {}
+      const ruleState = VERIFIED[recovery.lastOutcome] || null
+      return {
+        containmentId: a.containmentId,
+        target: a.normalizedTarget,
+        enforcementStatus: a.enforcementStatus,
+        enforcementBackend: a.enforcementBackend,
+        stuckForSeconds: Math.round((now - new Date(a.updatedAt)) / 1000),
+        recoveryAttempts: recovery.attempts || 0,
+        lastAttemptAt: recovery.lastAttemptAt || null,
+        lastOutcome: recovery.lastOutcome || null,
+        lastDetail: recovery.lastDetail || null,
+        lateRule: recovery.lateRule || null,
+        ruleVerified: Boolean(ruleState) && recovery.lateRule !== 'PRESENT_UNREMOVED',
+        // Not yet attempted means the next pass will try; anything attempted and still here needs a person
+        needsInvestigation: recovery.lateRule === 'PRESENT_UNREMOVED' || (recovery.attempts || 0) > 0,
+      }
+    }
+    const items = [...stuck.map(view), ...late.map(view)]
+    return {
+      generatedAt: now,
+      graceSeconds: Math.round(this.stuckGraceMs / 1000),
+      counts: {
+        stuck: stuck.length,
+        lateRulesUnremoved: late.length,
+        needsInvestigation: items.filter((i) => i.needsInvestigation).length,
+      },
+      items,
+    }
+  }
+
+  /** One periodic pass: TTL reconciliation, recovery of interrupted applications, then late-rule removal. */
   async runOnce() {
     const ttl = await this.reconcileExpiredActions()
     const recovered = await this.recoverAbandonedApplications()
-    return { ttl, recovered }
+    const lateRules = await this.removeLateRules()
+    try {
+      this.lastCounts = (await this.getRecoveryReport()).counts // read by the Prometheus gauge
+    } catch (err) {
+      logger.warn(`[ContainmentReconciliation] recovery report failed: ${err.message}`)
+    }
+    return { ttl, recovered, lateRules }
   }
 
   start() {

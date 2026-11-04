@@ -88,6 +88,23 @@ tests:
         alertname: SentinelHighErrorRate
         exp_alerts: []
 
+  - name: unresolved containment recovery alerts after 15 minutes, a brief one does not
+    interval: 1m
+    input_series:
+      - series: 'sentinel_containment_recovery_unresolved{job="sentinel-backend", instance="backend:5000"}'
+        values: '0 1 1 1 0 0 2x20'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: SentinelContainmentRecoveryUnresolved
+        exp_alerts: []
+      - eval_time: 25m
+        alertname: SentinelContainmentRecoveryUnresolved
+        exp_alerts:
+          - exp_labels: { severity: warning, job: sentinel-backend, instance: "backend:5000" }
+            exp_annotations:
+              summary: "2 containment action(s) need investigation"
+              description: See GET /api/containment/recovery (admin/analyst) for the action, its last outcome and age.
+
   - name: drift status only alerts on drift
     interval: 1m
     input_series:

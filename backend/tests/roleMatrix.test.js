@@ -180,6 +180,7 @@ jest.mock('../controllers/containmentController', () => ({
   getAction: jest.fn((req, res) => res.json({ success: true, data: { _id: req.params.id } })),
   requestContainment: jest.fn((req, res) => res.status(201).json({ success: true, data: { actionId: 'act-1' } })),
   rollbackContainment: jest.fn((req, res) => res.json({ success: true, data: { rolledBack: true } })),
+  getRecovery: jest.fn((req, res) => res.json({ success: true, data: { counts: {}, items: [] } })),
 }))
 
 jest.mock('../utils/logger', () => ({
@@ -568,6 +569,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     {
       method: 'get',
       path: '/api/containment/status',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/containment/recovery',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
     },
     {

@@ -82,6 +82,17 @@ groups:
           summary: Live traffic has drifted from the model's training data
           description: Re-evaluate the model and consider retraining (ai-engine/training/retrain_from_samples.py).
 
+      # CONT-003: a containment request recovery could not settle (rule state unknown, adapter unavailable, backend
+      # mismatch, or a late rule not confirmed removed). The target stays locked/flagged until a person looks.
+      - alert: SentinelContainmentRecoveryUnresolved
+        expr: sentinel_containment_recovery_unresolved > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} containment action(s) need investigation"
+          description: See GET /api/containment/recovery (admin/analyst) for the action, its last outcome and age.
+
       # Prediction distribution (P4, engine /metrics). A sudden jump in the share of non-BENIGN verdicts is an
       # attack wave or a model/input failure; either way someone should look. Needs a baseline: idle or
       # near-idle traffic and shares under 2 % are ignored.
