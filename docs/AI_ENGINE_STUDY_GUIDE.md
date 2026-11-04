@@ -650,7 +650,7 @@ What to do (Phase 5, M-1):
 |---|---|---|---|
 | FastAPI service, auth, validation | **Working** | 393 tests; live 401/403/422/400 checks | `inference/main.py` |
 | Model registry + SHA-256 + sklearn pin | **Working** | `/model/info` verified=true; `register_model.py --check` | `inference/predictor.py:157-249`, `training/register_model.py` |
-| RF flow classifier | **Working** (on known attack types) | August v2: 0.9843 reproduced. **Served since C2: `cicids_v3`**, deduplicated: random 0.9847 / macro 0.842; chronological macro 0.750, 79.5% detection | `models/rf_classifier_cicids_v3.pkl` |
+| RF flow classifier | **Working** (on known attack types) | August v2: 0.9843 reproduced. **Served from C2 until M-5: `cicids_v3`** (now the registry's previous model; `xgb_cicids_v1` is served), deduplicated: random 0.9847 / macro 0.842; chronological macro 0.750, 79.5% detection | `models/rf_classifier_cicids_v3.pkl` |
 | RF generalisation to unseen days | **Broken / weak** | LODO detection ≤ 0.4% (deduplicated) | `experiments/c2_dedup_eval/` |
 | XGBoost | **Partially** (trained, better, not served) | 0.9913 / macro 0.907 reproduced; not in the registry | `models/xgb_classifier_cicids.pkl` |
 | Stacking | **Partially** (trained, not served, no SHAP) | macro F1 0.795 | `models/stacking_classifier_cicids.pkl` |

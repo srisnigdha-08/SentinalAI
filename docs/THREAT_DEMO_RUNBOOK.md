@@ -175,7 +175,7 @@ mongosh --quiet "mongodb://127.0.0.1:27017/sentinel-demo" --eval "db.dropDatabas
 ### Terminal 2: AI engine (restart it, so it loads the current v3 rules)
 Your current engine was started with system `Python311` at 12:32. Stop it (Ctrl+C in its window), then in PowerShell:
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine
+cd <repo>\ai-engine
 $env:Q_TABLE_PATH = "$env:USERPROFILE\.sentinelai\q_table.json"
 .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
 ```
@@ -187,7 +187,7 @@ Health checks (open in browser tab 1):
 ### Terminal 3: Backend, bound so that WSL can reach it
 The Cowrie blocker inside WSL cannot reach `127.0.0.1` on Windows (WSL NAT). Bind the backend to `<WIN_IP>`:
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend
+cd <repo>\backend
 $env:HOST = "172.29.32.1"        # <WIN_IP>; tested today
 # $env:MONGO_URI = "mongodb://127.0.0.1:27017/sentinel-demo"   # if using a demo DB
 node server.js
@@ -197,7 +197,7 @@ From WSL, `curl -s -o /dev/null -w "%{http_code}" http://172.29.32.1:5000/api/au
 
 ### Terminal 4: Frontend, proxied to that address
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend
+cd <repo>\frontend
 $env:SENTINEL_DEV_API_PROXY = "http://172.29.32.1:5000"
 npm run dev
 ```
@@ -219,8 +219,8 @@ The env vars must be set in the shell that starts Cowrie: the blocker reads them
 $env:HONEYPOT_API_KEY = "<same key>"
 $env:SENTINEL_API = "http://172.29.32.1:5000/api"
 $env:PARSER_STATE_DIR = "$env:USERPROFILE\.sentinelai\cowrie-parser"
-$env:COWRIE_CFG = "\\wsl.localhost\Ubuntu\home\srisnigdha\sentinelai-cowrie-test\cowrie\etc\cowrie.cfg"
-C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\.venv\Scripts\python.exe C:\Users\srisn\Desktop\Projects\sentinelai-complete\honeypot\parsers\log_parser.py --live --log "\\wsl.localhost\Ubuntu\home\srisnigdha\sentinelai-cowrie-test\cowrie\var\log\cowrie\cowrie.json"
+$env:COWRIE_CFG = "\\wsl.localhost\Ubuntu\home\<wsl-user>\sentinelai-cowrie-test\cowrie\etc\cowrie.cfg"
+<repo>\ai-engine\.venv\Scripts\python.exe <repo>\honeypot\parsers\log_parser.py --live --log "\\wsl.localhost\Ubuntu\home\<wsl-user>\sentinelai-cowrie-test\cowrie\var\log\cowrie\cowrie.json"
 ```
 Expected [RUN]: `Persona source: …cowrie.cfg (now serving ubuntu_22)`, then `Tailing … -> http://172.29.32.1:…/api`.
 

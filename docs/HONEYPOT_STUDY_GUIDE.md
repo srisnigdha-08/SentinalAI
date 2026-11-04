@@ -331,10 +331,10 @@ python3 -m venv cowrie-env && source cowrie-env/bin/activate
 python -m pip install --upgrade pip && python -m pip install -e . requests
 ```
 
-**2. Install SentinelAI's Cowrie files** (paths relative to `~/cowrie`; repo mounted at `/mnt/c/Users/srisn/Desktop/Projects/sentinelai-complete`):
+**2. Install SentinelAI's Cowrie files** (paths relative to `~/cowrie`; repo mounted at `<repo>`):
 
 ```bash
-R=/mnt/c/Users/srisn/Desktop/Projects/sentinelai-complete/honeypot
+R=<repo>/honeypot
 cp $R/cowrie/cowrie.cfg etc/cowrie.cfg          # fix sections first: see 4.2 / 5.1
 cp $R/cowrie/userdb.txt etc/userdb.txt
 cp $R/cowrie/sentinelblocker.py src/cowrie/output/sentinelblocker.py
@@ -364,7 +364,7 @@ tail -f var/log/cowrie/cowrie.log    # expect "[SentinelAI] Non-blocking blocker
 
 ```bash
 export HONEYPOT_API_KEY=<same key> SENTINEL_API=http://127.0.0.1:5000/api
-python /mnt/c/Users/srisn/Desktop/Projects/sentinelai-complete/honeypot/parsers/log_parser.py --live --log ~/cowrie/var/log/cowrie/cowrie.json
+python <repo>/honeypot/parsers/log_parser.py --live --log ~/cowrie/var/log/cowrie/cowrie.json
 ```
 
 **6. Optional.** `python honeypot/deception_rotator.py --once --dry-run --origin http://127.0.0.1:5173` (needs an admin login in env; dry run changes nothing).

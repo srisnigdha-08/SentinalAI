@@ -8,7 +8,7 @@ integration acceptance is still pending. No Docker operations are authorized.**
 ## Protection and backup
 
 The repository had no .git directory. Before edits, the entire project was copied
-to C:\Users\srisn\Desktop\Projects\sentinelai-backup-20261013-8962d597:
+to %USERPROFILE%\Desktop\Projects\sentinelai-backup-20261013-8962d597:
 38,360 files, 2,093,870,770 bytes. Every source/copy pair passed SHA-256 comparison.
 The separate backup was not overwritten.
 

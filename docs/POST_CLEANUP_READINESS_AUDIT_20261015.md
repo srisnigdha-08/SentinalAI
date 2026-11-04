@@ -2,12 +2,12 @@
 
 **Audit Date:** 15 October 2026 (Live Audit Execution)  
 **Lead Auditor / Systems Engineer:** Antigravity (Senior Windows Systems Engineer, Application Security Reviewer, and Data-Integrity Auditor)  
-**Project Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration Directory:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Project Root:** `<repo>`  
+**Native Integration Directory:** `<repo>.native-integration`  
 **External Backup Location:** `E:\SentinelAI_Backup_20261015\` (Physical USB Disk 1)  
 **Internal Preserved Datasets:** `D:\MongoPreservation\` and `D:\MongoPreservation_Backup_20261015\`  
-**Historical Report Reviewed:** [`docs/DOCKER_REMOVAL_AND_STORAGE_RECOVERY_FINAL_REPORT.md`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/docs/DOCKER_REMOVAL_AND_STORAGE_RECOVERY_FINAL_REPORT.md)  
-**Cleanup Manifest Reviewed:** [`docs/DOCKER_CLEANUP_MANIFEST_20261015.json`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/docs/DOCKER_CLEANUP_MANIFEST_20261015.json)  
+**Historical Report Reviewed:** [`docs/DOCKER_REMOVAL_AND_STORAGE_RECOVERY_FINAL_REPORT.md`](<repo>/docs/DOCKER_REMOVAL_AND_STORAGE_RECOVERY_FINAL_REPORT.md)  
+**Cleanup Manifest Reviewed:** [`docs/DOCKER_CLEANUP_MANIFEST_20261015.json`](<repo>/docs/DOCKER_CLEANUP_MANIFEST_20261015.json)  
 
 ---
 
@@ -124,7 +124,7 @@ Comparison Result: IDENTICAL (Bit-for-Bit Exact Cryptographic Match)
 ## 5. Native Acceptance Database Preservation Status
 
 *Verification Timestamp: 2026-10-15 13:36:48 +05:30*  
-*Target Path: `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data`*
+*Target Path: `<repo>.native-integration\mongodb-acceptance-20261014\data`*
 
 | Metric | Measured Value | Baseline Reference | Status |
 |:---|:---:|:---:|:---:|
@@ -203,7 +203,7 @@ All test suites were executed live with exit-code verification (no database writ
 | Asset Category | Included in `mongo_preservation_archive_20261015.zip`? | Current Location | Off-Device Backup Status |
 |:---|:---:|:---|:---:|
 | **Historical MongoDB Databases (`sentinel-db`, `admin`)** | **YES** | `D:\MongoPreservation`, `D:\MongoPreservation_Backup_20261015` | **Backed up to External USB `E:\`** |
-| **SentinelAI Application Source Code (Backend/Frontend/AI)** | **NO** | `C:\Users\srisn\Desktop\Projects\sentinelai-complete\` | **Needs Off-Device Backup** |
+| **SentinelAI Application Source Code (Backend/Frontend/AI)** | **NO** | `<repo>\` | **Needs Off-Device Backup** |
 | **Trained ML Models (~177 MB of .pkl files)** | **NO** | `ai-engine\models\` | **Needs Off-Device Backup** |
 | **Environment Configuration & API Keys (`.env`)** | **NO** | `backend\.env`, `deployment\.env*` | **Needs Off-Device Backup** |
 | **Reinforcement Learning Q-Table State** | **NO** | `ai-engine\runtime\q_table.json` | **Needs Off-Device Backup** |
@@ -230,9 +230,9 @@ In strict accordance with the safety rules:
 ## 9. Issues Requiring Manual Intervention or User Approval
 
 1. **Approval for Fresh Native Development MongoDB Path:**
-   - Before launching `npm start` in `backend`, a clean data folder for everyday native development should be initialized (e.g. `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data`) and portable MongoDB started on port 27017.
+   - Before launching `npm start` in `backend`, a clean data folder for everyday native development should be initialized (e.g. `<repo>.native-integration\mongodb-dev\data`) and portable MongoDB started on port 27017.
 2. **Recommended Full Codebase Backup onto External Drive E:**
-   - Because Drive `E:` has **459.55 GiB free**, creating a full backup of `C:\Users\srisn\Desktop\Projects\sentinelai-complete\` (excluding `node_modules` and `.venv`) onto `E:\` will protect all source code, models, and `.env` files against Disk 0 physical failure.
+   - Because Drive `E:` has **459.55 GiB free**, creating a full backup of `<repo>\` (excluding `node_modules` and `.venv`) onto `E:\` will protect all source code, models, and `.env` files against Disk 0 physical failure.
 
 ---
 

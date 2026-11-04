@@ -3,10 +3,11 @@ import http from 'http';
 import path from 'path';
 import fs from 'fs';
 import { createRequire } from 'module';
+import { fileURLToPath } from 'url';
 
 const require = createRequire(import.meta.url);
-const backendDir = 'c:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\backend';
-const frontendDir = 'c:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\frontend';
+const backendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'backend');
+const frontendDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'frontend');
 const puppeteer = require(path.join(backendDir, 'node_modules', 'puppeteer-core'));
 
 function requireEnv(varName) {

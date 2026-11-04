@@ -29,28 +29,28 @@
 ## 2. Inventory of Modified & Created Files
 
 ### 2.1 Backend New Files
-- [`backend/models/ContainmentAction.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/models/ContainmentAction.js): Typed Mongoose schema with lifecycle state machine, optimistic concurrency tokens, and CAS transition rules.
-- [`backend/services/containmentPolicyService.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containmentPolicyService.js): Pure deterministic policy engine (IPv4/IPv6/CIDR syntax validation, safety exclusions, requester authorization, duration bounds).
-- [`backend/services/containment/adapterInterface.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/adapterInterface.js): Abstract contract defining `applyRule`, `removeRule`, `verifyRule`, `listActiveRules`, and `getBackendType`.
-- [`backend/services/containment/MockContainmentAdapter.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/MockContainmentAdapter.js): In-memory adapter with `setFailNextApply` and `setFailNextRemove` failure simulation.
-- [`backend/services/containment/WindowsFirewallAdapter.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/WindowsFirewallAdapter.js): Native Windows Defender Firewall integration with safety gate and shell injection sanitization.
-- [`backend/services/containment/adapterFactory.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/adapterFactory.js): Provider resolving active adapter with automatic fallback to Mock adapter.
-- [`backend/services/containmentReconciliationService.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containmentReconciliationService.js): TTL expiration sweeper and rollback reconciler.
-- [`backend/utils/containmentAudit.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/utils/containmentAudit.js): Structured, sanitized operator audit logger.
-- [`backend/controllers/containmentController.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/controllers/containmentController.js): HTTP handlers for action requesting, rollback, status, and paginated listing.
-- [`backend/routes/containment.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/routes/containment.js): OpenAPI/Swagger documented routes protected with `protect` and `restrictTo`.
-- [`backend/tests/containmentLifecycle.test.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/tests/containmentLifecycle.test.js): 28 automated unit tests covering policy validation, state machine CAS, concurrency, adapter failures, and reconciler recovery.
-- [`backend/tests/containmentAPI.test.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/tests/containmentAPI.test.js): 7 automated integration tests verifying API authorization, 401 unauthenticated, 403 viewer, 403 `mustChangePassword`, self-lockout rejection, and rollback 404.
+- [`backend/models/ContainmentAction.js`](<repo>/backend/models/ContainmentAction.js): Typed Mongoose schema with lifecycle state machine, optimistic concurrency tokens, and CAS transition rules.
+- [`backend/services/containmentPolicyService.js`](<repo>/backend/services/containmentPolicyService.js): Pure deterministic policy engine (IPv4/IPv6/CIDR syntax validation, safety exclusions, requester authorization, duration bounds).
+- [`backend/services/containment/adapterInterface.js`](<repo>/backend/services/containment/adapterInterface.js): Abstract contract defining `applyRule`, `removeRule`, `verifyRule`, `listActiveRules`, and `getBackendType`.
+- [`backend/services/containment/MockContainmentAdapter.js`](<repo>/backend/services/containment/MockContainmentAdapter.js): In-memory adapter with `setFailNextApply` and `setFailNextRemove` failure simulation.
+- [`backend/services/containment/WindowsFirewallAdapter.js`](<repo>/backend/services/containment/WindowsFirewallAdapter.js): Native Windows Defender Firewall integration with safety gate and shell injection sanitization.
+- [`backend/services/containment/adapterFactory.js`](<repo>/backend/services/containment/adapterFactory.js): Provider resolving active adapter with automatic fallback to Mock adapter.
+- [`backend/services/containmentReconciliationService.js`](<repo>/backend/services/containmentReconciliationService.js): TTL expiration sweeper and rollback reconciler.
+- [`backend/utils/containmentAudit.js`](<repo>/backend/utils/containmentAudit.js): Structured, sanitized operator audit logger.
+- [`backend/controllers/containmentController.js`](<repo>/backend/controllers/containmentController.js): HTTP handlers for action requesting, rollback, status, and paginated listing.
+- [`backend/routes/containment.js`](<repo>/backend/routes/containment.js): OpenAPI/Swagger documented routes protected with `protect` and `restrictTo`.
+- [`backend/tests/containmentLifecycle.test.js`](<repo>/backend/tests/containmentLifecycle.test.js): 28 automated unit tests covering policy validation, state machine CAS, concurrency, adapter failures, and reconciler recovery.
+- [`backend/tests/containmentAPI.test.js`](<repo>/backend/tests/containmentAPI.test.js): 7 automated integration tests verifying API authorization, 401 unauthenticated, 403 viewer, 403 `mustChangePassword`, self-lockout rejection, and rollback 404.
 
 ### 2.2 Backend Modified Files
-- [`backend/server.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/server.js): Mounted `/api/containment` route.
-- [`backend/services/containmentService.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containmentService.js): Enhanced with `requestContainment`, `rollbackContainment`, and `getContainmentStatus`, while strictly preserving legacy `blockThreat`, `blockIPManual`, `unblockIPManual`, and `executeAutoBlock` methods.
+- [`backend/server.js`](<repo>/backend/server.js): Mounted `/api/containment` route.
+- [`backend/services/containmentService.js`](<repo>/backend/services/containmentService.js): Enhanced with `requestContainment`, `rollbackContainment`, and `getContainmentStatus`, while strictly preserving legacy `blockThreat`, `blockIPManual`, `unblockIPManual`, and `executeAutoBlock` methods.
 
 ### 2.3 Frontend New & Modified Files
-- [`frontend/src/components/ContainmentConfirmModal.jsx`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/frontend/src/components/ContainmentConfirmModal.jsx): New confirmation modal with TTL selector and policy safety advisory.
-- [`frontend/src/services/api.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/frontend/src/services/api.js): Added `containmentAPI` export (`getStatus`, `listActions`, `getAction`, `requestAction`, `rollbackAction`).
-- [`frontend/src/pages/ThreatLogs.jsx`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/frontend/src/pages/ThreatLogs.jsx): Integrated backend status pill in header, replaced instant block with modal confirmation.
-- [`frontend/src/pages/Settings.jsx`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/frontend/src/pages/Settings.jsx): Added Host Containment Policy Engine Panel and modal confirmation.
+- [`frontend/src/components/ContainmentConfirmModal.jsx`](<repo>/frontend/src/components/ContainmentConfirmModal.jsx): New confirmation modal with TTL selector and policy safety advisory.
+- [`frontend/src/services/api.js`](<repo>/frontend/src/services/api.js): Added `containmentAPI` export (`getStatus`, `listActions`, `getAction`, `requestAction`, `rollbackAction`).
+- [`frontend/src/pages/ThreatLogs.jsx`](<repo>/frontend/src/pages/ThreatLogs.jsx): Integrated backend status pill in header, replaced instant block with modal confirmation.
+- [`frontend/src/pages/Settings.jsx`](<repo>/frontend/src/pages/Settings.jsx): Added Host Containment Policy Engine Panel and modal confirmation.
 
 ---
 
@@ -252,7 +252,7 @@ Read-only inspection of collection counts in `sentinel-db`:
 
 ### 8.3 Protected Datasets & Historical Preservation Data
 Read-only directory timestamp verification:
-- `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data`: `14-10-2026 13:39:10` (Unmodified)
+- `<repo>.native-integration\mongodb-acceptance-20261014\data`: `14-10-2026 13:39:10` (Unmodified)
 - `D:\MongoPreservation`: `15-10-2026 13:13:52` (Unmodified)
 - `D:\MongoPreservation_Backup_20261015`: `15-10-2026 13:07:14` (Unmodified)
 

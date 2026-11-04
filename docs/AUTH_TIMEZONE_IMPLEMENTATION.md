@@ -7,10 +7,10 @@ No production-readiness or live Cowrie enforcement claim is made.
 
 ## Protection and scope
 
-Confirmed project: `C:\Users\srisn\Desktop\Projects\sentinelai-complete`.
+Confirmed project: `<repo>`.
 This checkout has no Git repository, so there is no Git diff or commit to report.
 Existing source changes were preserved by a separate pre-change backup:
-`C:\Users\srisn\Desktop\Projects\sentinelai-before-auth-20261014-94439a22`.
+`%USERPROFILE%\Desktop\Projects\sentinelai-before-auth-20261014-94439a22`.
 Its verification manifest records 39,263 files and 2,117,594,394 bytes, with every
 copied file SHA-256 verified. The prohibited browser file named cache.db was
 excluded without opening it. The earlier backup was not overwritten.

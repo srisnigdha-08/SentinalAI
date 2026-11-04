@@ -86,16 +86,16 @@ Frontend changes are visually checked in the browser only; there is no frontend 
 Get-Service MongoDB
 
 # 1. AI engine (venv, current code). Restart if it was started before 13:24 today.
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine
+cd <repo>\ai-engine
 .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
 #   check: /ready -> {"status":"ok"};  /model/info -> "deception": {"initialized": ..., "lastError": null}
 
 # 2. Backend, reachable from WSL (<WIN_IP> = WSL default gateway, e.g. 172.29.32.1)
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend
+cd <repo>\backend
 $env:HOST = "<WIN_IP>"; node server.js
 
 # 3. Frontend through the proxy
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend
+cd <repo>\frontend
 $env:SENTINEL_DEV_API_PROXY = "http://<WIN_IP>:5000"; npm run dev
 ```
 ```bash
@@ -112,8 +112,8 @@ ls /proc/$(cat var/run/cowrie.pid)/task | wc -l     # must print 2
 # 5. Parser (Windows)
 $env:HONEYPOT_API_KEY = "<same key>"; $env:SENTINEL_API = "http://<WIN_IP>:5000/api"
 $env:PARSER_STATE_DIR = "$env:USERPROFILE\.sentinelai\cowrie-parser"
-$env:COWRIE_CFG = "\\wsl.localhost\Ubuntu\home\srisnigdha\sentinelai-cowrie-test\cowrie\etc\cowrie.cfg"
-C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\.venv\Scripts\python.exe C:\Users\srisn\Desktop\Projects\sentinelai-complete\honeypot\parsers\log_parser.py --live --log "\\wsl.localhost\Ubuntu\home\srisnigdha\sentinelai-cowrie-test\cowrie\var\log\cowrie\cowrie.json"
+$env:COWRIE_CFG = "\\wsl.localhost\Ubuntu\home\<wsl-user>\sentinelai-cowrie-test\cowrie\etc\cowrie.cfg"
+<repo>\ai-engine\.venv\Scripts\python.exe <repo>\honeypot\parsers\log_parser.py --live --log "\\wsl.localhost\Ubuntu\home\<wsl-user>\sentinelai-cowrie-test\cowrie\var\log\cowrie\cowrie.json"
 ```
 
 ## 6. Demonstration checklist

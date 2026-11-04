@@ -19,11 +19,11 @@ However, independent architectural review determined that **synthetic string ben
 
 ### 2.1 File System and Storage Audit
 
-A comprehensive filesystem audit was performed across the SentinelAI repository root (`C:\Users\srisn\Desktop\Projects\sentinelai-complete`) and secondary data storage volumes (`D:\` and `D:\sentinelai_datasets`).
+A comprehensive filesystem audit was performed across the SentinelAI repository root (`<repo>`) and secondary data storage volumes (`D:\` and `D:\sentinelai_datasets`).
 
 | Storage Location | File Types Found | Raw `.pcap` / `.pcapng` Count | Status |
 | :--- | :--- | :--- | :--- |
-| `C:\Users\srisn\...\cicids2017` | `.pcap_ISCX.csv` (8 files) | **0** | Pre-extracted NetFlow CSVs only |
+| `%USERPROFILE%\...\cicids2017` | `.pcap_ISCX.csv` (8 files) | **0** | Pre-extracted NetFlow CSVs only |
 | `D:\sentinelai_datasets` | `.csv` (6 files), `.parquet` (6 files) | **0** | Pre-extracted tabular datasets only |
 | Total Storage Available | Primary: 7.1 GB free, Secondary: 214 GB free | **0 bytes PCAP** | **NO RAW PCAPS PRESENT ON DISK** |
 

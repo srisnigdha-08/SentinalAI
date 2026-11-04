@@ -14,22 +14,22 @@ All services are bound to `127.0.0.1` and run under least-privilege user context
 
 ```powershell
 # 1. Start MongoDB (Port 27017)
-& "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
-  --dbpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data" `
+& "<repo>.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
+  --dbpath "<repo>.native-integration\mongodb-dev\data" `
   --port 27017 --bind_ip 127.0.0.1 `
-  --logpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\mongod.log"
+  --logpath "<repo>.native-integration\mongodb-dev\mongod.log"
 
 # 2. Start AI Inference Engine (Port 8000)
-cd "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine"
-$env:Q_TABLE_PATH = 'C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json'
+cd "<repo>\ai-engine"
+$env:Q_TABLE_PATH = '<repo>\ai-engine\runtime\q_table.json'
 .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
 
 # 3. Start Backend API (Port 5000)
-cd "C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend"
+cd "<repo>\backend"
 powershell -ExecutionPolicy Bypass -File "..\start-backend.ps1"
 
 # 4. Start Frontend Vite Dev Server (Port 3000)
-cd "C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend"
+cd "<repo>\frontend"
 npm run dev -- --host 127.0.0.1
 ```
 

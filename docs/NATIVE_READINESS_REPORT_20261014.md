@@ -9,7 +9,7 @@ described below. Live Cowrie telemetry, real enforcement and production deployme
 were not accepted. Remaining enrollment, telemetry, migration and delivery risks
 must be addressed before a production claim.
 
-Project: `C:\Users\srisn\Desktop\Projects\sentinelai-complete`.
+Project: `<repo>`.
 There is no Git repository. Evidence uses source backups and hash manifests;
 no Git commits or diffs are claimed. Docker and WSL remain postponed.
 

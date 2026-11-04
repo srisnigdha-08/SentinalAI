@@ -2,7 +2,7 @@
 
 **Date:** October 18, 2026  
 **Phase:** Phase 14.1 — Independent Evidence Adjudication  
-**Repository Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
+**Repository Root:** `<repo>`  
 **Active Git Branch:** `feature/gate1-phase9c-modular-scaffold` (Verified; zero branch switching or resetting performed)  
 **Git HEAD Commit:** `bfff31dc352e142ad0aae448148121d3e91f98de`  
 **Phase Run Directory:** `ai-engine/experiments/gate1_phase14_1_evidence_adjudication_20261018-0407/`  

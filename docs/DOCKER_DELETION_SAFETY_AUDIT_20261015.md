@@ -3,7 +3,7 @@
 **Document:** `docs/DOCKER_DELETION_SAFETY_AUDIT_20261015.md`  
 **Date:** 15 October 2026  
 **Auditor:** Antigravity (Independent Read-Only Safety Audit)  
-**Project Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
+**Project Root:** `<repo>`  
 **Audit Scope:** Verification of all identified Docker-related files, directories, virtual disks, configurations, recovery tooling, and application binaries across drives `C:` and `D:` following the strategic decision to discontinue Docker and standardize on native Windows execution.
 
 ---
@@ -23,7 +23,7 @@ Selective deletion of designated non-critical caches, tooling installers, dispos
 3. **Severe Local Storage Exhaustion on `C:` Demands Measured Reclaim:**  
    Drive `C:` currently has only **938.59 MB (0.92 GiB)** free space remaining, representing an immediate operational stability risk for Windows. Drive `D:` has **19.25 GB** free. Safely deleting verified disposable caches, QEMU/SystemRescue tooling, and stale temporary installers will immediately liberate **~6.22 GiB on `C:`** and **~0.2 MiB on `D:`** without risking any application data.
 4. **Isolated Portable MongoDB Acceptance Instance Exists Independently:**  
-   A dedicated native MongoDB 7.0.45 portable instance exists at `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014` (1,007.95 MiB, 529 files). It hosts the `sentinelai_acceptance_20261014` database and has zero dependencies on Docker or WSL.
+   A dedicated native MongoDB 7.0.45 portable instance exists at `<repo>.native-integration\mongodb-acceptance-20261014` (1,007.95 MiB, 529 files). It hosts the `sentinelai_acceptance_20261014` database and has zero dependencies on Docker or WSL.
 
 ---
 
@@ -41,10 +41,10 @@ Each identified candidate has been inspected using strictly read-only filesystem
 
 | ID | Exact Path | Type | Measured Size | Purpose / Description | Primary Classification | Evidence Source |
 |:---|:---|:---|:---:|:---|:---:|:---|
-| **C-01** | `C:\Users\srisn\AppData\Local\Programs\DockerDesktop` | Directory (App) | 3,279.72 MiB (3.20 GiB) | Installed Docker Desktop application binaries, Electron UI, CLI plugins, and tmp installers. | **B. SAFE TO UNINSTALL** | Process inspection; FileVersion & PE header checks; no uninstaller registry entry found. |
-| **C-02** | `C:\Users\srisn\AppData\Local\Docker` | Directory (User Data) | 33.10 MiB (0.03 GiB) | Docker Desktop installation logs (`install-log.txt`), CLI logs, lock files, and WSL daemon state. | **A. SAFE TO DELETE** | Directory inspection; confirmed pure text logs and runtime locks. |
-| **C-03** | `C:\Users\srisn\AppData\Roaming\Docker` | Directory (Config) | 0.64 MiB (0.001 GiB) | Docker Desktop user configuration (`settings-store.json`, `features-overrides.json`, analytics). | **A. SAFE TO DELETE** | Inspected JSON files; points to protected paths (`CustomWslDistroDir`); no app data. |
-| **C-04** | `C:\Users\srisn\.docker` | Directory (CLI Config) | 0.04 MiB (0.000 GiB) | Docker CLI configuration (`contexts/meta`, `daemon.json`, `buildx` tokens). | **A. SAFE TO DELETE** | Stale context metadata; references inactive named pipes. |
+| **C-01** | `%USERPROFILE%\AppData\Local\Programs\DockerDesktop` | Directory (App) | 3,279.72 MiB (3.20 GiB) | Installed Docker Desktop application binaries, Electron UI, CLI plugins, and tmp installers. | **B. SAFE TO UNINSTALL** | Process inspection; FileVersion & PE header checks; no uninstaller registry entry found. |
+| **C-02** | `%USERPROFILE%\AppData\Local\Docker` | Directory (User Data) | 33.10 MiB (0.03 GiB) | Docker Desktop installation logs (`install-log.txt`), CLI logs, lock files, and WSL daemon state. | **A. SAFE TO DELETE** | Directory inspection; confirmed pure text logs and runtime locks. |
+| **C-03** | `%USERPROFILE%\AppData\Roaming\Docker` | Directory (Config) | 0.64 MiB (0.001 GiB) | Docker Desktop user configuration (`settings-store.json`, `features-overrides.json`, analytics). | **A. SAFE TO DELETE** | Inspected JSON files; points to protected paths (`CustomWslDistroDir`); no app data. |
+| **C-04** | `%USERPROFILE%\.docker` | Directory (CLI Config) | 0.04 MiB (0.000 GiB) | Docker CLI configuration (`contexts/meta`, `daemon.json`, `buildx` tokens). | **A. SAFE TO DELETE** | Stale context metadata; references inactive named pipes. |
 | **C-05** | `C:\ProgramData\DockerDesktop` | Directory (Admin Logs) | 0.02 MiB (0.000 GiB) | System-wide admin install logs (`install-log-admin.txt`). | **A. SAFE TO DELETE** | Text logs only. |
 | **C-06** | `C:\RecoveryTools\overlay.qcow2` | File (Virtual Disk) | 0.20 MiB (212,992 B) | Disposable QEMU QCOW2 overlay used during read-only inspection. Backed by `docker_data_A3_working.vhdx`. | **A. SAFE TO DELETE** | `qemu-img info` confirms empty/transient overlay state (208 KiB allocated). |
 | **C-07** | `C:\RecoveryTools\test_dummy\` | Directory (Test Data) | 8.38 MiB (8,781,824 B) | Disposable test files (`dummy_backing.vhdx`, `dummy_overlay.qcow2`) used in write-confinement preflight. | **A. SAFE TO DELETE** | Verified dummy synthetic test fixtures. |
@@ -87,7 +87,7 @@ Each identified candidate has been inspected using strictly read-only filesystem
 
 ### 3. MongoDB Databases and Previously Stored Application Data
 - **High Risk if VHDX files are deleted:**  
-  The native test runner currently points to the isolated portable MongoDB instance (`sentinelai_acceptance_20261014` at `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014`). That database is safe.  
+  The native test runner currently points to the isolated portable MongoDB instance (`sentinelai_acceptance_20261014` at `<repo>.native-integration\mongodb-acceptance-20261014`). That database is safe.  
   However, **all historical Docker-era application data** (e.g., previous threat logs, user sessions, network alerts stored in `deployment_mongo_data` and `deepguard-platform_mongo_data`) **remains exclusively locked inside the 33.12 GiB ext4 partitions of the VHDX disks** (`docker_data_A3_working.vhdx` and `docker_data_pre_recovery_2026-10-13.vhdx`).
 - Deleting the VHDX files before performing an extraction permanently destroys all pre-October 14 application database history.
 
@@ -103,7 +103,7 @@ Each identified candidate has been inspected using strictly read-only filesystem
 - Deleting the recovery orchestration scripts (`C:\RecoveryTools\run_mongo_preservation.ps1`) would discard the tested QEMU serial socket streaming mechanism needed to safely recover the MongoDB candidates.
 
 ### 6. Other Applications, Windows, WSL, and Development Tools
-- **WSL Ubuntu Distribution:** Registered at `C:\Users\srisn\AppData\Local\wsl\{090c359e-a4ab-439e-be30-4bc80483e13a}`. It is a completely separate distribution from Docker Desktop's engine. Removing Docker Desktop files does **not** harm or deregister the user's `Ubuntu` WSL distribution.
+- **WSL Ubuntu Distribution:** Registered at `%USERPROFILE%\AppData\Local\wsl\{090c359e-a4ab-439e-be30-4bc80483e13a}`. It is a completely separate distribution from Docker Desktop's engine. Removing Docker Desktop files does **not** harm or deregister the user's `Ubuntu` WSL distribution.
 - **Windows Services & Tasks:** No active Windows Service (`com.docker.service`) or Scheduled Task is currently registered.
 
 ---
@@ -123,9 +123,9 @@ Physical Disk 0: NVMe Micron 2450 512GB (Shared by C: and D:)
 | Category | Location | Items / Breakdown | Measured Reclaimable Storage |
 |:---|:---|:---|:---:|
 | **Immediate Safe Deletion (Tooling & Caches)** | `C:\RecoveryTools\` | QEMU binaries, SystemRescue ISO, Innoextract, 7-Zip, dummy files | **3.01 GiB** (3,155,750,316 B) |
-| **Immediate Safe Deletion (Docker App Data)** | `C:\Users\srisn\AppData\Local\Docker` + `Roaming` + `.docker` | Text logs, CLI caches, telemetry logs, lock files | **0.034 GiB** (35,422,072 B) |
+| **Immediate Safe Deletion (Docker App Data)** | `%USERPROFILE%\AppData\Local\Docker` + `Roaming` + `.docker` | Text logs, CLI caches, telemetry logs, lock files | **0.034 GiB** (35,422,072 B) |
 | **Immediate Safe Deletion (Empty Staging/D)** | `D:\MongoPreservation\` + `C:\RecoveryTools\staging\` | Empty directories and log | **0.000 GiB** (1,116 B) |
-| **Safe Deletion (Uninstall Docker Desktop)** | `C:\Users\srisn\AppData\Local\Programs\DockerDesktop` | Electron binaries, CLI plugins, temporary update installers | **3.20 GiB** (3,439,038,955 B) |
+| **Safe Deletion (Uninstall Docker Desktop)** | `%USERPROFILE%\AppData\Local\Programs\DockerDesktop` | Electron binaries, CLI plugins, temporary update installers | **3.20 GiB** (3,439,038,955 B) |
 | **Subtotal Reclaimable on Drive C:** | **Drive C: Total** | Resolves critical disk exhaustion | **~6.24 GiB** |
 | | | | |
 | **Safe Deletion on Drive D: (Empty Install VHDX)** | `D:\DockerBackup\docker_data_new_install.vhdx` | Clean, empty 1.5 GiB initial VHDX from 12-10-2026 | **1.53 GiB** (1,645,215,744 B) |
@@ -150,16 +150,16 @@ These files and directories have zero dependencies, contain no unique data, and 
 7. `C:\RecoveryTools\qemu\` (1.19 GiB)
 8. `C:\RecoveryTools\7zip\` & `C:\RecoveryTools\7zip-full\` (5.21 MiB)
 9. `C:\RecoveryTools\innoextract\` & downloaded `.pkg.tar.zst` archives (74.08 MiB)
-10. `C:\Users\srisn\AppData\Local\Docker\` (33.1 MiB)
-11. `C:\Users\srisn\AppData\Roaming\Docker\` (0.64 MiB)
-12. `C:\Users\srisn\.docker\` (0.04 MiB)
+10. `%USERPROFILE%\AppData\Local\Docker\` (33.1 MiB)
+11. `%USERPROFILE%\AppData\Roaming\Docker\` (0.64 MiB)
+12. `%USERPROFILE%\.docker\` (0.04 MiB)
 13. `C:\ProgramData\DockerDesktop\` (0.02 MiB)
 14. `D:\DockerBackup\docker_data_new_install.vhdx` (1.53 GiB — empty fresh install disk)
 15. `D:\MongoPreservation\` (0.001 MiB — empty destination folders)
 
 ### B. CONFIRMED SAFE TO REMOVE / UNINSTALL (Application Component)
-1. `C:\Users\srisn\AppData\Local\Programs\DockerDesktop\` (3.20 GiB)
-   - *Removal Note:* No standard Windows uninstall registry key was detected. The application directory can be removed or cleanly uninstalled via its executable launcher `C:\Users\srisn\AppData\Local\Programs\DockerDesktop\Docker desktop.exe --uninstall` (or folder deletion once processes are terminated).
+1. `%USERPROFILE%\AppData\Local\Programs\DockerDesktop\` (3.20 GiB)
+   - *Removal Note:* No standard Windows uninstall registry key was detected. The application directory can be removed or cleanly uninstalled via its executable launcher `%USERPROFILE%\AppData\Local\Programs\DockerDesktop\Docker desktop.exe --uninstall` (or folder deletion once processes are terminated).
 
 ### C. REDUNDANT COPIES — VERIFY HASH BEFORE DELETION
 1. `D:\DockerBackup\docker_data_fresh.vhdx` (32.41 GiB)
@@ -180,7 +180,7 @@ Do **NOT** delete these artifacts until an explicit decision is made that histor
    - Original Docker engine WSL disk.
 5. `C:\RecoveryTools\run_mongo_preservation.ps1` & inspection scripts
    - Retains the exact automation logic required if database extraction is re-attempted.
-6. `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\` (1,007.95 MiB)
+6. `<repo>.native-integration\` (1,007.95 MiB)
    - Active native development MongoDB 7.0.45 database instance (`sentinelai_acceptance_20261014`).
 7. `docs\DOCKER_*.md` & `.test-runtime\docker-completion-*`
    - Project audit documentation and evidence logs.
@@ -195,7 +195,7 @@ If the user approves selective deletion, execute strictly in this order:
 1. **Prerequisite:** Ensure no Docker or QEMU processes are running (`Get-Process -Name "*docker*","*qemu*"`).
 2. Delete disposable recovery ISO, tools, and downloads under `C:\RecoveryTools\` (items C-06 through C-14).
 3. Delete Docker configuration and log directories (`AppData\Local\Docker`, `AppData\Roaming\Docker`, `.docker`, `ProgramData\DockerDesktop`).
-4. Remove `C:\Users\srisn\AppData\Local\Programs\DockerDesktop`.
+4. Remove `%USERPROFILE%\AppData\Local\Programs\DockerDesktop`.
 5. *Result:* Drive `C:` free space increases from **~0.92 GiB to ~7.16 GiB**, instantly removing OS instability risks.
 
 ### Phase 2: Drive `D:` Deduplication (~33.94 GiB reclaimed)

@@ -46,7 +46,7 @@ You can launch either the **Real Machine Learning Engine** or the **Lightweight 
 
 #### Option A: Real Python AI Engine (Recommended if venv is populated)
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine
+cd <repo>\ai-engine
 $env:SENTINEL_KEY = "<YOUR_CONFIGURED_SENTINEL_KEY>"
 .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000
 ```
@@ -55,7 +55,7 @@ $env:SENTINEL_KEY = "<YOUR_CONFIGURED_SENTINEL_KEY>"
 > **MOCK.** Returns hard-coded results. Use it only for the role/UI walkthrough below, never for the threat demo
 > (`docs/THREAT_DEMO_RUNBOOK.md`) or for any accuracy or detection claim.
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete
+cd <repo>
 node scratch/mock_ai_engine.js
 ```
 
@@ -78,7 +78,7 @@ Invoke-RestMethod -Uri "http://127.0.0.1:8000/model/info" -Headers @{ "X-API-Key
 ### Step 3.2: Launch the Backend API (Port 5000)
 Open a new PowerShell window:
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete
+cd <repo>
 $env:DOTENV_CONFIG_PATH = (Resolve-Path "deployment/.env.demo").Path
 node backend/server.js
 ```
@@ -94,7 +94,7 @@ node backend/server.js
 ### Step 3.3: Launch the Frontend Application (Port 3000)
 Open a new PowerShell window:
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend
+cd <repo>\frontend
 npm run dev
 ```
 *Expected console output:*

@@ -6,7 +6,9 @@ import stat
 import urllib.request
 import zipfile
 
-ROOT = Path(r"C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014")
+# Sibling folder of the repository: <repo>.native-integration (was a hard-coded user-profile path, PR-001)
+_REPO = Path(__file__).resolve().parents[1]
+ROOT = _REPO.with_name(_REPO.name + ".native-integration") / "mongodb-acceptance-20261014"
 URL = "https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.45.zip"
 EXPECTED = "7e3a435fa86e36e8ca4f2618fb41de06d75c28009c63725a20f9badd36eec6f6"
 

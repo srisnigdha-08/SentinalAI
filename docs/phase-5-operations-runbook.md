@@ -3,8 +3,8 @@
 **Document Version:** 1.1  
 **Effective Date:** 2026-10-15  
 **Target Environment:** Windows 11 Native Development & Staging  
-**Primary Project:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Primary Project:** `<repo>`  
+**Native Integration:** `<repo>.native-integration`  
 
 ---
 
@@ -61,10 +61,10 @@ Always start services in topological order: **Database $\rightarrow$ AI Engine $
 
 1. **MongoDB (Port 27017):**
    ```powershell
-   & "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
-     --dbpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data" `
+   & "<repo>.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
+     --dbpath "<repo>.native-integration\mongodb-dev\data" `
      --port 27017 --bind_ip 127.0.0.1 `
-     --logpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\mongod.log"
+     --logpath "<repo>.native-integration\mongodb-dev\mongod.log"
    ```
 
 2. **AI Engine (Port 8000):**
@@ -72,20 +72,20 @@ Always start services in topological order: **Database $\rightarrow$ AI Engine $
    > **Baseline Model Protection (Finding 1):** The baseline Q-table artifact resides at `ai-engine\models\q_table.json` and must remain read-only and immutable. Always configure `$env:Q_TABLE_PATH` to resolve to the **runtime** directory (`ai-engine\runtime\q_table.json`). The application automatically seeds the runtime file from the baseline model on first initialization and flushes updates only to the runtime path.
 
    ```powershell
-   Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine"
-   $env:Q_TABLE_PATH = "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json"
+   Set-Location "<repo>\ai-engine"
+   $env:Q_TABLE_PATH = "<repo>\ai-engine\runtime\q_table.json"
    .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
    ```
 
 3. **Backend API (Port 5000):**
    ```powershell
-   Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete"
+   Set-Location "<repo>"
    powershell -ExecutionPolicy Bypass -File "start-backend.ps1"
    ```
 
 4. **Frontend Dev Server (Port 3000):**
    ```powershell
-   Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend"
+   Set-Location "<repo>\frontend"
    npm run dev -- --host 127.0.0.1
    ```
 
@@ -156,7 +156,7 @@ When running as a background task, service, or when the console window is not di
    ```
 5. **Relaunch Using Verified Launcher:**
    ```powershell
-   powershell -ExecutionPolicy Bypass -File "C:\Users\srisn\Desktop\Projects\sentinelai-complete\start-backend.ps1"
+   powershell -ExecutionPolicy Bypass -File "<repo>\start-backend.ps1"
    ```
 6. **Verify Startup Completion:** Check startup logs for:
    - `MongoDB connected: 127.0.0.1/sentinel-db`
@@ -244,13 +244,13 @@ The live development database is `sentinel-db` on port 27017.
 
 ### 4.2 Protected Dataset Preservation
 The following historical and acceptance data directories are write-protected and must never be altered or referenced for tests:
-- `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data`
+- `<repo>.native-integration\mongodb-acceptance-20261014\data`
 - `D:\MongoPreservation`
 - `D:\MongoPreservation_Backup_20261015`
 
 To verify directory invariance:
 ```powershell
-Get-Item "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data" | Select-Object FullName, LastWriteTime
+Get-Item "<repo>.native-integration\mongodb-acceptance-20261014\data" | Select-Object FullName, LastWriteTime
 ```
 
 ### 4.3 Host Firewall Invariance Check

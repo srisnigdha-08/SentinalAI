@@ -15,7 +15,7 @@ Because the CLI is absent, `docker version`, `docker info`, and `docker context 
 
 ### Docker and WSL configuration
 
-The Docker Desktop settings file still records `SettingsVersion` **46** and `CustomWslDistroDir` **`D:\DockerDesktopData\DockerDesktopWSL`**. That location is explicitly protected and cannot be used as the destination for fresh Docker data. The per-user Docker `config.json` was absent. Context metadata was found at `C:\Users\srisn\.docker\contexts\meta\fe9c6bd7a66301f49ca9b6a70b217107cd1284598bfc254700c989b916da791e\meta.json`; its endpoint is the local Docker Desktop named pipe above.
+The Docker Desktop settings file still records `SettingsVersion` **46** and `CustomWslDistroDir` **`D:\DockerDesktopData\DockerDesktopWSL`**. That location is explicitly protected and cannot be used as the destination for fresh Docker data. The per-user Docker `config.json` was absent. Context metadata was found at `%USERPROFILE%\.docker\contexts\meta\fe9c6bd7a66301f49ca9b6a70b217107cd1284598bfc254700c989b916da791e\meta.json`; its endpoint is the local Docker Desktop named pipe above.
 
 The read-only WSL commands reported WSL **2.7.11.0**, kernel **6.18.33.2-2**, default distribution **Ubuntu**, default version **2**, and Ubuntu **Stopped**. `wsl.exe --version`, `--status`, and `--list --verbose` each returned exit code **0** in the corrected prior capture and the current read-only capture. No distribution was started or modified. The WSL1 unsupported message is informational for this WSL2 setup. An unelevated optional-Windows-feature query required elevation; no feature state is claimed from that failed query.
 
@@ -31,8 +31,8 @@ At **11:35:46**, read-only socket/process metadata found:
 
 | Bind | PID | Process and executable | Windows owner | Observation |
 | --- | ---: | --- | --- | --- |
-| `0.0.0.0:5000` | 18040 | `node.exe`, `C:\Program Files\nodejs\node.exe` | `SNIGDHA\srisn` | Recorded earlier as appearing backend-related; arguments were not collected. |
-| `0.0.0.0:8000` | 19660 | `python.exe`, `C:\Users\srisn\AppData\Local\Programs\Python\Python311\python.exe` | `SNIGDHA\srisn` | Recorded earlier as appearing AI-related; arguments were not collected. |
+| `0.0.0.0:5000` | 18040 | `node.exe`, `C:\Program Files\nodejs\node.exe` | `<host>\<user>` | Recorded earlier as appearing backend-related; arguments were not collected. |
+| `0.0.0.0:8000` | 19660 | `python.exe`, `%USERPROFILE%\AppData\Local\Programs\Python\Python311\python.exe` | `<host>\<user>` | Recorded earlier as appearing AI-related; arguments were not collected. |
 
 At **11:37:09**, a later read-only check found neither wildcard listener nor either PID. They had ended between observations; no stop, restart, connection, or reconfiguration was performed. The earlier task evidence intentionally omitted full command lines and environment values to avoid exposing credentials, so the exact parent command and the services' data destinations remain unknown. The two processes ran under the current Windows account, but this does not establish who owns or authorized their application data.
 

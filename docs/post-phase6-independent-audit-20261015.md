@@ -3,8 +3,8 @@
 **Date:** October 15, 2026  
 **Auditor / Role:** Senior Application Security Engineer & Independent Technical Auditor  
 **Scope:** Native Windows 11 Full-Stack Platform Review (Backend, Frontend, AI Engine, MongoDB, Firewall Harness)  
-**Project Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Integration Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Project Root:** `<repo>`  
+**Integration Root:** `<repo>.native-integration`  
 
 ---
 
