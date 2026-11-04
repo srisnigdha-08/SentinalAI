@@ -51,3 +51,13 @@ test('invalid or missing lines fall back to the defaults', async () => {
     assert.deepEqual(normalizeLines(bad), DEFAULT_LINES, JSON.stringify(bad))
   }
 })
+
+// THR-004: the provider keeps where the lines came from, and never labels invalid data as engine-confirmed.
+test('linesFromResponse keeps the reported source, and invalid lines are the defaults', async () => {
+  const { linesFromResponse, DEFAULT_LINES } = await import('../src/utils/scoreBands.js')
+  assert.deepEqual(linesFromResponse({ alert: 0.8, block: 0.85, source: 'engine' }), { alert: 0.8, block: 0.85, source: 'engine' })
+  assert.deepEqual(linesFromResponse({ alert: 0.8, block: 0.85, source: 'engine-cached' }).source, 'engine-cached')
+  assert.deepEqual(linesFromResponse({ alert: 0.95, block: 0.9, source: 'engine' }), { ...DEFAULT_LINES, source: 'default' })
+  assert.deepEqual(linesFromResponse({ alert: 0.8, block: 0.85, source: 'made-up' }).source, 'default')
+  assert.deepEqual(linesFromResponse(null), { ...DEFAULT_LINES, source: 'default' })
+})

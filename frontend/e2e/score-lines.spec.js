@@ -65,7 +65,8 @@ test.describe('Score lines follow the backend (THR-002 / THR-003)', () => {
   test('Threat Logs colours use the backend defaults: 0.82 is below the 0.90 alert line', async ({ page, loginAs }) => {
     const lines = page.waitForResponse((r) => r.url().includes('/api/ai/score-lines') && r.status() === 200);
     await openThreatLogs(page, loginAs);
-    expect((await (await lines).json()).data).toEqual({ alert: 0.9, block: 0.92 });
+    // No AI engine runs in the E2E stack: the backend reports its defaults, labelled as such (THR-004)
+    expect((await (await lines).json()).data).toEqual({ alert: 0.9, block: 0.92, source: 'default', confirmedAt: null });
     await searchThreat(page, '45.95.147.22');
     await expect(scoreCell(page, '45.95.147.22', 82)).toHaveCSS('color', BLUE);
   });

@@ -249,6 +249,10 @@ const { DEFAULT_ALERT_THRESHOLD, DEFAULT_BLOCK_THRESHOLD, recordAlertLine } = re
 let cachedBlockThreshold = DEFAULT_BLOCK_THRESHOLD
 let cachedAlertThreshold = DEFAULT_ALERT_THRESHOLD
 let lastFetchedTime = 0
+// THR-004: when the engine last confirmed the lines (null: never, so the defaults are in use) and whether the
+// latest attempt reached it (false: the last confirmed values are being kept through an outage)
+let thresholdsConfirmedAt = null
+let lastThresholdFetchOk = false
 const CACHE_TTL_MS = 60000 // Cache for 1 minute
 const THRESHOLD_FETCH_TIMEOUT_MS = 1500
 
@@ -259,14 +263,30 @@ const refreshThresholds = async () => {
   lastFetchedTime = now
   try {
     const info = (await guarded(() => ai.get('/model/info', { timeout: THRESHOLD_FETCH_TIMEOUT_MS }))).data
-    if (typeof info?.thresholds?.block === 'number') cachedBlockThreshold = info.thresholds.block
-    if (typeof info?.thresholds?.monitor === 'number') {
-      cachedAlertThreshold = info.thresholds.monitor
+    const block = info?.thresholds?.block
+    const monitor = info?.thresholds?.monitor
+    if (typeof block === 'number') cachedBlockThreshold = block
+    if (typeof monitor === 'number') {
+      cachedAlertThreshold = monitor
       recordAlertLine(cachedAlertThreshold) // restore fallbacks use the same line (THR-002)
     }
+    lastThresholdFetchOk = typeof block === 'number' && typeof monitor === 'number'
+    if (lastThresholdFetchOk) thresholdsConfirmedAt = new Date()
   } catch (e) {
+    lastThresholdFetchOk = false
     logger.debug('[AI] Failed to fetch thresholds from AI engine, using cached values: ' + e.message)
   }
+}
+
+/**
+ * The lines the backend scores with and where they come from (GET /api/ai/score-lines): 'engine' (confirmed by the
+ * latest fetch), 'engine-cached' (last confirmed values; the engine did not answer since) or 'default' (never
+ * confirmed; DEFAULT_* in use).
+ */
+const getScoreLines = async () => {
+  await refreshThresholds()
+  const source = thresholdsConfirmedAt ? (lastThresholdFetchOk ? 'engine' : 'engine-cached') : 'default'
+  return { alert: cachedAlertThreshold, block: cachedBlockThreshold, source, confirmedAt: thresholdsConfirmedAt }
 }
 
 const getBlockThreshold = async () => {
@@ -350,6 +370,7 @@ module.exports = {
   getDeceptionScore,
   getBlockThreshold,
   getAlertThreshold,
+  getScoreLines,
   invalidateThresholds,
   reloadModel,
   getDrift,

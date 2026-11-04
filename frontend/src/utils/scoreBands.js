@@ -19,6 +19,19 @@ export function normalizeLines(raw) {
   return valid ? { alert, block } : { ...DEFAULT_LINES }
 }
 
+const SOURCES = ['engine', 'engine-cached', 'default']
+
+/**
+ * Lines plus where they came from (THR-004): 'engine' (confirmed), 'engine-cached' (last confirmed, engine not
+ * answering) or 'default'. Lines that fail validation fall back to the defaults and are never labelled as engine.
+ */
+export function linesFromResponse(data) {
+  const lines = normalizeLines(data)
+  const valid = lines.alert === Number(data?.alert) && lines.block === Number(data?.block)
+  const source = valid && SOURCES.includes(data?.source) ? data.source : 'default'
+  return { ...lines, source }
+}
+
 // Array.map passes an index as the second argument; anything that is not a lines object means "defaults".
 const lines = (l) => (l && typeof l === 'object' ? l : DEFAULT_LINES)
 const score = (s) => Number(s) || 0

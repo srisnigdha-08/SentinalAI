@@ -13,24 +13,22 @@ jest.mock('../middleware/auth', () => ({
   restrictTo: () => (req, res, next) => next(),
   requirePermission: () => (req, res, next) => next(),
 }))
-const mockEngine = { getAlertThreshold: jest.fn(), getBlockThreshold: jest.fn() }
+const mockEngine = { getScoreLines: jest.fn() }
 jest.mock('../services/aiEngineService', () => mockEngine)
 
 const app = express().use('/api/ai', require('../routes/aiEngine'))
 const get = () => request(app).get('/api/ai/score-lines').set('Authorization', 'Bearer t')
 
 test('returns the lines the backend scores with (an engine started with ALERT_THRESHOLD=0.80)', async () => {
-  mockEngine.getAlertThreshold.mockResolvedValue(0.8)
-  mockEngine.getBlockThreshold.mockResolvedValue(0.85)
+  mockEngine.getScoreLines.mockResolvedValue({ alert: 0.8, block: 0.85, source: 'engine', confirmedAt: null })
   const res = await get()
   expect(res.status).toBe(200)
-  expect(res.body.data).toEqual({ alert: 0.8, block: 0.85 })
+  expect(res.body.data).toMatchObject({ alert: 0.8, block: 0.85, source: 'engine' })
 })
 
 test('defaults are returned unchanged when the engine was never reached', async () => {
-  mockEngine.getAlertThreshold.mockResolvedValue(0.9)
-  mockEngine.getBlockThreshold.mockResolvedValue(0.92)
-  expect((await get()).body.data).toEqual({ alert: 0.9, block: 0.92 })
+  mockEngine.getScoreLines.mockResolvedValue({ alert: 0.9, block: 0.92, source: 'default', confirmedAt: null })
+  expect((await get()).body.data).toEqual({ alert: 0.9, block: 0.92, source: 'default', confirmedAt: null })
 })
 
 test('requires a signed-in user', async () => {

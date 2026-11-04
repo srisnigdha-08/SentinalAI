@@ -72,8 +72,9 @@ router.get('/engine/model-info', protect, async (req, res, next) => {
 // THR-003: the dashboard colours and filters scores with these, so it matches what the backend raises and blocks.
 router.get('/score-lines', protect, async (req, res, next) => {
   try {
-    const [alert, block] = await Promise.all([aiSvc.getAlertThreshold(), aiSvc.getBlockThreshold()])
-    sendSuccess(res, { alert, block })
+    // THR-004: source says whether the engine confirmed these ('engine'), they are its last confirmed values kept
+    // through an outage ('engine-cached'), or the defaults ('default')
+    sendSuccess(res, await aiSvc.getScoreLines())
   } catch (err) {
     next(err)
   }

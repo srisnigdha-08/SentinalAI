@@ -95,6 +95,7 @@ jest.mock('../services/aiEngineService', () => ({
   getDeceptionRecommendation: jest.fn().mockResolvedValue({ nextProfile: 'debian_11' }),
   getAlertThreshold: jest.fn().mockResolvedValue(0.9),
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getScoreLines: jest.fn().mockResolvedValue({ alert: 0.9, block: 0.92, source: 'default', confirmedAt: null }),
 }))
 
 jest.mock('../services/aiService', () => ({
