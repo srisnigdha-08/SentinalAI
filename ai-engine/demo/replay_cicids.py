@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SentinelAI - CICIDS2017 Dataset Live Replay Demonstration
+SentinelAI - CICIDS2017 Recorded-Flow Replay Demonstration (not live capture)
 =========================================================
 An honest, unrigged evaluation tool that replays real historical network attack
 and benign traffic from the official CICIDS2017 dataset against the ALREADY-TRAINED
@@ -425,7 +425,7 @@ def run_replay(file_path: str, total_rows: int, delay: float, target) -> dict:
     print(f"  * Integrity Check:  {Color.GREEN}Ground truth withheld until post-inference{Color.RESET}")
     print(f"{Color.DIM}{'-' * 76}{Color.RESET}")
 
-    print(f"\n{Color.YELLOW}[1/2] Curating balanced test sample from real traffic capture...{Color.RESET}")
+    print(f"\n{Color.YELLOW}[1/2] Curating balanced sample of recorded CICIDS2017 flows...{Color.RESET}")
     t_load_start = time.perf_counter()
     curated_sample = load_curated_sample(Path(file_path), total_rows)
     t_load_ms = (time.perf_counter() - t_load_start) * 1000
@@ -435,7 +435,7 @@ def run_replay(file_path: str, total_rows: int, delay: float, target) -> dict:
 
     print(f"      Selected {len(curated_sample)} network flows in {t_load_ms:.1f}ms.")
     print(f"{Color.DIM}{'-' * 76}{Color.RESET}")
-    print(f"{Color.YELLOW}[2/2] Replaying live network traffic through SentinelAI...{Color.RESET}\n")
+    print(f"{Color.YELLOW}[2/2] Replaying recorded flows through SentinelAI (not live capture)...{Color.RESET}\n")
 
     correct_predictions = 0
     total_evaluated = 0
@@ -518,14 +518,14 @@ def run_replay(file_path: str, total_rows: int, delay: float, target) -> dict:
     print(f"  * Sample Demonstration Accuracy:  {acc_color}{Color.BOLD}{accuracy_pct:.2f}%{Color.RESET}")
     print(f"  * Pipeline Integrity Status:      {Color.GREEN}[VERIFIED] Zero Ground-Truth Label Leakage{Color.RESET}")
     if isinstance(target, BackendTarget):
-        print("  * Dashboard:                      predictions stored; non-BENIGN scores >= 0.90 raised as live threats")
+        print("  * Dashboard:                      predictions stored; non-BENIGN scores >= 0.90 become threats on the live dashboard")
     print(f"{Color.CYAN}{'=' * 76}{Color.RESET}\n")
     return {"evaluated": total_evaluated, "correct": correct_predictions, "failed": failed}
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="SentinelAI Live CICIDS2017 Replay Demo - Genuine Unrigged Evaluation",
+        description="SentinelAI CICIDS2017 recorded-flow replay demo - genuine, unrigged evaluation (not live capture)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter
     )
     parser.add_argument(
