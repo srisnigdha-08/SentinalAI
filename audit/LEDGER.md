@@ -21,6 +21,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Batch 6 | DONE 2026-11-02 — P3/P4 measured (no cross-day generalisation, ML-007), weakness analysis, RL review, deployment procedure |
 | Batch 7 | DONE 2026-11-02 — generalisation root cause (tool fingerprints), ranked options, CSE-CIC-IDS2018 plan, hybrid-eval mode (not run), deployment doc safety |
 | Batch 8 | DONE 2026-11-02 — pre-registered development protocol (ML_DEV_PROTOCOL.md), protected-test guard, feature/taxonomy/runner infrastructure (plan only) |
+| Batch 15 | DONE 2026-11-03 — demo A/B/C rehearsal on the real stack; CONT-001 and OPS-004 fixed; runbook corrections; presenter script, metrics, presentation, viva bank, deployment/backup plan |
 | Batch 14 | DONE 2026-11-03 — final validation: WS-002 live-feed duplicates and catch-up, TEST-009 root cause, clean-clone setup fixes, demo A/B/C revalidated, final guide and viva guide |
 | Batch 13 | DONE 2026-11-03 — performance and resilience: PERF-001 engine threading, WS-001 socket reconnect, UI-004, load/failure harness, docs |
 | Batch 12 | DONE 2026-11-03 — GitHub Actions failures reproduced on Linux and fixed (CI-001), job timeouts, TEST-007, REPRO-001, frontend lint 0 warnings; awaiting CI confirmation |

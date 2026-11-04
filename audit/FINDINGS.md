@@ -953,3 +953,42 @@ cancellation (Load request cancelled / NS_BINDING_ABORTED / net::ERR_ABORTED). N
 and a refused Socket.IO transport are all reported. Smoke spec 36/36 (x3, 3 browsers): no false positives.
 HTTP error statuses (4xx/5xx answers) are handled by the app and remain the job of functional tests.
 ```
+
+---
+
+## Batch 15 (2026-11-03) — final demonstration rehearsal and handover
+
+```
+ID: CONT-001 | P2 | CONFIRMED (live rehearsal + real-database test) | FIXED 2026-11-03
+Unblocking an address that had been detected more than once left its earlier detections BLOCKED. Containment
+(requestContainment step 13) tags every open threat for the address with the ContainmentAction _id; Settings ->
+Unblock IP (containmentService.unblockIPManual) restored only threats tagged with the BlockedIP _id (plus its single
+threatRef), and releaseManualBlock rolls the action back with releaseLegacyState:false, so nobody restored them.
+Rehearsal: 198.51.100.3 detected twice, auto-blocked, unblocked -> one threat MONITORING, the other still BLOCKED with
+autonomousAction.taken while not deny-listed. Fix: the unblock also restores threats tagged with the target's
+ContainmentActions that are still ACTIVE/ROLLBACK_FAILED (the ones being released); threats from older, finished
+containments are untouched (TEST 14 historical protection kept). Tests: backend/tests/unblockRepeatDetections.test.js
+(real MongoDB; failed before: earlier detection stayed BLOCKED), containmentPolicy suite 34/34 after stubbing the new
+lookup. Live re-check on the fixed backend: two detections DETECTED -> BLOCKED -> DETECTED. sentinel-demo had 0 stale
+BLOCKED threats (read-only check).
+```
+
+```
+ID: OPS-004 | P2 | CONFIRMED (non-destructive round trip) | FIXED 2026-11-03
+scratch/backup_sentinel_db.mjs recorded only key/name/unique/background for indexes, dropping `sparse`; on restore the
+unique sparse containmentactions.targetLock index (one active containment per target) failed to build and the restore
+script's single try/catch skipped every later index of that collection. Round trip sentinel-demo -> new database:
+11/12 collections matched before, 12/12 (documents and indexes; users including password hashes identical) after
+keeping all index options and creating each index separately. Copy and dump deleted afterwards.
+```
+
+```
+ID: DOC-002 | P3 | CONFIRMED (rehearsal) | FIXED (docs/text)
+- DEMO_ABC_RUNBOOK Demo C step 8 sent the presenter to Settings -> audit log for CONTAINMENT_REQUESTED/ACTIVE; those are
+  structured [AUDIT] lines in the backend log; the auditlogs table holds sign-ins, settings and manual block/unblock.
+- Step 5 named `requestedBy: AI Auto-Block`; the stored field is `requestedByName` (requestedBy is a user reference).
+- demo/replay_cicids.py printed "Replaying live network traffic" and "real traffic capture" for recorded CICIDS2017
+  flows; reworded to "recorded flows ... (not live capture)" (its 6 tests pass).
+- No single-service recovery: start-demo.ps1 refuses while ports are busy. Added scripts/demo/restart-engine.ps1
+  (rehearsed: engine UP in 11 s, backend recovered without restart, next replay scored normally).
+```

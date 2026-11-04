@@ -5,6 +5,7 @@ The authoritative short procedure for the three demonstrations:
 - **Demo B — AI Threat Detection**
 - **Demo C — Autonomous Incident Response**
 
+Presenter's script with rehearsed outputs and recovery steps: [`DEMO_REHEARSAL_SCRIPT.md`](DEMO_REHEARSAL_SCRIPT.md).
 Talk track, examiner questions and the full honesty table: [`THREAT_DEMO_RUNBOOK.md`](THREAT_DEMO_RUNBOOK.md). RBAC and
 session walkthrough: [`DEMO_RUNBOOK.md`](DEMO_RUNBOOK.md).
 
@@ -125,16 +126,17 @@ is not a detector of novel attacks."
 | 2 | **Threat Logs** row / **Settings** containment status | The policy is evaluated before any action |
 | 3 | Protected targets | Loopback, link-local and `CONTAINMENT_PROTECTED_TARGETS` are **refused** (`AUTO_BLOCK_REFUSED` note); never contained |
 | 4 | Score between 0.90 and 0.92 | Threat stored, **not** blocked (unit-tested; replay rarely produces such a score) |
-| 5 | Score at or above 0.92, unprotected | Containment record created (`requestedBy: AI Auto-Block`) |
+| 5 | Score at or above 0.92, unprotected | Containment record created (`requestedByName: AI Auto-Block`); every open detection of that address is marked BLOCKED |
 | 6 | Containment details | `enforcementBackend: mock`, status `ACTIVE`. **The mock adapter records a simulated rule; no firewall changes.** The honeypot's deny-list is the only real enforcement: Cowrie refuses that IP on the next connection |
 | 7 | Dashboard / **Settings** blocked-IP list | IP listed as blocked; `ip_blocked` event |
-| 8 | Admin: **Settings → audit log** | `CONTAINMENT_REQUESTED` → `CONTAINMENT_ACTIVE` |
+| 8 | Backend window (or `backend\logs\sentinel*.log`) | `[AUDIT] CONTAINMENT_REQUESTED` → `CONTAINMENT_ACTIVE` (structured JSON lines). **Settings → audit log** shows sign-ins, settings changes and manual `IP_BLOCKED_MANUAL` / `IP_UNBLOCKED_MANUAL`, not these containment lines |
 | 9 | **Settings → Unblock IP** (operator rollback; the API equivalent is `POST /api/containment/actions/:id/rollback`) | Containment action `ROLLED_BACK`, deny-list row removed, `ip_unblocked` event |
-| 10 | Threat row | Restored to its pre-block status; a TTL action also rolls back by itself on expiry (reconciliation) |
+| 10 | Threat rows | Every detection of that address restored to its pre-block status (CONT-001 fixed 2026-11-03); a TTL action also rolls back by itself on expiry (reconciliation) |
 
 **Outage:** stop the engine window. The next flow is kept as `DEGRADED` (MEDIUM, never blocked), an "AI Engine
-UNAVAILABLE" alert appears, the backend's `/health` returns 503, and the dashboard keeps working. Restart the engine
-window to recover.
+UNAVAILABLE" alert appears, the backend's `/health` returns 503, and the dashboard keeps working. Recover with
+`powershell -ExecutionPolicy Bypass -File scripts\demo\restart-engine.ps1` (engine UP in about 11 s; the backend
+recovers without a restart).
 
 Never say "the firewall blocked the attacker". Say: "the containment decision and record are real; enforcement is
 simulated by a mock adapter, and the honeypot refuses the deny-listed IP".
@@ -160,6 +162,7 @@ it only when you mean to. Never reset `sentinel-db`.
 |---|---|---|
 | `start-demo.ps1`: "Port … in use" | Previous run still open | `stop-demo.ps1` (add `-Force` for foreign processes) |
 | Engine `NOT RESPONDING` | venv missing or model verification failed | Read the engine window; models must match `registry.json` |
+| Engine window closed during the demo | Engine stopped | `scripts\demo\restart-engine.ps1` |
 | SSH refused at once | Your IP is still deny-listed from a rehearsal | Settings → Unblock IP |
 | `status`: check-block not 200 | Backend not reachable from WSL | Restart with `start-demo.ps1` (binds the WSL-visible address) |
 | No session on the dashboard | Parser window stopped, or Cowrie on 127.0.0.1 | Check the parser window; `cowrie-demo-mode.sh on` |

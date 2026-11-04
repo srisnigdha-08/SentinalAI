@@ -336,7 +336,8 @@ Continuous integration runs on every push and pull request via **GitHub Actions*
 ## 🎬 Demonstrations
 
 The three demos keep the same letters in every document and script.
-Step-by-step procedure, verified 2026-11-02: [`docs/DEMO_ABC_RUNBOOK.md`](docs/DEMO_ABC_RUNBOOK.md).
+Step-by-step procedure, verified 2026-11-02: [`docs/DEMO_ABC_RUNBOOK.md`](docs/DEMO_ABC_RUNBOOK.md). Presenter's script
+with the outputs of the 2026-11-03 rehearsal and recovery steps: [`docs/DEMO_REHEARSAL_SCRIPT.md`](docs/DEMO_REHEARSAL_SCRIPT.md).
 
 | Demo | What it shows | Runbook | Say in the viva |
 | :--- | :--- | :--- | :--- |
@@ -344,7 +345,9 @@ Step-by-step procedure, verified 2026-11-02: [`docs/DEMO_ABC_RUNBOOK.md`](docs/D
 | **Demo B — AI Threat Detection** | CICIDS2017 flow replay → XGBoost inference + Isolation Forest anomaly score → ThreatLog persistence → SOC dashboard updates | Part 3 §B, `ai-engine/demo/replay_cicids.py --target backend` | replayed flow records, not live capture; 0.99 accuracy is an in-distribution split |
 | **Demo C — Autonomous Incident Response** | policy-controlled containment (protected targets, thresholds) → mock adapter → deny-list → expiry / rollback → audit log; manual or auto-block | Part 3 §C | the firewall rule is simulated (mock adapter); the honeypot deny-list is the only real enforcement |
 
-Readiness and limitations: [`audit/READINESS_2026-11-01.md`](audit/READINESS_2026-11-01.md).
+Readiness and limitations: [`audit/READINESS_2026-11-01.md`](audit/READINESS_2026-11-01.md). Final handover: [`docs/FINAL_PROJECT_GUIDE.md`](docs/FINAL_PROJECT_GUIDE.md)
+(architecture, installation, readiness), [`docs/PROJECT_METRICS.md`](docs/PROJECT_METRICS.md), [`docs/PRESENTATION_CONTENT.md`](docs/PRESENTATION_CONTENT.md), [`docs/VIVA_GUIDE.md`](docs/VIVA_GUIDE.md),
+[`docs/DEPLOYMENT_AND_BACKUP_PLAN.md`](docs/DEPLOYMENT_AND_BACKUP_PLAN.md).
 
 ---
 

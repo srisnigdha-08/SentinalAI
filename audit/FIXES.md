@@ -407,3 +407,35 @@ Files: `ai-engine/evaluation/xgb_holdout_eval.py` (metrics, CIs, collisions, man
   golden set OK. Frontend unit 70/70; lint clean; build OK. Secret scan 0 findings (scanner tests 9/9).
 - Playwright full run (Chromium, Firefox, WebKit + device projects): **240 passed, 0 failed, 0 skipped** (12.7 min).
 - Models, registry (`5f76c136`), runtime Q-table (`08209e99`) and seed Q-table (`bf9b46a1`) unchanged.
+
+---
+
+# Batch 15 — final demonstration, presentation and handover (2026-11-03, from `f806459`; nothing committed)
+
+| Item | Status | What |
+|---|---|---|
+| CONT-001 unblock left repeat detections BLOCKED | **FIXED** | `backend/services/containmentService.js`; `backend/tests/unblockRepeatDetections.test.js` (2, real MongoDB); `tests/containmentPolicy.test.js` stub + TEST 14 mock |
+| OPS-004 backup dropped index options | **FIXED** | `scratch/backup_sentinel_db.mjs`, `scratch/restore_sentinel_db.mjs` |
+| DOC-002 runbook/replay inaccuracies; engine recovery | **FIXED** | `docs/DEMO_ABC_RUNBOOK.md`, `ai-engine/demo/replay_cicids.py`, `scripts/demo/restart-engine.ps1` |
+| Presenter script, metrics, presentation, viva bank, deployment/backup plan | **ADDED** | `docs/DEMO_REHEARSAL_SCRIPT.md`, `docs/PROJECT_METRICS.md`, `docs/PRESENTATION_CONTENT.md`, `docs/VIVA_GUIDE.md` (Part 2, 61 questions), `docs/DEPLOYMENT_AND_BACKUP_PLAN.md`, `docs/FINAL_PROJECT_GUIDE.md` §1, §15–16 |
+| Screenshots from the rehearsal | **ADDED** | `docs/presentation/screenshots/` (10) |
+
+## Rehearsal (isolated database `sentinel-rehearsal`, real scripts, Cowrie and engine)
+- A: real SSH from Windows → session with T1082/T1033/T1003/T1003.008/T1595 → decision ubuntu_22 → centos_7 APPLIED →
+  next session on `centos-web-gateway`, credited to centos_7.
+- B: replay 10/10 correct; 5 CRITICAL threats + 5 alerts; explanation reproduced, 53 contributions, additivity holds;
+  viewer 403.
+- C: auto-block → 2 mock containments ACTIVE; loopback refused 403; Cowrie dropped SSH from a deny-listed host and
+  accepted it after rollback; engine outage → DEGRADED, alert, `/health` 503 → `restart-engine.ps1` 11 s.
+- Restored: `sentinel-demo` unchanged (240 threats, 8 users), demo Q-table and parser state restored (parser advanced
+  past the 3 rehearsal sessions so they are never ingested into `sentinel-demo`), `cowrie.cfg` hash `91349e56…`,
+  Cowrie stopped, rehearsal database dropped, models and Q-tables unchanged.
+
+## Verification
+- Backend Jest 1,178 passed / 13 skipped (75 suites, 4 skipped); ESLint clean. AI pytest 653 passed. Registry OK.
+- Frontend unit 70/70; lint clean; build OK. Secret scan 0 findings (scanner tests 9/9). Hashes unchanged.
+- Playwright full run (backend changed): **235 passed, 5 failed** in 21.7 min with 0.6–0.7 GB of 7.7 GB free. The 5:
+  WebKit landing + smoke (2) "Failed to load resource: Could not resolve hostname" for the external Google Fonts
+  stylesheet — DNS failing on this machine at that time (same session saw intermittent getaddrinfo failures); Firefox
+  auth (3) page.goto /login timeouts at 20 s (TEST-008). Re-runs of exactly those specs: WebKit landing + smoke 6/6
+  (DNS resolving again); Firefox auth 10/11 then 22/22 over 2 repeats. No failure touched containment or unblock.

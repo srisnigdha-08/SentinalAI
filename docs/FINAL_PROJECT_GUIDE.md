@@ -6,8 +6,11 @@ anything else is marked as an expectation, a limitation or untested.
 
 | Need | Go to |
 |---|---|
-| Run the three demonstrations | [`DEMO_ABC_RUNBOOK.md`](DEMO_ABC_RUNBOOK.md) |
+| Run the three demonstrations | [`DEMO_ABC_RUNBOOK.md`](DEMO_ABC_RUNBOOK.md) (short), [`DEMO_REHEARSAL_SCRIPT.md`](DEMO_REHEARSAL_SCRIPT.md) (presenter's script, rehearsed outputs, recovery) |
 | Prepare for the viva | [`VIVA_GUIDE.md`](VIVA_GUIDE.md) |
+| Presentation slides content and screenshots | [`PRESENTATION_CONTENT.md`](PRESENTATION_CONTENT.md), [`presentation/screenshots/`](presentation/screenshots/) |
+| All metrics with sources | [`PROJECT_METRICS.md`](PROJECT_METRICS.md) |
+| Deployment, TLS, backup and restore | [`DEPLOYMENT_AND_BACKUP_PLAN.md`](DEPLOYMENT_AND_BACKUP_PLAN.md) |
 | Performance and failure behaviour | [`PERFORMANCE_AND_RESILIENCE.md`](PERFORMANCE_AND_RESILIENCE.md) |
 | Model evaluation detail | [`../audit/ML_EVAL_PLAN.md`](../audit/ML_EVAL_PLAN.md), [`C1_EVALUATION_PLAN_AND_RESULTS.md`](C1_EVALUATION_PLAN_AND_RESULTS.md) |
 | Findings and fixes, batch by batch | [`../audit/FINDINGS.md`](../audit/FINDINGS.md), [`../audit/FIXES.md`](../audit/FIXES.md), [`../audit/LEDGER.md`](../audit/LEDGER.md) |
@@ -23,6 +26,18 @@ SentinelAI is a security-operations prototype with four services and one databas
 | AI engine | Python 3.11, FastAPI, XGBoost, scikit-learn, SHAP | 8000 (loopback only) | Flow classification (XGBoost) + anomaly detection (Isolation Forest), per-threat SHAP explanations, honeypot session scoring, Q-learning persona recommender |
 | Honeypot | Cowrie SSH in WSL Ubuntu + `honeypot/parsers/log_parser.py` | 2222 | Real SSH honeypot with fabricated shell; parser ships its JSON log to the backend; blocker plugin enforces the deny-list |
 | Database | MongoDB 7.0 | 27017 | Users, sessions, threats, predictions (with the 53-feature vector), alerts, honeypot sessions, deception decisions, containment actions, audit log |
+
+### What is real, replayed, simulated or experimental
+
+| Capability | Classification |
+|---|---|
+| Cowrie SSH sessions, commands, MITRE mapping, honeypot deny-list refusal | **Real** |
+| XGBoost + Isolation Forest inference, threat storage, alerts, SHAP explanations | **Real** computation |
+| Network flows used in Demo B | **Replayed** recorded CICIDS2017 records (not live capture) |
+| Host-firewall containment | **Simulated** (mock adapter); Windows Firewall adapter disabled, never run live |
+| Q-learning persona recommender | **Real mechanism, experimental**: warm-started from a synthetic seed; benefit unmeasured |
+| Cross-dataset (CSE-CIC-IDS2018) models | **Experimental, not deployed** |
+| Docker Compose, nginx, Prometheus/Grafana stack | **Implemented, untested** |
 
 ## 2. Component communication
 
@@ -56,6 +71,21 @@ flowchart LR
   failures, reset after 30 s). When the engine is down a flow is stored as `DEGRADED` (MEDIUM, never blocked).
 - Socket.IO rooms are joined only after the server re-verifies the session; privileged rooms get raw events, the
   viewer room gets redacted copies (last IPv4 octet masked, commands replaced).
+
+**Real-time communication (Socket.IO).** A socket is authenticated at the handshake with the access token, joins
+rooms only after the server re-verifies its session, and is re-checked every 15 s; revocation disconnects it at once.
+Events: `new_threat`, `ai_prediction`, `new_alert`, `honeypot_*`, `ip_blocked` / `ip_unblocked`, `live_feed_event`,
+`system_health`. After a server-side disconnect (e.g. database outage) the dashboard retries with backoff, rejoins its
+rooms and fetches the threats it missed (at most 20, de-duplicated by id).
+
+**Role-based access control.** Three roles: **admin** (users, settings, auto-block, everything), **analyst** (threats,
+triage, explanations, block/unblock, honeypot recommendations), **viewer** (read-only, redacted). Enforced on the
+server per route (`restrictTo`, `requirePermission`) and per socket room; viewer responses mask the last IPv4 octet and
+replace honeypot commands. Verified: viewer explanation request → 403; viewer dashboard shows `198.51.100.xxx`.
+
+**Monitoring and auditing.** Health endpoints (`/health`, `/ready`), Prometheus metrics (`/metrics`), rotating
+application logs (`backend\logs\sentinel*.log`) including structured `[AUDIT]` containment lines, and the `auditlogs`
+collection (Settings → audit log) for sign-ins, permission denials, settings changes and manual block/unblock.
 
 ## 3. AI/ML: models and metrics
 
@@ -193,13 +223,15 @@ Measured 2026-11-03 on the project laptop (Windows 11, 16 logical cores, 7.7 GB 
 | Clean clone → install → build → seed → start → login → analyze (throwaway MongoDB 7.0) | all steps pass; services up in ~65 s |
 | Integration harness with live Cowrie (Demos A, A-live, B, C, auth, outage) | **42 passed, 0 failed** |
 | Demo scripts (`start-demo.ps1`, `cowrie-demo-mode.sh on/off`, `stop-demo.ps1`) | three services UP; blocker check-block 200; clean stop |
-| Backend Jest / ESLint | 1,176 passed, 13 skipped / clean |
+| Backend Jest / ESLint | 1,176 passed, 13 skipped / clean (batch 15: 1,178 passed with the CONT-001 tests) |
 | AI engine pytest | 653 passed |
 | Model registry and golden set | OK; hashes unchanged |
 | Frontend unit / lint / production build | 70 passed / clean / OK |
 | Playwright, Chromium + Firefox + WebKit (+ device projects) | **240 passed, 0 failed, 0 skipped** |
 | Secret scan | 0 findings |
 | Load and failure recovery | [`PERFORMANCE_AND_RESILIENCE.md`](PERFORMANCE_AND_RESILIENCE.md) (batch 13) |
+| Demo A/B/C rehearsal on the real stack (batch 15) | all steps passed after one fix; [`DEMO_REHEARSAL_SCRIPT.md`](DEMO_REHEARSAL_SCRIPT.md) §7 |
+| Backup → restore round trip (batch 15) | 12/12 collections identical in documents and indexes |
 
 Details per batch: [`../audit/FIXES.md`](../audit/FIXES.md).
 
@@ -217,7 +249,7 @@ Details per batch: [`../audit/FIXES.md`](../audit/FIXES.md).
 | nginx (`frontend/nginx.conf`) | **Implemented, untested** | serves the built SPA on 8080 with CSP; runs only in the container |
 | HTTPS/TLS | **Missing** | no certificate or TLS termination config in the repository; compose expects TLS in front; `TRUST_PROXY` must list explicit proxy addresses |
 | Monitoring (Prometheus rules, Grafana dashboard) | **Implemented, partly tested** | rules unit-tested in CI (`promtool`); never run against live services |
-| Database backup and restore | **Missing** (procedure only) | no scheduled backup; manual `mongodump`/`mongorestore` only |
+| Database backup and restore | **Implemented and tested** (manual, Node scripts); scheduling **missing** | batch 15 round trip 12/12 collections identical after fixing dropped index options; `mongodump` needs the Database Tools (not installed); see [`DEPLOYMENT_AND_BACKUP_PLAN.md`](DEPLOYMENT_AND_BACKUP_PLAN.md) |
 | Real firewall enforcement | **Blocked by design** | adapter disabled; must not be enabled for demos |
 | Multi-host / public deployment | **Missing** | not designed or tested; would need TLS, secrets management and SEC-001 resolved |
 
@@ -242,6 +274,43 @@ Details per batch: [`../audit/FIXES.md`](../audit/FIXES.md).
 | Reset demo activity | `scripts\demo\reset-demo-db.ps1` (keeps users and settings; refuses `sentinel-db`) |
 | Engine, backend or MongoDB died | restart its window / `Start-Service MongoDB`; dashboards reconnect by themselves |
 | Restore Cowrie persona | `cowrie.cfg.pre-demo` backup, then `cowrie-demo-mode.sh restart` (runbook §2) |
-| Back up a database (manual) | `mongodump --uri mongodb://127.0.0.1:27017/sentinel-demo --out <folder>`; restore with `mongorestore` |
+| Back up a database (manual) | `$env:MONGO_URI='mongodb://127.0.0.1:27017/sentinel-demo'; node scratch\backup_sentinel_db.mjs`; restore into a new database first ([`DEPLOYMENT_AND_BACKUP_PLAN.md`](DEPLOYMENT_AND_BACKUP_PLAN.md) §4) |
+| Engine window died during a demo | `scripts\demo\restart-engine.ps1` (about 11 s) |
 | Upgrade dependencies | change lock files, then run the full regression set (§11) and CI |
 | Never | retrain or replace models without the registry procedure, enable the firewall adapter for a demo, run `seed` against a database you need |
+
+## 15. Feature-completion checklist (verified 2026-11-03)
+
+| Feature | Status | Verified by |
+|---|---|---|
+| Cowrie session capture, live dashboard updates | ✔ complete | rehearsal A1–A3; integration A-live |
+| MITRE ATT&CK mapping, rule-based session classification | ✔ complete | rehearsal A4 (5 techniques) |
+| Engagement and deception scoring | ✔ complete | rehearsal A5 |
+| Q-learning persona decision, persistence, rotation, credit | ✔ mechanism complete; benefit unmeasured | rehearsal A6–A8; integration A-live |
+| 53-feature validation, XGBoost + Isolation Forest, threat score | ✔ complete | rehearsal B (10/10); pytest |
+| Threat logs, alerts, severity lines 0.90 / 0.92 | ✔ complete | rehearsal B2–B3 |
+| Per-threat SHAP explanation tied to the stored prediction | ✔ complete | rehearsal B5 (reproduced, additivity) |
+| Role-based access and viewer redaction (REST and sockets) | ✔ complete | rehearsal B6; E2E live-feed viewer test |
+| Containment policy, state machine, mock adapter, audit, TTL, rollback | ✔ complete (enforcement simulated) | rehearsal C1–C9; integration C |
+| Honeypot deny-list enforcement | ✔ complete (real) | rehearsal C6–C7 |
+| Engine-outage fail-safe and recovery | ✔ complete | rehearsal C10–C11 |
+| Live feed reconnect and catch-up | ✔ complete | E2E live-feed spec |
+| Backup and restore | ✔ manual, tested; scheduling not implemented | batch 15 round trip |
+| Docker / TLS / multi-host deployment | ✘ not validated | see §12 |
+| Live packet capture | ✘ not implemented (replay only) | — |
+| Real firewall enforcement | ✘ deliberately disabled | — |
+
+## 16. Final technical readiness assessment
+
+**Ready for the final-year demonstration and viva**, on the project laptop, with the documented limitations stated
+up front. Evidence: a full Demo A/B/C rehearsal on the real stack (all steps passed after one fix), 42/42 integration
+checks with live Cowrie, all automated suites green (CI 7/7 on the last pushed commit), clean-clone installation, and
+recovery procedures exercised live.
+
+**Not ready for production use.** Blockers: no TLS, untested containers, SEC-001, simulated enforcement, and above
+all a detector that does not generalise to unseen attack days or tools.
+
+Documentation versus implementation: the batch 15 rehearsal found four inconsistencies and corrected them —
+containment audit lines are in the backend log, not the Settings audit table; the auto-block requester field is
+`requestedByName`; the replay script described recorded flows as "live network traffic"; there was no single-command
+engine recovery. One real defect (CONT-001) and one backup-tool defect (dropped index options) were fixed with tests.
