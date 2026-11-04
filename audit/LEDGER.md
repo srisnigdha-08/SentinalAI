@@ -21,6 +21,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Batch 6 | DONE 2026-11-02 — P3/P4 measured (no cross-day generalisation, ML-007), weakness analysis, RL review, deployment procedure |
 | Batch 7 | DONE 2026-11-02 — generalisation root cause (tool fingerprints), ranked options, CSE-CIC-IDS2018 plan, hybrid-eval mode (not run), deployment doc safety |
 | Batch 8 | DONE 2026-11-02 — pre-registered development protocol (ML_DEV_PROTOCOL.md), protected-test guard, feature/taxonomy/runner infrastructure (plan only) |
+| Batch 18 | DONE 2026-11-04 — CI 7/7 on 97dfa87; THR-003 fixed; CONT-003 review; PR-001 cleanup prepared; HYG-001 keep; TEST-010 (FINDINGS.md) |
 | Batch 17 | DONE 2026-11-04 — CONT-003 fixed (apply recovery, adapter inspectRule); THR-002 fixed (owner-approved alert-line alignment); PR-001, HYG-001 noted (FINDINGS.md) |
 | Batch 16 | DONE 2026-11-04 — re-audit at 452666f: CONT-002, ML-021, UI-005 fixed; DOC-003, HYG-002; CONT-003, THR-002, DEP-001 open (FINDINGS.md) |
 | Batch 15 | DONE 2026-11-03 — demo A/B/C rehearsal on the real stack; CONT-001 and OPS-004 fixed; runbook corrections; presenter script, metrics, presentation, viva bank, deployment/backup plan |

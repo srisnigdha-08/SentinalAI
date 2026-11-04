@@ -1142,3 +1142,65 @@ no engine client); before the change 12 of the first 12 failed, the restore path
 daily count was 3 of 3. threatIntel fixtures that encoded the 0.70 trigger moved to 0.95, plus a 0.70/0.85/0.89
 not-enriched case. Frontend tests/scoreBands.test.mjs 4.
 ```
+
+---
+
+## Batch 18 (2026-11-04) — final verification and PR readiness (at `97dfa87`)
+
+CI on 97dfa87: 7/7 jobs passed (run 41801776736). e2e.yml runs only on main/develop pushes and pull requests, so it
+has not run for db-fixes. No pull request exists.
+
+```
+ID: THR-003 | P3 | CONFIRMED (unit + E2E) | FIXED 2026-11-04 (uncommitted)
+With ALERT_THRESHOLD/BLOCK_THRESHOLD overridden, the backend raised and blocked at the engine's lines but the dashboard
+coloured scores and filtered the live feed at fixed 0.90/0.92 (AI Analytics even printed the engine's alert line next
+to colours computed from the default). Fix: GET /api/ai/score-lines (every signed-in role) returns the lines the
+backend scores with (engine values, defaults while unreachable); ScoreLinesProvider loads them once per user;
+scoreBands helpers take them as an argument; socket handlers read them through a ref. Scoring, thresholds and
+containment policy unchanged. Tests: backend tests/scoreLinesRoute.test.js 3 (3/3 failed before, 404) + role matrix
+entry; frontend tests/scoreBands.test.mjs +2 (failed before); e2e/score-lines.spec.js 6 x 3 browsers (default lines,
+overridden lines, live feed filter, overridden live feed, AI Analytics log, block/unblock restore).
+```
+
+```
+ID: CONT-003 (review) | P3 | OPEN (hardening, not implemented)
+Residual risks in recoverAbandonedApplications (containmentReconciliationService.js:186-260):
+1. The final save is by _id only. A request still running after the grace period (default 5 min; adapter timeouts are
+   5-10 s) can save ACTIVE over the recovery's FAILED, or call applyRule after recovery released the lock, leaving an
+   orphan rule; a later request for the target then fails on the unique targetLock. Hardening: make requestContainment's
+   saves conditional on the expected prior state (compare-and-set) and make the recovery's final write conditional on
+   recovery.lastAttemptAt.
+2. UNKNOWN / BACKEND_MISMATCH / ADAPTER_UNAVAILABLE retry forever with a log warning only: no SYSTEM_HEALTH alert and no
+   admin action to resolve an action an operator has verified by hand.
+3. Grace is judged on updatedAt written by each backend's clock; several backends with clock skew can misjudge it.
+```
+
+```
+ID: PR-001 | P3 | CLEANUP PREPARED (uncommitted)
+102 tracked files contained the Windows user path. Prepared: 31 living docs (docs/**, HANDOFF.md,
+ai-engine/modular/pcap_validation_procedure.md): repository root -> <repo>, other profile paths -> %USERPROFILE%, WSL
+home -> /home/<wsl-user>, account names -> <host>\<user>; 154 lines, verified line by line that nothing else changed.
+10 scripts (scripts/native_acceptance.cjs, run_auth_database_tests.cjs, run_native_readiness.cjs,
+verify_acceptance_evidence.cjs, prepare_native_mongo.py, scratch/verify_*.mjs) hard-coded the machine path and could
+run only on this machine; they now derive it from the repository location (same resolved path here).
+Left unchanged (evidence or model artifacts): ai-engine/experiments/** (32 Markdown records, hash/evidence JSON and
+TXT), metrics_report/raw/** (generated logs), ai-engine/models/*_meta.json (training provenance), the experiment
+pipeline copies of that meta, docs/DOCKER_CLEANUP_MANIFEST_20261015.json. Git history still contains the paths
+(no rewrite).
+```
+
+```
+ID: HYG-001 (decision input) | P3 | KEEP RECOMMENDED
+ai-engine/models/rf_classifier_cicids_v3.pkl (38.4 MB, not on main): no inference or test code loads it, but it is the
+registry's previous classifier (registry_history.jsonl entries 2-3, sha256 482d1fc6... matches the file), i.e. the
+one-step rollback target, and the C2 evaluation (experiments/c2_dedup_eval) and models/README.md describe it.
+Removing it breaks rollback to the RF model; keeping it costs 38 MB in the PR. Not removed. Stale study-guide line
+("Served since C2: cicids_v3") corrected.
+```
+
+```
+ID: TEST-010 | P3 | OBSERVED | OPEN (test design)
+Three-browser runs of live-feed.spec: nextIp() is time-based modulo 200, so a long run can reuse an address an earlier
+browser created, and "appears exactly once" then sees 2 rows (WebKit, 1 of 3 runs; 15/15 in isolation).
+E2E-002 (Firefox containment-modal justification lost) recurred 2 of 3 three-browser runs; 9/9 in isolation.
+```
