@@ -13,6 +13,7 @@ import { usePermission } from '../hooks/usePermission.js'
 import toast from 'react-hot-toast'
 import { containmentOutcome } from '../utils/containmentLabels.js'
 import { scoreColor } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 const STATUS_STYLES = {
   BLOCKED:        { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
@@ -30,6 +31,7 @@ const TYPES = ['SSH Brute Force','SSH Intrusion Attempt','SQL Injection','Port S
                'UNINSPECTED_TRAFFIC']
 
 export default function ThreatLogs() {
+  const scoreLines = useScoreLines() // THR-003
   const { user } = useAuth()
   const { hasPermission } = usePermission()
   const canTriage = hasPermission('threats:triage')
@@ -258,7 +260,7 @@ export default function ThreatLogs() {
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>{l.targetService}</td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:12,
-                    color:scoreColor(l.aiScore) }}>
+                    color:scoreColor(l.aiScore, scoreLines) }}>
                     {((l.aiScore||0)*100).toFixed(0)}%
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>

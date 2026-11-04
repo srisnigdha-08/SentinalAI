@@ -94,6 +94,7 @@ export const aiAPI = {
   health:     ()       => api.get('/ai/engine/health'),
   modelInfo:  ()       => api.get('/ai/engine/model-info'),
   engineStats:()       => api.get('/ai/engine/stats'),
+  scoreLines: ()       => api.get('/ai/score-lines'),
   drift:      ()       => api.get('/ai/engine/drift'),
   explainGlobal:()     => api.get('/ai/engine/explain-global'),
   // Loading and verifying new models can take a while; the backend allows 120 s.

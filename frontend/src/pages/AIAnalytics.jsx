@@ -1,5 +1,5 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
@@ -19,8 +19,13 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 
 import { useSocket } from '../hooks/useSocket.js'
 import { scoreColor, scoreLogType } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 export default function AIAnalytics() {
+  // THR-003: render uses the lines directly; the socket handler (subscribed once) reads the ref
+  const scoreLines = useScoreLines()
+  const scoreLinesRef = useRef(scoreLines)
+  scoreLinesRef.current = scoreLines
   const { user } = useAuth()
   const canVerify = user?.role === 'admin' || user?.role === 'analyst'
   const isAdmin = user?.role === 'admin'
@@ -156,7 +161,7 @@ export default function AIAnalytics() {
       setPreds(prev => [data, ...prev.filter(x => (x._id || x.id) !== (data._id || data.id))].slice(0, 12))
       setLiveLogs(prev => [
         {
-          type: scoreLogType(data.threatScore),
+          type: scoreLogType(data.threatScore, scoreLinesRef.current),
           text: `[INFER] ${data.sourceIP} → score=${((data.threatScore || 0) * 100).toFixed(0)}% → ${data.predictedClass} [${data.action || 'EVALUATED'}]`,
           ts: new Date().toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
         },
@@ -412,10 +417,10 @@ export default function AIAnalytics() {
                     <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
                       <div style={{ height:4, width:60, background:'#0d3352', borderRadius:2 }}>
                         <div style={{ height:'100%', width:`${(p.threatScore||0)*100}%`,
-                          background:scoreColor(p.threatScore), borderRadius:2 }} />
+                          background:scoreColor(p.threatScore, scoreLines), borderRadius:2 }} />
                       </div>
                       <span style={{ fontFamily:'Orbitron,sans-serif', fontSize:12, fontWeight:700,
-                        color:scoreColor(p.threatScore) }}>
+                        color:scoreColor(p.threatScore, scoreLines) }}>
                         {((p.threatScore||0)*100).toFixed(0)}%
                       </span>
                     </div>
@@ -575,7 +580,7 @@ export default function AIAnalytics() {
             [
               ...liveLogs,
               ...preds.map(p => ({
-                type: scoreLogType(p.threatScore),
+                type: scoreLogType(p.threatScore, scoreLines),
                 text: `[INFER] ${p.sourceIP} → score=${((p.threatScore||0)*100).toFixed(0)}% → ${p.predictedClass} [${p.modelType || 'RandomForest'}]`,
                 ts: new Date(p.createdAt || Date.now()).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
               }))

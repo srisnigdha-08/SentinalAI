@@ -18,6 +18,7 @@ import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
 import { manualBlockOutcome } from '../utils/containmentLabels.js'
 import { scoreColor } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 const SEV_COLORS = { CRITICAL:'#ff2d55', HIGH:'#ff6400', MEDIUM:'#ffaa00', LOW:'#00d4ff' }
 // The queue lists the latest threats whatever their state; these need no Block IP button and are not "open".
@@ -39,6 +40,7 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 ) : null
 
 export default function Dashboard() {
+  const scoreLines = useScoreLines() // THR-003
   const { user } = useAuth()
   const userRole = user?.role || 'viewer'
   const [analytics,    setAnalytics]    = useState(null)
@@ -219,7 +221,7 @@ export default function Dashboard() {
                 {new Date(t.createdAt).toLocaleTimeString('en-IN',{ timeZone: REPORT_TIME_ZONE,hour12:false})}
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:12,
-                color:scoreColor(t.aiScore) }}>
+                color:scoreColor(t.aiScore, scoreLines) }}>
                 {((t.aiScore||0)*100).toFixed(0)}%
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>

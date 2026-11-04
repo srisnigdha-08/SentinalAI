@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import Modal from './Modal.jsx'
 import { scoreColor } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 export default function ContainmentConfirmModal({
   isOpen,
@@ -11,6 +12,7 @@ export default function ContainmentConfirmModal({
   onConfirm,
   loading = false,
 }) {
+  const scoreLines = useScoreLines() // THR-003
   const [duration, setDuration] = useState('3600')
   const [reason, setReason] = useState('')
 
@@ -76,7 +78,7 @@ export default function ContainmentConfirmModal({
         {threatInfo?.aiScore !== undefined && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AI CONFIDENCE SCORE:</span>
-            <span style={{ fontSize: 12, color: scoreColor(threatInfo.aiScore), fontFamily: 'Share Tech Mono,monospace' }}>
+            <span style={{ fontSize: 12, color: scoreColor(threatInfo.aiScore, scoreLines), fontFamily: 'Share Tech Mono,monospace' }}>
               {Math.round(threatInfo.aiScore * 100)}%
             </span>
           </div>

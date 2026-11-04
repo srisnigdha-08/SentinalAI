@@ -29,3 +29,25 @@ test('the live feed lists predictions from the alert line only, labelled by seve
   assert.equal(liveSeverity({ threatScore: 0.9 }), 'HIGH')
   assert.equal(liveSeverity({ threatScore: 0.9, severity: 'MEDIUM' }), 'MEDIUM') // server-provided value wins
 })
+
+// THR-003: with ALERT_THRESHOLD/BLOCK_THRESHOLD overridden, the backend raises and blocks at the engine's lines but
+// the dashboard kept colouring and filtering at the 0.90/0.92 defaults.
+test('bands follow the lines the backend reports when they differ from the defaults', async () => {
+  const { DEFAULT_LINES, normalizeLines } = await import('../src/utils/scoreBands.js')
+  const lines = normalizeLines({ alert: 0.8, block: 0.85 })
+  assert.deepEqual(lines, { alert: 0.8, block: 0.85 })
+  assert.equal(scoreColor(0.82, lines), '#ffaa00') // a threat at this line: amber, not "below the alert line"
+  assert.equal(scoreColor(0.86, lines), '#ff2d55')
+  assert.equal(scoreColor(0.79, lines), '#00d4ff')
+  assert.equal(scoreLogType(0.86, lines), 'err')
+  assert.equal(isAlertScore(0.82, lines), true)
+  assert.equal(liveSeverity({ threatScore: 0.86 }, lines), 'CRITICAL')
+  assert.deepEqual(DEFAULT_LINES, { alert: 0.9, block: 0.92 })
+})
+
+test('invalid or missing lines fall back to the defaults', async () => {
+  const { DEFAULT_LINES, normalizeLines } = await import('../src/utils/scoreBands.js')
+  for (const bad of [null, {}, { alert: 0.95, block: 0.9 }, { alert: 0, block: 0.9 }, { alert: 0.9, block: 1.5 }, { alert: 'x', block: 0.92 }]) {
+    assert.deepEqual(normalizeLines(bad), DEFAULT_LINES, JSON.stringify(bad))
+  }
+})

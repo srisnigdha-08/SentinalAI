@@ -15,6 +15,7 @@ import { useSocket } from './useSocket.js'
 import { threatAPI } from '../services/api.js'
 import { feedThreatsToRecover, insertByTime } from '../utils/liveFeedSync.js'
 import { isAlertScore, liveSeverity } from '../utils/scoreBands.js'
+import { useScoreLines } from './useScoreLines.js'
 
 const CATCH_UP_LIMIT = 20
 
@@ -29,6 +30,10 @@ const threatItem = (t) => ({
 })
 
 export function useRealTimeFeed(maxItems = 30) {
+  // THR-003: the socket handlers below subscribe once, so they read the current lines through a ref
+  const scoreLines = useScoreLines()
+  const scoreLinesRef = useRef(scoreLines)
+  scoreLinesRef.current = scoreLines
   const [feed, setFeed]   = useState([])
   const { connected, on, socket } = useSocket()
 
@@ -76,10 +81,10 @@ export function useRealTimeFeed(maxItems = 30) {
       setFeed(prev => insertByTime(prev, [threatItem(data)], maxItems))
     })
     const unsubAI    = on('ai_prediction', (data) => {
-      if (isAlertScore(data.threatScore)) addItem({
+      if (isAlertScore(data.threatScore, scoreLinesRef.current)) addItem({
         ip:  data.sourceIP,
         msg: `AI: ${data.predictedClass} (${((data.threatScore||0)*100).toFixed(0)}%) → ${data.action}`,
-        sev: liveSeverity(data),
+        sev: liveSeverity(data, scoreLinesRef.current),
       })
     })
 

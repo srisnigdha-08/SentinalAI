@@ -3,6 +3,7 @@ import { threatAPI } from '../services/api.js'
 import toast from 'react-hot-toast'
 import Modal from './Modal.jsx'
 import { scoreColor } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 const ALLOWED_STATUSES = [
   'DETECTED',
@@ -19,6 +20,7 @@ export default function TriageModal({
   onClose,
   onSuccess,
 }) {
+  const scoreLines = useScoreLines() // THR-003
   // Initialised from the threat at mount (the parent remounts the modal per threat with `key`). Copying it in an
   // effect instead ran after the first paint and could wipe input typed in that window.
   const [status, setStatus] = useState(() => threat?.status || 'DETECTED')
@@ -88,7 +90,7 @@ export default function TriageModal({
         {threat.aiScore !== undefined && (
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AI CONFIDENCE SCORE:</span>
-            <span style={{ fontSize: 12, color: scoreColor(threat.aiScore), fontFamily: 'Share Tech Mono,monospace' }}>
+            <span style={{ fontSize: 12, color: scoreColor(threat.aiScore, scoreLines), fontFamily: 'Share Tech Mono,monospace' }}>
               {Math.round(threat.aiScore * 100)}%
             </span>
           </div>

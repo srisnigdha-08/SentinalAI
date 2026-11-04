@@ -4,6 +4,7 @@ import toast, { Toaster } from "react-hot-toast";
 
 import { AuthProvider } from "./context/AuthContext.jsx";
 import { SocketProvider } from "./context/SocketContext.jsx";
+import { ScoreLinesProvider } from "./context/ScoreLinesContext.jsx";
 import { useAuth } from "./hooks/useAuth.js";
 import ErrorBoundary from "./components/ErrorBoundary.jsx";
 
@@ -196,7 +197,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <AuthProvider>
-      <SocketProvider><AppRoutes /></SocketProvider>
+      <SocketProvider><ScoreLinesProvider><AppRoutes /></ScoreLinesProvider></SocketProvider>
     </AuthProvider>
   );
 }

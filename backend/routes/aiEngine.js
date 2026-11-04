@@ -58,6 +58,29 @@ router.get('/engine/model-info', protect, async (req, res, next) => {
 
 /**
  * @openapi
+ * /ai/score-lines:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: Alert and block lines the backend currently scores with (engine values, defaults while unreachable)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "{ alert, block }"
+ */
+// THR-003: the dashboard colours and filters scores with these, so it matches what the backend raises and blocks.
+router.get('/score-lines', protect, async (req, res, next) => {
+  try {
+    const [alert, block] = await Promise.all([aiSvc.getAlertThreshold(), aiSvc.getBlockThreshold()])
+    sendSuccess(res, { alert, block })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
  * /ai/engine/stats:
  *   get:
  *     tags:

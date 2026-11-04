@@ -93,6 +93,8 @@ jest.mock('../services/aiEngineService', () => ({
   getGlobalExplanation: jest.fn().mockResolvedValue({ samples: 0, overall: [], by_class: {} }),
   reloadModel: jest.fn().mockResolvedValue({ success: true, current: { registry: { classifier: 'x.pkl' } } }),
   getDeceptionRecommendation: jest.fn().mockResolvedValue({ nextProfile: 'debian_11' }),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.9),
+  getBlockThreshold: jest.fn().mockResolvedValue(0.92),
 }))
 
 jest.mock('../services/aiService', () => ({
@@ -804,6 +806,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
     },
     { method: 'get', path: '/api/ai/stats', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/ai/score-lines',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
     {
       method: 'put',
       path: '/api/ai/predictions/:id/verify',
