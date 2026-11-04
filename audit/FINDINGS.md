@@ -1065,3 +1065,80 @@ ID: DEP-001 | P2 | CONFIRMED (config) | OPEN (deployment limitation)
 frontend/nginx.conf listens on plain HTTP 8080 with no TLS server block or HSTS; compose binds every port to loopback by
 default and the backend supports a TLS proxy (securityTopology TRUST_PROXY), but no TLS terminator is provided.
 ```
+
+---
+
+## Batch 17 (2026-11-04) — containment application recovery, threshold review, PR readiness (at `c23d91f`)
+
+CI on c23d91f: 7/7 jobs passed (run 41792922270). No pull request exists for db-fixes.
+
+```
+ID: CONT-003 (update) | P2 | CONFIRMED (real-database test) | FIXED 2026-11-04
+A request interrupted after its first save (VALIDATING) and before ACTIVE/FAILED — process stop or a failed MongoDB
+save — kept targetLock forever; later requests for the address returned it as alreadyActive. Reproduced: a failed
+ACTIVE save leaves APPLYING with the mock rule present; a failed APPLYING save leaves APPROVED.
+Fix (containmentReconciliationService.recoverAbandonedApplications, run with TTL reconciliation every pass): actions
+idle in VALIDATING/APPROVED/APPLYING for CONTAINMENT_STUCK_GRACE_MS are claimed with a compare-and-set on updatedAt.
+VALIDATING/APPROVED -> FAILED (NOT_APPLIED: the adapter is called only from APPLYING). APPLYING -> new read-only
+adapter.inspectRule (PRESENT / ABSENT / UNKNOWN; a throw = unavailable): ABSENT -> FAILED; PRESENT -> removeRule, then
+inspect must answer ABSENT -> FAILED (RULE_REMOVED; the half-applied rule is not adopted because no BlockedIP, threat,
+audit or dashboard state exists for it). UNKNOWN, unavailable, failed or unconfirmed removal, or an action recorded
+for another enforcement backend: lock kept, outcome stored in ContainmentAction.recovery, retried after the grace.
+Windows adapter: inspectRule runs only `netsh advfirewall firewall show rule`, ABSENT only on netsh's
+"No rules match the specified criteria" (verifyRule maps every error to exists:false, so it is not used); localised
+output, timeouts and access errors are UNKNOWN; the closed safety gate throws. Interface default: UNKNOWN.
+Tests: tests/containmentApplyRecovery.test.js 12 (all 12 failed before: method missing; the setup asserts the stuck
+lock and alreadyActive), tests/firewallExecFile.test.js +8 (fake runner, no netsh). Containment suites 101/101,
+backend 1202 passed / 13 skipped, MongoDB suites 13/13, integration harness 36/36.
+Residual: a request still running after the grace period (default 5 min) could have its action marked FAILED under
+it; the adapter timeouts are 5-10 s.
+```
+
+```
+ID: THR-002 (investigation) | P3 | AWAITING OWNER DECISION — no threshold changed
+Runtime decisions already use the shared lines (alert 0.90, block 0.92) everywhere a score drives an outcome:
+aiService.storePrediction (threat creation, severity, MONITORING/BLOCKED, enrichment), honeypotService, engine actions.
+The 0.70 constants are fallbacks or display: containment restore when preBlockStatus is null (containmentService 502,
+870, 916; containmentReconciliationService restore), threatService.createThreat (only caller sends score 0),
+threatIntelService.enrichThreat guard (callers gate at 0.90 first), seed.js fixtures, frontend colour bands and the
+live-feed ai_prediction filter (labels sub-alert predictions HIGH). campaignService 0.8/0.6 is a separate campaign
+risk scale. Recommendation and score table: Batch 17 report.
+```
+
+```
+ID: PR-001 | P3 | CONFIRMED | OPEN
+Committed docs and metrics_report/raw logs contain local absolute paths with the Windows user name
+(C:\Users\<name>\...) in at least 10 docs and 5 raw logs; the repository is public. Not secrets (secret scan 0
+findings) but personal-path disclosure; sanitise before or during review.
+```
+
+```
+ID: HYG-001 (update) | P3 | OPEN
+db-fixes adds ai-engine/models/rf_classifier_cicids_v3.pkl (38.4 MB), a superseded model (registry serves
+xgb_cicids_v1). Under GitHub's 100 MB limit; removing it from the PR would need a history rewrite (owner decision).
+```
+
+```
+ID: THR-002 | P3 | CONFIRMED (tests) | FIXED 2026-11-04 (owner approved the recommended correction)
+Every remaining 0.70 status/trigger line now uses the shared alert line (engine ALERT_THRESHOLD, default 0.90):
+- backend/utils/severity.js: DEFAULT_ALERT_THRESHOLD / DEFAULT_BLOCK_THRESHOLD (0.90 / 0.92; aiEngineService imports
+  them), restoreStatusFor(threat) and currentAlertLine(). The line is recorded there by aiEngineService whenever it
+  reads /model/info, so containment code never loads the engine client (it works without SENTINEL_KEY).
+- Restore fallbacks (preBlockStatus missing): containmentService unblockIPManual, releaseLegacyBlockState,
+  executeAutoBlock; containmentReconciliationService TTL restore.
+- threatService.createThreat status / preBlockStatus / enrichment trigger; threatIntelService.enrichThreat guard.
+- aiService.getModelStats daily "threats" series (counted predictions >= 0.70; found during the change).
+- utils/seed.js: MONITORING from the alert line, BLOCKED from the block line, seeded BLOCKED rows get preBlockStatus
+  MONITORING, prediction -> threat links only from the alert line.
+- Frontend: utils/scoreBands.js (red >= 0.92, amber >= 0.90, blue below) for Threat Logs, Dashboard, AI Analytics,
+  Triage and Containment modals; the live feed lists ai_prediction events only from the alert line, labelled
+  CRITICAL/HIGH by score unless the server sent a severity.
+Unchanged by design: campaignService 0.8/0.6 (campaign risk scale), AI Analytics score histogram edges.
+Effects: no stored record is migrated. Seeded/legacy BLOCKED threats scored 0.70-0.89 without preBlockStatus now
+restore as DETECTED; manual threats unaffected (score 0); re-seeding produces no MONITORING rows below 0.90. Frontend
+colours use the engine defaults; a deployment that overrides ALERT_THRESHOLD changes only backend behaviour there.
+Tests: backend tests/thresholdConsistency.test.js 15 (restore table 0.69-0.99, unblock and TTL restore, daily count,
+no engine client); before the change 12 of the first 12 failed, the restore paths returned MONITORING for 0.85 and the
+daily count was 3 of 3. threatIntel fixtures that encoded the 0.70 trigger moved to 0.95, plus a 0.70/0.85/0.89
+not-enriched case. Frontend tests/scoreBands.test.mjs 4.
+```
