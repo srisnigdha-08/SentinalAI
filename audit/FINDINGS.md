@@ -992,3 +992,76 @@ ID: DOC-002 | P3 | CONFIRMED (rehearsal) | FIXED (docs/text)
 - No single-service recovery: start-demo.ps1 refuses while ports are busy. Added scripts/demo/restart-engine.ps1
   (rehearsed: engine UP in 11 s, backend recovered without restart, next replay scored normally).
 ```
+
+---
+
+## Batch 16 (2026-11-04) — engineering re-audit at `452666f`
+
+Baseline before changes: CI green on 452666f (7/7 jobs); local backend Jest 1178 passed / 13 skipped, AI pytest 653,
+frontend 70 + lint + build; registry check OK; demo Q-table 6x6 finite, 12,099 episodes.
+
+```
+ID: CONT-002 | P2 | CONFIRMED (real-database test) | FIXED 2026-11-04
+TTL reconciliation scanned only ACTIVE and ROLLBACK_FAILED. An action left in EXPIRING or ROLLING_BACK was never
+picked up again: (a) an adapter removeRule that throws (rollbackContainment converts a throw into a failed result,
+the reconciler did not) left the saved ROLLING_BACK state; (b) a MongoDB error between the EXPIRING and ROLLING_BACK
+saves, or a process stop mid-rollback, did the same. The action kept targetLock, BlockedIP stayed, the address stayed
+deny-listed past its TTL, and every new containment request for it returned the stuck action as "already active".
+Fix: a throw counts as a failed removal (ROLLBACK_FAILED, retried next pass); actions in EXPIRING/ROLLING_BACK with no
+update for CONTAINMENT_STUCK_GRACE_MS (default 5 min) are completed (removeRule is idempotent in the mock adapter).
+A rollback updated within the grace period is left to its owner. backend/tests/containmentStuckRecovery.test.js:
+3 of 4 failed before (ROLLING_BACK instead of ROLLBACK_FAILED; 0 processed twice), 4/4 after; containment suites 68/68.
+Not covered: an action stuck in REQUESTED/VALIDATING/APPROVED/APPLYING (CONT-003, open).
+```
+
+```
+ID: CONT-003 | P3 | CONFIRMED (code) | OPEN
+An action stopped in VALIDATING/APPROVED/APPLYING holds targetLock indefinitely; new requests for that target return
+it as alreadyActive. Not auto-recovered because after APPLYING it is unknown whether the adapter applied the rule
+(windows-firewall). Needs an idempotent "is the rule present" adapter query before it can be released safely.
+```
+
+```
+ID: ML-021 | P2 | CONFIRMED | FIXED 2026-11-04
+retrain_from_samples.py --promote wrote model meta without class_counts or drift_reference (training/train.py writes
+both). A promoted model would report every class as lowTrainingDataClass=false (classProvenance trainingRows null; the
+served model flags SQL Injection 17, RCE 9, Lateral Movement 29 rows) and /model/drift would silently fall back from
+PSI-on-benign to scaler mean/variance. Fix: training_metadata() computes both from the rows the candidate was trained
+on; promote() merges them. Test: tests/test_improvements.py::test_promoted_meta_keeps_class_counts_and_psi_reference.
+No model was trained or promoted.
+```
+
+```
+ID: UI-005 | P3 | CONFIRMED (unit test) | FIXED 2026-11-04
+AI Analytics drift text used report.samples (all flows) although the PSI method assesses, and counts toward
+min_samples, only BENIGN-classified flows (benign_samples). With mostly-attack traffic it read "500 of 200 live flows
+needed"; ok/drift said "over the last N flows". Fix: modelHealth.driftSummary uses benign_samples for PSI reports
+("150 of 200 benign-classified flows"); scaler-method wording unchanged. tests/modelHealth.test.mjs.
+```
+
+```
+ID: DOC-003 | P3 | CONFIRMED | FIXED (docs)
+AI_ENGINE_STUDY_GUIDE §3.5 stated an absolute 0.1 % benign-alert gate (the gate is relative to the baseline + 0.02
+points since U1) and "keeps registry.previous.json for rollback" with no procedure or location. Added the rollback
+procedure, including that MODEL_REGISTRY_SHA256 is read from the process environment, so a pinned engine must be
+restarted (POST /model/reload returns 409) after promotion or rollback.
+```
+
+```
+ID: THR-002 | P3 | CONFIRMED (code) | OPEN (threshold change needs owner approval)
+Status fallbacks still use the pre-C2 0.7 line: containmentService.js:502/870/916, containmentReconciliationService.js
+(restore), threatService.js:115/138, threatIntelService.js enrichment trigger. AI-created threats are always >= the
+0.90 alert line, so the effect is limited to manual/seeded threats scored 0.70-0.90 (MONITORING instead of DETECTED).
+```
+
+```
+ID: HYG-002 | P3 | FIXED
+.claude/ and ai-engine/experiments/*_stdout.txt were deliberately never committed (READINESS_2026-11-02) but were not
+git-ignored, so `git add -A` would commit them. Both added to .gitignore.
+```
+
+```
+ID: DEP-001 | P2 | CONFIRMED (config) | OPEN (deployment limitation)
+frontend/nginx.conf listens on plain HTTP 8080 with no TLS server block or HSTS; compose binds every port to loopback by
+default and the backend supports a TLS proxy (securityTopology TRUST_PROXY), but no TLS terminator is provided.
+```
