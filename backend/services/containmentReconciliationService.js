@@ -5,6 +5,7 @@ const { getContainmentAdapter } = require('./containment/adapterFactory')
 const BlockedIP = require('../models/BlockedIP')
 const ThreatLog = require('../models/ThreatLog')
 const logger = require('../utils/logger')
+const { logContainmentAudit } = require('../utils/containmentAudit')
 
 /**
  * ContainmentReconciliationService
@@ -168,12 +169,118 @@ class ContainmentReconciliationService {
     }
   }
 
+  /**
+   * CONT-003: recover requests interrupted before they reached ACTIVE or FAILED. They hold targetLock, so until now
+   * the address could never be contained again. The adapter is only called once an action is APPLYING, so:
+   *   VALIDATING / APPROVED -> FAILED (NOT_APPLIED), lock released.
+   *   APPLYING: ask the adapter (inspectRule):
+   *     ABSENT  -> FAILED (RULE_ABSENT), lock released.
+   *     PRESENT -> remove the rule, confirm ABSENT, then FAILED (RULE_REMOVED). The half-finished rule is not adopted
+   *                as ACTIVE: the requester got an error, no BlockedIP/threat/audit state was written, and no
+   *                dashboard or unblock path would know about it. A new detection requests containment afresh.
+   *     UNKNOWN, adapter unavailable, removal not confirmed, or recorded for another backend -> lock KEPT, outcome
+   *                recorded, retried after the grace period. An unknown answer is never treated as "no rule".
+   * Each action is claimed with a compare-and-set on its updatedAt, so concurrent or repeated passes act once.
+   */
+  async recoverAbandonedApplications() {
+    const now = new Date()
+    const cutoff = new Date(now.getTime() - this.stuckGraceMs)
+    const candidates = await ContainmentAction.find({
+      enforcementStatus: { $in: ['VALIDATING', 'APPROVED', 'APPLYING'] },
+      updatedAt: { $lte: cutoff },
+    })
+      .select('_id updatedAt')
+      .lean()
+
+    const summary = { processed: 0, released: 0, unresolved: 0, actions: [] }
+    for (const candidate of candidates) {
+      const action = await ContainmentAction.findOneAndUpdate(
+        {
+          _id: candidate._id,
+          updatedAt: candidate.updatedAt,
+          enforcementStatus: { $in: ['VALIDATING', 'APPROVED', 'APPLYING'] },
+        },
+        { $inc: { 'recovery.attempts': 1 }, $set: { 'recovery.lastAttemptAt': now } },
+        { new: true }
+      )
+      if (!action) continue // another pass claimed it, or the request finished meanwhile
+      summary.processed++
+      let outcome
+      let detail = null
+      try {
+        ;({ outcome, detail } = await this._recoverOne(action))
+      } catch (err) {
+        outcome = 'ADAPTER_UNAVAILABLE'
+        detail = err.message
+      }
+      const released = ['NOT_APPLIED', 'RULE_ABSENT', 'RULE_REMOVED'].includes(outcome)
+      action.recovery.lastOutcome = outcome
+      action.recovery.lastDetail = detail ? String(detail).slice(0, 500) : null
+      if (released) {
+        action.transitionTo('FAILED', { failureReason: `Interrupted before activation; recovered (${outcome})` })
+      }
+      await action.save()
+      logContainmentAudit({
+        action: released ? 'CONTAINMENT_RECOVERED' : 'CONTAINMENT_RECOVERY_DEFERRED',
+        containmentId: action.containmentId,
+        target: action.normalizedTarget,
+        enforcementStatus: action.enforcementStatus,
+        details: { outcome, detail, attempts: action.recovery.attempts },
+      })
+      if (released) summary.released++
+      else {
+        summary.unresolved++
+        logger.warn(
+          `[ContainmentReconciliation] ${action.containmentId} (${action.normalizedTarget}) still locked: ${outcome}`
+        )
+      }
+      summary.actions.push({ containmentId: action.containmentId, outcome })
+    }
+    return summary
+  }
+
+  async _recoverOne(action) {
+    if (action.enforcementStatus !== 'APPLYING') return { outcome: 'NOT_APPLIED' }
+    const adapter = getContainmentAdapter()
+    if (action.enforcementBackend && action.enforcementBackend !== adapter.getBackendType()) {
+      return {
+        outcome: 'BACKEND_MISMATCH',
+        detail: `recorded ${action.enforcementBackend}, current ${adapter.getBackendType()}`,
+      }
+    }
+    // Same identifiers requestContainment passed to applyRule
+    const rule = {
+      containmentId: action.containmentId,
+      ruleId: action.enforcementDetails?.ruleId || undefined,
+      target: action.normalizedTarget,
+      ruleName: action.enforcementDetails?.ruleName || `SentinelAI-Rule-${action.containmentId}`,
+    }
+    const inspect = async () => (await adapter.inspectRule(rule))?.state
+    const state = await inspect()
+    if (state === 'ABSENT') return { outcome: 'RULE_ABSENT' }
+    if (state !== 'PRESENT') return { outcome: 'RULE_STATE_UNKNOWN', detail: `inspectRule answered ${state}` }
+
+    const removed = await adapter.removeRule(rule)
+    if (!removed?.success) return { outcome: 'RULE_REMOVAL_FAILED', detail: removed?.stderr || 'removeRule failed' }
+    const after = await inspect()
+    if (after !== 'ABSENT')
+      return { outcome: 'RULE_REMOVAL_FAILED', detail: `after removal inspectRule answered ${after}` }
+    return { outcome: 'RULE_REMOVED' }
+  }
+
+  /** One periodic pass: TTL reconciliation, then recovery of interrupted applications. */
+  async runOnce() {
+    const ttl = await this.reconcileExpiredActions()
+    const recovered = await this.recoverAbandonedApplications()
+    return { ttl, recovered }
+  }
+
   start() {
     if (this.isRunning) return
     this.isRunning = true
     this.timer = setInterval(async () => {
       try {
-        await this.reconcileExpiredActions()
+        await this.runOnce()
       } catch (err) {
         logger.error(`[ContainmentReconciliation] Unexpected error in interval: ${err.message}`)
       }

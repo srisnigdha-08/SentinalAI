@@ -72,3 +72,66 @@ describe('WindowsFirewallAdapter execFile hardening', () => {
     expect(source).not.toMatch(/\bexec\(|promisify\(exec\)/)
   })
 })
+
+// CONT-003: recovery may release a target lock only on a positive "absent" answer. A recording runner stands in for
+// netsh; nothing executes.
+describe('WindowsFirewallAdapter.inspectRule (read-only, tri-state)', () => {
+  const withRunner = (runNetsh) => {
+    const calls = []
+    const adapter = new WindowsFirewallAdapter({
+      enabled: true,
+      runNetsh: async (args) => {
+        calls.push(args)
+        return runNetsh()
+      },
+    })
+    adapter._assertEnabled = () => {}
+    return { adapter, calls }
+  }
+  const netshError = (message, stdout = '') => Object.assign(new Error(message), { stdout, stderr: '' })
+  const rule = { containmentId: 'c-1', ruleName: 'SentinelAI-Rule-c-1' }
+
+  test('PRESENT when netsh lists the rule; only "show rule" is ever run', async () => {
+    const { adapter, calls } = withRunner(async () => ({ stdout: 'Rule Name: SentinelAI-Rule-c-1\nEnabled: Yes\n' }))
+    await expect(adapter.inspectRule(rule)).resolves.toMatchObject({ state: 'PRESENT' })
+    expect(calls).toEqual([['advfirewall', 'firewall', 'show', 'rule', 'name=SentinelAI-Rule-c-1']])
+  })
+
+  test('ABSENT only on netsh\'s own "No rules match" answer', async () => {
+    const { adapter } = withRunner(async () => {
+      throw netshError('Command failed: netsh', '\r\nNo rules match the specified criteria.\r\n')
+    })
+    await expect(adapter.inspectRule(rule)).resolves.toMatchObject({ state: 'ABSENT' })
+  })
+
+  test.each([
+    ['a timeout', netshError('Command failed: netsh (ETIMEDOUT)')],
+    ['access denied', netshError('Command failed: netsh', 'The requested operation requires elevation.')],
+    ['localised output', netshError('Command failed: netsh', 'Keine Regeln entsprechen den angegebenen Kriterien.')],
+  ])('UNKNOWN (never ABSENT) on %s', async (_label, error) => {
+    const { adapter } = withRunner(async () => {
+      throw error
+    })
+    await expect(adapter.inspectRule(rule)).resolves.toMatchObject({ state: 'UNKNOWN' })
+  })
+
+  test('UNKNOWN when netsh succeeds without naming the rule', async () => {
+    const { adapter } = withRunner(async () => ({ stdout: 'Ok.' }))
+    await expect(adapter.inspectRule(rule)).resolves.toMatchObject({ state: 'UNKNOWN' })
+  })
+
+  test('with the safety gate closed it throws (adapter unavailable), it does not answer ABSENT', async () => {
+    const gated = new WindowsFirewallAdapter({
+      enabled: false,
+      runNetsh: async () => {
+        throw new Error('netsh must not run')
+      },
+    })
+    await expect(gated.inspectRule(rule)).rejects.toMatchObject({ code: 'FIREWALL_ENFORCEMENT_DISABLED' })
+  })
+
+  test('the interface default is UNKNOWN, so an adapter without inspection never releases a lock', async () => {
+    const Interface = require('../services/containment/adapterInterface')
+    await expect(new Interface().inspectRule(rule)).resolves.toMatchObject({ state: 'UNKNOWN' })
+  })
+})

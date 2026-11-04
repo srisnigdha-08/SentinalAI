@@ -203,6 +203,31 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     }
   }
 
+  /**
+   * Read-only tri-state lookup for recovery (CONT-003). verifyRule maps every netsh error to "absent"; this does not:
+   * ABSENT only on netsh's own "No rules match" answer, PRESENT only when the rule name is in the output, otherwise
+   * UNKNOWN (timeout, access denied, localised or unexpected output). Throws while the safety gate is closed, so a
+   * disabled adapter is "unavailable", never "absent". Runs only `netsh advfirewall firewall show rule`.
+   */
+  async inspectRule({ containmentId, ruleId, ruleName }) {
+    this._assertEnabled()
+    const assignedRuleName = this._sanitizeRuleName(ruleName || ruleId || this._formatRuleName(containmentId))
+    try {
+      const { stdout } = await this._runNetsh(
+        ['advfirewall', 'firewall', 'show', 'rule', `name=${assignedRuleName}`],
+        5000
+      )
+      if ((stdout || '').includes(assignedRuleName))
+        return { state: 'PRESENT', details: { ruleName: assignedRuleName } }
+      return { state: 'UNKNOWN', details: { ruleName: assignedRuleName, reason: 'rule name not in netsh output' } }
+    } catch (err) {
+      const output = `${err.stdout || ''}\n${err.stderr || ''}`
+      if (/No rules match the specified criteria/i.test(output))
+        return { state: 'ABSENT', details: { ruleName: assignedRuleName } }
+      return { state: 'UNKNOWN', details: { ruleName: assignedRuleName, reason: String(err.message).slice(0, 200) } }
+    }
+  }
+
   async listActiveRules() {
     this._assertEnabled()
     try {

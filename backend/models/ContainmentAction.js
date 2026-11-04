@@ -25,8 +25,9 @@ const ENFORCEMENT_BACKENDS = ['mock', 'simulated', 'windows-firewall']
 
 const VALID_TRANSITIONS = {
   REQUESTED: ['VALIDATING', 'REJECTED'],
-  VALIDATING: ['APPROVED', 'REJECTED'],
-  APPROVED: ['APPLYING', 'REJECTED'],
+  // FAILED from VALIDATING/APPROVED: a request abandoned before the adapter was called (CONT-003 recovery)
+  VALIDATING: ['APPROVED', 'REJECTED', 'FAILED'],
+  APPROVED: ['APPLYING', 'REJECTED', 'FAILED'],
   APPLYING: ['ACTIVE', 'FAILED'],
   ACTIVE: ['EXPIRING', 'ROLLING_BACK', 'FAILED'],
   EXPIRING: ['ROLLING_BACK'],
@@ -160,6 +161,15 @@ const ContainmentActionSchema = new mongoose.Schema(
     failureReason: {
       type: String,
       default: null,
+    },
+    // CONT-003: recovery of a request interrupted before ACTIVE/FAILED (containmentReconciliationService)
+    recovery: {
+      attempts: { type: Number, default: 0 },
+      lastAttemptAt: { type: Date, default: null },
+      // NOT_APPLIED | RULE_ABSENT | RULE_REMOVED | RULE_STATE_UNKNOWN | ADAPTER_UNAVAILABLE | RULE_REMOVAL_FAILED |
+      // BACKEND_MISMATCH
+      lastOutcome: { type: String, default: null },
+      lastDetail: { type: String, default: null, maxlength: 500 },
     },
     correlationId: {
       type: String,

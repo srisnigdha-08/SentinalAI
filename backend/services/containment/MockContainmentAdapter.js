@@ -143,6 +143,12 @@ class MockContainmentAdapter extends ContainmentAdapterInterface {
     }
   }
 
+  // The in-memory map is the whole "firewall", so its answer is authoritative (no UNKNOWN case).
+  async inspectRule({ containmentId, ruleId }) {
+    const resolvedRuleId = ruleId || `mock-rule-${containmentId}`
+    return { state: this.activeRules.has(resolvedRuleId) ? 'PRESENT' : 'ABSENT', details: { ruleId: resolvedRuleId } }
+  }
+
   async listActiveRules() {
     return Array.from(this.activeRules.values())
   }
