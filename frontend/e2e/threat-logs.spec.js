@@ -140,10 +140,13 @@ test.describe('Threat Logs Telemetry, Triage & Containment', () => {
 
     // Select TTL (e.g., 24 Hours)
     await page.locator('#containment-duration').selectOption('86400');
+    await expect(page.locator('#containment-duration')).toHaveValue('86400');
 
-    // Enter operator reason
+    // Enter operator reason. E2E-002: under load Firefox intermittently submitted the fallback reason, i.e. the field
+    // was still empty when Confirm was clicked; wait until the controlled field shows the text before confirming.
     const reasonText = 'E2E automated active containment response check';
     await page.locator('#containment-reason').fill(reasonText);
+    await expect(page.locator('#containment-reason')).toHaveValue(reasonText);
 
     // Confirm containment
     await page.getByRole('button', { name: 'Confirm Containment' }).click();
