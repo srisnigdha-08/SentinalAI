@@ -300,6 +300,22 @@ const getAlertThreshold = async () => {
   return cachedAlertThreshold
 }
 
+/**
+ * THR-005: fetch the lines once at startup so paths that never call the engine (containment restore fallbacks)
+ * use the engine's line from the start instead of the default. Never throws; an unreachable engine leaves the
+ * defaults, reported as such.
+ */
+const warmScoreLines = async () => {
+  try {
+    const lines = await getScoreLines()
+    logger.info(`[AI] Score lines at startup: alert ${lines.alert}, block ${lines.block} (${lines.source})`)
+    return lines
+  } catch (err) {
+    logger.warn(`[AI] Score lines not loaded at startup: ${err.message}`)
+    return { alert: cachedAlertThreshold, block: cachedBlockThreshold, source: 'default', confirmedAt: null }
+  }
+}
+
 /** Forces the next threshold lookup to hit the engine (after a model reload). */
 const invalidateThresholds = () => {
   lastFetchedTime = 0
@@ -371,6 +387,7 @@ module.exports = {
   getBlockThreshold,
   getAlertThreshold,
   getScoreLines,
+  warmScoreLines,
   invalidateThresholds,
   reloadModel,
   getDrift,

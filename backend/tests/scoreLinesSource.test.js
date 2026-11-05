@@ -63,3 +63,30 @@ test('the route returns the source with the lines', async () => {
   const res = await request(app).get('/api/ai/score-lines')
   expect(res.body.data).toEqual({ alert: 0.9, block: 0.92, source: 'default', confirmedAt: null })
 })
+
+// THR-005: after a backend restart the lines were fetched only on the first scored flow, so a containment restore
+// before that used the 0.90 default even when the engine runs with another ALERT_THRESHOLD. warmScoreLines() runs at
+// startup (server.js) and records the engine's line for those paths.
+test('warmScoreLines records the engine line for restore paths; an unreachable engine leaves the defaults', async () => {
+  let svc
+  let severity
+  jest.isolateModules(() => {
+    const get = jest.fn().mockResolvedValue({ data: { thresholds: { monitor: 0.8, block: 0.85 } } })
+    jest.doMock('axios', () => ({
+      create: () => ({ get, post: jest.fn(), interceptors: { request: { use: jest.fn() } } }),
+    }))
+    svc = jest.requireActual('../services/aiEngineService')
+    severity = jest.requireActual('../utils/severity')
+  })
+  expect(severity.currentAlertLine()).toBe(0.9) // before warm-up: the default
+  await expect(svc.warmScoreLines()).resolves.toMatchObject({ alert: 0.8, source: 'engine' })
+  expect(severity.currentAlertLine()).toBe(0.8)
+
+  const down = load(jest.fn().mockRejectedValue(new Error('ECONNREFUSED')))
+  await expect(down.warmScoreLines()).resolves.toMatchObject({ source: 'default' }) // never throws at startup
+})
+
+test('server startup warms the score lines', () => {
+  const source = require('fs').readFileSync(require.resolve('../server'), 'utf8')
+  expect(source).toMatch(/warmScoreLines\(\)/)
+})

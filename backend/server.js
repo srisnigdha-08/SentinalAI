@@ -299,6 +299,9 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
     .then(async () => {
       await revocationDelivery.start()
       logger.info('Authentication revocation mode: ' + authTopology.mode)
+      // THR-005: load the engine's alert/block lines before anything restores a threat status (not awaited: an
+      // unreachable engine must not delay startup; it is retried on first use)
+      require('./services/aiEngineService').warmScoreLines()
       try {
         const { defaultReconciliationService } = require('./services/containmentReconciliationService')
         defaultReconciliationService.start()
