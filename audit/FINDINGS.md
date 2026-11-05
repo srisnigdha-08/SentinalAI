@@ -1338,3 +1338,12 @@ out. A/B: the identical run with only RATE_LIMIT_MAX=100000 added: 82/82 in 8.7 
 (production default unchanged); frontend/tests/e2eWorkflow.test.mjs fails without it and pins the 1000 default.
 Not a product defect. The workflow runs Chromium only; Firefox/WebKit coverage remains local.
 ```
+
+```
+ID: CI-002 (verification) | VERIFIED ON GITHUB 2026-11-05
+Commit a9a706a on draft PR #1: SentinelAI CI push run 41983979391 7/7, pull_request run 41983986270 7/7,
+SentinelAI E2E Tests run 41983986359 passed (Chromium; Playwright step 3 min 32 s against 16-17 min for the failed
+attempts; failure-artifact uploads skipped). Per-test counts are in the job log, which needs a signed-in account; the
+same configuration reproduced locally passed 82/82. Fix commit changed only e2e.yml, the new workflow test and the
+audit records; registry and Q-table hashes unchanged.
+```
