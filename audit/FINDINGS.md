@@ -1267,3 +1267,61 @@ now waits for the TTL select and the justification field to show their values be
 assertion is unchanged. Clean runs: 72/72 (3 browsers), then threat-logs + live-feed + score-lines x3 per browser
 126/126.
 ```
+
+---
+
+## Batch 20 (2026-11-04) — post-ACTIVE consistency, concurrent release, retry back-off (at `b4ae6f4`)
+
+The four batch 19 commits (d4edd4b..b4ae6f4) were committed but not pushed at the start: CI had not run on them
+(latest run 41827646046 on f90d23a, 7/7). No pull request. Registry check OK; Q-table hashes unchanged.
+
+```
+ID: CONT-005 | P2 | CONFIRMED (real-database test) | FIXED 2026-11-04 (uncommitted)
+After an action was saved ACTIVE, syncLegacyBlockState wrote the deny-list entry and set the address's threats
+BLOCKED but only logged failures. A MongoDB error or a stop at that point left an ACTIVE action with an adapter rule and
+no BlockedIP (the honeypot blocker did not block, Settings -> Unblock IP answered "not blocked") and threats not
+BLOCKED; nothing retried. The ACTIVE save now records legacySync.pending (same write); it is cleared only when the
+sync succeeds. resyncLegacyState() (every reconciliation pass, after CONTAINMENT_LEGACY_SYNC_GRACE_MS, default 60 s)
+re-runs the idempotent sync; if the action was released while the sync ran, the sync is undone. Pending syncs are in
+the recovery report and gauge. Audit lines and socket events after ACTIVE are still lost on a crash (logs and live
+notifications; dashboards resynchronise on reconnect). Tests: tests/containmentPostActive.test.js (CONT-005 part,
+8 tests; failed before).
+```
+
+```
+ID: CONT-006 | P3 | CONFIRMED (forced interleaving) | FIXED 2026-11-04 (uncommitted)
+An operator rollback and TTL expiry releasing the same action: whichever saved second hit VersionError (correctly) but
+reported it as an unexplained 500 (POST /api/containment/actions/:id/rollback), ROLLBACK_FAILED (Settings unblock)
+or a failed reconciliation, although the other path had released the rule. Now: 409 CONTAINMENT_CONCURRENT_RELEASE
+with the current status; Settings unblock reports RELEASED_CONCURRENTLY; expiry counts SKIPPED_CONCURRENT. The
+version check is unchanged. Tests: 3 (failed before).
+```
+
+```
+ID: CONT-007 | P3 | CONFIRMED | FIXED 2026-11-04 (uncommitted)
+removeLateRules retried every unconfirmed late rule on every pass (about once a minute). Now bounded exponential
+back-off (1, 2, 4 ... minutes, capped at 1 hour) with recovery.lateRuleAttempts / lateRuleNextAttemptAt /
+lateRuleLastError, shown in the recovery report. Exhausted retries never clear the flag or release anything. Tests: 2.
+```
+
+```
+ID: THR-005 | P3 | CONFIRMED (test) | FIXED 2026-11-04 (uncommitted)
+After a backend restart the score lines were fetched only on the first scored flow, so a containment restore before
+that used the 0.90 default even with the engine on another ALERT_THRESHOLD. server.js now warms them at startup
+(warmScoreLines, not awaited, never throws). Lifecycle otherwise verified: engine/cached/default sources, outage,
+reload (backend cache invalidated), reconnect and login/logout (frontend provider). Several backend instances each
+keep their own cache: during an engine outage an instance that never reached the engine reports 'default' while
+others report 'engine-cached' (visible through source).
+```
+
+```
+ID: TEST-011 | P2 | CONFIRMED (E2E, regression from batch 19) | FIXED 2026-11-04 (uncommitted)
+Full three-browser run: password-change.spec "only the new password works" failed in WebKit; repeated alone 2 of 15
+failed, the user landing signed out on the login page right after a successful password change. Cause: THR-004's
+ScoreLinesProvider re-fetched the score lines on every change of the socket's connected state, including the
+disconnect the server performs when a password change revokes the old session. That request carried the revoked
+access token, and its refresh with the old refresh cookie was treated as reuse and signed the user out. Batch 19's
+browser runs had not included password-change.spec. Fix: re-fetch only on a transition to connected (the reconnect
+uses the current token) and on a user change. After: password-change.spec WebKit x5 25/25; password-change +
+score-lines + realtime in 3 browsers 51/51.
+```
