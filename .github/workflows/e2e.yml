@@ -35,6 +35,9 @@ jobs:
       HONEYPOT_API_KEY: test-e2e-honeypot-ingest-key-32-chars-min
       SENTINEL_KEY: test-e2e-sentinel-internal-key-32-chars-min
       CSRF_SECRET: test-e2e-csrf-super-secret-key-32-chars!
+      # The whole suite runs serially from one IP; the production default (1000 API requests per 15 min per IP)
+      # ran out part-way and every later sign-in failed (CI-002). Same value as the local backend/.env.test.
+      RATE_LIMIT_MAX: '100000'
 
     steps:
       - name: Checkout repository

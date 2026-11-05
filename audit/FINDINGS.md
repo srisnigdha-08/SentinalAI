@@ -1325,3 +1325,16 @@ browser runs had not included password-change.spec. Fix: re-fetch only on a tran
 uses the current token) and on a user change. After: password-change.spec WebKit x5 25/25; password-change +
 score-lines + realtime in 3 browsers 51/51.
 ```
+
+```
+ID: CI-002 | P2 | CONFIRMED (local reproduction + A/B) | FIXED 2026-11-05
+The first ever GitHub run of e2e.yml (draft PR #1, run 41966793964, both attempts) failed. Logs and artifacts need a
+signed-in account, so it was reproduced locally with the workflow's exact environment in a worktree without the
+git-ignored backend/.env.test: 14 failed / 68 passed in 19 min (CI ~17 min). Every failure was a sign-in that stayed on
+/login; failures began at page-performance.spec and stopped after ~15 min (settings/smoke/threat-logs passed),
+matching the limiter window. Cause: e2e.yml did not set RATE_LIMIT_MAX, which local runs take from .env.test (100000),
+so the backend used the production default of 1000 API requests per 15 min per IP; the serial suite from one IP ran
+out. A/B: the identical run with only RATE_LIMIT_MAX=100000 added: 82/82 in 8.7 min. Fix: RATE_LIMIT_MAX in e2e.yml
+(production default unchanged); frontend/tests/e2eWorkflow.test.mjs fails without it and pins the 1000 default.
+Not a product defect. The workflow runs Chromium only; Firefox/WebKit coverage remains local.
+```
