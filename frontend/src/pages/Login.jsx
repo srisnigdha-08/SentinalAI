@@ -12,6 +12,7 @@ export default function Login() {
   const navigate  = useNavigate()
 
   const handleSubmit = async () => {
+    if (loading) return
     if (!email || !password) { toast.error('Enter credentials'); return }
     setLoading(true)
     try {

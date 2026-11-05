@@ -5,6 +5,12 @@ SentinelAI Feature Extraction Pipeline
 import numpy as np
 import pandas as pd
 import datetime
+import logging
+import posixpath
+import re
+import shlex
+
+_features_log = logging.getLogger("sentinel.features")
 
 FEATURE_NAMES = [
     "flow_duration","total_fwd_packets","total_bwd_packets",
@@ -58,6 +64,32 @@ RAW_LABEL_TO_TARGET = {
     "Web Attack \ufffd XSS": "XSS Attempt",
     "Web Attack \ufffd Sql Injection": "SQL Injection"
 }
+
+# What each class actually is (H2). The names are the platform's API/database contract and are kept, but
+# several are broader or narrower than they sound; /model/info and model metadata publish this so nobody
+# reads "Credential Stuffing" as breached-credential replay or "RCE Attempt" as general code execution.
+LABEL_SOURCES = {
+    "BENIGN":              {"cicids": ["BENIGN"], "meaning": "normal traffic"},
+    "SSH Brute Force":     {"cicids": ["SSH-Patator"], "meaning": "SSH password guessing"},
+    "SQL Injection":       {"cicids": ["Web Attack � Sql Injection"], "meaning": "HTTP SQL injection attempts"},
+    "Port Scan":           {"cicids": ["PortScan"], "meaning": "TCP port scanning (nmap)"},
+    "DDoS":                {"cicids": ["DDoS", "DoS Hulk", "DoS GoldenEye", "DoS slowloris", "DoS Slowhttptest"],
+                            "meaning": "denial of service: HTTP floods, LOIC DDoS and slow-rate DoS (slowloris/slowhttptest)"},
+    "RCE Attempt":         {"cicids": ["Heartbleed"],
+                            "meaning": "exploit of a public-facing service (MITRE T1190); the only flow data is Heartbleed, "
+                                       "a memory disclosure, not remote code execution"},
+    "XSS Attempt":         {"cicids": ["Web Attack � XSS"], "meaning": "HTTP cross-site scripting attempts"},
+    "Malware Beacon":      {"cicids": ["Bot"], "meaning": "Ares botnet command-and-control traffic"},
+    "Credential Stuffing": {"cicids": ["FTP-Patator", "Web Attack � Brute Force"],
+                            "meaning": "password brute force against FTP and an HTTP login form (MITRE T1110), "
+                                       "not replay of breached credentials"},
+    "Lateral Movement":    {"cicids": ["Infiltration"], "meaning": "CICIDS 'Infiltration': internal activity from a compromised host"},
+    "Data Exfiltration":   {"cicids": [], "meaning": "no flow training data; produced only by honeypot session rules"},
+}
+assert set(LABEL_SOURCES) == set(LABEL_MAP)
+assert {raw for v in LABEL_SOURCES.values() for raw in v["cicids"]} == set(RAW_LABEL_TO_TARGET)
+# Below this many training rows a class's flow verdicts and per-class metrics are not statistically meaningful.
+MIN_TRAINING_ROWS = 100
 
 CANDIDATES = {
     "flow_duration": ["flow_duration", "Flow Duration"],
@@ -315,32 +347,85 @@ def extract_features_from_record(record: dict) -> np.ndarray:
         entropy, t_sin, t_cos
     ], dtype=np.float64)
 
-def extract_features_from_honeypot(session: dict) -> np.ndarray:
+EXFIL_TOOLS = {"scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "ncat", "netcat"}
+LATERAL_TOOLS = {"ssh", "telnet", "ping", "nmap", "arp", "route", "smbclient", "mount"}
+RCE_TOOLS = {"wget", "curl", "chmod", "python", "python3", "perl", "bash", "sh", "gcc"}
+# Programs that run or prepare code to run, as opposed to only fetching it (wget/curl). A session that only
+# downloaded is staged RCE: it is still "RCE Attempt" but stays under the block line (predict_from_honeypot).
+EXECUTION_TOOLS = (RCE_TOOLS - {"wget", "curl"}) | {"./"}
+# Failed logins (this session plus the same source's recent sessions) before failures count as brute force.
+# Bots usually try one password per connection, so the per-IP total is what matters (H4).
+BRUTE_FORCE_MIN_FAILURES = 5
+# Prefixes that run another program; the program after them is the one that counts.
+_WRAPPERS = {"sudo", "busybox", "nohup", "env", "exec", "time", "nice"}
+_SEGMENT_SPLIT = re.compile(r"[;&|\n]+|\$\(|`")
+
+
+def command_programs(commands) -> set:
+    """
+    Program names a Cowrie session ran: the first word of every command segment (split on ; & | and
+    subshells), path stripped (/usr/bin/wget -> wget), wrappers such as sudo skipped. A local executable
+    (./x, /tmp/x) is reported as "./". Matching whole program names instead of substrings keeps "sync"
+    from matching "nc" or "start" from matching "tar".
+    """
+    programs = set()
+    for c in commands:
+        for segment in _SEGMENT_SPLIT.split(str(c.get("command", ""))):
+            try:
+                words = shlex.split(segment)
+            except ValueError:
+                words = segment.split()
+            while words and (words[0] in _WRAPPERS or "=" in words[0]):
+                words = words[1:]
+            if not words:
+                continue
+            first = words[0].lower()
+            if first.startswith(("./", "/tmp/", "/dev/shm/")):
+                programs.add("./")
+            programs.add(posixpath.basename(first))
+    return programs
+
+
+def classify_honeypot_session(session: dict) -> str:
+    """
+    Rule-based class of a Cowrie session (login outcome, programs run, IOC count).
+    This is the honeypot verdict served by predictor.predict_from_honeypot: Cowrie records no packet
+    statistics, so there is no flow for the CICIDS-trained classifier to score. Session duration is not
+    a signal: an idle logged-in session is not exfiltration.
+    """
     cmds = session.get("commands", [])
-    cmd_texts = [str(c.get("command", "")).lower() for c in cmds]
-    cmd_str = " ".join(cmd_texts)
     login_ok = bool(session.get("loginSucceeded", False))
-    dur_sec = float(session.get("durationSeconds", 1))
     ioc_cnt = int(session.get("iocCount", 0))
-    
-    # Classify session to target profile
+
     if not login_ok:
-        profile_name = "SSH Brute Force"
-    else:
-        if len(cmds) == 0:
-            profile_name = "Port Scan"
-        elif ioc_cnt >= 3 or dur_sec > 120 or any(k in cmd_str for k in ["scp", "ftp", "sftp", "rsync", "tar", "zip", "nc", "netcat"]):
-            profile_name = "Data Exfiltration"
-        elif any(k in cmd_str for k in ["ssh ", "telnet", "ping", "nmap", "arp", "route", "smb", "mount"]):
-            profile_name = "Lateral Movement"
-        elif any(k in cmd_str for k in ["wget", "curl", "chmod", "./", "python", "perl", "bash", "sh", "gcc"]):
-            profile_name = "RCE Attempt"
-        else:
-            profile_name = "BENIGN"
-            
+        # A single wrong password is an intrusion attempt, not brute force (H4).
+        failures = int(session.get("failedLogins", 0) or 0) + int(session.get("recentFailedLogins", 0) or 0)
+        return "SSH Brute Force" if failures >= BRUTE_FORCE_MIN_FAILURES else "SSH Intrusion Attempt"
+    if len(cmds) == 0:
+        # Logged in, ran nothing: an intrusion that stopped at the prompt (was mislabelled "Port Scan", M6).
+        return "SSH Intrusion Attempt"
+    programs = command_programs(cmds)
+    if ioc_cnt >= 3 or programs & EXFIL_TOOLS:
+        return "Data Exfiltration"
+    if programs & LATERAL_TOOLS:
+        return "Lateral Movement"
+    if programs & (RCE_TOOLS | {"./"}):
+        return "RCE Attempt"
+    return "BENIGN"
+
+
+def extract_features_from_honeypot(session: dict) -> np.ndarray:
+    """
+    Representative 53-feature flow for a session's rule class. Not used for serving: the per-profile
+    means match utils/data_generator.py (synthetic data), and the CICIDS-trained classifier scores every
+    one of these vectors as BENIGN, so predict_from_honeypot returns the rule verdict instead.
+    """
+    profile_name = classify_honeypot_session(session)
+
     PROFILES_MEANS = {
         "BENIGN":             {"dur": 65000.0,  "bps": 6500.0,    "pps": 250.0,   "syn": 0.5},
         "SSH Brute Force":    {"dur": 650.0,    "bps": 200000.0,  "pps": 5000.0,  "syn": 2.0},
+        "SSH Intrusion Attempt": {"dur": 650.0, "bps": 20000.0,   "pps": 500.0,   "syn": 1.5},
         "SQL Injection":      {"dur": 2000.0,   "bps": 15000.0,   "pps": 500.0,   "syn": 1.5},
         "Port Scan":          {"dur": 12.5,     "bps": 500000.0,  "pps": 80000.0, "syn": 1.5},
         "DDoS":               {"dur": 100000.0, "bps": 2000000.0, "pps": 50000.0, "syn": 1.5},
@@ -418,9 +503,23 @@ def extract_features_from_honeypot(session: dict) -> np.ndarray:
         "timestamp": timestamp,
     })
 
-def prepare_features(df: pd.DataFrame):
+# Schema features with no column in the CICIDS2017 CSVs. They are zero for every training row (zero
+# variance, zero importance in the shipped models), so their absence is expected and only logged.
+KNOWN_ABSENT_FEATURES = ("time_of_day_sin", "time_of_day_cos")
+# Computed below when the column is absent.
+DERIVED_FEATURES = ("payload_entropy",)
+
+
+def prepare_features(df: pd.DataFrame, max_missing=None):
+    """
+    Maps a raw flow DataFrame onto FEATURE_NAMES. Columns that cannot be found are filled with 0.0 and
+    reported. With max_missing set (training/evaluation), more than that many unexpectedly missing
+    schema features raises instead of silently producing all-zero columns: a renamed CSV header would
+    otherwise train a model on a dead feature without any warning.
+    """
     # Strip column names whitespace and try matching case insensitively if exact match fails
     clean_cols = {c.strip(): c for c in df.columns}
+    zero_filled = []
     
     X_dict = {}
     for fn in FEATURE_NAMES:
@@ -448,6 +547,8 @@ def prepare_features(df: pd.DataFrame):
                 X_dict[fn] = pd.to_numeric(df[clean_cols[fn]], errors='coerce').fillna(0.0)
             else:
                 X_dict[fn] = pd.Series(0.0, index=df.index)
+                if fn not in DERIVED_FEATURES:
+                    zero_filled.append(fn)
                 
     # Fallback/dynamic calculations
     # 1. payload_entropy calculation on-the-fly
@@ -467,6 +568,14 @@ def prepare_features(df: pd.DataFrame):
         entropy[mask_b] -= p_b[mask_b] * np.log2(p_b[mask_b])
         X_dict["payload_entropy"] = entropy
         
+    unexpected = [fn for fn in zero_filled if fn not in KNOWN_ABSENT_FEATURES]
+    if unexpected:
+        _features_log.warning("prepare_features: %d schema feature(s) not found and zero-filled: %s",
+                              len(unexpected), ", ".join(unexpected))
+        if max_missing is not None and len(unexpected) > max_missing:
+            raise ValueError(f"Training data is missing {len(unexpected)} schema features "
+                             f"(allowed {max_missing}): {', '.join(unexpected)}")
+
     X = pd.DataFrame(X_dict)[FEATURE_NAMES]
     X = X.replace([np.inf, -np.inf], 0.0).fillna(0.0)
     
@@ -483,12 +592,22 @@ def prepare_features(df: pd.DataFrame):
     if label_col:
         s_lbls = df[label_col].astype(str).str.strip()
         mapped = s_lbls.map(lambda x: RAW_LABEL_TO_TARGET.get(x, x))
-        y = mapped.map(LABEL_MAP).fillna(0).astype(int)
+        y = mapped.map(LABEL_MAP)
+        if y.isna().any():
+            # An unmapped label (e.g. a re-encoded "Web Attack – Brute Force") used to become BENIGN via
+            # fillna(0), silently training attacks as normal traffic (M5).
+            unknown = sorted(set(s_lbls[y.isna()]))
+            raise ValueError(f"{len(unknown)} unmapped label(s): "
+                             + ", ".join(u.encode("ascii", "backslashreplace").decode() for u in unknown[:10]))
+        y = y.astype(int)
     else:
         y = pd.Series(0, index=df.index).astype(int)
         
     return X.values, y.values
 
+# Not used by any current training or inference path (L6). Kept only because the archived SGD artifact
+# (repository-root models/sgd_classifier_cicids.pkl, a preserved asset) pickled a reference to it and could
+# not be unpickled without it. Do not use in new pipelines.
 def log_transform_features(X):
     # Flow Duration is column 0
     # Flow Bytes/s is column 13

@@ -1,0 +1,8 @@
+# Shell scripts run inside WSL/Linux: a CRLF checkout (core.autocrlf=true) breaks them with "$'\r': command not found".
+*.sh text eol=lf
+.githooks/* text eol=lf
+# hash-pinned label corrections (dev_experiments.CORRECTION_V3): keep bytes exact, no line-ending conversion
+ai-engine/evaluation/label_corrections/** -text
+# hash-pinned model artifacts (registry.json, Q-table seed tests): exact bytes on every platform, no CRLF conversion
+ai-engine/models/q_table.json -text
+ai-engine/models/golden_set.json -text

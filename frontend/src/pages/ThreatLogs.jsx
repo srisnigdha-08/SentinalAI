@@ -1,28 +1,44 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { threatEvidenceLabel } from '../utils/threatEvidence.js'
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
+import TriageModal from '../components/TriageModal.jsx'
+import ExplanationModal from '../components/ExplanationModal.jsx'
 import { threatAPI, containmentAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
+import { usePermission } from '../hooks/usePermission.js'
 import toast from 'react-hot-toast'
+import { containmentOutcome } from '../utils/containmentLabels.js'
+import { scoreColor } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 const STATUS_STYLES = {
-  BLOCKED:    { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
-  MONITORING: { background:'rgba(255,170,0,.1)',   color:'#ffaa00', border:'1px solid rgba(255,170,0,.3)'  },
-  DETECTED:   { background:'rgba(0,212,255,.1)',   color:'#00d4ff', border:'1px solid rgba(0,212,255,.25)' },
-  RESOLVED:   { background:'rgba(0,255,136,.1)',   color:'#00ff88', border:'1px solid rgba(0,255,136,.3)'  },
-  DEGRADED:   { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px dashed rgba(255,170,0,.5)' },
+  BLOCKED:        { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
+  MONITORING:     { background:'rgba(255,170,0,.1)',   color:'#ffaa00', border:'1px solid rgba(255,170,0,.3)'  },
+  DETECTED:       { background:'rgba(0,212,255,.1)',   color:'#00d4ff', border:'1px solid rgba(0,212,255,.25)' },
+  RESOLVED:       { background:'rgba(0,255,136,.1)',   color:'#00ff88', border:'1px solid rgba(0,255,136,.3)'  },
+  DEGRADED:       { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px dashed rgba(255,170,0,.5)' },
+  INVESTIGATING:  { background:'rgba(255,170,0,.15)',  color:'#ffaa00', border:'1px solid rgba(255,170,0,.4)'  },
+  CONTAINED:      { background:'rgba(0,255,136,.15)',  color:'#00ff88', border:'1px solid rgba(0,255,136,.4)'  },
+  FALSE_POSITIVE: { background:'rgba(160,160,160,.1)', color:'#888888', border:'1px solid rgba(160,160,160,.3)' },
 }
 
-const TYPES = ['SSH Brute Force','SQL Injection','Port Scan','DDoS','RCE Attempt',
+const TYPES = ['SSH Brute Force','SSH Intrusion Attempt','SQL Injection','Port Scan','DDoS','RCE Attempt',
                'XSS Attempt','Malware Beacon','Credential Stuffing','Lateral Movement','Data Exfiltration',
                'UNINSPECTED_TRAFFIC']
 
 export default function ThreatLogs() {
+  const scoreLines = useScoreLines() // THR-003
   const { user } = useAuth()
+  const { hasPermission } = usePermission()
+  const canTriage = hasPermission('threats:triage')
+  const canBlock = hasPermission('threats:block')
+  // XAI-001: explanations are served to analysts and admins (backend restrictTo), for threats from a scored flow
+  const canExplain = user?.role === 'admin' || user?.role === 'analyst'
+
   const [threats, setThreats] = useState([])
   const [total,   setTotal]   = useState(0)
   const [page,    setPage]    = useState(1)
@@ -38,7 +54,13 @@ export default function ThreatLogs() {
   const [selectedThreat, setSelectedThreat] = useState(null)
   const [submittingContainment, setSubmittingContainment] = useState(false)
 
+  const [triageModalOpen, setTriageModalOpen] = useState(false)
+  const [triageThreat, setTriageThreat] = useState(null)
+  const [triageReadOnly, setTriageReadOnly] = useState(false)
+  const [explainThreat, setExplainThreat] = useState(null)
+
   const loadContainmentStatus = async () => {
+    if (user?.role === 'viewer') return
     try {
       const res = await containmentAPI.getStatus()
       setContainmentStatus(res.data?.data || null)
@@ -49,9 +71,15 @@ export default function ThreatLogs() {
 
   useEffect(() => {
     loadContainmentStatus()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
+  // UI-003: filter and page changes can start overlapping requests; only the newest may update the table, so a
+  // slow response for an older filter cannot overwrite the current one.
+  const latestRequest = useRef(0)
   const load = useCallback(async (p = page) => {
+    const requestId = ++latestRequest.current
+    const isLatest = () => requestId === latestRequest.current
     setLoading(true)
     setError(null)
     try {
@@ -61,13 +89,21 @@ export default function ThreatLogs() {
         ...(typeFilter && { type: typeFilter }),
         ...(search     && { search }),
       })
+      if (!isLatest()) return
       setThreats(res.data.data || [])
       setTotal(res.data.pagination?.total || 0)
-    } catch { setError('Threat logs are unavailable. Retry to load current data.') }
-    finally { setLoading(false) }
+    } catch {
+      if (isLatest()) setError('Threat logs are unavailable. Retry to load current data.')
+    } finally {
+      if (isLatest()) setLoading(false)
+    }
   }, [page, sevFilter, typeFilter, search])
 
+  // Deliberately keyed on the filter / page values, not on `load` (whose identity changes with them, which would
+  // double-fire); stale responses are discarded by the request guard in load (UI-003).
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { setPage(1); load(1) }, [sevFilter, typeFilter])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(page) }, [page])
 
   const handleSearch = (e) => {
@@ -79,10 +115,16 @@ export default function ThreatLogs() {
     setModalOpen(true)
   }
 
+  const openTriageModal = (threat, readOnly = false) => {
+    setTriageThreat(threat)
+    setTriageReadOnly(readOnly)
+    setTriageModalOpen(true)
+  }
+
   const handleConfirmContainment = async ({ target, durationSeconds, isPermanent, reason }) => {
     setSubmittingContainment(true)
     try {
-      await containmentAPI.requestAction({
+      const res = await containmentAPI.requestAction({
         target,
         actionType: 'block_ip',
         durationSeconds,
@@ -94,7 +136,7 @@ export default function ThreatLogs() {
           severity: selectedThreat?.severity,
         },
       })
-      toast.success(`Containment rule active for ${target}`)
+      toast.success(containmentOutcome(target, res))
       setModalOpen(false)
       setSelectedThreat(null)
       load(page)
@@ -168,7 +210,8 @@ export default function ThreatLogs() {
             LOADING THREAT LOGS...
           </div>
         ) : (
-          <table style={{ width:'100%', borderCollapse:'collapse' }}>
+          <div className="sentinel-table-scroll" role="region" aria-label="Threat logs" tabIndex={0}>
+          <table style={{ width:'100%', minWidth: 780, borderCollapse:'collapse' }}>
             <thead><tr>
               {['Time','Severity','Source IP','Type','Target','Score','Status','Threat Intel','Action'].map(h=>(
                 <th key={h} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88',
@@ -188,6 +231,22 @@ export default function ThreatLogs() {
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontSize:13 }}>
                     <div>{l.attackType}</div>
                     {threatEvidenceLabel(l) && <div style={{ color: '#ffaa00', fontSize: 10 }}>{threatEvidenceLabel(l)}</div>}
+                    {l.triageNotes && (
+                      <div
+                        onClick={() => openTriageModal(l, !canTriage)}
+                        style={{
+                          color: '#7ab3cc',
+                          fontSize: 10,
+                          fontFamily: 'Share Tech Mono,monospace',
+                          cursor: 'pointer',
+                          marginTop: 3,
+                          opacity: 0.85,
+                        }}
+                        title={l.triageNotes}
+                      >
+                        📝 {l.triageNotes.length > 25 ? `${l.triageNotes.slice(0, 25)}...` : l.triageNotes}
+                      </div>
+                    )}
                     {l.mitreTechniques && l.mitreTechniques.length > 0 && (
                       <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:4 }}>
                         {l.mitreTechniques.map((tech, i) => (
@@ -201,7 +260,7 @@ export default function ThreatLogs() {
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>{l.targetService}</td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:12,
-                    color:l.aiScore>=0.9?'#ff2d55':l.aiScore>=0.7?'#ffaa00':'#00d4ff' }}>
+                    color:scoreColor(l.aiScore, scoreLines) }}>
                     {((l.aiScore||0)*100).toFixed(0)}%
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>
@@ -245,28 +304,82 @@ export default function ThreatLogs() {
                     )}
                   </td>
                   <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>
-                    {l.status !== 'BLOCKED' && (
-                      user?.role === 'viewer' ? (
-                        <span style={{
-                          fontFamily: 'Share Tech Mono,monospace',
-                          fontSize: 10,
-                          color: '#3a6a88',
-                          background: 'rgba(13,51,82,.3)',
-                          border: '1px solid #0d3352',
-                          padding: '3px 8px',
-                          borderRadius: 1,
-                          display: 'inline-block',
-                          letterSpacing: 0.5,
-                        }}>
-                          OBSERVATION MODE
-                        </span>
-                      ) : (
-                        <button onClick={() => openContainmentModal(l)} style={{
-                          background:'none', border:'1px solid #0d3352', color:'#3a6a88',
-                          fontSize:10, fontFamily:'Share Tech Mono,monospace', padding:'3px 8px', cursor:'pointer', borderRadius:1,
-                        }}>Block</button>
-                      )
-                    )}
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                      {canTriage && (
+                        <button
+                          onClick={() => openTriageModal(l, false)}
+                          style={{
+                            background: 'rgba(0, 212, 255, 0.1)',
+                            border: '1px solid rgba(0, 212, 255, 0.3)',
+                            color: '#00d4ff',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                          }}
+                        >
+                          Triage
+                        </button>
+                      )}
+                      {canExplain && l.predictionId && (
+                        <button
+                          onClick={() => setExplainThreat(l)}
+                          title="Why did the model flag this flow? (SHAP)"
+                          style={{
+                            background: 'rgba(139, 92, 246, 0.1)',
+                            border: '1px solid rgba(139, 92, 246, 0.35)',
+                            color: '#b49cff',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 8px',
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                          }}
+                        >
+                          Explain
+                        </button>
+                      )}
+                      {l.status !== 'BLOCKED' && (
+                        canBlock ? (
+                          <button onClick={() => openContainmentModal(l)} style={{
+                            background:'none', border:'1px solid #0d3352', color:'#3a6a88',
+                            fontSize:10, fontFamily:'Share Tech Mono,monospace', padding:'3px 8px', cursor:'pointer', borderRadius:1,
+                          }}>Block</button>
+                        ) : (
+                          <span style={{
+                            fontFamily: 'Share Tech Mono,monospace',
+                            fontSize: 10,
+                            color: '#3a6a88',
+                            background: 'rgba(13,51,82,.3)',
+                            border: '1px solid #0d3352',
+                            padding: '3px 8px',
+                            borderRadius: 1,
+                            display: 'inline-block',
+                            letterSpacing: 0.5,
+                          }}>
+                            OBSERVATION MODE
+                          </span>
+                        )
+                      )}
+                      {!canTriage && l.triageNotes && (
+                        <button
+                          onClick={() => openTriageModal(l, true)}
+                          style={{
+                            background: 'none',
+                            border: '1px solid #0d3352',
+                            color: '#7ab3cc',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 6px',
+                            cursor: 'pointer',
+                            borderRadius: 1,
+                          }}
+                        >
+                          Dossier
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -277,6 +390,7 @@ export default function ThreatLogs() {
               )}
             </tbody>
           </table>
+          </div>
         )}
 
         {/* Pagination */}
@@ -301,6 +415,7 @@ export default function ThreatLogs() {
       </Panel>
 
       <ContainmentConfirmModal
+        key={modalOpen ? 'open-' + selectedThreat?._id : 'closed'} // fresh duration/reason on every open
         isOpen={modalOpen}
         target={selectedThreat?.sourceIP}
         threatInfo={selectedThreat}
@@ -308,6 +423,22 @@ export default function ThreatLogs() {
         onClose={() => { setModalOpen(false); setSelectedThreat(null) }}
         onConfirm={handleConfirmContainment}
         loading={submittingContainment}
+      />
+
+      <TriageModal
+        key={'triage-' + (triageThreat?._id || 'none')} // unique among siblings (UI-004)
+        isOpen={triageModalOpen}
+        threat={triageThreat}
+        isReadOnly={triageReadOnly}
+        onClose={() => { setTriageModalOpen(false); setTriageThreat(null) }}
+        onSuccess={() => load(page)}
+      />
+
+      <ExplanationModal
+        key={'explain-' + (explainThreat?._id || 'none')}
+        isOpen={!!explainThreat}
+        threat={explainThreat}
+        onClose={() => setExplainThreat(null)}
       />
     </DashboardLayout>
   )

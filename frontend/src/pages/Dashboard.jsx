@@ -8,6 +8,7 @@ import {
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import KpiCard   from '../components/KpiCard.jsx'
 import Panel     from '../components/Panel.jsx'
+import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import LiveFeed  from '../components/LiveFeed.jsx'
 import StatusBar from '../components/StatusBar.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
@@ -15,8 +16,13 @@ import { threatAPI, honeypotAPI, systemAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
+import { manualBlockOutcome } from '../utils/containmentLabels.js'
+import { scoreColor } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 const SEV_COLORS = { CRITICAL:'#ff2d55', HIGH:'#ff6400', MEDIUM:'#ffaa00', LOW:'#00d4ff' }
+// The queue lists the latest threats whatever their state; these need no Block IP button and are not "open".
+const CLOSED_STATUSES = new Set(['BLOCKED', 'RESOLVED', 'FALSE_POSITIVE'])
 const VECTOR_COLORS = {
   'SSH Brute Force':'#ff2d55','SQL Injection':'#ff6400','Port Scan':'#00d4ff',
   'DDoS':'#ffaa00','Malware Beacon':'#8b5cf6','RCE Attempt':'#00ff88',
@@ -34,6 +40,7 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 ) : null
 
 export default function Dashboard() {
+  const scoreLines = useScoreLines() // THR-003
   const { user } = useAuth()
   const userRole = user?.role || 'viewer'
   const [analytics,    setAnalytics]    = useState(null)
@@ -49,21 +56,39 @@ export default function Dashboard() {
   const load = async () => {
     setError(null)
     try {
-      const [analyticsRes, threatsRes, nodesRes, vectorRes, healthRes] = await Promise.all([
+      const isViewer = userRole === 'viewer'
+      const requests = [
         threatAPI.analytics(),
         threatAPI.list({ limit: 8, sortBy: 'createdAt', sortOrder: 'desc' }),
         honeypotAPI.nodes(),
         threatAPI.vectorTrend(7),
-        systemAPI.health(),
-      ])
+      ]
+      if (!isViewer) {
+        requests.push(systemAPI.health())
+      }
+      const results = await Promise.all(requests)
+      const analyticsRes = results[0]
+      const threatsRes = results[1]
+      const nodesRes = results[2]
+      const vectorRes = results[3]
+      const healthRes = !isViewer ? results[4] : null
+
       const a = analyticsRes.data.data
       setAnalytics(a)
       setThreatCount(a?.kpis?.totalToday || 0)
       setThreats(threatsRes.data.data || [])
       setNodes(nodesRes.data.data?.nodes || [])
-      if (healthRes.data?.data) {
+      if (healthRes?.data?.data) {
         setSystemHealth(healthRes.data.data)
+      } else if (isViewer) {
+        setSystemHealth((prev) => prev || {
+          mode: 'REAL_MODE',
+          status: 'ok',
+          database: { status: 'connected' },
+          aiEngine: { status: 'connected' },
+        })
       }
+
 
       // Build stacked bar chart data from vector trend
       const raw = vectorRes.data.data?.trend || []
@@ -78,7 +103,7 @@ export default function Dashboard() {
         }
       })
       setVectorData(Object.values(dateMap).slice(-7))
-    } catch (err) {
+    } catch {
       setSystemHealth(null)
       setError('Dashboard data is unavailable. Any displayed values may be stale.')
     } finally {
@@ -90,6 +115,7 @@ export default function Dashboard() {
     load()
     const interval = setInterval(load, 30000) // refresh every 30s
     return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only poll; load only calls APIs and setters
   }, [])
 
   // ── Real Socket.IO telemetry & threat events ──
@@ -141,7 +167,8 @@ export default function Dashboard() {
   // Section 1: 24h chart + live feed
   const activityAndFeedSection = (
     <div key="activity-feed" className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
-      <Panel title="Threat Activity — Today (IST)" badge="● LIVE" badgeType="live">
+      <ErrorBoundary compact>
+        <Panel title="Threat Activity — Today (IST)" badge="● LIVE" badgeType="live">
         <ResponsiveContainer width="100%" height={220}>
           <LineChart data={hourly24}>
             <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
@@ -159,15 +186,19 @@ export default function Dashboard() {
           </div>
         )}
       </Panel>
-      <Panel title="Live Attack Feed" badge="● STREAMING" badgeType="live">
+      </ErrorBoundary>
+      <ErrorBoundary compact>
+        <Panel title="Live Attack Feed" badge="● STREAMING" badgeType="live">
         <LiveFeed />
       </Panel>
+      </ErrorBoundary>
     </div>
   )
 
   // Section 2: Active threat queue table
   const threatQueueSection = (
-    <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.length} active`} badgeType="live" style={{ marginBottom:'1rem' }}>
+    <ErrorBoundary key="threat-queue" compact>
+      <Panel key="threat-queue" title="Active Threat Queue" badge={`${threats.filter(t => !CLOSED_STATUSES.has(t.status)).length} open / ${threats.length} latest`} badgeType="live" style={{ marginBottom:'1rem' }}>
       <div className="sentinel-table-scroll" role="region" aria-label="Active threat queue" tabIndex={0}>
       <table style={{ width:'100%', minWidth: 680, borderCollapse:'collapse' }}>
         <thead>
@@ -190,11 +221,11 @@ export default function Dashboard() {
                 {new Date(t.createdAt).toLocaleTimeString('en-IN',{ timeZone: REPORT_TIME_ZONE,hour12:false})}
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)', fontFamily:'Share Tech Mono,monospace', fontSize:12,
-                color:t.aiScore>=0.9?'#ff2d55':t.aiScore>=0.7?'#ffaa00':'#00d4ff' }}>
+                color:scoreColor(t.aiScore, scoreLines) }}>
                 {((t.aiScore||0)*100).toFixed(0)}%
               </td>
               <td style={{ padding:'9px 10px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>
-                {userRole === 'viewer' ? (
+                {userRole === 'viewer' || CLOSED_STATUSES.has(t.status) ? (
                   <span style={{
                     fontFamily: 'Share Tech Mono,monospace',
                     fontSize: 10,
@@ -206,12 +237,12 @@ export default function Dashboard() {
                     display: 'inline-block',
                     letterSpacing: 0.5,
                   }}>
-                    OBSERVATION MODE
+                    {userRole === 'viewer' ? 'OBSERVATION MODE' : t.status.replace('_', ' ')}
                   </span>
                 ) : (
                   <button onClick={async()=>{
-                    try{ await threatAPI.blockIP(t._id); toast.error(`IP ${t.sourceIP} blocked`) }
-                    catch(e){ toast.error('Block failed') }
+                    try{ const res = await threatAPI.blockIP(t._id); toast.success(manualBlockOutcome(t.sourceIP, res)); load() }
+                    catch(e){ toast.error(e.response?.data?.error || 'Block failed') }
                   }} style={{ background:'none', border:'1px solid #0d3352', color:'#3a6a88',
                     fontSize:11, fontFamily:'Share Tech Mono,monospace', padding:'4px 10px',
                     cursor:'pointer', borderRadius:1 }}
@@ -231,12 +262,14 @@ export default function Dashboard() {
       </table>
       </div>
     </Panel>
+    </ErrorBoundary>
   )
 
   // Section 3: Honeypot + Top Attack Types + System Health
   const telemetryAndNodesSection = (
     <div key="telemetry-nodes" className="dashboard-grid dashboard-grid-three" style={{ gap:'1rem', marginBottom:'1rem' }}>
-      <Panel title="Honeypot Nodes" badge={`${nodes.filter(n=>n.status==='active').length} ACTIVE`} badgeType="ok">
+      <ErrorBoundary compact>
+        <Panel title="Honeypot Nodes" badge={`${nodes.filter(n=>n.status==='active').length} ACTIVE`} badgeType="ok">
         <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
           {nodes.map(hp => (
             <div key={hp.name} style={{ background:'#041120', border:'1px solid #0d3352', borderRadius:2, padding:12 }}>
@@ -256,8 +289,10 @@ export default function Dashboard() {
           )}
         </div>
       </Panel>
+      </ErrorBoundary>
 
-      <Panel title="Top Attack Types" badge="ALL TIME" badgeType="info">
+      <ErrorBoundary compact>
+        <Panel title="Top Attack Types" badge="ALL TIME" badgeType="info">
         <div style={{ display:'flex', flexDirection:'column', gap:8 }}>
           {(charts.byAttackType||[]).slice(0,4).map(a => {
             const max = charts.byAttackType?.[0]?.count || 1
@@ -281,16 +316,19 @@ export default function Dashboard() {
           )}
         </div>
       </Panel>
+      </ErrorBoundary>
 
-      <Panel title="System Telemetry" badge={systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING"} badgeType={systemHealth?.database?.status === 'connected' ? "ok" : "warn"}>
+      <ErrorBoundary compact>
+        <Panel title="System Telemetry" badge={userRole === 'viewer' ? "MONITORING" : (systemHealth?.database?.status === 'connected' ? "NOMINAL" : "CONNECTING")} badgeType={userRole === 'viewer' ? "info" : (systemHealth?.database?.status === 'connected' ? "ok" : "warn")}>
         <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
           {[
             {
               name: 'Heap Memory',
-              statusText: `${systemHealth?.memory?.heapUsedMB || 0}MB / ${systemHealth?.memory?.heapTotalMB || 0}MB`,
-              pct: systemHealth?.memory?.pct || 0,
+              statusText: userRole === 'viewer' ? 'RESTRICTED (OPERATOR ONLY)' : `${systemHealth?.memory?.heapUsedMB || 0}MB / ${systemHealth?.memory?.heapTotalMB || 0}MB`,
+              pct: userRole === 'viewer' ? 0 : (systemHealth?.memory?.pct || 0),
               color: '#00d4ff'
             },
+
             {
               name: 'MongoDB',
               statusText: systemHealth?.database?.status === 'connected' ? 'CONNECTED' : (loading ? 'CHECKING...' : 'STANDBY'),
@@ -334,13 +372,15 @@ export default function Dashboard() {
           ))}
         </div>
       </Panel>
+      </ErrorBoundary>
     </div>
   )
 
   // Section 4: Severity donut + Weekly trend
   const chartsSection = (
     <div key="charts-row" className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
-      <Panel title="Threat Severity (Today)" badge="LIVE" badgeType="live">
+      <ErrorBoundary compact>
+        <Panel title="Threat Severity (Today)" badge="LIVE" badgeType="live">
         <ResponsiveContainer width="100%" height={200}>
           <PieChart>
             <Pie data={sevData} cx="50%" cy="50%" innerRadius={55} outerRadius={80} paddingAngle={3} dataKey="value">
@@ -356,8 +396,10 @@ export default function Dashboard() {
           </div>
         )}
       </Panel>
+      </ErrorBoundary>
 
-      <Panel title="Threat Trend — 7 IST Days" badge="7-DAY" badgeType="live">
+      <ErrorBoundary compact>
+        <Panel title="Threat Trend — 7 IST Days" badge="7-DAY" badgeType="live">
         <ResponsiveContainer width="100%" height={200}>
           <BarChart data={charts.weeklyTrend||[]}>
             <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
@@ -377,12 +419,14 @@ export default function Dashboard() {
           </div>
         )}
       </Panel>
+      </ErrorBoundary>
     </div>
   )
 
   // Section 5: Attack vector stacked
   const vectorTrendSection = (
-    <Panel key="vector-trend" title="Attack Vector Distribution — 7 IST Days" badge="TREND" badgeType="live" style={{ marginBottom:'1rem' }}>
+    <ErrorBoundary key="vector-trend" compact>
+      <Panel key="vector-trend" title="Attack Vector Distribution — 7 IST Days" badge="TREND" badgeType="live" style={{ marginBottom:'1rem' }}>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={vectorData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#0d3352" />
@@ -401,6 +445,7 @@ export default function Dashboard() {
         </div>
       )}
     </Panel>
+    </ErrorBoundary>
   )
 
   return (

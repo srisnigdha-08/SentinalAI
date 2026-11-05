@@ -1,0 +1,142 @@
+{
+  "split": "P5 reconstructed test split (24,907 rows)",
+  "served_lines": {
+    "alert": 0.9,
+    "block": 0.92
+  },
+  "note": "descriptive; do not pick an operating line from the test split",
+  "sweep": [
+    {
+      "line": 0.5,
+      "attack_recall": 0.9978,
+      "benign_fpr_pct": 0.3535,
+      "benign_fpr_ci95_pct": [
+        0.28,
+        0.45
+      ],
+      "fp": 66,
+      "fn": 14
+    },
+    {
+      "line": 0.6,
+      "attack_recall": 0.9886,
+      "benign_fpr_pct": 0.3321,
+      "benign_fpr_ci95_pct": [
+        0.26,
+        0.43
+      ],
+      "fp": 62,
+      "fn": 71
+    },
+    {
+      "line": 0.7,
+      "attack_recall": 0.9793,
+      "benign_fpr_pct": 0.316,
+      "benign_fpr_ci95_pct": [
+        0.25,
+        0.41
+      ],
+      "fp": 59,
+      "fn": 129
+    },
+    {
+      "line": 0.8,
+      "attack_recall": 0.97,
+      "benign_fpr_pct": 0.2464,
+      "benign_fpr_ci95_pct": [
+        0.18,
+        0.33
+      ],
+      "fp": 46,
+      "fn": 187
+    },
+    {
+      "line": 0.85,
+      "attack_recall": 0.9617,
+      "benign_fpr_pct": 0.2464,
+      "benign_fpr_ci95_pct": [
+        0.18,
+        0.33
+      ],
+      "fp": 46,
+      "fn": 239
+    },
+    {
+      "line": 0.9,
+      "attack_recall": 0.9522,
+      "benign_fpr_pct": 0.2303,
+      "benign_fpr_ci95_pct": [
+        0.17,
+        0.31
+      ],
+      "fp": 43,
+      "fn": 298
+    },
+    {
+      "line": 0.92,
+      "attack_recall": 0.9476,
+      "benign_fpr_pct": 0.2249,
+      "benign_fpr_ci95_pct": [
+        0.17,
+        0.3
+      ],
+      "fp": 42,
+      "fn": 327
+    },
+    {
+      "line": 0.95,
+      "attack_recall": 0.9399,
+      "benign_fpr_pct": 0.2035,
+      "benign_fpr_ci95_pct": [
+        0.15,
+        0.28
+      ],
+      "fp": 38,
+      "fn": 375
+    },
+    {
+      "line": 0.97,
+      "attack_recall": 0.933,
+      "benign_fpr_pct": 0.1928,
+      "benign_fpr_ci95_pct": [
+        0.14,
+        0.27
+      ],
+      "fp": 36,
+      "fn": 418
+    },
+    {
+      "line": 0.99,
+      "attack_recall": 0.9148,
+      "benign_fpr_pct": 0.15,
+      "benign_fpr_ci95_pct": [
+        0.1,
+        0.22
+      ],
+      "fp": 28,
+      "fn": 531
+    },
+    {
+      "line": 0.995,
+      "attack_recall": 0.9017,
+      "benign_fpr_pct": 0.1393,
+      "benign_fpr_ci95_pct": [
+        0.1,
+        0.2
+      ],
+      "fp": 26,
+      "fn": 613
+    },
+    {
+      "line": 0.999,
+      "attack_recall": 0.8621,
+      "benign_fpr_pct": 0.0321,
+      "benign_fpr_ci95_pct": [
+        0.01,
+        0.07
+      ],
+      "fp": 6,
+      "fn": 860
+    }
+  ]
+}

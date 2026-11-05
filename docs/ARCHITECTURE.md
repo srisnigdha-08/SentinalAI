@@ -3,7 +3,7 @@
 Inspection: 2026-10-13. This checkout has no `.git` directory. Before any edits,
 all 38,360 files (2,093,870,770 bytes), including installed dependencies, models,
 datasets, logs and hidden environment files, were copied to
-`C:\Users\srisn\Desktop\Projects\sentinelai-backup-20261013-8962d597`.
+`%USERPROFILE%\Desktop\Projects\sentinelai-backup-20261013-8962d597`.
 An independent threaded verifier compared SHA-256 of every source/copy pair;
 all matched. The slower redundant PowerShell verifier was then cancelled.
 No original Docker disks, recovery copies, backups or recovered databases were accessed.

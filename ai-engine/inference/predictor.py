@@ -1,105 +1,138 @@
 """SentinelAI Inference Predictor"""
-import os, sys, json, time, joblib, logging, requests, ipaddress
+import os, sys, json, time, joblib, logging, hashlib
 import numpy as np
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from utils.features import FEATURE_NAMES, LABEL_NAMES, FEATURE_SCHEMA_VERSION, extract_features_from_record, extract_features_from_honeypot
+from utils.features import (FEATURE_NAMES, LABEL_NAMES, FEATURE_SCHEMA_VERSION, extract_features_from_record,
+                            classify_honeypot_session, command_programs, EXECUTION_TOOLS)
 
 from inference.errors import ModelUnavailableError
 
 log = logging.getLogger("sentinel.predictor")
 
-# In-memory cache for IP reputation: ip_str -> (score, timestamp)
-REPUTATION_CACHE = {}
-CACHE_TTL = 3600  # 1 hour
+# IP reputation (AbuseIPDB) is enrichment owned by the backend (threatIntelService), off the inference path;
+# the engine makes no outbound calls (L5). Results keep ipReputationScore=None for the response shape.
 
-def get_ip_reputation(ip_str: str) -> float:
-    """
-    Checks the IP reputation score via AbuseIPDB API.
-    Returns a score between 0.0 and 1.0, or None (neutral/null) if lookup fails, is skipped, or is local.
-    """
-    if not ip_str:
-        return None
-        
-    ip_str = ip_str.strip()
-    
-    # 1. Skip loopbacks and private IP ranges
+def _threshold_env(name, default):
     try:
-        ip = ipaddress.ip_address(ip_str)
-        if ip.is_private or ip.is_loopback:
-            return None
+        value = float(os.getenv(name, ""))
     except ValueError:
-        # Invalid IP string
-        return None
+        return default
+    return value if 0.0 < value <= 1.0 else default
 
-    # 2. Check Cache & Prevent Unbounded Growth
-    now = time.time()
-    if len(REPUTATION_CACHE) > 5000:
-        # Evict expired entries
-        expired_keys = [k for k, (score, ts) in REPUTATION_CACHE.items() if now - ts >= CACHE_TTL]
-        for k in expired_keys:
-            del REPUTATION_CACHE[k]
-        # If still too large, clear it entirely to reset memory footprint
-        if len(REPUTATION_CACHE) > 5000:
-            REPUTATION_CACHE.clear()
-            log.info("Reputation cache size exceeded 5,000 entries. Flushed cache to prevent memory bloat.")
-
-    if ip_str in REPUTATION_CACHE:
-        score, timestamp = REPUTATION_CACHE[ip_str]
-        if now - timestamp < CACHE_TTL:
-            log.info(f"AbuseIPDB cache hit for {ip_str}: {score}")
-            return score
-
-    # 3. Query API
-    api_key = os.getenv("ABUSEIPDB_API_KEY")
-    if not api_key:
-        log.warning("ABUSEIPDB_API_KEY environment variable not set. Skipping reputation check.")
-        return None
-
-    url = "https://api.abuseipdb.com/api/v2/check"
-    headers = {
-        "Key": api_key,
-        "Accept": "application/json"
-    }
-    params = {
-        "ipAddress": ip_str,
-        "maxAgeInDays": 90
-    }
-
-    try:
-        log.info(f"Querying AbuseIPDB API for IP: {ip_str}")
-        # Synchronous request with 3 second timeout
-        response = requests.get(url, headers=headers, params=params, timeout=3.0)
-        if response.status_code == 200:
-            res_data = response.json()
-            score_100 = res_data.get("data", {}).get("abuseConfidenceScore", 0)
-            score = round(float(score_100) / 100.0, 4)
-            # Update cache
-            REPUTATION_CACHE[ip_str] = (score, now)
-            log.info(f"AbuseIPDB reputation query successful for {ip_str}: {score}")
-            return score
-        else:
-            log.warning(f"AbuseIPDB query failed with status {response.status_code}: {response.text}")
-            return None
-    except Exception as e:
-        log.warning(f"AbuseIPDB query error for {ip_str}: {e}")
-        return None
-
-BLOCK_THRESHOLD   = 0.92
-MONITOR_THRESHOLD = 0.70
+BLOCK_THRESHOLD   = _threshold_env("BLOCK_THRESHOLD", 0.92)
+# Alert line (MONITOR): a non-BENIGN prediction at or above it becomes a threat + alert in the backend.
+# 0.90 = lowest line meeting the 0.1 % benign-alert target on the de-duplicated chronological validation
+# split (0.097 %); on later traffic it measured 0.154 % with 78.6 % attack detection. The earlier 0.85 was
+# chosen on duplicate-inflated data and measured 0.306 % once duplicates were removed. See
+# docs/CRITICAL_FIXES_REPORT.md §2.5 (experiments/c2_dedup_eval/threshold_validation).
+MONITOR_THRESHOLD = min(_threshold_env("ALERT_THRESHOLD", 0.90), BLOCK_THRESHOLD)
 ANOMALY_THRESHOLD = -0.55
+# Analyst review (H5): a flow the classifier calls BENIGN but the Isolation Forest finds anomalous is
+# labelled "Unknown"; when its anomaly signal is at least this level the action is REVIEW (no threat, no
+# block). 0.55 = lowest level with <= 0.5 % of benign flows queued on the de-duplicated chronological
+# validation split (`day_holdout_eval.py --protocols review`); on later traffic it queued 0.033 % of benign
+# flows but recovered only 2 of 2,254 attacks the classifier missed. The anomaly tier is a weak signal.
+REVIEW_MIN_SIGNAL = _threshold_env("REVIEW_MIN_ANOMALY_SIGNAL", 0.55)
 
 # Isolation Forest Boundary-Anchored Anomaly Transformation Constants
 # Default 10th-percentile contamination decision boundary offset from isolation_forest_cicids training
 IF_DEFAULT_OFFSET = -0.47402357424116837
-# Anomaly severity scaling span: linear deflection span from inlier boundary (offset_) to extreme outlier saturation floor (-0.6740)
+# Anomaly severity scaling span: linear deflection span below the anomaly boundary to full saturation
 IF_ANOMALY_SPAN   = 0.20
 
+
+def anomaly_signal(if_score):
+    """
+    Isolation Forest score_samples() -> bounded anomaly signal in [0, 1], for scalars or numpy arrays.
+    The boundary is ANOMALY_THRESHOLD, the same value that sets isAnomaly / the "Unknown" override, so a
+    flow either is an anomaly (signal > 0) or is not (signal 0) — the graded signal previously started at
+    the model's offset_ (~-0.474) while isAnomaly used -0.55, disagreeing on ~2.8 % of benign flows (M10).
+    Measured on the C1 chronological split, detection and benign FPR are unchanged at the 0.70/0.85/0.92
+    lines; see docs/MEDIUM_PRIORITY_FIXES_REPORT.md.
+    """
+    s = np.asarray(if_score, dtype=float)
+    sig = np.where(np.isfinite(s) & (s < ANOMALY_THRESHOLD),
+                   np.minimum((ANOMALY_THRESHOLD - np.nan_to_num(s, nan=0.0, posinf=0.0, neginf=0.0)) / IF_ANOMALY_SPAN, 1.0),
+                   0.0)
+    return float(np.round(sig, 4)) if sig.ndim == 0 else sig
+
+def combine_threat_score(rf_s, if_sig, is_attack):
+    """
+    threatScore from classifier strength (rf_s) and the Isolation Forest signal (if_sig), both in [0, 1].
+    The 0.7/0.3 blend alone capped a confidently classified attack at 0.7 x confidence when the IF saw an
+    inlier, i.e. below the 0.70 threat line, hiding most correct detections (C3,
+    docs/C1_EVALUATION_PLAN_AND_RESULTS.md). For attack classes the classifier's confidence is therefore
+    a floor and the anomaly signal can only raise it; BENIGN flows keep the plain blend.
+    Accepts scalars or numpy arrays (the C1 evaluation uses the vectorised form).
+    """
+    rf_s = np.asarray(rf_s, dtype=float)
+    blend = 0.7 * rf_s + 0.3 * np.asarray(if_sig, dtype=float)
+    score = np.where(is_attack, np.maximum(rf_s, blend), blend)
+    return float(score) if score.ndim == 0 else score
+
+# Severity follows the operating lines, so engine and backend agree (M1; backend/utils/severity.js):
+# CRITICAL = at/above the block line, HIGH = at/above the alert line, MEDIUM = 0.50 up to the alert line.
+SEVERITY_MEDIUM = 0.50
+
 def score_to_severity(s):
-    if s >= 0.90: return "CRITICAL"
-    if s >= 0.70: return "HIGH"
-    if s >= 0.50: return "MEDIUM"
+    if s >= BLOCK_THRESHOLD: return "CRITICAL"
+    if s >= MONITOR_THRESHOLD: return "HIGH"
+    if s >= SEVERITY_MEDIUM: return "MEDIUM"
     return "LOW"
+
+# Honeypot verdicts. Nobody legitimate uses a decoy, so every class except the rule's BENIGN (logged in,
+# ran only harmless commands) sits near or above the alert line; the score rises with what the attacker did:
+# credential guessing -> MONITOR, lateral movement -> MONITOR, payload download/execution and exfiltration
+# -> BLOCK line (auto-block still requires the backend's autoBlockEnabled setting).
+# v3: brute force needs BRUTE_FORCE_MIN_FAILURES failed logins (per source), a single failure or a login with no
+# commands is "SSH Intrusion Attempt" (below the alert line), and a download that is never run stays under the
+# block line.
+HONEYPOT_RULES_VERSION = "honeypot_rules_v3"
+HONEYPOT_RULE_SCORES = {
+    "BENIGN":            0.40,
+    "Port Scan":         0.75,  # not produced by the rules since v3; kept for stored v2 verdicts
+    "SSH Intrusion Attempt": 0.75,
+    "SSH Brute Force":   0.90,
+    "Lateral Movement":  0.90,
+    "RCE Attempt":       0.93,
+    "Data Exfiltration": 0.95,
+}
+HONEYPOT_COMMAND_STEP = 0.01  # per command, non-BENIGN only, capped at 0.99
+
+REGISTRY_FILE = "registry.json"
+MODEL_TYPES = ("rf", "xgboost", "stacking")
+
+
+def file_sha256(path) -> str:
+    h = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
+def load_registry(model_dir: Path):
+    """
+    models/registry.json pins the deployed artifacts:
+      {"classifier": {"file", "type", "meta", "sha256"}, "anomaly": {"file", "meta", "sha256"}}
+    Returns the parsed registry, or None when the file does not exist. Raises ValueError when it exists
+    but is malformed, so a broken registry never silently falls back to a different model.
+    """
+    path = Path(model_dir) / REGISTRY_FILE
+    if not path.exists():
+        return None
+    reg = json.loads(path.read_text(encoding="utf-8"))
+    for role in ("classifier", "anomaly"):
+        entry = reg.get(role)
+        if not isinstance(entry, dict) or not entry.get("file") or not entry.get("sha256"):
+            raise ValueError(f"Model registry entry '{role}' needs at least 'file' and 'sha256'")
+        if Path(entry["file"]).name != entry["file"]:
+            raise ValueError(f"Model registry entry '{role}' must name a file inside the model directory")
+    if reg["classifier"].get("type", "rf") not in MODEL_TYPES:
+        raise ValueError(f"Model registry classifier type must be one of {MODEL_TYPES}")
+    return reg
+
 
 class SentinelPredictor:
     def __init__(self, model_dir="models"):
@@ -109,6 +142,8 @@ class SentinelPredictor:
         self.model_type = "rf"
         self._loaded = False
         self.explainer = None
+        self.registry = None
+        self._low_data_classes = set()
         self.load()
 
     def load(self):
@@ -133,6 +168,62 @@ class SentinelPredictor:
         
         clf_path = None
         meta_path = None
+        # A registry pins exact files and hashes (M11). Without one, the legacy first-match order below
+        # applies, where any stray .pkl earlier in the list silently becomes the deployed model.
+        try:
+            registry = load_registry(self.model_dir)
+        except (ValueError, json.JSONDecodeError) as e:
+            log.error(f"Model registry invalid; inference unavailable: {e}")
+            return
+        # L11: registry.json sits next to the pickles, so whoever can replace a pickle can also rewrite its hash.
+        # MODEL_REGISTRY_SHA256, set outside the model volume (environment / secret store), anchors the registry.
+        pinned_registry = (os.getenv("MODEL_REGISTRY_SHA256") or "").strip().lower()
+        if pinned_registry:
+            reg_path = self.model_dir / REGISTRY_FILE
+            actual = file_sha256(reg_path) if reg_path.exists() else None
+            if actual != pinned_registry:
+                log.error("models/registry.json does not match MODEL_REGISTRY_SHA256; inference unavailable")
+                return
+        if registry:
+            clf_entry, if_entry = registry["classifier"], registry["anomaly"]
+            pinned = ((self.model_dir / clf_entry["file"], clf_entry["sha256"]),
+                      (self.model_dir / if_entry["file"], if_entry["sha256"]))
+            for path, expected in pinned:
+                if not path.exists():
+                    log.error(f"Registered model file missing: {path.name}; inference unavailable")
+                    return
+                actual = file_sha256(path)
+                if actual != expected.lower():
+                    log.error(f"Model hash mismatch for {path.name} (expected {expected[:12]}, got {actual[:12]}); "
+                              "inference unavailable")
+                    return
+            # Pickles are only reliable under the scikit-learn version that wrote them; another version can
+            # load silently and return wrong results. ALLOW_SKLEARN_MISMATCH=1 overrides (e.g. a deliberate upgrade).
+            pinned_sklearn = registry.get("sklearn_version")
+            import sklearn
+            if pinned_sklearn and pinned_sklearn != sklearn.__version__ and \
+                    os.getenv("ALLOW_SKLEARN_MISMATCH", "").lower() not in ("1", "true", "yes"):
+                log.error(f"Models were registered under scikit-learn {pinned_sklearn} but {sklearn.__version__} is "
+                          "installed; inference unavailable (use the pinned .venv / requirements.txt)")
+                return
+            self.model_type = clf_entry.get("type", "rf")
+            clf_path = pinned[0][0]
+            meta_path = self.model_dir / clf_entry["meta"] if clf_entry.get("meta") else None
+            if_p = pinned[1][0]
+            if_meta_p = self.model_dir / if_entry["meta"] if if_entry.get("meta") else None
+            self.registry = {"classifier": clf_entry["file"], "classifierSha256": clf_entry["sha256"],
+                             "anomaly": if_entry["file"], "anomalySha256": if_entry["sha256"], "verified": True,
+                             "registryPinned": bool(pinned_registry)}
+            log.info(f"Model registry: {clf_entry['file']} + {if_entry['file']} (sha256 verified)")
+            model_candidates = []
+        elif os.getenv("ALLOW_UNREGISTERED_MODELS", "").lower() in ("1", "true", "yes"):
+            log.warning("No models/registry.json: ALLOW_UNREGISTERED_MODELS set, using the legacy first-match load order")
+        else:
+            # Without a registry the first matching file name would silently become production (M4), e.g. a
+            # stray or duplicate .pkl. Refuse; register the intended files with training/register_model.py.
+            log.error("No models/registry.json; refusing to guess which model is production "
+                      "(run training/register_model.py, or set ALLOW_UNREGISTERED_MODELS=1 for development)")
+            return
         for filename, mtype, meta_filename in model_candidates:
             cand_p = self.model_dir / filename
             if cand_p.exists():
@@ -143,7 +234,9 @@ class SentinelPredictor:
                 break
 
         # Decide which isolation forest model to load: isolation_forest_cicids.pkl over isolation_forest_v1.4.pkl
-        if (self.model_dir / "isolation_forest_cicids.pkl").exists():
+        if registry:
+            pass  # pinned above
+        elif (self.model_dir / "isolation_forest_cicids.pkl").exists():
             if_p = self.model_dir / "isolation_forest_cicids.pkl"
             if_meta_p = self.model_dir / "isolation_forest_cicids_meta.json"
             log.info("Found isolation_forest_cicids.pkl. Selecting real-data isolation forest...")
@@ -160,7 +253,9 @@ class SentinelPredictor:
             self.clf = joblib.load(clf_path)
             self.rf = self.clf  # Keep self.rf referencing self.clf for backwards compatibility
             self.ifo = joblib.load(if_p)
-            
+            # Before the golden check below, so every start re-proves the setting reproduces the pinned predictions
+            self._set_inference_threads()
+
             if meta_path and meta_path.exists():
                 with open(meta_path) as f:
                     self.rf_meta = json.load(f)
@@ -176,11 +271,29 @@ class SentinelPredictor:
                     raise ValueError("Model metadata feature count mismatch")
                 if metadata.get("feature_names", FEATURE_NAMES) != FEATURE_NAMES:
                     raise ValueError("Model metadata feature order mismatch")
+            # P5: the pinned golden set must reproduce exactly before the models count as loaded
+            golden_entry = (registry or {}).get("golden")
+            if golden_entry:
+                from inference.model_checks import verify_golden
+                golden_path = self.model_dir / golden_entry["file"]
+                if not golden_path.exists() or file_sha256(golden_path) != golden_entry["sha256"].lower():
+                    log.error("Golden set missing or its hash does not match the registry; inference unavailable")
+                    return
+                ok, message = verify_golden(self.clf, self.ifo, json.loads(golden_path.read_text(encoding="utf-8")))
+                if not ok:
+                    log.error(f"Golden-set check failed: {message}; inference unavailable")
+                    return
+                log.info(f"Golden-set check passed: {message}")
+                self.registry["goldenCheck"] = message
+            elif registry:
+                log.warning("Registry has no golden set; re-run training/register_model.py to add one")
             self._loaded = True
             log.info(f"Classifier loaded from {clf_path}")
             print(f"[STARTUP] Loaded classification model: {clf_path.name}")
             self.init_explainer()
             self._init_shadow_detectors()
+            self._low_data_classes = {name for name, v in self.class_provenance().items()
+                                      if v.get("sufficientTrainingData") is False}
         except Exception as e:
             log.error(f"Load error: {e}")
 
@@ -229,17 +342,31 @@ class SentinelPredictor:
                 tree_model = self.clf.named_steps["xgb"]
             else:
                 tree_model = self.clf.named_steps["rf"]
-            self.explainer = shap.TreeExplainer(tree_model)
+            # Wrapped boosters (training.estimators.EncodedXGB) expose the fitted XGBClassifier as model_
+            self.explainer = shap.TreeExplainer(getattr(tree_model, "model_", tree_model))
             log.info("SHAP TreeExplainer initialized successfully.")
         except Exception as e:
             log.warning(f"Could not initialize SHAP TreeExplainer (explain=True will fall back to empty): {e}")
             self.explainer = None
 
+    def shap_for_classes(self, X, cls_pos):
+        """|SHAP| of each row for the class it was assigned (rows x features), or None without an explainer."""
+        if not self._loaded or self.explainer is None:
+            return None
+        raw = self.explainer.shap_values(self.clf.named_steps["scaler"].transform(X))
+        rows = np.arange(len(X))
+        if isinstance(raw, list):
+            return np.abs(np.stack([raw[int(c)][i] for i, c in enumerate(cls_pos)]))
+        raw = np.asarray(raw)
+        if raw.ndim == 3:
+            return np.abs(raw[rows, :, np.asarray(cls_pos, dtype=int)])
+        return np.abs(raw)
+
     def calculate_if_anomaly_signal(self, if_score: float) -> float:
         """
         Transforms raw Isolation Forest score_samples() output to a bounded anomaly score in [0.0, 1.0].
-        - Inliers (score_samples >= offset, decision_function >= 0): returns 0.0
-        - Outliers (score_samples < offset, decision_function < 0): returns normalized deflection in (0.0, 1.0]
+        - Not anomalous (score_samples >= ANOMALY_THRESHOLD, i.e. isAnomaly False): returns 0.0
+        - Anomalous: returns normalized deflection below ANOMALY_THRESHOLD in (0.0, 1.0]
         - Extreme outliers (deflection >= IF_ANOMALY_SPAN): saturates at 1.0
         Preserves anomaly direction, avoids artificial benign inflation, remains deterministic and bounded.
         """
@@ -252,24 +379,32 @@ class SentinelPredictor:
         except (ValueError, TypeError):
             return 0.0
 
-        offset = IF_DEFAULT_OFFSET
-        if self.ifo is not None and hasattr(self.ifo, "named_steps") and "if" in self.ifo.named_steps:
-            offset = float(getattr(self.ifo.named_steps["if"], "offset_", IF_DEFAULT_OFFSET))
+        return anomaly_signal(val)
 
-        if val >= offset:
-            return 0.0
+    def _classify(self, X):
+        """
+        One forest pass: (class label, probability row, column of that label). For sklearn/xgboost
+        estimators predict() is the argmax of predict_proba(), so calling both ran the trees twice (L4).
+        """
+        proba = self.rf.predict_proba(X)[0]
+        classes = getattr(self.rf, "classes_", None)
+        if isinstance(classes, np.ndarray) and len(classes) == len(proba):
+            pos = int(np.argmax(proba))
+            return classes[pos], proba, pos
+        label = self.rf.predict(X)[0]  # estimators without classes_ (test doubles)
+        return label, proba, int(label)
 
-        deflection = offset - val
-        return round(float(min(deflection / IF_ANOMALY_SPAN, 1.0)), 4)
-
-    def get_explanation(self, record: dict, top_n=5) -> list:
+    def get_explanation(self, record: dict, top_n=5, X=None, cls_pos=None) -> list:
+        """SHAP contributions for the predicted class. predict() passes its feature vector and class column
+        so the explanation does not re-extract features or run the classifier again."""
         if not self._loaded or self.explainer is None:
             return []
         try:
             import shap
-            X = extract_features_from_record(record).reshape(1,-1)
+            if X is None:
+                X = extract_features_from_record(record).reshape(1,-1)
             X_scaled = self.clf.named_steps["scaler"].transform(X)
-            cls = int(self.clf.predict(X)[0])
+            cls = cls_pos if cls_pos is not None else self._classify(X)[2]
             
             raw_shap = self.explainer.shap_values(X_scaled)
             
@@ -295,41 +430,140 @@ class SentinelPredictor:
             log.error(f"SHAP explanation error: {e}")
             return []
 
+    def _set_inference_threads(self):
+        """
+        PERF-001: the models were saved with n_jobs=-1, so every single-flow request started an all-core XGBoost/OpenMP
+        team and an all-core Isolation Forest pool. For one row the coordination cost exceeds the work (5.0 -> 2.8 ms
+        p50 in process) and concurrent requests oversubscribe the CPU (throughput stayed at ~70 req/s from 1 to 20
+        clients while using ~half the machine). The engine is served one request per thread, so each model call runs
+        single-threaded by default. Outputs are bit-identical (golden check below; scripts/perf/njobs_breakdown.py).
+        INFERENCE_N_JOBS overrides it (e.g. -1 restores the saved behaviour). In memory only; model files are untouched.
+        """
+        n = int(os.getenv("INFERENCE_N_JOBS", "1"))
+        for pipe in (self.clf, self.ifo):
+            for _, step in getattr(pipe, "steps", [("model", pipe)]):
+                for est in (step, getattr(step, "model_", None)):
+                    if est is None or "n_jobs" not in getattr(est, "get_params", lambda: {})():
+                        continue
+                    est.set_params(n_jobs=n)
+                    booster = getattr(est, "get_booster", None)
+                    if booster is not None:
+                        try:
+                            booster().set_param({"nthread": n})  # the booster SHAP's TreeExplainer uses
+                        except Exception:
+                            pass
+        self.inference_n_jobs = n
+
+    def explain_vector(self, vector) -> dict:
+        """
+        On-demand explanation of a feature vector the engine produced earlier (the backend's stored copy for a
+        threat). The exact vector is re-scored through the same path as predict_many (_classify_many, the
+        Isolation Forest, _assemble), so the caller can check that the stored prediction is reproduced before
+        showing anything; nothing is recorded (no stats, drift or callbacks). SHAP covers the classifier only.
+        Raises ValueError for a malformed vector and ModelUnavailableError when the models are not loaded.
+        """
+        if not self._loaded:
+            raise ModelUnavailableError("Required models are not loaded")
+        x = np.asarray(vector, dtype=float).reshape(-1)
+        if x.shape[0] != len(FEATURE_NAMES):
+            raise ValueError(f"featureVector must have {len(FEATURE_NAMES)} values, got {x.shape[0]}")
+        if not np.isfinite(x).all():
+            raise ValueError("featureVector must contain finite numbers only")
+        X = x.reshape(1, -1)
+        try:
+            labels, proba, cls_pos = self._classify_many(X)
+            if_score = float(np.asarray(self.ifo.named_steps["if"].score_samples(
+                self.ifo.named_steps["scaler"].transform(X)), dtype=float).reshape(-1)[0])
+        except Exception as e:
+            raise ModelUnavailableError("Inference failed") from e
+        scored = self._assemble({}, x, labels[0], proba[0], int(cls_pos[0]), if_score, 0.0, False, None)
+        contributions = self.get_explanation(None, top_n=len(FEATURE_NAMES), X=X, cls_pos=int(cls_pos[0]))
+        values = dict(zip(FEATURE_NAMES, (float(v) for v in x)))
+        for c in contributions:
+            c["value"] = values.get(c["feature"])
+        base = None
+        try:
+            ev = np.asarray(self.explainer.expected_value, dtype=float).reshape(-1)
+            base = float(ev[int(cls_pos[0])] if ev.size > 1 else ev[0])
+        except Exception:
+            base = None
+        return {
+            "predictedClass": scored["predictedClass"],
+            "explainedClass": LABEL_NAMES.get(int(labels[0]), "BENIGN"),
+            "threatScore": scored["threatScore"],
+            "confidence": scored["confidence"],
+            "classProbabilities": scored["classProbabilities"],
+            "isAnomaly": scored["isAnomaly"],
+            "modelVersion": scored["modelVersion"],
+            "featureSchemaVersion": FEATURE_SCHEMA_VERSION,
+            "contributions": contributions,
+            "baseValue": base,
+            "units": "classifier margin (log-odds) for explainedClass",
+        }
+
     def predict(self, record: dict, explain: bool = False) -> dict:
+        return self.predict_many([record], explain=explain)[0]
+
+    def _classify_many(self, X):
+        """One forest pass for all rows: (labels, probability matrix, column of each label)."""
+        proba = np.asarray(self.rf.predict_proba(X), dtype=float)
+        if proba.ndim == 1:
+            proba = proba.reshape(1, -1)
+        classes = getattr(self.rf, "classes_", None)
+        if isinstance(classes, np.ndarray) and len(classes) == proba.shape[1]:
+            pos = proba.argmax(axis=1)
+            return classes[pos], proba, pos
+        labels = np.asarray(self.rf.predict(X)).reshape(-1)  # estimators without classes_ (test doubles)
+        return labels, proba, labels.astype(int)
+
+    def predict_many(self, records: list, explain: bool = False) -> list:
+        """
+        Score several flows with one classifier pass and one Isolation Forest pass (L12); /predict/batch
+        previously ran both forests once per row. predict() is the one-row case of this method.
+        """
         t0 = time.perf_counter()
         # Decoupled in Phase 2.4B: AbuseIPDB reputation is no longer queried synchronously during inference.
         # Threat intelligence enrichment executes asynchronously in backend threatIntelService.
         rep_score = None
         if not self._loaded:
             raise ModelUnavailableError("Required models are not loaded")
-        X = extract_features_from_record(record).reshape(1,-1)
+        if not records:
+            return []
+        X = np.vstack([extract_features_from_record(r).reshape(1, -1) for r in records])
         if not np.isfinite(X).all():
             raise ValueError("Features must be finite numbers")
-        raw_vector = [float(v) for v in X[0]]
         try:
-            cls   = self.rf.predict(X)[0]
-            proba = self.rf.predict_proba(X)[0]
-            cname = LABEL_NAMES.get(int(cls), "BENIGN")
-            probs = {LABEL_NAMES.get(i, f"c{i}"): round(float(p),4) for i,p in enumerate(proba)}
-            max_p = float(max(proba))
+            labels, proba, cls_pos = self._classify_many(X)
         except Exception as e:
             log.error(f"Prediction error: {e}")
             raise ModelUnavailableError("Classifier inference failed") from e
         try:
-            if_score  = float(self.ifo.named_steps["if"].score_samples(self.ifo.named_steps["scaler"].transform(X))[0])
-            is_anomaly = if_score < ANOMALY_THRESHOLD
+            if_scores = np.asarray(self.ifo.named_steps["if"].score_samples(self.ifo.named_steps["scaler"].transform(X)),
+                                   dtype=float).reshape(-1)
         except Exception as e:
             raise ModelUnavailableError("Anomaly inference failed") from e
+        per_row_ms = round((time.perf_counter() - t0) * 1000 / len(records), 2)
+        return [self._assemble(record, X[i], labels[i], proba[i], int(cls_pos[i]), float(if_scores[i]),
+                               per_row_ms, explain, rep_score)
+                for i, record in enumerate(records)]
+
+    def _assemble(self, record, x, cls, proba, cls_pos, if_score, ms, explain, rep_score):
+        cname = LABEL_NAMES.get(int(cls), "BENIGN")
+        probs = {LABEL_NAMES.get(i, f"c{i}"): round(float(p),4) for i,p in enumerate(proba)}
+        max_p = float(max(proba))
+        is_anomaly = if_score < ANOMALY_THRESHOLD
         rf_s   = max_p if cname != "BENIGN" else (1 - max_p)
         if_sig = self.calculate_if_anomaly_signal(if_score)
-        score  = round(0.7*rf_s + 0.3*if_sig, 4)
+        score  = round(combine_threat_score(rf_s, if_sig, cname != "BENIGN"), 4)
+        review = False
         if cname == "BENIGN" and is_anomaly:
             cname = "Unknown"; score = max(score, 0.55)
-            
+            review = if_sig >= REVIEW_MIN_SIGNAL
+
         explanation = []
         if explain:
-            explanation = self.get_explanation(record)
-            
+            explanation = self.get_explanation(record, X=x.reshape(1, -1), cls_pos=cls_pos)
+
         # Shadow evaluation of B2 Volumetric Flood Detector (zero mutation of primary action/score)
         shadow_b2_eval = None
         if getattr(self, "shadow_b2", None) is not None:
@@ -344,8 +578,10 @@ class SentinelPredictor:
             except Exception as exc:
                 log.debug(f"Shadow B2 evaluation failed safe: {exc}")
 
-        ms = round((time.perf_counter()-t0)*1000, 2)
         action = "BLOCK" if score>=BLOCK_THRESHOLD else "MONITOR" if score>=MONITOR_THRESHOLD else "ALLOW"
+        if review and action == "ALLOW":
+            # The anomaly tier cannot raise an alert; it can only ask an analyst to look (never auto-block).
+            action = "REVIEW"
         ret = {
             "predictedClass":cname,
             "threatScore":score,
@@ -359,38 +595,33 @@ class SentinelPredictor:
             "modelVersion":self.rf_meta.get("version","v2.1"),
             "featureImportance":explanation,
             "ipReputationScore": rep_score,
-            "featureVector": raw_vector,
-            "featureSchemaVersion": FEATURE_SCHEMA_VERSION
+            "featureVector": [float(v) for v in x],
+            "featureSchemaVersion": FEATURE_SCHEMA_VERSION,
+            # True when the predicted class had too few training rows for its verdicts to be trusted (H2)
+            "lowTrainingDataClass": cname in self._low_data_classes,
         }
         if shadow_b2_eval is not None:
             ret["shadowB2"] = shadow_b2_eval
         return ret
 
     def predict_from_honeypot(self, session: dict) -> dict:
+        # Cowrie sessions carry no packet-level flow data, so the verdict comes from the session rules
+        # (utils.features.classify_honeypot_session) and HONEYPOT_RULE_SCORES. Running a rule-synthesised
+        # flow through the CICIDS classifier scored every session type BENIGN (C1, docs/AI_ENGINE_STUDY_GUIDE.md).
+        # The models are not used here; the readiness check is kept so the engine stays fail-closed as a whole.
         t0 = time.perf_counter()
-        X  = extract_features_from_honeypot(session).reshape(1,-1)
-        n  = len(session.get("commands",[]))
-        # Decoupled in Phase 2.4B: AbuseIPDB reputation is no longer queried synchronously during inference.
-        rep_score = None
         if not self._loaded:
             raise ModelUnavailableError("Required models are not loaded")
-        if not np.isfinite(X).all():
-            raise ValueError("Features must be finite numbers")
-        try:
-            cls = self.rf.predict(X)[0]; proba=self.rf.predict_proba(X)[0]
-            cname=LABEL_NAMES.get(int(cls),"SSH Brute Force"); max_p=float(max(proba))
-        except Exception as e:
-            raise ModelUnavailableError("Classifier inference failed") from e
-        try:
-            if_score=float(self.ifo.named_steps["if"].score_samples(self.ifo.named_steps["scaler"].transform(X))[0]); is_anomaly=if_score<ANOMALY_THRESHOLD
-        except Exception as e:
-            raise ModelUnavailableError("Anomaly inference failed") from e
-        
-        # Fixed: calculate rf_s correctly for BENIGN to scale down the threat score
-        rf_s = max_p if cname != "BENIGN" else (1.0 - max_p)
-        if_sig = self.calculate_if_anomaly_signal(if_score)
-        base = 0.7 * rf_s + 0.3 * if_sig
-        score = round(min(base + n*0.02, 0.99), 4)
+        # Decoupled in Phase 2.4B: AbuseIPDB reputation is no longer queried synchronously during inference.
+        rep_score = None
+        cname = classify_honeypot_session(session)
+        n = len(session.get("commands", []))
+        score = HONEYPOT_RULE_SCORES[cname]
+        if cname != "BENIGN":
+            score = round(min(score + n * HONEYPOT_COMMAND_STEP, 0.99), 4)
+        if cname == "RCE Attempt" and not (command_programs(session.get("commands", [])) & EXECUTION_TOOLS):
+            # Fetched but never ran anything (M6): alerted, but a download alone is not auto-blocked.
+            score = min(score, round(BLOCK_THRESHOLD - HONEYPOT_COMMAND_STEP, 4))
 
         # Shadow evaluation of E2 Structured Auth Event Adapter (zero mutation of primary action/score)
         shadow_e2_eval = None
@@ -413,16 +644,33 @@ class SentinelPredictor:
             except Exception as exc:
                 log.debug(f"Shadow E2 evaluation failed safe: {exc}")
         
-        res = self._build(cname,score,max_p,is_anomaly,if_score,(time.perf_counter()-t0)*1000)
-        res["ipReputationScore"] = rep_score
+        action = "BLOCK" if score >= BLOCK_THRESHOLD else "MONITOR" if score >= MONITOR_THRESHOLD else "ALLOW"
+        # No model ran, so there is no classifier confidence or anomaly score to report.
+        res = {"predictedClass": cname, "threatScore": score, "severity": score_to_severity(score),
+               "confidence": None, "isAnomaly": False, "anomalyScore": None,
+               "inferenceTimeMs": round((time.perf_counter() - t0) * 1000, 2), "action": action,
+               "modelVersion": HONEYPOT_RULES_VERSION, "featureImportance": [],
+               "ipReputationScore": rep_score, "classificationMethod": "honeypot_rules"}
         if shadow_e2_eval is not None:
             res["shadowE2"] = shadow_e2_eval
         return res
 
-    def _build(self,cls,score,confidence,anomaly,if_score,ms):
-        action="BLOCK" if score>=BLOCK_THRESHOLD else "MONITOR" if score>=MONITOR_THRESHOLD else "ALLOW"
-        return {"predictedClass":cls,"threatScore":score,"severity":score_to_severity(score),"confidence":round(confidence,4),"isAnomaly":anomaly,"anomalyScore":round(if_score,4),"inferenceTimeMs":round(ms,2),"action":action,"modelVersion":self.rf_meta.get("version","v2.1"),"featureImportance":[]}
+    def class_provenance(self) -> dict:
+        """Per class the deployed classifier can output: what it was trained on and whether that is enough (H2)."""
+        from utils.features import LABEL_SOURCES, MIN_TRAINING_ROWS
+        classes = getattr(self.rf, "classes_", None) if self._loaded else None
+        if classes is None:
+            return {}
+        counts = (self.rf_meta.get("class_counts") or {}).get("train", {})
+        out = {}
+        for c in classes:
+            name = LABEL_NAMES.get(int(c), f"c{int(c)}")
+            rows = counts.get(name)
+            out[name] = {**LABEL_SOURCES.get(name, {}), "trainingRows": rows,
+                         "sufficientTrainingData": None if rows is None else rows >= MIN_TRAINING_ROWS}
+        return out
 
     def get_model_info(self):
         from utils.features import LABEL_MAP
-        return {"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD}}
+        from inference.model_checks import read_history
+        return {"lineage":read_history(self.model_dir, last=5),"classProvenance":self.class_provenance(),"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD,"reviewMinAnomalySignal":REVIEW_MIN_SIGNAL},"registry":self.registry}

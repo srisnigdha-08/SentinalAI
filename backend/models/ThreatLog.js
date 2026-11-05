@@ -2,7 +2,7 @@ const mongoose = require('mongoose')
 const mitreMapping = require('../utils/mitreMapping')
 const ThreatLogSchema = new mongoose.Schema(
   {
-    severity: { type: String, required: true, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'], index: true },
+    severity: { type: String, required: true, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'] },
     sourceIP: { type: String, required: true },
     destinationIP: { type: String, default: 'INTERNAL' },
     targetService: { type: String, default: 'UNKNOWN' },
@@ -31,13 +31,26 @@ const ThreatLogSchema = new mongoose.Schema(
     confidence: { type: Number, min: 0, max: 1, default: 0 },
     status: {
       type: String,
-      enum: ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED'],
+      enum: [
+        'DETECTED',
+        'INVESTIGATING',
+        'CONTAINED',
+        'MONITORING',
+        'BLOCKED',
+        'ESCALATED',
+        'RESOLVED',
+        'FALSE_POSITIVE',
+        'DEGRADED',
+      ],
       default: 'DETECTED',
       index: true,
     },
+    triageNotes: { type: String, default: '', maxlength: 1000 },
+
     preBlockStatus: {
       type: String,
-      enum: ['DETECTED', 'MONITORING', 'ESCALATED', 'DEGRADED', null],
+      // Every status a block may start from (all but BLOCKED, RESOLVED, FALSE_POSITIVE), so unblock restores it
+      enum: ['DETECTED', 'INVESTIGATING', 'CONTAINED', 'MONITORING', 'ESCALATED', 'DEGRADED', null],
       default: null,
     },
     containmentId: {

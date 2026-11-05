@@ -17,6 +17,12 @@ def isolate_q_table_runtime(tmp_path, monkeypatch):
 def get_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest().lower()
 
+def file_state(path: Path):
+    """Hash of a protected file, or None when it does not exist. runtime/q_table.json is created by a running engine
+    and is git-ignored, so a fresh checkout (CI) has none; "unchanged" then means "still absent", which also proves
+    the code under test did not create it."""
+    return get_hash(path) if path.exists() else None
+
 def test_q_table_baseline_write_protection(tmp_path):
     models_baseline = (Path(__file__).parent.parent / "models" / "q_table.json").resolve()
     assert models_baseline.exists(), "Baseline models/q_table.json must exist"
@@ -120,9 +126,8 @@ def test_regression_tests_cannot_mutate_either_protected_q_table(tmp_path, monke
     runtime_path = runtime_dir / "q_table.json"
 
     initial_seed_hash = get_hash(seed_path)
-    initial_runtime_hash = get_hash(runtime_path)
+    initial_runtime_state = file_state(runtime_path)
     initial_seed_size = seed_path.stat().st_size
-    initial_runtime_size = runtime_path.stat().st_size
 
     # Simulate operations targeting both default and custom paths under test isolation
     isolated_runtime = tmp_path / "test_run" / "q_table.json"
@@ -141,8 +146,7 @@ def test_regression_tests_cannot_mutate_either_protected_q_table(tmp_path, monke
     # Both protected files must retain exact pre-test hash and size
     assert get_hash(seed_path) == initial_seed_hash
     assert seed_path.stat().st_size == initial_seed_size
-    assert get_hash(runtime_path) == initial_runtime_hash
-    assert runtime_path.stat().st_size == initial_runtime_size
+    assert file_state(runtime_path) == initial_runtime_state  # same content (and so size), or still absent
 
 
 def test_regression_persistence_uses_explicitly_authorized_destination(tmp_path, monkeypatch):
@@ -181,7 +185,7 @@ def test_regression_failed_initialization_and_cleanup_safety(tmp_path, monkeypat
     runtime_path = runtime_dir / "q_table.json"
 
     initial_seed_hash = get_hash(seed_path)
-    initial_runtime_hash = get_hash(runtime_path)
+    initial_runtime_state = file_state(runtime_path)
 
     # Corrupted input file
     corrupt_file = tmp_path / "corrupted.json"
@@ -199,7 +203,7 @@ def test_regression_failed_initialization_and_cleanup_safety(tmp_path, monkeypat
 
     # Check protected files remain untouched
     assert get_hash(seed_path) == initial_seed_hash
-    assert get_hash(runtime_path) == initial_runtime_hash
+    assert file_state(runtime_path) == initial_runtime_state
 
 
 def test_regression_standalone_diagnostic_redirects_away_from_repo_runtime(monkeypatch):
@@ -213,7 +217,7 @@ def test_regression_standalone_diagnostic_redirects_away_from_repo_runtime(monke
     runtime_path = runtime_dir / "q_table.json"
 
     initial_seed_hash = get_hash(seed_path)
-    initial_runtime_hash = get_hash(runtime_path)
+    initial_runtime_state = file_state(runtime_path)
 
     # Remove explicit redirect environment variable to simulate standalone unconfigured runner
     monkeypatch.delenv("DEFAULT_RUNTIME_Q_TABLE_PATH", raising=False)
@@ -232,7 +236,7 @@ def test_regression_standalone_diagnostic_redirects_away_from_repo_runtime(monke
 
     # Repository protected assets must remain 100% hash-invariant
     assert get_hash(seed_path) == initial_seed_hash
-    assert get_hash(runtime_path) == initial_runtime_hash
+    assert file_state(runtime_path) == initial_runtime_state
 
 
 def test_regression_fail_closed_mode_raises_on_repo_write(monkeypatch):
@@ -246,7 +250,7 @@ def test_regression_fail_closed_mode_raises_on_repo_write(monkeypatch):
     runtime_path = runtime_dir / "q_table.json"
 
     initial_seed_hash = get_hash(seed_path)
-    initial_runtime_hash = get_hash(runtime_path)
+    initial_runtime_state = file_state(runtime_path)
 
     monkeypatch.setenv("SENTINEL_FAIL_CLOSED_ON_REPO_MUTATION", "true")
     monkeypatch.setenv("SENTINEL_TEST_MODE", "1")
@@ -265,7 +269,7 @@ def test_regression_fail_closed_mode_raises_on_repo_write(monkeypatch):
 
     # Hashes must remain strictly intact
     assert get_hash(seed_path) == initial_seed_hash
-    assert get_hash(runtime_path) == initial_runtime_hash
+    assert file_state(runtime_path) == initial_runtime_state
 
 
 def test_regression_deception_get_scorer_isolation_under_test_mode(monkeypatch):
@@ -280,7 +284,7 @@ def test_regression_deception_get_scorer_isolation_under_test_mode(monkeypatch):
     runtime_path = runtime_dir / "q_table.json"
 
     initial_seed_hash = get_hash(seed_path)
-    initial_runtime_hash = get_hash(runtime_path)
+    initial_runtime_state = file_state(runtime_path)
 
     monkeypatch.delenv("DEFAULT_RUNTIME_Q_TABLE_PATH", raising=False)
     monkeypatch.delenv("Q_TABLE_PATH", raising=False)
@@ -298,7 +302,7 @@ def test_regression_deception_get_scorer_isolation_under_test_mode(monkeypatch):
 
     # Hashes must remain strictly intact
     assert get_hash(seed_path) == initial_seed_hash
-    assert get_hash(runtime_path) == initial_runtime_hash
+    assert file_state(runtime_path) == initial_runtime_state
     assert scorer_path.exists()
 
 
@@ -336,7 +340,7 @@ def test_phase11_unflagged_standalone_script_cannot_write_repo_runtime(monkeypat
     runtime_path = (Path(__file__).parent.parent / "runtime" / "q_table.json").resolve()
     seed_path = (Path(__file__).parent.parent / "models" / "q_table.json").resolve()
 
-    initial_runtime_hash = get_hash(runtime_path)
+    initial_runtime_state = file_state(runtime_path)
     initial_seed_hash = get_hash(seed_path)
 
     # Simulate an unflagged standalone script (e.g. verify_flow.py or python -c)
@@ -355,7 +359,7 @@ def test_phase11_unflagged_standalone_script_cannot_write_repo_runtime(monkeypat
     assert "Repository persistence requires explicit authorization" in str(exc_info.value)
 
     # Repository runtime and seed remain strictly intact
-    assert get_hash(runtime_path) == initial_runtime_hash
+    assert file_state(runtime_path) == initial_runtime_state
     assert get_hash(seed_path) == initial_seed_hash
 
 

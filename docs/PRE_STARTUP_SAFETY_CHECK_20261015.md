@@ -2,11 +2,11 @@
 
 **Document Date:** 15 October 2026  
 **Auditor / Systems Engineer:** Antigravity (Senior Windows Systems Engineer, Application Security Reviewer, and Data-Integrity Auditor)  
-**Project Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration Directory:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
-**Development DB Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data`  
-**Audit Reference:** [`docs/POST_CLEANUP_READINESS_AUDIT_20261015.md`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/docs/POST_CLEANUP_READINESS_AUDIT_20261015.md)  
-**Enrollment Policy Reference:** [`docs/ENROLLMENT_POLICY_20261015.md`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/docs/ENROLLMENT_POLICY_20261015.md)  
+**Project Root:** `<repo>`  
+**Native Integration Directory:** `<repo>.native-integration`  
+**Development DB Path:** `<repo>.native-integration\mongodb-dev\data`  
+**Audit Reference:** [`docs/POST_CLEANUP_READINESS_AUDIT_20261015.md`](<repo>/docs/POST_CLEANUP_READINESS_AUDIT_20261015.md)  
+**Enrollment Policy Reference:** [`docs/ENROLLMENT_POLICY_20261015.md`](<repo>/docs/ENROLLMENT_POLICY_20261015.md)  
 **Safety Mandate:** Read-only inspection; zero files deleted, zero configurations modified, zero services started, zero databases created or migrated during review.
 
 ---
@@ -47,7 +47,7 @@
      - `local` (72 KB)
    - `sentinel-db` does **not** exist yet. Zero application collections or documents are present.
 6. **Physical and Logical Isolation:**
-   - Acceptance DB: `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data` operates on port `27028` and is currently offline. Latest file write timestamp remains `14 October 2026 13:39:10`.
+   - Acceptance DB: `<repo>.native-integration\mongodb-acceptance-20261014\data` operates on port `27028` and is currently offline. Latest file write timestamp remains `14 October 2026 13:39:10`.
    - Historical Preserved DBs: `D:\MongoPreservation\deployment_mongo_data` and `D:\MongoPreservation\deepguard-platform_mongo_data` remain offline on physical Drive D:. Latest file write timestamp remains `15 October 2026 13:06:29`.
    - The backend connection string points exclusively to loopback port `27017` and cannot physically or logically route to or modify the acceptance or preserved databases.
 
@@ -120,7 +120,7 @@
    - **Recommended Procedure:**
      Inject `ADMIN_INITIAL_PASSWORD` ephemerally in the terminal session when starting the backend for the first time:
      ```powershell
-     cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend
+     cd <repo>\backend
      $env:ADMIN_INITIAL_PASSWORD = "YourStrongDevPassword2026!"
      npm start
      ```
@@ -134,7 +134,7 @@
 *Evidence Rating: **Confirmed***
 
 1. **Exact Startup Command (Native Windows):**
-   - **Working Directory:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend`
+   - **Working Directory:** `<repo>\backend`
    - **Command:**
      ```powershell
      npm start
@@ -171,7 +171,7 @@
 1. **Development MongoDB Daemon:**
    - Status: **RUNNING** on `127.0.0.1:27017` (PID `27764`).
    - Binary: MongoDB Community v7.0.45 x64 (`mongodb-acceptance-20261014\binaries\mongod.exe`).
-   - Data Directory: `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data`.
+   - Data Directory: `<repo>.native-integration\mongodb-dev\data`.
    - Health: Verified non-destructively via ping `{ ok: 1 }`.
 2. **Application Tiers:**
    - Backend (Port 5000): **STOPPED** (Port 5000 verified FREE).
@@ -193,7 +193,7 @@ When you are ready to start SentinelAI, execute the three tiers in the following
 
 ### Step 1: Terminal 1 — Start the Backend (with Admin Bootstrap)
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend
+cd <repo>\backend
 
 # Set ephemeral administrator password for initial boot
 $env:ADMIN_INITIAL_PASSWORD = "ChangeMeAdmin2026!"
@@ -213,7 +213,7 @@ npm start
 
 ### Step 2: Terminal 2 — Start the AI Inference Engine
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine
+cd <repo>\ai-engine
 $env:Q_TABLE_PATH = Join-Path (Get-Location).Path 'runtime\q_table.json'
 .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
 ```
@@ -225,7 +225,7 @@ $env:Q_TABLE_PATH = Join-Path (Get-Location).Path 'runtime\q_table.json'
 
 ### Step 3: Terminal 3 — Start the Frontend Dashboard
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend
+cd <repo>\frontend
 npm run dev -- --host 127.0.0.1
 ```
 **Expected Console Output:**

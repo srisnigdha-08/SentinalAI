@@ -22,6 +22,7 @@ jest.mock('../services/aiEngineService', () => ({
   predictHoneypotSession: (...a) => mockPredictHoneypot(...a),
   getDeceptionScore: (...a) => mockGetDeceptionScore(...a),
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
 }))
 
 jest.mock('../models/SystemSetting', () => ({
@@ -32,6 +33,7 @@ jest.mock('../models/SystemSetting', () => ({
 jest.mock('../models/BlockedIP', () => ({
   findOne: jest.fn().mockResolvedValue(null),
   findOneAndUpdate: jest.fn().mockResolvedValue({}),
+  countDocuments: jest.fn().mockResolvedValue(0), // honeypot auto-block budget (H3)
 }))
 
 jest.mock('../models/ThreatLog', () => ({
@@ -89,11 +91,15 @@ jest.mock('../models/HoneypotSession', () => ({
 }))
 
 const HoneypotSession = require('../models/HoneypotSession')
-const { closeSession, findSessions } = require('../services/honeypotService')
+const { closeSession, findSessions, retryDeferredAnalysis } = require('../services/honeypotService')
 const aiService = require('../services/aiService')
 const SystemSetting = require('../models/SystemSetting')
 const ThreatLog = require('../models/ThreatLog')
 const containmentService = require('../services/containmentService')
+
+// closeSession schedules threat-intel enrichment with setImmediate; let it run before Jest tears the
+// module registry down, otherwise its late require() fails the run with a non-zero exit code.
+afterAll(() => new Promise((resolve) => setImmediate(resolve)))
 
 describe('honeypotService.closeSession()', () => {
   beforeEach(() => {
@@ -109,6 +115,8 @@ describe('honeypotService.closeSession()', () => {
       linkedThreatLog: null,
       closureAnalysisState: 'idle',
       credentials: [{ success: true }],
+      aiAnalysisPending: false,
+      deceptionScoringPending: false,
     })
     aiService.storePrediction.mockResolvedValue({})
     SystemSetting.findOne.mockResolvedValue({ key: 'autoBlockEnabled', value: false })
@@ -306,11 +314,44 @@ describe('honeypotService.closeSession()', () => {
     mockPredictHoneypot.mockResolvedValue({ success: true, result: { predictedClass: 'Port Scan', threatScore: 0.6 } })
     await closeSession('session-doc-id')
     expect(threat.notes).toBe(
-      '[RF_IF_RECLASSIFIED] RF/IF inference replaced the initial fixed SSH session-open signal.\nOperator note retained'
+      '[HONEYPOT_RULES_RECLASSIFIED] Honeypot rule classification replaced the initial fixed SSH session-open signal.\nOperator note retained'
     )
     expect(threat.aiScore).toBe(0.6)
     expect(threat.status).toBe('DETECTED')
     expect(containmentService.executeAutoBlock).not.toHaveBeenCalled()
+  })
+
+  test('M1: a shared threat is not downgraded by a later, milder session from the same IP', async () => {
+    mockSession.linkedThreatLog = 'shared-threat'
+    const threat = {
+      notes: '[HONEYPOT_RULES_RECLASSIFIED] earlier session',
+      attackType: 'RCE Attempt',
+      aiScore: 0.98,
+      severity: 'CRITICAL',
+      status: 'MONITORING',
+      save: jest.fn().mockResolvedValue(true),
+    }
+    ThreatLog.findById.mockResolvedValue(threat)
+    mockPredictHoneypot.mockResolvedValue({
+      success: true,
+      result: { predictedClass: 'SSH Brute Force', threatScore: 0.9 },
+    })
+    await closeSession('session-doc-id')
+    expect(threat).toMatchObject({
+      attackType: 'RCE Attempt',
+      aiScore: 0.98,
+      severity: 'CRITICAL',
+      status: 'MONITORING',
+    })
+
+    // A stronger later session still raises it.
+    Object.assign(mockSession, { closureAnalysisState: 'idle', endTime: null })
+    mockPredictHoneypot.mockResolvedValue({
+      success: true,
+      result: { predictedClass: 'Data Exfiltration', threatScore: 0.99 },
+    })
+    await closeSession('session-doc-id')
+    expect(threat).toMatchObject({ attackType: 'Data Exfiltration', aiScore: 0.99 })
   })
 
   test('unavailable inference leaves the fixed heuristic annotation and score unchanged', async () => {
@@ -337,6 +378,61 @@ describe('honeypotService.closeSession()', () => {
     expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
     expect(result.qDeceptionScore).toBe(72)
     expect(result.recommendedProfile).toBe('debian_11')
+  })
+
+  test('demo sessions are closed and classified but never update the Q-learner', async () => {
+    mockGetDeceptionScore.mockResolvedValue({ success: true, result: { deceptionScore: 72, nextProfile: 'debian_11' } })
+    mockSession.sessionId = 'demo-1a2b3c4d'
+    try {
+      const result = await closeSession('session-doc-id')
+      expect(mockPredictHoneypot).toHaveBeenCalledTimes(1)
+      expect(mockGetDeceptionScore).not.toHaveBeenCalled()
+      expect(result.status).toBe('closed')
+      expect(result.qDeceptionScore).toBe(0)
+      expect(mockSessionSave).toHaveBeenCalledTimes(1)
+    } finally {
+      mockSession.sessionId = 'sess-TEST-0001'
+    }
+  })
+
+  test('AI engine unavailable: the closure completes with both AI steps flagged for retry', async () => {
+    const result = await closeSession('session-doc-id')
+    expect(result.status).toBe('closed')
+    expect(result.aiAnalysisPending).toBe(true)
+    expect(result.deceptionScoringPending).toBe(true)
+  })
+
+  test('retryDeferredAnalysis re-runs only the pending step and does not re-cluster', async () => {
+    Object.assign(mockSession, {
+      status: 'closed',
+      endTime: new Date(),
+      durationSeconds: 60,
+      closureAnalysisState: 'complete',
+      aiAnalysisPending: false,
+      deceptionScoringPending: true,
+    })
+    HoneypotSession.findOneAndUpdate.mockImplementationOnce(async (filter, update) => {
+      expect(filter).toMatchObject({ closureAnalysisState: 'complete' })
+      Object.assign(mockSession, update.$set)
+      return mockSession
+    })
+    mockGetDeceptionScore.mockResolvedValue({ success: true, result: { deceptionScore: 72, nextProfile: 'debian_11' } })
+
+    const result = await retryDeferredAnalysis('session-doc-id')
+
+    expect(mockPredictHoneypot).not.toHaveBeenCalled()
+    expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
+    expect(result.qDeceptionScore).toBe(72)
+    expect(result.deceptionScoringPending).toBe(false)
+    expect(result.closureAnalysisState).toBe('complete')
+    expect(mockClusterSession).not.toHaveBeenCalled()
+  })
+
+  test('retryDeferredAnalysis does nothing when the claim finds no pending work', async () => {
+    HoneypotSession.findOneAndUpdate.mockResolvedValueOnce(null)
+    expect(await retryDeferredAnalysis('session-doc-id')).toBeNull()
+    expect(mockPredictHoneypot).not.toHaveBeenCalled()
+    expect(mockGetDeceptionScore).not.toHaveBeenCalled()
   })
 
   test('calls campaignService.clusterSession with the updated session', async () => {

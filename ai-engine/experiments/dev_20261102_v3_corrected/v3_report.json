@@ -1,0 +1,1523 @@
+{
+ "summary": {
+  "corrected_v3 C0": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.247,
+    "macro_fpr": 0.002779,
+    "pooled_recall": 0.2434,
+    "pooled_fpr": 0.002485,
+    "pooled": {
+     "tp": 7788,
+     "fp": 230,
+     "fn": 24209,
+     "tn": 92307
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.004121
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.065,
+    "macro_fpr": 0.003495,
+    "pooled_recall": 0.1421,
+    "pooled_fpr": 0.003361,
+    "pooled": {
+     "tp": 6756,
+     "fp": 275,
+     "fn": 40797,
+     "tn": 81546
+    },
+    "worst_fold_fpr": [
+     "2018-01-03-2018",
+     0.015844
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.078,
+     "macro_fpr": 0.004181,
+     "pooled_recall": 0.1795,
+     "pooled_fpr": 0.0041,
+     "worst_fold_fpr": [
+      "2018-01-03-2018",
+      0.015844
+     ]
+    }
+   }
+  },
+  "corrected_v3 C4A": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.4258,
+    "macro_fpr": 0.005321,
+    "pooled_recall": 0.4405,
+    "pooled_fpr": 0.00469,
+    "pooled": {
+     "tp": 14096,
+     "fp": 434,
+     "fn": 17901,
+     "tn": 92103
+    },
+    "worst_fold_fpr": [
+     "2017-Wednesday",
+     0.008478
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.5748,
+    "macro_fpr": 0.01382,
+    "pooled_recall": 0.5628,
+    "pooled_fpr": 0.013554,
+    "pooled": {
+     "tp": 26765,
+     "fp": 1109,
+     "fn": 20788,
+     "tn": 80712
+    },
+    "worst_fold_fpr": [
+     "2018-15-02-2018",
+     0.044312
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.6826,
+     "macro_fpr": 0.016491,
+     "pooled_recall": 0.7018,
+     "pooled_fpr": 0.016492,
+     "worst_fold_fpr": [
+      "2018-15-02-2018",
+      0.044312
+     ]
+    }
+   }
+  },
+  "corrected_v3 C4AI": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.4059,
+    "macro_fpr": 0.002519,
+    "pooled_recall": 0.3959,
+    "pooled_fpr": 0.002096,
+    "pooled": {
+     "tp": 12667,
+     "fp": 194,
+     "fn": 19330,
+     "tn": 92343
+    },
+    "worst_fold_fpr": [
+     "2017-Tuesday",
+     0.003617
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.3751,
+    "macro_fpr": 0.003521,
+    "pooled_recall": 0.435,
+    "pooled_fpr": 0.003398,
+    "pooled": {
+     "tp": 20687,
+     "fp": 278,
+     "fn": 26866,
+     "tn": 81543
+    },
+    "worst_fold_fpr": [
+     "2018-01-03-2018",
+     0.014229
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.4253,
+     "macro_fpr": 0.004158,
+     "pooled_recall": 0.5171,
+     "pooled_fpr": 0.004085,
+     "worst_fold_fpr": [
+      "2018-01-03-2018",
+      0.014229
+     ]
+    }
+   }
+  },
+  "published C4AI": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.3606,
+    "macro_fpr": 0.009548,
+    "pooled_recall": 0.3825,
+    "pooled_fpr": 0.01053,
+    "pooled": {
+     "tp": 11928,
+     "fp": 983,
+     "fn": 19253,
+     "tn": 92370
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.039863
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.442,
+    "macro_fpr": 0.002486,
+    "pooled_recall": 0.4523,
+    "pooled_fpr": 0.002408,
+    "pooled": {
+     "tp": 21507,
+     "fp": 197,
+     "fn": 26046,
+     "tn": 81624
+    },
+    "worst_fold_fpr": [
+     "2018-01-03-2018",
+     0.008691
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.4989,
+     "macro_fpr": 0.002929,
+     "pooled_recall": 0.53,
+     "pooled_fpr": 0.002888,
+     "worst_fold_fpr": [
+      "2018-01-03-2018",
+      0.008691
+     ]
+    }
+   }
+  },
+  "published C0": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.1932,
+    "macro_fpr": 0.015349,
+    "pooled_recall": 0.1963,
+    "pooled_fpr": 0.021113,
+    "pooled": {
+     "tp": 6120,
+     "fp": 1971,
+     "fn": 25061,
+     "tn": 91382
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.041186
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.1106,
+    "macro_fpr": 0.00372,
+    "pooled_recall": 0.2511,
+    "pooled_fpr": 0.003581,
+    "pooled": {
+     "tp": 11942,
+     "fp": 293,
+     "fn": 35611,
+     "tn": 81528
+    },
+    "worst_fold_fpr": [
+     "2018-01-03-2018",
+     0.016844
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.1327,
+     "macro_fpr": 0.00445,
+     "pooled_recall": 0.3174,
+     "pooled_fpr": 0.00437,
+     "worst_fold_fpr": [
+      "2018-01-03-2018",
+      0.016844
+     ]
+    }
+   }
+  },
+  "published C4A": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.3612,
+    "macro_fpr": 0.012154,
+    "pooled_recall": 0.4242,
+    "pooled_fpr": 0.013272,
+    "pooled": {
+     "tp": 13226,
+     "fp": 1239,
+     "fn": 17955,
+     "tn": 92114
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.041961
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.5316,
+    "macro_fpr": 0.015751,
+    "pooled_recall": 0.5554,
+    "pooled_fpr": 0.015509,
+    "pooled": {
+     "tp": 26409,
+     "fp": 1269,
+     "fn": 21144,
+     "tn": 80552
+    },
+    "worst_fold_fpr": [
+     "2018-15-02-2018",
+     0.051264
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.6281,
+     "macro_fpr": 0.018794,
+     "pooled_recall": 0.6889,
+     "pooled_fpr": 0.018871,
+     "worst_fold_fpr": [
+      "2018-15-02-2018",
+      0.051264
+     ]
+    }
+   }
+  },
+  "corrected_run_scored_published C0": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.1907,
+    "macro_fpr": 0.010192,
+    "pooled_recall": 0.2236,
+    "pooled_fpr": 0.011205,
+    "pooled": {
+     "tp": 6972,
+     "fp": 1046,
+     "fn": 24209,
+     "tn": 92307
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.041186
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.065,
+    "macro_fpr": 0.003495,
+    "pooled_recall": 0.1421,
+    "pooled_fpr": 0.003361,
+    "pooled": {
+     "tp": 6756,
+     "fp": 275,
+     "fn": 40797,
+     "tn": 81546
+    },
+    "worst_fold_fpr": [
+     "2018-01-03-2018",
+     0.015844
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.078,
+     "macro_fpr": 0.004181,
+     "pooled_recall": 0.1795,
+     "pooled_fpr": 0.0041,
+     "worst_fold_fpr": [
+      "2018-01-03-2018",
+      0.015844
+     ]
+    }
+   }
+  },
+  "corrected_run_scored_published C4A": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.3632,
+    "macro_fpr": 0.012671,
+    "pooled_recall": 0.4261,
+    "pooled_fpr": 0.013326,
+    "pooled": {
+     "tp": 13286,
+     "fp": 1244,
+     "fn": 17895,
+     "tn": 92109
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.041961
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.5748,
+    "macro_fpr": 0.01382,
+    "pooled_recall": 0.5628,
+    "pooled_fpr": 0.013554,
+    "pooled": {
+     "tp": 26765,
+     "fp": 1109,
+     "fn": 20788,
+     "tn": 80712
+    },
+    "worst_fold_fpr": [
+     "2018-15-02-2018",
+     0.044312
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.6826,
+     "macro_fpr": 0.016491,
+     "pooled_recall": 0.7018,
+     "pooled_fpr": 0.016492,
+     "worst_fold_fpr": [
+      "2018-15-02-2018",
+      0.044312
+     ]
+    }
+   }
+  },
+  "corrected_run_scored_published C4AI": {
+   "D17": {
+    "folds": 5,
+    "macro_recall": 0.359,
+    "macro_fpr": 0.009781,
+    "pooled_recall": 0.3806,
+    "pooled_fpr": 0.010637,
+    "pooled": {
+     "tp": 11868,
+     "fp": 993,
+     "fn": 19313,
+     "tn": 92360
+    },
+    "worst_fold_fpr": [
+     "2017-Thursday",
+     0.039863
+    ]
+   },
+   "D18": {
+    "folds": 6,
+    "macro_recall": 0.3751,
+    "macro_fpr": 0.003521,
+    "pooled_recall": 0.435,
+    "pooled_fpr": 0.003398,
+    "pooled": {
+     "tp": 20687,
+     "fp": 278,
+     "fn": 26866,
+     "tn": 81543
+    },
+    "worst_fold_fpr": [
+     "2018-01-03-2018",
+     0.014229
+    ],
+    "without_homogeneous_folds": {
+     "macro_recall": 0.4253,
+     "macro_fpr": 0.004158,
+     "pooled_recall": 0.5171,
+     "pooled_fpr": 0.004085,
+     "worst_fold_fpr": [
+      "2018-01-03-2018",
+      0.014229
+     ]
+    }
+   }
+  }
+ },
+ "per_fold": {
+  "corrected_v3 C0": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 29,
+    "tn": 11993,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002412,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 204,
+    "fp": 44,
+    "tn": 11844,
+    "fn": 8946,
+    "attack_recall": 0.0223,
+    "benign_fpr": 0.003701,
+    "precision": 0.8226
+   },
+   "2017-Wednesday": {
+    "tp": 649,
+    "fp": 30,
+    "tn": 11765,
+    "fn": 7412,
+    "attack_recall": 0.0805,
+    "benign_fpr": 0.002543,
+    "precision": 0.9558
+   },
+   "2017-Thursday": {
+    "tp": 1193,
+    "fp": 87,
+    "tn": 21022,
+    "fn": 1802,
+    "attack_recall": 0.3983,
+    "benign_fpr": 0.004121,
+    "precision": 0.932
+   },
+   "2017-Friday": {
+    "tp": 5742,
+    "fp": 40,
+    "tn": 35683,
+    "fn": 6049,
+    "attack_recall": 0.487,
+    "benign_fpr": 0.00112,
+    "precision": 0.9931
+   },
+   "2018-01-03-2018": {
+    "tp": 269,
+    "fp": 206,
+    "tn": 12796,
+    "fn": 7279,
+    "attack_recall": 0.0356,
+    "benign_fpr": 0.015844,
+    "precision": 0.5663
+   },
+   "2018-02-03-2018": {
+    "tp": 0,
+    "fp": 17,
+    "tn": 14226,
+    "fn": 5610,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.001194,
+    "precision": 0.0
+   },
+   "2018-14-02-2018": {
+    "tp": 59,
+    "fp": 13,
+    "tn": 12822,
+    "fn": 5025,
+    "attack_recall": 0.0116,
+    "benign_fpr": 0.001013,
+    "precision": 0.8194
+   },
+   "2018-15-02-2018": {
+    "tp": 6427,
+    "fp": 22,
+    "tn": 13067,
+    "fn": 12420,
+    "attack_recall": 0.341,
+    "benign_fpr": 0.001681,
+    "precision": 0.9966
+   },
+   "2018-21-02-2018": {
+    "tp": 0,
+    "fp": 1,
+    "tn": 14998,
+    "fn": 9923,
+    "attack_recall": 0.0,
+    "benign_fpr": 6.7e-05,
+    "precision": 0.0
+   },
+   "2018-23-02-2018": {
+    "tp": 1,
+    "fp": 16,
+    "tn": 13637,
+    "fn": 540,
+    "attack_recall": 0.0018,
+    "benign_fpr": 0.001172,
+    "precision": 0.0588
+   }
+  },
+  "corrected_v3 C4A": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 34,
+    "tn": 11988,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002828,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 25,
+    "fp": 85,
+    "tn": 11803,
+    "fn": 9125,
+    "attack_recall": 0.0027,
+    "benign_fpr": 0.00715,
+    "precision": 0.2273
+   },
+   "2017-Wednesday": {
+    "tp": 6745,
+    "fp": 100,
+    "tn": 11695,
+    "fn": 1316,
+    "attack_recall": 0.8367,
+    "benign_fpr": 0.008478,
+    "precision": 0.9854
+   },
+   "2017-Thursday": {
+    "tp": 973,
+    "fp": 110,
+    "tn": 20999,
+    "fn": 2022,
+    "attack_recall": 0.3249,
+    "benign_fpr": 0.005211,
+    "precision": 0.8984
+   },
+   "2017-Friday": {
+    "tp": 6353,
+    "fp": 105,
+    "tn": 35618,
+    "fn": 5438,
+    "attack_recall": 0.5388,
+    "benign_fpr": 0.002939,
+    "precision": 0.9837
+   },
+   "2018-01-03-2018": {
+    "tp": 142,
+    "fp": 112,
+    "tn": 12890,
+    "fn": 7406,
+    "attack_recall": 0.0188,
+    "benign_fpr": 0.008614,
+    "precision": 0.5591
+   },
+   "2018-02-03-2018": {
+    "tp": 5252,
+    "fp": 259,
+    "tn": 13984,
+    "fn": 358,
+    "attack_recall": 0.9362,
+    "benign_fpr": 0.018184,
+    "precision": 0.953
+   },
+   "2018-14-02-2018": {
+    "tp": 5074,
+    "fp": 61,
+    "tn": 12774,
+    "fn": 10,
+    "attack_recall": 0.998,
+    "benign_fpr": 0.004753,
+    "precision": 0.9881
+   },
+   "2018-15-02-2018": {
+    "tp": 15597,
+    "fp": 580,
+    "tn": 12509,
+    "fn": 3250,
+    "attack_recall": 0.8276,
+    "benign_fpr": 0.044312,
+    "precision": 0.9641
+   },
+   "2018-21-02-2018": {
+    "tp": 358,
+    "fp": 7,
+    "tn": 14992,
+    "fn": 9565,
+    "attack_recall": 0.0361,
+    "benign_fpr": 0.000467,
+    "precision": 0.9808
+   },
+   "2018-23-02-2018": {
+    "tp": 342,
+    "fp": 90,
+    "tn": 13563,
+    "fn": 199,
+    "attack_recall": 0.6322,
+    "benign_fpr": 0.006592,
+    "precision": 0.7917
+   }
+  },
+  "corrected_v3 C4AI": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 32,
+    "tn": 11990,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002662,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 24,
+    "fp": 43,
+    "tn": 11845,
+    "fn": 9126,
+    "attack_recall": 0.0026,
+    "benign_fpr": 0.003617,
+    "precision": 0.3582
+   },
+   "2017-Wednesday": {
+    "tp": 4887,
+    "fp": 27,
+    "tn": 11768,
+    "fn": 3174,
+    "attack_recall": 0.6063,
+    "benign_fpr": 0.002289,
+    "precision": 0.9945
+   },
+   "2017-Thursday": {
+    "tp": 1433,
+    "fp": 75,
+    "tn": 21034,
+    "fn": 1562,
+    "attack_recall": 0.4785,
+    "benign_fpr": 0.003553,
+    "precision": 0.9503
+   },
+   "2017-Friday": {
+    "tp": 6323,
+    "fp": 17,
+    "tn": 35706,
+    "fn": 5468,
+    "attack_recall": 0.5363,
+    "benign_fpr": 0.000476,
+    "precision": 0.9973
+   },
+   "2018-01-03-2018": {
+    "tp": 94,
+    "fp": 185,
+    "tn": 12817,
+    "fn": 7454,
+    "attack_recall": 0.0125,
+    "benign_fpr": 0.014229,
+    "precision": 0.3369
+   },
+   "2018-02-03-2018": {
+    "tp": 3512,
+    "fp": 21,
+    "tn": 14222,
+    "fn": 2098,
+    "attack_recall": 0.626,
+    "benign_fpr": 0.001474,
+    "precision": 0.9941
+   },
+   "2018-14-02-2018": {
+    "tp": 2216,
+    "fp": 11,
+    "tn": 12824,
+    "fn": 2868,
+    "attack_recall": 0.4359,
+    "benign_fpr": 0.000857,
+    "precision": 0.9951
+   },
+   "2018-15-02-2018": {
+    "tp": 13453,
+    "fp": 41,
+    "tn": 13048,
+    "fn": 5394,
+    "attack_recall": 0.7138,
+    "benign_fpr": 0.003132,
+    "precision": 0.997
+   },
+   "2018-21-02-2018": {
+    "tp": 1229,
+    "fp": 5,
+    "tn": 14994,
+    "fn": 8694,
+    "attack_recall": 0.1239,
+    "benign_fpr": 0.000333,
+    "precision": 0.9959
+   },
+   "2018-23-02-2018": {
+    "tp": 183,
+    "fp": 15,
+    "tn": 13638,
+    "fn": 358,
+    "attack_recall": 0.3383,
+    "benign_fpr": 0.001099,
+    "precision": 0.9242
+   }
+  },
+  "published C4AI": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 22,
+    "tn": 12000,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.00183,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 30,
+    "fp": 35,
+    "tn": 11853,
+    "fn": 9120,
+    "attack_recall": 0.0033,
+    "benign_fpr": 0.002944,
+    "precision": 0.4615
+   },
+   "2017-Wednesday": {
+    "tp": 4919,
+    "fp": 29,
+    "tn": 11766,
+    "fn": 3142,
+    "attack_recall": 0.6102,
+    "benign_fpr": 0.002459,
+    "precision": 0.9941
+   },
+   "2017-Thursday": {
+    "tp": 634,
+    "fp": 874,
+    "tn": 21051,
+    "fn": 1545,
+    "attack_recall": 0.291,
+    "benign_fpr": 0.039863,
+    "precision": 0.4204
+   },
+   "2017-Friday": {
+    "tp": 6345,
+    "fp": 23,
+    "tn": 35700,
+    "fn": 5446,
+    "attack_recall": 0.5381,
+    "benign_fpr": 0.000644,
+    "precision": 0.9964
+   },
+   "2018-01-03-2018": {
+    "tp": 165,
+    "fp": 113,
+    "tn": 12889,
+    "fn": 7383,
+    "attack_recall": 0.0219,
+    "benign_fpr": 0.008691,
+    "precision": 0.5935
+   },
+   "2018-02-03-2018": {
+    "tp": 3506,
+    "fp": 21,
+    "tn": 14222,
+    "fn": 2104,
+    "attack_recall": 0.625,
+    "benign_fpr": 0.001474,
+    "precision": 0.994
+   },
+   "2018-14-02-2018": {
+    "tp": 5002,
+    "fp": 14,
+    "tn": 12821,
+    "fn": 82,
+    "attack_recall": 0.9839,
+    "benign_fpr": 0.001091,
+    "precision": 0.9972
+   },
+   "2018-15-02-2018": {
+    "tp": 11124,
+    "fp": 30,
+    "tn": 13059,
+    "fn": 7723,
+    "attack_recall": 0.5902,
+    "benign_fpr": 0.002292,
+    "precision": 0.9973
+   },
+   "2018-21-02-2018": {
+    "tp": 1562,
+    "fp": 4,
+    "tn": 14995,
+    "fn": 8361,
+    "attack_recall": 0.1574,
+    "benign_fpr": 0.000267,
+    "precision": 0.9974
+   },
+   "2018-23-02-2018": {
+    "tp": 148,
+    "fp": 15,
+    "tn": 13638,
+    "fn": 393,
+    "attack_recall": 0.2736,
+    "benign_fpr": 0.001099,
+    "precision": 0.908
+   }
+  },
+  "published C0": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 28,
+    "tn": 11994,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002329,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 286,
+    "fp": 45,
+    "tn": 11843,
+    "fn": 8864,
+    "attack_recall": 0.0313,
+    "benign_fpr": 0.003785,
+    "precision": 0.864
+   },
+   "2017-Wednesday": {
+    "tp": 2693,
+    "fp": 28,
+    "tn": 11767,
+    "fn": 5368,
+    "attack_recall": 0.3341,
+    "benign_fpr": 0.002374,
+    "precision": 0.9897
+   },
+   "2017-Thursday": {
+    "tp": 377,
+    "fp": 903,
+    "tn": 21022,
+    "fn": 1802,
+    "attack_recall": 0.173,
+    "benign_fpr": 0.041186,
+    "precision": 0.2945
+   },
+   "2017-Friday": {
+    "tp": 2764,
+    "fp": 967,
+    "tn": 34756,
+    "fn": 9027,
+    "attack_recall": 0.2344,
+    "benign_fpr": 0.027069,
+    "precision": 0.7408
+   },
+   "2018-01-03-2018": {
+    "tp": 275,
+    "fp": 219,
+    "tn": 12783,
+    "fn": 7273,
+    "attack_recall": 0.0364,
+    "benign_fpr": 0.016844,
+    "precision": 0.5567
+   },
+   "2018-02-03-2018": {
+    "tp": 0,
+    "fp": 19,
+    "tn": 14224,
+    "fn": 5610,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.001334,
+    "precision": 0.0
+   },
+   "2018-14-02-2018": {
+    "tp": 43,
+    "fp": 9,
+    "tn": 12826,
+    "fn": 5041,
+    "attack_recall": 0.0085,
+    "benign_fpr": 0.000701,
+    "precision": 0.8269
+   },
+   "2018-15-02-2018": {
+    "tp": 11623,
+    "fp": 24,
+    "tn": 13065,
+    "fn": 7224,
+    "attack_recall": 0.6167,
+    "benign_fpr": 0.001834,
+    "precision": 0.9979
+   },
+   "2018-21-02-2018": {
+    "tp": 0,
+    "fp": 1,
+    "tn": 14998,
+    "fn": 9923,
+    "attack_recall": 0.0,
+    "benign_fpr": 6.7e-05,
+    "precision": 0.0
+   },
+   "2018-23-02-2018": {
+    "tp": 1,
+    "fp": 21,
+    "tn": 13632,
+    "fn": 540,
+    "attack_recall": 0.0018,
+    "benign_fpr": 0.001538,
+    "precision": 0.0455
+   }
+  },
+  "published C4A": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 30,
+    "tn": 11992,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002495,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 138,
+    "fp": 101,
+    "tn": 11787,
+    "fn": 9012,
+    "attack_recall": 0.0151,
+    "benign_fpr": 0.008496,
+    "precision": 0.5774
+   },
+   "2017-Wednesday": {
+    "tp": 6593,
+    "fp": 45,
+    "tn": 11750,
+    "fn": 1468,
+    "attack_recall": 0.8179,
+    "benign_fpr": 0.003815,
+    "precision": 0.9932
+   },
+   "2017-Thursday": {
+    "tp": 163,
+    "fp": 920,
+    "tn": 21005,
+    "fn": 2016,
+    "attack_recall": 0.0748,
+    "benign_fpr": 0.041961,
+    "precision": 0.1505
+   },
+   "2017-Friday": {
+    "tp": 6332,
+    "fp": 143,
+    "tn": 35580,
+    "fn": 5459,
+    "attack_recall": 0.537,
+    "benign_fpr": 0.004003,
+    "precision": 0.9779
+   },
+   "2018-01-03-2018": {
+    "tp": 111,
+    "fp": 105,
+    "tn": 12897,
+    "fn": 7437,
+    "attack_recall": 0.0147,
+    "benign_fpr": 0.008076,
+    "precision": 0.5139
+   },
+   "2018-02-03-2018": {
+    "tp": 5311,
+    "fp": 376,
+    "tn": 13867,
+    "fn": 299,
+    "attack_recall": 0.9467,
+    "benign_fpr": 0.026399,
+    "precision": 0.9339
+   },
+   "2018-14-02-2018": {
+    "tp": 3748,
+    "fp": 53,
+    "tn": 12782,
+    "fn": 1336,
+    "attack_recall": 0.7372,
+    "benign_fpr": 0.004129,
+    "precision": 0.9861
+   },
+   "2018-15-02-2018": {
+    "tp": 16447,
+    "fp": 671,
+    "tn": 12418,
+    "fn": 2400,
+    "attack_recall": 0.8727,
+    "benign_fpr": 0.051264,
+    "precision": 0.9608
+   },
+   "2018-21-02-2018": {
+    "tp": 484,
+    "fp": 8,
+    "tn": 14991,
+    "fn": 9439,
+    "attack_recall": 0.0488,
+    "benign_fpr": 0.000533,
+    "precision": 0.9837
+   },
+   "2018-23-02-2018": {
+    "tp": 308,
+    "fp": 56,
+    "tn": 13597,
+    "fn": 233,
+    "attack_recall": 0.5693,
+    "benign_fpr": 0.004102,
+    "precision": 0.8462
+   }
+  },
+  "corrected_run_scored_published C0": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 29,
+    "tn": 11993,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002412,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 204,
+    "fp": 44,
+    "tn": 11844,
+    "fn": 8946,
+    "attack_recall": 0.0223,
+    "benign_fpr": 0.003701,
+    "precision": 0.8226
+   },
+   "2017-Wednesday": {
+    "tp": 649,
+    "fp": 30,
+    "tn": 11765,
+    "fn": 7412,
+    "attack_recall": 0.0805,
+    "benign_fpr": 0.002543,
+    "precision": 0.9558
+   },
+   "2017-Thursday": {
+    "tp": 377,
+    "fp": 903,
+    "tn": 21022,
+    "fn": 1802,
+    "attack_recall": 0.173,
+    "benign_fpr": 0.041186,
+    "precision": 0.2945
+   },
+   "2017-Friday": {
+    "tp": 5742,
+    "fp": 40,
+    "tn": 35683,
+    "fn": 6049,
+    "attack_recall": 0.487,
+    "benign_fpr": 0.00112,
+    "precision": 0.9931
+   },
+   "2018-01-03-2018": {
+    "tp": 269,
+    "fp": 206,
+    "tn": 12796,
+    "fn": 7279,
+    "attack_recall": 0.0356,
+    "benign_fpr": 0.015844,
+    "precision": 0.5663
+   },
+   "2018-02-03-2018": {
+    "tp": 0,
+    "fp": 17,
+    "tn": 14226,
+    "fn": 5610,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.001194,
+    "precision": 0.0
+   },
+   "2018-14-02-2018": {
+    "tp": 59,
+    "fp": 13,
+    "tn": 12822,
+    "fn": 5025,
+    "attack_recall": 0.0116,
+    "benign_fpr": 0.001013,
+    "precision": 0.8194
+   },
+   "2018-15-02-2018": {
+    "tp": 6427,
+    "fp": 22,
+    "tn": 13067,
+    "fn": 12420,
+    "attack_recall": 0.341,
+    "benign_fpr": 0.001681,
+    "precision": 0.9966
+   },
+   "2018-21-02-2018": {
+    "tp": 0,
+    "fp": 1,
+    "tn": 14998,
+    "fn": 9923,
+    "attack_recall": 0.0,
+    "benign_fpr": 6.7e-05,
+    "precision": 0.0
+   },
+   "2018-23-02-2018": {
+    "tp": 1,
+    "fp": 16,
+    "tn": 13637,
+    "fn": 540,
+    "attack_recall": 0.0018,
+    "benign_fpr": 0.001172,
+    "precision": 0.0588
+   }
+  },
+  "corrected_run_scored_published C4A": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 34,
+    "tn": 11988,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002828,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 25,
+    "fp": 85,
+    "tn": 11803,
+    "fn": 9125,
+    "attack_recall": 0.0027,
+    "benign_fpr": 0.00715,
+    "precision": 0.2273
+   },
+   "2017-Wednesday": {
+    "tp": 6745,
+    "fp": 100,
+    "tn": 11695,
+    "fn": 1316,
+    "attack_recall": 0.8367,
+    "benign_fpr": 0.008478,
+    "precision": 0.9854
+   },
+   "2017-Thursday": {
+    "tp": 163,
+    "fp": 920,
+    "tn": 21005,
+    "fn": 2016,
+    "attack_recall": 0.0748,
+    "benign_fpr": 0.041961,
+    "precision": 0.1505
+   },
+   "2017-Friday": {
+    "tp": 6353,
+    "fp": 105,
+    "tn": 35618,
+    "fn": 5438,
+    "attack_recall": 0.5388,
+    "benign_fpr": 0.002939,
+    "precision": 0.9837
+   },
+   "2018-01-03-2018": {
+    "tp": 142,
+    "fp": 112,
+    "tn": 12890,
+    "fn": 7406,
+    "attack_recall": 0.0188,
+    "benign_fpr": 0.008614,
+    "precision": 0.5591
+   },
+   "2018-02-03-2018": {
+    "tp": 5252,
+    "fp": 259,
+    "tn": 13984,
+    "fn": 358,
+    "attack_recall": 0.9362,
+    "benign_fpr": 0.018184,
+    "precision": 0.953
+   },
+   "2018-14-02-2018": {
+    "tp": 5074,
+    "fp": 61,
+    "tn": 12774,
+    "fn": 10,
+    "attack_recall": 0.998,
+    "benign_fpr": 0.004753,
+    "precision": 0.9881
+   },
+   "2018-15-02-2018": {
+    "tp": 15597,
+    "fp": 580,
+    "tn": 12509,
+    "fn": 3250,
+    "attack_recall": 0.8276,
+    "benign_fpr": 0.044312,
+    "precision": 0.9641
+   },
+   "2018-21-02-2018": {
+    "tp": 358,
+    "fp": 7,
+    "tn": 14992,
+    "fn": 9565,
+    "attack_recall": 0.0361,
+    "benign_fpr": 0.000467,
+    "precision": 0.9808
+   },
+   "2018-23-02-2018": {
+    "tp": 342,
+    "fp": 90,
+    "tn": 13563,
+    "fn": 199,
+    "attack_recall": 0.6322,
+    "benign_fpr": 0.006592,
+    "precision": 0.7917
+   }
+  },
+  "corrected_run_scored_published C4AI": {
+   "2017-Monday": {
+    "tp": 0,
+    "fp": 32,
+    "tn": 11990,
+    "fn": 0,
+    "attack_recall": 0.0,
+    "benign_fpr": 0.002662,
+    "precision": 0.0
+   },
+   "2017-Tuesday": {
+    "tp": 24,
+    "fp": 43,
+    "tn": 11845,
+    "fn": 9126,
+    "attack_recall": 0.0026,
+    "benign_fpr": 0.003617,
+    "precision": 0.3582
+   },
+   "2017-Wednesday": {
+    "tp": 4887,
+    "fp": 27,
+    "tn": 11768,
+    "fn": 3174,
+    "attack_recall": 0.6063,
+    "benign_fpr": 0.002289,
+    "precision": 0.9945
+   },
+   "2017-Thursday": {
+    "tp": 634,
+    "fp": 874,
+    "tn": 21051,
+    "fn": 1545,
+    "attack_recall": 0.291,
+    "benign_fpr": 0.039863,
+    "precision": 0.4204
+   },
+   "2017-Friday": {
+    "tp": 6323,
+    "fp": 17,
+    "tn": 35706,
+    "fn": 5468,
+    "attack_recall": 0.5363,
+    "benign_fpr": 0.000476,
+    "precision": 0.9973
+   },
+   "2018-01-03-2018": {
+    "tp": 94,
+    "fp": 185,
+    "tn": 12817,
+    "fn": 7454,
+    "attack_recall": 0.0125,
+    "benign_fpr": 0.014229,
+    "precision": 0.3369
+   },
+   "2018-02-03-2018": {
+    "tp": 3512,
+    "fp": 21,
+    "tn": 14222,
+    "fn": 2098,
+    "attack_recall": 0.626,
+    "benign_fpr": 0.001474,
+    "precision": 0.9941
+   },
+   "2018-14-02-2018": {
+    "tp": 2216,
+    "fp": 11,
+    "tn": 12824,
+    "fn": 2868,
+    "attack_recall": 0.4359,
+    "benign_fpr": 0.000857,
+    "precision": 0.9951
+   },
+   "2018-15-02-2018": {
+    "tp": 13453,
+    "fp": 41,
+    "tn": 13048,
+    "fn": 5394,
+    "attack_recall": 0.7138,
+    "benign_fpr": 0.003132,
+    "precision": 0.997
+   },
+   "2018-21-02-2018": {
+    "tp": 1229,
+    "fp": 5,
+    "tn": 14994,
+    "fn": 8694,
+    "attack_recall": 0.1239,
+    "benign_fpr": 0.000333,
+    "precision": 0.9959
+   },
+   "2018-23-02-2018": {
+    "tp": 183,
+    "fp": 15,
+    "tn": 13638,
+    "fn": 358,
+    "attack_recall": 0.3383,
+    "benign_fpr": 0.001099,
+    "precision": 0.9242
+   }
+  }
+ },
+ "extras": {
+  "corrected_v3 C0": {
+   "thursday_fp": 87,
+   "feb21_fp": 1,
+   "fp_pred_class_d18": {
+    "Port Scan": 219,
+    "DDoS": 32,
+    "SSH Brute Force": 18,
+    "Credential Stuffing": 2,
+    "Lateral Movement": 2
+   },
+   "fp_pred_class_d17": {
+    "DDoS": 87,
+    "Malware Beacon": 57,
+    "Port Scan": 33,
+    "Credential Stuffing": 17,
+    "Lateral Movement": 17
+   },
+   "infiltration_recall_by_fold": {
+    "2017-Thursday": [
+     0.0278,
+     36
+    ],
+    "2018-01-03-2018": [
+     0.0356,
+     7548
+    ]
+   },
+   "corrected_rows_in_test": 816,
+   "corrected_rows_flagged": 816,
+   "corrected_rows_pred_class": {
+    "Port Scan": 816
+   }
+  },
+  "corrected_v3 C4A": {
+   "thursday_fp": 110,
+   "feb21_fp": 7,
+   "fp_pred_class_d18": {
+    "Lateral Movement": 888,
+    "DDoS": 61,
+    "Web Brute Force": 40,
+    "Malware Beacon": 40,
+    "SQL Injection": 31
+   },
+   "fp_pred_class_d17": {
+    "DDoS": 169,
+    "Lateral Movement": 168,
+    "Port Scan": 28,
+    "XSS Attempt": 25,
+    "Malware Beacon": 22
+   },
+   "infiltration_recall_by_fold": {
+    "2017-Thursday": [
+     0.0278,
+     36
+    ],
+    "2018-01-03-2018": [
+     0.0188,
+     7548
+    ]
+   },
+   "corrected_rows_in_test": 816,
+   "corrected_rows_flagged": 810,
+   "corrected_rows_pred_class": {
+    "Port Scan": 795,
+    "Lateral Movement": 15,
+    "Benign": 6
+   }
+  },
+  "corrected_v3 C4AI": {
+   "thursday_fp": 75,
+   "feb21_fp": 5,
+   "fp_pred_class_d18": {
+    "Web Brute Force": 117,
+    "DDoS": 69,
+    "SSH Brute Force": 40,
+    "Malware Beacon": 35,
+    "FTP Brute Force": 8
+   },
+   "fp_pred_class_d17": {
+    "DDoS": 90,
+    "Malware Beacon": 39,
+    "Port Scan": 30,
+    "XSS Attempt": 15,
+    "Web Brute Force": 6
+   },
+   "infiltration_recall_by_fold": {
+    "2017-Thursday": [
+     0.0278,
+     36
+    ],
+    "2018-01-03-2018": [
+     0.0125,
+     7548
+    ]
+   },
+   "corrected_rows_in_test": 816,
+   "corrected_rows_flagged": 799,
+   "corrected_rows_pred_class": {
+    "Port Scan": 799,
+    "Benign": 17
+   }
+  },
+  "published C4AI": {
+   "thursday_fp": 874,
+   "feb21_fp": 4,
+   "fp_pred_class_d18": {
+    "DDoS": 71,
+    "SSH Brute Force": 51,
+    "Malware Beacon": 39,
+    "Web Brute Force": 18,
+    "FTP Brute Force": 9
+   },
+   "fp_pred_class_d17": {
+    "Port Scan": 830,
+    "DDoS": 88,
+    "Malware Beacon": 36,
+    "XSS Attempt": 11,
+    "FTP Brute Force": 6
+   },
+   "infiltration_recall_by_fold": {
+    "2017-Thursday": [
+     0.0278,
+     36
+    ],
+    "2018-01-03-2018": [
+     0.0219,
+     7548
+    ]
+   },
+   "corrected_rows_in_test": 0,
+   "corrected_rows_flagged": 0,
+   "corrected_rows_pred_class": {}
+  }
+ },
+ "eligibility": {
+  "corrected_v3 C4A": {
+   "eligible": false,
+   "reasons": [
+    "D17 mean FPR 0.532% > 0.378%",
+    "D18 mean FPR 1.382% > 0.450%",
+    "D18 fold 2018-15-02-2018 4.43% > 2%"
+   ],
+   "meets_external_test_recall_rule": true
+  },
+  "corrected_v3 C4AI": {
+   "eligible": true,
+   "reasons": [],
+   "meets_external_test_recall_rule": true
+  },
+  "published C4AI": {
+   "eligible": false,
+   "reasons": [
+    "D17 fold 2017-Thursday 3.99% > 2%"
+   ],
+   "meets_external_test_recall_rule": true
+  },
+  "published C4A": {
+   "eligible": false,
+   "reasons": [
+    "D17 fold 2017-Thursday 4.20% > 2%",
+    "D18 mean FPR 1.575% > 0.472%",
+    "D18 fold 2018-15-02-2018 5.13% > 2%"
+   ],
+   "meets_external_test_recall_rule": true
+  },
+  "corrected_run_scored_published C4A": {
+   "eligible": false,
+   "reasons": [
+    "D17 mean FPR 1.267% > 1.119%",
+    "D17 fold 2017-Thursday 4.20% > 2%",
+    "D18 mean FPR 1.382% > 0.450%",
+    "D18 fold 2018-15-02-2018 4.43% > 2%"
+   ],
+   "meets_external_test_recall_rule": true
+  },
+  "corrected_run_scored_published C4AI": {
+   "eligible": false,
+   "reasons": [
+    "D17 fold 2017-Thursday 3.99% > 2%"
+   ],
+   "meets_external_test_recall_rule": true
+  }
+ },
+ "labels_corrected_v3": {
+  "label_set": "corrected_v3",
+  "correction_sha256": "c4e3f1c19567b24c192d347985c506aef835aba4ae86314ebdc40ba4547e6807",
+  "pool_rows_in_list": 816,
+  "pool_rows_changed": 816,
+  "change": "benign -> portscan"
+ },
+ "labels_published": {
+  "label_set": "published"
+ }
+}

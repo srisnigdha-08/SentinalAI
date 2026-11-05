@@ -160,7 +160,7 @@ class TestNotifyPayloadIntegrity:
                 return MagicMock(status_code=201)
 
         result_with_vector = {
-            "threatScore": 0.88,
+            "threatScore": 0.95,  # above the callback line (= alert line 0.90, M1)
             "predictedClass": "Port Scan",
             "action": "MONITOR",
             "featureVector": [0.0] * 53,

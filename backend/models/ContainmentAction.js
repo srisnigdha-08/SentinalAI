@@ -25,8 +25,9 @@ const ENFORCEMENT_BACKENDS = ['mock', 'simulated', 'windows-firewall']
 
 const VALID_TRANSITIONS = {
   REQUESTED: ['VALIDATING', 'REJECTED'],
-  VALIDATING: ['APPROVED', 'REJECTED'],
-  APPROVED: ['APPLYING', 'REJECTED'],
+  // FAILED from VALIDATING/APPROVED: a request abandoned before the adapter was called (CONT-003 recovery)
+  VALIDATING: ['APPROVED', 'REJECTED', 'FAILED'],
+  APPROVED: ['APPLYING', 'REJECTED', 'FAILED'],
   APPLYING: ['ACTIVE', 'FAILED'],
   ACTIVE: ['EXPIRING', 'ROLLING_BACK', 'FAILED'],
   EXPIRING: ['ROLLING_BACK'],
@@ -161,6 +162,33 @@ const ContainmentActionSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    // CONT-003: recovery of a request interrupted before ACTIVE/FAILED (containmentReconciliationService)
+    recovery: {
+      attempts: { type: Number, default: 0 },
+      lastAttemptAt: { type: Date, default: null },
+      // NOT_APPLIED | RULE_ABSENT | RULE_REMOVED | RULE_STATE_UNKNOWN | ADAPTER_UNAVAILABLE | RULE_REMOVAL_FAILED |
+      // BACKEND_MISMATCH
+      lastOutcome: { type: String, default: null },
+      lastDetail: { type: String, default: null, maxlength: 500 },
+      // A request fenced out by recovery after its adapter call created a rule: REMOVED once removal was confirmed,
+      // PRESENT_UNREMOVED while the rule may still exist (retried by the reconciliation pass, never silently dropped)
+      lateRule: { type: String, enum: [null, 'REMOVED', 'PRESENT_UNREMOVED'], default: null },
+      lateRuleAt: { type: Date, default: null },
+      // CONT-007: bounded exponential back-off for the late-rule retry (never releases anything when exhausted)
+      lateRuleAttempts: { type: Number, default: 0 },
+      lateRuleNextAttemptAt: { type: Date, default: null },
+      lateRuleLastError: { type: String, default: null, maxlength: 500 },
+    },
+    // CONT-005: the deny-list entry and threat statuses written after ACTIVE. pending is set in the ACTIVE save and
+    // cleared once that sync succeeded; the reconciliation pass re-runs the (idempotent) sync while it is set.
+    legacySync: {
+      pending: { type: Boolean, default: false },
+      reason: { type: String, default: null, maxlength: 200 },
+      threatRef: { type: mongoose.Schema.Types.ObjectId, default: null },
+      attempts: { type: Number, default: 0 },
+      lastAttemptAt: { type: Date, default: null },
+      lastError: { type: String, default: null, maxlength: 500 },
+    },
     correlationId: {
       type: String,
       index: true,
@@ -174,11 +202,29 @@ const ContainmentActionSchema = new mongoose.Schema(
       type: Number,
       default: 0,
     },
+    // Set to normalizedTarget while the action is in flight or enforced; removed once it can no longer
+    // hold a rule. The unique sparse index makes two concurrent requests for one target impossible.
+    targetLock: {
+      type: String,
+      default: undefined,
+    },
   },
   {
     timestamps: true,
+    // Every save is checked against the document version and bumps it (fencing, CONT-003): once recovery has claimed
+    // an action, the original request's later saves fail with VersionError instead of overwriting recovery's state.
+    optimisticConcurrency: true,
   }
 )
+
+// States in which no enforcement exists or is being created for the target.
+const LOCK_RELEASED_STATUSES = ['FAILED', 'REJECTED', 'ROLLED_BACK']
+
+ContainmentActionSchema.index({ targetLock: 1 }, { unique: true, sparse: true })
+
+ContainmentActionSchema.pre('save', function () {
+  this.targetLock = LOCK_RELEASED_STATUSES.includes(this.enforcementStatus) ? undefined : this.normalizedTarget
+})
 
 /**
  * Optimistic concurrency check and atomic status transition.
@@ -208,5 +254,6 @@ ContainmentActionSchema.statics.ACTION_TYPES = ACTION_TYPES
 ContainmentActionSchema.statics.POLICY_DECISIONS = POLICY_DECISIONS
 ContainmentActionSchema.statics.ENFORCEMENT_BACKENDS = ENFORCEMENT_BACKENDS
 ContainmentActionSchema.statics.VALID_TRANSITIONS = VALID_TRANSITIONS
+ContainmentActionSchema.statics.LOCK_RELEASED_STATUSES = LOCK_RELEASED_STATUSES
 
 module.exports = mongoose.model('ContainmentAction', ContainmentActionSchema)

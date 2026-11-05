@@ -1,5 +1,6 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth.js'
+import AlertBell from './AlertBell.jsx'
 import toast from 'react-hot-toast'
 
 export default function Navbar() {
@@ -53,6 +54,7 @@ export default function Navbar() {
       <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginLeft: 'auto', flexShrink: 0 }}>
         {user ? (
           <>
+            <AlertBell />
             <span className="sentinel-account-email" style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: '#3a6a88' }}>
               {user.email}
             </span>

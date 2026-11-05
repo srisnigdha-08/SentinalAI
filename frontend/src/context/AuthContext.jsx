@@ -7,6 +7,10 @@ export function AuthProvider({ children }) {
   const [error, setError] = useState(null)
   useEffect(() => {
     const unsubscribe = authSession.subscribe(setState)
+    if (!authSession.hasSessionHint?.()) {
+      setLoading(false)
+      return unsubscribe
+    }
     authSession.refresh().catch(error => {
       if (![401, 403].includes(error.status)) setError('Session service unavailable. Sign in again when it is reachable.')
     }).finally(() => setLoading(false))

@@ -324,7 +324,7 @@ def test_extract_features_from_record_no_nan():
 
 
 def test_extract_features_from_honeypot_failed_login():
-    """A failed login session must map to 'SSH Brute Force' profile without raising."""
+    """A failed login session must map to a rule profile without raising."""
     session = {
         "sessionId": "test-001",
         "sourceIP": "1.2.3.4",
@@ -339,7 +339,7 @@ def test_extract_features_from_honeypot_failed_login():
 
 
 def test_extract_features_from_honeypot_zero_commands():
-    """Session with login success but zero commands → Port Scan profile."""
+    """Session with login success but zero commands → SSH Intrusion Attempt profile."""
     session = {
         "loginSucceeded": True,
         "commands": [],

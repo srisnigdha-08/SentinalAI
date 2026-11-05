@@ -1,0 +1,103 @@
+{
+  "pool_rows": 124534,
+  "constant_features": [
+    "bwd_psh_flags",
+    "bwd_urg_flags",
+    "fwd_avg_bytes_per_bulk",
+    "bwd_avg_bytes_per_bulk",
+    "time_of_day_sin",
+    "time_of_day_cos"
+  ],
+  "benign_day_vs_rest": {
+    "Monday": {
+      "rows": 12022,
+      "mean_ks": 0.034,
+      "top5": {
+        "init_win_bytes_forward": 0.063,
+        "bwd_iat_mean": 0.058,
+        "flow_iat_mean": 0.057,
+        "bwd_iat_total": 0.057,
+        "bwd_iat_max": 0.057
+      }
+    },
+    "Tuesday": {
+      "rows": 11888,
+      "mean_ks": 0.05,
+      "top5": {
+        "fwd_packet_len_min": 0.154,
+        "flow_bytes_per_sec": 0.152,
+        "fwd_packet_len_max": 0.15,
+        "fwd_packet_len_mean": 0.15,
+        "total_len_fwd_packets": 0.149
+      }
+    },
+    "Wednesday": {
+      "rows": 11795,
+      "mean_ks": 0.023,
+      "top5": {
+        "bwd_packet_len_mean": 0.053,
+        "bwd_packet_len_max": 0.052,
+        "total_len_bwd_packets": 0.047,
+        "urg_flag_count": 0.044,
+        "total_len_fwd_packets": 0.042
+      }
+    },
+    "Thursday": {
+      "rows": 21925,
+      "mean_ks": 0.032,
+      "top5": {
+        "payload_entropy": 0.074,
+        "flow_iat_std": 0.067,
+        "flow_bytes_per_sec": 0.053,
+        "bwd_iat_mean": 0.052,
+        "bwd_iat_max": 0.052
+      }
+    },
+    "Friday": {
+      "rows": 35723,
+      "mean_ks": 0.049,
+      "top5": {
+        "bwd_iat_mean": 0.085,
+        "bwd_iat_max": 0.085,
+        "bwd_iat_total": 0.084,
+        "flow_iat_std": 0.08,
+        "flow_packets_per_sec": 0.076
+      }
+    }
+  },
+  "same_class_other_tool": {
+    "DDoS: Wednesday DoS tools vs Friday LOIC": {
+      "rows": [
+        8050,
+        10000
+      ],
+      "mean_ks": 0.415,
+      "features_ks_above_0.9": [],
+      "top5": {
+        "init_win_bytes_backward": 0.869,
+        "total_len_fwd_packets": 0.827,
+        "fwd_packet_len_max": 0.827,
+        "fwd_packet_len_mean": 0.827,
+        "fwd_packet_len_std": 0.824
+      }
+    },
+    "Credential Stuffing: Tuesday FTP-Patator vs Thursday HTTP brute force": {
+      "rows": [
+        5931,
+        1470
+      ],
+      "mean_ks": 0.521,
+      "features_ks_above_0.9": [
+        "init_win_bytes_backward",
+        "fwd_iat_min"
+      ],
+      "top5": {
+        "init_win_bytes_backward": 1.0,
+        "fwd_iat_min": 0.918,
+        "total_len_fwd_packets": 0.895,
+        "fwd_packet_len_max": 0.895,
+        "fwd_packet_len_mean": 0.895
+      }
+    }
+  }
+}

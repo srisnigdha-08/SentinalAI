@@ -1,0 +1,16 @@
+.git
+**/node_modules
+ai-engine
+frontend
+honeypot/cowrie
+honeypot/sniffer
+honeypot/parsers
+models
+audit
+experiments
+docs
+scratch
+.test-runtime
+.env
+*.pptx
+*.pdf

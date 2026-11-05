@@ -1,13 +1,14 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
-import { BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis,
+import { BarChart, Bar,
          XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { aiAPI, CANONICAL_CLASSES, trainingSampleAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
+import { driftSummary, topShiftRows, classMixRows, globalShapRows } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -17,8 +18,14 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 ) : null
 
 import { useSocket } from '../hooks/useSocket.js'
+import { scoreColor, scoreLogType } from '../utils/scoreBands.js'
+import { useScoreLines } from '../hooks/useScoreLines.js'
 
 export default function AIAnalytics() {
+  // THR-003: render uses the lines directly; the socket handler (subscribed once) reads the ref
+  const scoreLines = useScoreLines()
+  const scoreLinesRef = useRef(scoreLines)
+  scoreLinesRef.current = scoreLines
   const { user } = useAuth()
   const canVerify = user?.role === 'admin' || user?.role === 'analyst'
   const isAdmin = user?.role === 'admin'
@@ -28,12 +35,46 @@ export default function AIAnalytics() {
   const [modelInfo, setModelInfo] = useState(null)
   const [liveLogs,  setLiveLogs]  = useState([])
   const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState(null)
   const [verifyingId, setVerifyingId] = useState(null)
   const [selectedClass, setSelectedClass] = useState('')
   const [verifyLoading, setVerifyLoading] = useState(false)
+  const [drift,     setDrift]     = useState(null)
+  const [globalShap, setGlobalShap] = useState(null)
+  const [driftLoaded, setDriftLoaded] = useState(false)
+  const [reloading, setReloading] = useState(false)
   const { connected, on } = useSocket()
 
+  // Drift is admin/analyst only on the backend; viewers never request it.
+  const refreshDrift = () => {
+    if (!canVerify) return
+    aiAPI.drift()
+      .then(r => setDrift(r.data?.data || null))
+      .catch(() => setDrift(null))
+      .finally(() => setDriftLoaded(true))
+    aiAPI.explainGlobal()
+      .then(r => setGlobalShap(r.data?.data || null))
+      .catch(() => setGlobalShap(null))
+  }
+
+  const handleReloadModel = async () => {
+    if (!window.confirm('Load the models pinned in the AI engine registry? The current model keeps serving if the new one fails to load or verify.')) return
+    setReloading(true)
+    try {
+      const res = await aiAPI.reloadModel()
+      const current = res.data?.data?.current
+      if (current) setModelInfo(current)
+      toast.success(`Model reloaded: ${current?.rfVersion || 'registry models'}`)
+      refreshDrift()
+    } catch (err) {
+      toast.error(err.response?.data?.error || 'Model reload failed; previous model still serving')
+    } finally {
+      setReloading(false)
+    }
+  }
+
   const refreshSamples = () => {
+    if (user?.role === 'viewer') return
     trainingSampleAPI.list({ limit: 6 })
       .then(r => setSamples(r.data?.data || []))
       .catch(() => {})
@@ -85,23 +126,32 @@ export default function AIAnalytics() {
     }
   }
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const [sRes, pRes, mRes] = await Promise.all([
-          aiAPI.stats(),
-          aiAPI.predictions({ limit: 12 }),
-          aiAPI.modelInfo().catch(() => ({ data: { data: null } })),
-        ])
-        setStats(sRes.data.data)
-        const predictionList = pRes.data.data || []
-        setPreds(predictionList)
-        setModelInfo(mRes.data?.data || mRes.data)
-        refreshSamples()
-      } catch { toast.error('Failed to load AI analytics') }
-      finally { setLoading(false) }
+  const load = async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [sRes, pRes, mRes] = await Promise.all([
+        aiAPI.stats(),
+        aiAPI.predictions({ limit: 12 }),
+        aiAPI.modelInfo().catch(() => ({ data: { data: null } })),
+      ])
+      setStats(sRes.data.data)
+      const predictionList = pRes.data.data || []
+      setPreds(predictionList)
+      setModelInfo(mRes.data?.data || mRes.data)
+      refreshSamples()
+      refreshDrift()
+    } catch {
+      setError('AI analytics telemetry is unavailable. Retry to load model metrics.')
+      toast.error('Failed to load AI analytics')
+    } finally {
+      setLoading(false)
     }
+  }
+
+  useEffect(() => {
     load()
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
   // ── Listen for genuine live AI prediction events ──
@@ -111,7 +161,7 @@ export default function AIAnalytics() {
       setPreds(prev => [data, ...prev.filter(x => (x._id || x.id) !== (data._id || data.id))].slice(0, 12))
       setLiveLogs(prev => [
         {
-          type: data.threatScore >= 0.9 ? 'err' : data.threatScore >= 0.7 ? 'warn' : 'out',
+          type: scoreLogType(data.threatScore, scoreLinesRef.current),
           text: `[INFER] ${data.sourceIP} → score=${((data.threatScore || 0) * 100).toFixed(0)}% → ${data.predictedClass} [${data.action || 'EVALUATED'}]`,
           ts: new Date().toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
         },
@@ -125,6 +175,12 @@ export default function AIAnalytics() {
 
   const summary = stats?.summary || {}
   const charts  = stats?.charts  || {}
+
+  const driftInfo   = driftSummary(drift)
+  const shiftRows   = topShiftRows(drift)
+  const mixRows     = classMixRows(drift).slice(0, 5)
+  const shapRows    = globalShapRows(globalShap)
+  const thresholds  = modelInfo?.thresholds || {}
 
   // Class performance for bar chart
   const classData = (charts.byClass||[]).slice(0,7).map(c=>({
@@ -158,14 +214,132 @@ export default function AIAnalytics() {
         </span>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:'1rem', marginBottom:'1.5rem' }}>
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.25rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {error}</span>
+          <button
+            onClick={load}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
+      <div className="dashboard-grid dashboard-kpis" style={{ gap:'1rem', marginBottom:'1.5rem' }}>
         <KpiCard label="Total Predictions" value={loading?'—':summary.totalPredictions||0}               delta="all time"        color="#00ff88" />
         <KpiCard label="Avg Threat Score"  value={loading?'—':`${((summary.avgThreatScore||0)*100).toFixed(1)}%`} delta="model output" color="#00d4ff" />
         <KpiCard label="Anomaly Rate"      value={loading?'—':`${summary.anomalyRate||0}%`}              delta="isolation forest" color="#ffaa00" />
         <KpiCard label="Avg Inference"     value={loading?'—':`${summary.avgInferenceMs||0}ms`}         delta="per request"      color="#ff2d55" />
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+      {/* Model health: serving model, decision lines, input drift and admin hot reload */}
+      {canVerify && (
+        <Panel title="Model Health & Input Drift" badge={driftLoaded ? driftInfo.label : 'LOADING'} badgeType={driftLoaded ? driftInfo.badgeType : 'info'} style={{ marginBottom:'1rem' }}>
+          <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:12, fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
+            <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
+              <span>Model: <strong style={{ color:'#e2f1ff' }}>{modelInfo?.rfVersion || '—'}</strong></span>
+              <span>Alert line: <strong style={{ color:'#ffaa00' }}>{typeof thresholds.monitor === 'number' ? thresholds.monitor.toFixed(2) : '—'}</strong></span>
+              <span>Block line: <strong style={{ color:'#ff2d55' }}>{typeof thresholds.block === 'number' ? thresholds.block.toFixed(2) : '—'}</strong></span>
+              <span>Registry: <strong style={{ color: modelInfo?.registry ? '#00ff88' : '#3a6a88' }}>{modelInfo?.registry ? 'PINNED' : '—'}</strong></span>
+            </div>
+            <div style={{ display:'flex', gap:8 }}>
+              <button
+                onClick={refreshDrift}
+                style={{ background:'transparent', border:'1px solid #00d4ff', color:'#00d4ff', padding:'3px 10px', borderRadius:2, fontSize:10, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}
+              >
+                REFRESH
+              </button>
+              {isAdmin && (
+                <button
+                  onClick={handleReloadModel}
+                  disabled={reloading}
+                  style={{ background:'transparent', border:'1px solid #ffaa00', color:'#ffaa00', padding:'3px 10px', borderRadius:2, fontSize:10, cursor: reloading ? 'wait' : 'pointer', fontFamily:'Share Tech Mono,monospace' }}
+                >
+                  {reloading ? 'RELOADING...' : 'RELOAD MODEL'}
+                </button>
+              )}
+            </div>
+          </div>
+
+          <div style={{ fontSize:12, color: driftInfo.color, marginBottom:12 }}>{driftLoaded ? driftInfo.detail : 'Loading drift report...'}</div>
+
+          {(shiftRows.length > 0 || mixRows.length > 0) && (
+            <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem' }}>
+              <div>
+                <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>LARGEST FEATURE SHIFTS VS. BENIGN TRAINING TRAFFIC</div>
+                {shiftRows.map(r => (
+                  <div key={r.feature} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'3px 0', borderBottom:'1px solid #0d335244', fontFamily:'Share Tech Mono,monospace', fontSize:11, color: r.flagged ? '#ffaa00' : '#7ab3cc' }}>
+                    <span>{r.flagged ? '▲ ' : ''}{r.feature}</span>
+                    <span>{r.value}</span>
+                  </div>
+                ))}
+                {shiftRows.length === 0 && <div style={{ color:'#3a6a88', fontSize:11 }}>Not enough samples yet.</div>}
+              </div>
+              <div>
+                <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>RECENT PREDICTED-CLASS MIX</div>
+                {mixRows.map(r => (
+                  <div key={r.cls} style={{ display:'flex', justifyContent:'space-between', gap:8, padding:'3px 0', borderBottom:'1px solid #0d335244', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
+                    <span>{r.cls}</span>
+                    <span>{r.count} ({r.pct}%)</span>
+                  </div>
+                ))}
+                {mixRows.length === 0 && <div style={{ color:'#3a6a88', fontSize:11 }}>No live predictions recorded yet.</div>}
+              </div>
+            </div>
+          )}
+          {shapRows.length > 0 && (
+            <div style={{ marginTop:12 }}>
+              <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>
+                FEATURES DRIVING RECENT VERDICTS (MEAN |SHAP| OVER {globalShap?.samples} FLOWS)
+              </div>
+              {shapRows.map(r => (
+                <div key={r.feature} style={{ display:'flex', alignItems:'center', gap:8, padding:'2px 0', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
+                  <span style={{ width:190, overflow:'hidden', textOverflow:'ellipsis' }}>{r.feature}</span>
+                  <div style={{ flex:1, height:6, background:'#0d3352', borderRadius:3 }}>
+                    <div style={{ width:`${r.pct}%`, height:6, background:'#8b5cf6', borderRadius:3 }} />
+                  </div>
+                  <span style={{ width:60, textAlign:'right' }}>{r.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop:10, fontSize:10, color:'#3a6a88' }}>
+            Screening statistics (PSI of benign-classified traffic against the benign training data); drift is a cue to re-evaluate or retrain, not proof of model failure.
+          </div>
+        </Panel>
+      )}
+
+      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
         {/* Class volume chart */}
         <Panel title="Predictions by Attack Class">
           <ResponsiveContainer width="100%" height={220}>
@@ -207,7 +381,7 @@ export default function AIAnalytics() {
         </Panel>
       </div>
 
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:'1rem', marginBottom:'1rem' }}>
+      <div className="dashboard-grid dashboard-grid-two" style={{ gap:'1rem', marginBottom:'1rem' }}>
         {/* Daily volume */}
         <Panel title="Daily Prediction Volume — 7 IST Days">
           <ResponsiveContainer width="100%" height={200}>
@@ -243,10 +417,10 @@ export default function AIAnalytics() {
                     <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
                       <div style={{ height:4, width:60, background:'#0d3352', borderRadius:2 }}>
                         <div style={{ height:'100%', width:`${(p.threatScore||0)*100}%`,
-                          background:p.threatScore>=0.9?'#ff2d55':p.threatScore>=0.7?'#ffaa00':'#00d4ff', borderRadius:2 }} />
+                          background:scoreColor(p.threatScore, scoreLines), borderRadius:2 }} />
                       </div>
                       <span style={{ fontFamily:'Orbitron,sans-serif', fontSize:12, fontWeight:700,
-                        color:p.threatScore>=0.9?'#ff2d55':p.threatScore>=0.7?'#ffaa00':'#00d4ff' }}>
+                        color:scoreColor(p.threatScore, scoreLines) }}>
                         {((p.threatScore||0)*100).toFixed(0)}%
                       </span>
                     </div>
@@ -340,7 +514,9 @@ export default function AIAnalytics() {
         <div style={{ display:'flex', flexDirection:'column', gap:8, maxHeight:260, overflowY:'auto' }}>
           {samples.length === 0 ? (
             <div style={{ textAlign:'center', color:'#3a6a88', fontFamily:'Share Tech Mono,monospace', fontSize:11, padding:'1rem' }}>
-              No candidates in quarantine. Verified predictions with valid 53-feature vectors are queued here automatically.
+              {user?.role === 'viewer'
+                ? 'Model retraining telemetry and quarantine pool are restricted to Tier 2 Analyst & Root Admin operators.'
+                : 'No candidates in quarantine. Verified predictions with valid 53-feature vectors are queued here automatically.'}
             </div>
           ) : (
             samples.map(s => {
@@ -404,7 +580,7 @@ export default function AIAnalytics() {
             [
               ...liveLogs,
               ...preds.map(p => ({
-                type: p.threatScore >= 0.9 ? 'err' : p.threatScore >= 0.7 ? 'warn' : 'out',
+                type: scoreLogType(p.threatScore, scoreLines),
                 text: `[INFER] ${p.sourceIP} → score=${((p.threatScore||0)*100).toFixed(0)}% → ${p.predictedClass} [${p.modelType || 'RandomForest'}]`,
                 ts: new Date(p.createdAt || Date.now()).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
               }))

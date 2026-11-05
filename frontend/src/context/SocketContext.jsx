@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { io } from 'socket.io-client'
 import { useAuth } from '../hooks/useAuth.js'
 import { authSession } from '../services/authSession.js'
+import { serverDisconnectRetryDelay } from '../utils/socketReconnect.js'
 
 export const SocketContext = createContext(null)
 
@@ -20,24 +21,44 @@ export function SocketProvider({ children }) {
       auth: { token }, reconnectionAttempts: 10, reconnectionDelay: 1000, reconnectionDelayMax: 5000,
     })
     setSocket(connection)
+    // E2E hook (realtime.spec.js); dev server only, never in production bundles
+    if (import.meta.env.DEV && typeof window !== 'undefined') window.__socket = connection
+    let serverRetry = null
+    let serverRetries = 0
+    // WS-001: after the server ends or refuses the connection Socket.IO stays offline; retry the (fully
+    // re-authorised) handshake with backoff. Rejected tokens are not retried (see socketReconnect.js).
+    const retryAfterServerRefusal = (reason) => {
+      const delay = serverDisconnectRetryDelay(reason, serverRetries++)
+      if (delay === null) return
+      setReconnecting(true)
+      clearTimeout(serverRetry)
+      serverRetry = setTimeout(() => connection.connect(), delay)
+    }
     connection.on('connect', () => {
+      serverRetries = 0
       setConnected(true)
       setReconnecting(false)
       setError(null)
       connection.emit('join_room', { role, userId })
       connection.emit('subscribe_threats')
     })
-    connection.on('disconnect', () => setConnected(false))
+    connection.on('disconnect', (reason) => {
+      setConnected(false)
+      retryAfterServerRefusal(reason)
+    })
     connection.on('connect_error', error => {
       setConnected(false); setError('Live connection unavailable')
       if (error.message === 'Authentication rejected') authSession.refresh().catch(() => {})
+      else retryAfterServerRefusal(error.message)
     })
     connection.io.on('reconnect_attempt', () => setReconnecting(true))
     connection.io.on('reconnect_failed', () => setReconnecting(false))
     return () => {
+      clearTimeout(serverRetry)
       connection.removeAllListeners()
       connection.io.removeAllListeners()
       connection.disconnect()
+      if (import.meta.env.DEV && typeof window !== 'undefined') window.__socket = null
       setSocket(null)
       setConnected(false)
       setReconnecting(false)

@@ -69,6 +69,18 @@ class ContainmentAdapterInterface {
   }
 
   /**
+   * Read-only, tri-state rule lookup used to recover interrupted applications (CONT-003). Unlike verifyRule, an
+   * error is never reported as "absent": ABSENT only when the backend positively says the rule does not exist.
+   * A throw means the adapter is unavailable. The default answers UNKNOWN, so an adapter that cannot inspect its
+   * rules never causes a lock to be released while a rule might still be enforced.
+   *
+   * @returns {Promise<{ state: 'PRESENT' | 'ABSENT' | 'UNKNOWN', details?: Object }>}
+   */
+  async inspectRule(_params) {
+    return { state: 'UNKNOWN', details: { reason: 'adapter does not support rule inspection' } }
+  }
+
+  /**
    * Lists all active rules managed by this adapter.
    *
    * @returns {Promise<Array<{

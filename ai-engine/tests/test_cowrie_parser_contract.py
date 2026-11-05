@@ -9,7 +9,7 @@ import pytest
 
 @pytest.fixture
 def parser(monkeypatch):
-    monkeypatch.setenv("SENTINEL_KEY", "offline-contract-key")
+    monkeypatch.setenv("HONEYPOT_API_KEY", "offline-contract-key")
     source = Path(__file__).resolve().parents[2] / "honeypot/parsers/log_parser.py"
     spec = importlib.util.spec_from_file_location("cowrie_parser_contract", source)
     module = importlib.util.module_from_spec(spec)
@@ -50,7 +50,8 @@ def test_login_logging_omits_credentials(parser, caplog):
     assert "private-user" not in caplog.text
     assert "private-password" not in caplog.text
     # Preserve original event data for the existing ingestion contract.
-    assert parser._sessions["contract-session"]["credentials"][0]["password"] == "private-password"
+    # M4: the password is never kept in parser state (the backend redacts it anyway)
+    assert parser._sessions["contract-session"]["credentials"][0] == {"username": "private-user", "success": True}
 
 
 def test_command_and_download_logs_omit_sensitive_payload_but_ingestion_preserves_it(parser, caplog):

@@ -3,8 +3,7 @@ tests/test_predictor.py
 
 Unit tests for ai-engine/inference/predictor.py:
   - Model prioritization: cicids real-data models take precedence over synthetic baselines
-  - get_ip_reputation() skips private / loopback IPs
-  - get_ip_reputation() skips when ABUSEIPDB_API_KEY is not set
+  - the engine has no IP-reputation client (enrichment lives in the backend)
   - _demo() fallback produces correct response shape
 """
 import sys
@@ -114,80 +113,6 @@ class TestModelPrioritization:
         assert p._loaded is False
 
 
-# ── get_ip_reputation ─────────────────────────────────────────────────────────
-
-class TestGetIpReputation:
-
-    def setup_method(self):
-        """Clear reputation cache before every test."""
-        import importlib
-        import inference.predictor as pred_mod
-        importlib.reload(pred_mod)
-        pred_mod.REPUTATION_CACHE.clear()
-        self.get_ip_reputation = pred_mod.get_ip_reputation
-
-    def test_returns_none_for_private_ip(self):
-        assert self.get_ip_reputation("192.168.1.1") is None
-
-    def test_returns_none_for_loopback(self):
-        assert self.get_ip_reputation("127.0.0.1") is None
-
-    def test_returns_none_for_empty_string(self):
-        assert self.get_ip_reputation("") is None
-
-    def test_returns_none_when_api_key_missing(self):
-        """Should skip the request when ABUSEIPDB_API_KEY is not set."""
-        with patch.dict(os.environ, {}, clear=True):
-            # Ensure no API key in env
-            os.environ.pop("ABUSEIPDB_API_KEY", None)
-            result = self.get_ip_reputation("8.8.8.8")
-        assert result is None
-
-    def test_returns_none_for_invalid_ip_string(self):
-        assert self.get_ip_reputation("not-an-ip") is None
-
-    def test_caches_successful_lookup(self):
-        """A successful API response should be cached and not trigger a second HTTP call."""
-        import inference.predictor as pred_mod
-
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.json.return_value = {"data": {"abuseConfidenceScore": 75}}
-
-        with patch.dict(os.environ, {"ABUSEIPDB_API_KEY": "fake-key"}), \
-             patch("requests.get", return_value=mock_response) as mock_get:
-            first  = pred_mod.get_ip_reputation("8.8.8.8")
-            second = pred_mod.get_ip_reputation("8.8.8.8")  # should hit cache
-
-        assert first == 0.75
-        assert second == 0.75
-        assert mock_get.call_count == 1  # only one real HTTP call
-
-    def test_returns_none_on_http_error(self):
-        """Non-200 response must return None gracefully."""
-        import inference.predictor as pred_mod
-
-        mock_response = MagicMock()
-        mock_response.status_code = 429
-        mock_response.text = "Rate limited"
-
-        with patch.dict(os.environ, {"ABUSEIPDB_API_KEY": "fake-key"}), \
-             patch("requests.get", return_value=mock_response):
-            result = pred_mod.get_ip_reputation("8.8.8.8")
-
-        assert result is None
-
-    def test_returns_none_on_network_exception(self):
-        """Network exceptions must be caught and return None."""
-        import inference.predictor as pred_mod
-
-        with patch.dict(os.environ, {"ABUSEIPDB_API_KEY": "fake-key"}), \
-             patch("requests.get", side_effect=ConnectionError("timeout")):
-            result = pred_mod.get_ip_reputation("8.8.8.8")
-
-        assert result is None
-
-
 # ── Isolation Forest Scoring Integrity Tests ─────────────────────────────────
 
 class TestIsolationForestScoring:
@@ -229,28 +154,34 @@ class TestIsolationForestScoring:
         assert predictor.calculate_if_anomaly_signal(-0.4000) == 0.0
         assert predictor.calculate_if_anomaly_signal(-0.4500) == 0.0
 
-    def test_boundary_behavior_at_offset(self, predictor):
-        """At exactly the offset decision boundary, anomaly signal must be 0.0."""
-        offset = predictor.ifo.named_steps["if"].offset_
-        assert predictor.calculate_if_anomaly_signal(offset) == 0.0
-
-        # Slightly more negative than offset by 0.02 (10% of span 0.20)
-        assert predictor.calculate_if_anomaly_signal(offset - 0.02) == 0.1000
+    def test_boundary_behavior_at_anomaly_threshold(self, predictor):
+        """The signal starts at ANOMALY_THRESHOLD, the same boundary that sets isAnomaly (M10)."""
+        from inference.predictor import ANOMALY_THRESHOLD
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD) == 0.0
+        # Between the model offset_ (~-0.474) and -0.55 the flow is not an anomaly, so no signal
+        assert predictor.calculate_if_anomaly_signal(-0.50) == 0.0
+        # Slightly more negative than the threshold by 0.02 (10% of span 0.20)
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.02) == 0.1000
 
     def test_anomalous_score_scaling(self, predictor):
         """Deflections into outlier territory must scale proportionally."""
-        offset = predictor.ifo.named_steps["if"].offset_
+        from inference.predictor import ANOMALY_THRESHOLD
         # Halfway across span 0.20
-        assert predictor.calculate_if_anomaly_signal(offset - 0.10) == 0.5000
-        # Critical ANOMALY_THRESHOLD (-0.55): deflection = 0.075976 -> 0.3799
-        assert predictor.calculate_if_anomaly_signal(-0.55) == 0.3799
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.10) == 0.5000
+        assert predictor.calculate_if_anomaly_signal(-0.60) == 0.25
 
     def test_extreme_outlier_saturation(self, predictor):
         """Scores beyond the span must saturate cleanly at 1.0."""
-        offset = predictor.ifo.named_steps["if"].offset_
-        assert predictor.calculate_if_anomaly_signal(offset - 0.20) == 1.0
-        assert predictor.calculate_if_anomaly_signal(offset - 0.35) == 1.0
+        from inference.predictor import ANOMALY_THRESHOLD
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.20) == 1.0
+        assert predictor.calculate_if_anomaly_signal(ANOMALY_THRESHOLD - 0.35) == 1.0
         assert predictor.calculate_if_anomaly_signal(-0.80) == 1.0
+
+    def test_signal_and_is_anomaly_agree(self, predictor):
+        """A flow contributes anomaly signal exactly when it is flagged isAnomaly."""
+        from inference.predictor import ANOMALY_THRESHOLD
+        for s in [-0.30, -0.474, -0.50, -0.5499, -0.55, -0.5501, -0.60, -0.90]:
+            assert (predictor.calculate_if_anomaly_signal(s) > 0) == (s < ANOMALY_THRESHOLD)
 
     def test_score_range_and_boundedness(self, predictor):
         """Across extreme inputs, anomaly signal must strictly remain in [0.0, 1.0]."""
@@ -414,11 +345,47 @@ class TestShadowDetectorIntegration:
                 "sessionId": "sesh-123",
                 "sourceIP": "192.168.1.50",
                 "loginSucceeded": False,
+                "failedLogins": 5,  # brute force needs 5 failures since rules v3 (H4)
                 "commands": []
             }
             res = pred.predict_from_honeypot(session)
             assert "shadowE2" in res
             assert res["shadowE2"]["status"] == "HEALTHY"
-            assert res["predictedClass"] == "BENIGN"
+            # Primary verdict comes from the honeypot rules (failed login), unaffected by the shadow detector
+            assert res["predictedClass"] == "SSH Brute Force"
+            assert res["classificationMethod"] == "honeypot_rules"
 
 
+
+
+class TestCombineThreatScore:
+    """C3: classifier confidence is a floor for attack classes; BENIGN keeps the 0.7/0.3 blend."""
+
+    def test_confident_attack_inlier_reaches_threat_line(self):
+        from inference.predictor import combine_threat_score, MONITOR_THRESHOLD
+        assert combine_threat_score(0.99, 0.0, True) == pytest.approx(0.99)
+        assert combine_threat_score(0.99, 0.0, True) >= MONITOR_THRESHOLD
+
+    def test_anomaly_can_only_raise_an_attack_score(self):
+        from inference.predictor import combine_threat_score
+        assert combine_threat_score(0.80, 1.0, True) == pytest.approx(0.86)
+        assert combine_threat_score(0.80, 0.3, True) == pytest.approx(0.80)
+
+    def test_benign_keeps_blend(self):
+        from inference.predictor import combine_threat_score
+        assert combine_threat_score(0.10, 0.0, False) == pytest.approx(0.07)
+        assert combine_threat_score(0.10, 1.0, False) == pytest.approx(0.37)
+
+    def test_vectorised_matches_scalar(self):
+        import numpy as np
+        from inference.predictor import combine_threat_score
+        rf = np.array([0.99, 0.10, 0.80]); sig = np.array([0.0, 1.0, 1.0]); atk = np.array([True, False, True])
+        vec = combine_threat_score(rf, sig, atk)
+        assert list(np.round(vec, 4)) == [round(combine_threat_score(r, g, a), 4) for r, g, a in zip(rf, sig, atk)]
+
+
+def test_engine_has_no_ip_reputation_client():
+    """L5: AbuseIPDB enrichment is backend-only; the predictor module makes no outbound requests."""
+    import inference.predictor as pred_mod
+    assert not hasattr(pred_mod, "get_ip_reputation")
+    assert not hasattr(pred_mod, "requests")

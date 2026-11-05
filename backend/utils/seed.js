@@ -5,7 +5,9 @@ const isBlocked =
   (process.env.NODE_ENV === 'production' && process.env.ALLOW_MOCK_SEED !== 'true' && !process.argv.includes('--force'))
 if (isBlocked) {
   console.warn('\n[BLOCKED] Synthetic database seeding is disabled in production without explicit confirmation.')
-  console.warn('To explicitly seed fake/demo data, run: npm run seed -- --force or set ALLOW_MOCK_SEED=true\n')
+  console.warn(
+    'To explicitly seed fake/demo data, run: npm run seed -- --force --confirm=<database-name> or set ALLOW_MOCK_SEED=true\n'
+  )
   process.exit(0)
 }
 
@@ -19,7 +21,20 @@ const Alert = require('../models/Alert')
 const AIPrediction = require('../models/AIPrediction')
 const BlockedIP = require('../models/BlockedIP')
 const Campaign = require('../models/Campaign')
+const { redactCapturedCredentials } = require('./redact')
+// Same operating lines as the AI pipeline (THR-002): threats at/above the alert line are MONITORING, at/above the
+// block line BLOCKED. The seed runs without the engine, so it uses the engine's defaults.
+const { DEFAULT_ALERT_THRESHOLD: ALERT_LINE, DEFAULT_BLOCK_THRESHOLD: BLOCK_LINE } = require('./severity')
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db'
+require('./destructiveGuard').requireDatabaseConfirmation(MONGO_URI, 'seed', [
+  'users',
+  'threatlogs',
+  'honeypotsessions',
+  'alerts',
+  'aipredictions',
+  'blockedips',
+  'campaigns',
+])
 const USERS = []
 if (process.env.ADMIN_INITIAL_PASSWORD && process.env.ADMIN_INITIAL_PASSWORD.trim()) {
   USERS.push({
@@ -96,11 +111,12 @@ async function seed() {
       attackType: a.type,
       aiScore: score,
       confidence: parseFloat(Math.min(score + randF(-0.03, 0.05), 1).toFixed(3)),
-      status: score >= 0.92 ? 'BLOCKED' : score >= 0.7 ? 'MONITORING' : 'DETECTED',
+      status: score >= BLOCK_LINE ? 'BLOCKED' : score >= ALERT_LINE ? 'MONITORING' : 'DETECTED',
+      preBlockStatus: score >= BLOCK_LINE ? 'MONITORING' : null,
       autonomousAction: {
-        taken: score >= 0.92,
-        actionType: score >= 0.92 ? 'IP_BLOCKED' : null,
-        actionTime: score >= 0.92 ? created : null,
+        taken: score >= BLOCK_LINE,
+        actionType: score >= BLOCK_LINE ? 'IP_BLOCKED' : null,
+        actionTime: score >= BLOCK_LINE ? created : null,
       },
       geoLocation: { country: attk.country, city: 'Unknown' },
       createdAt: created,
@@ -118,13 +134,14 @@ async function seed() {
     const dur = randI(20, 600)
     const files = cmds.some((c) => c.command.includes('/etc/passwd')) ? ['/etc/passwd'] : []
     return {
-      sessionId: 'sess-' + uuidv4().split('-')[0],
+      // demo- prefix: retention, the dashboard's DEMO badge and the Q-learner all treat these as synthetic (L5).
+      sessionId: 'demo-seed-' + uuidv4().split('-')[0],
       sourceIP: attk.ip,
       sourcePort: randI(49152, 65535),
       honeypotNode: node.name,
       protocol: node.protocol,
       geoLocation: { country: attk.country, countryCode: 'XX' },
-      credentials: [{ username: 'root', password: '123456', success: false }],
+      credentials: redactCapturedCredentials([{ username: 'root', password: '123456', success: false }]),
       commands: cmds,
       startTime: start,
       endTime: new Date(start.getTime() + dur * 1000),
@@ -160,7 +177,7 @@ async function seed() {
       inferenceTimeMs: parseFloat(randF(12, 85).toFixed(1)),
       verified: Math.random() > 0.6,
       actualClass: cls,
-      generatedThreat: score >= 0.7 ? threats[i % threats.length]._id : null,
+      generatedThreat: score >= ALERT_LINE ? threats[i % threats.length]._id : null,
       createdAt: created,
     }
   })

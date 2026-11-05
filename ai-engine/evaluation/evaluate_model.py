@@ -139,10 +139,16 @@ class ModelEvaluator:
         Verifies model metadata records, artifact SHA-256 integrity,
         feature schema versions, and threshold alignments.
         """
-        rf_model_p = self.model_dir / "rf_classifier_cicids_v2.pkl"
-        rf_meta_p = self.model_dir / "rf_classifier_cicids_v2_meta.json"
-        if_model_p = self.model_dir / "isolation_forest_cicids.pkl"
-        if_meta_p = self.model_dir / "isolation_forest_cicids_meta.json"
+        # The artifacts the engine actually serves (models/registry.json), not a hard-coded file name.
+        from inference.predictor import load_registry
+        try:
+            reg = load_registry(self.model_dir)
+        except ValueError:
+            reg = None
+        clf = reg["classifier"] if reg else {"file": "rf_classifier_cicids_v2.pkl", "meta": "rf_classifier_cicids_v2_meta.json"}
+        ano = reg["anomaly"] if reg else {"file": "isolation_forest_cicids.pkl", "meta": "isolation_forest_cicids_meta.json"}
+        rf_model_p, rf_meta_p = self.model_dir / clf["file"], self.model_dir / (clf.get("meta") or "-")
+        if_model_p, if_meta_p = self.model_dir / ano["file"], self.model_dir / (ano.get("meta") or "-")
 
         rf_hash = compute_file_sha256(rf_model_p)
         if_hash = compute_file_sha256(if_model_p)

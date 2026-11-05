@@ -3,8 +3,8 @@
 **Document Version:** 1.0.0  
 **Date:** October 15, 2026  
 **Auditor / Roles:** Senior Application Security Engineer & Test Auditor  
-**Project Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Integration Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Project Root:** `<repo>`  
+**Integration Root:** `<repo>.native-integration`  
 
 ---
 

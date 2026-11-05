@@ -2,7 +2,7 @@
 const fs = require('node:fs')
 const path = require('node:path')
 const { spawnSync } = require('node:child_process')
-const storage = 'C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete.native-integration\\mongodb-acceptance-20261014'
+const storage = path.join(`${path.resolve(__dirname, '..')}.native-integration`, 'mongodb-acceptance-20261014')
 const decrypted = spawnSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command',
   'Add-Type -AssemblyName System.Security; $blob=[Convert]::FromBase64String([Console]::In.ReadToEnd()); $bytes=[Security.Cryptography.ProtectedData]::Unprotect($blob,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser); [Console]::Out.Write([Text.Encoding]::UTF8.GetString($bytes))'],
   { input: fs.readFileSync(path.join(storage, 'acceptance-credentials.dpapi'), 'utf8'), encoding: 'utf8', windowsHide: true })

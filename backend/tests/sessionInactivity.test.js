@@ -7,6 +7,7 @@ process.env.CLIENT_URL = 'http://localhost:3000'
 
 jest.mock('../models/User')
 jest.mock('../models/AuthSession')
+jest.mock('../models/AuditLog')
 jest.mock('../config/db', () => jest.fn())
 jest.mock('../utils/logger', () => ({ info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }))
 jest.mock('../websocket/socketManager', () => ({ init: jest.fn(), stopHealthBroadcast: jest.fn() }))
@@ -29,10 +30,6 @@ beforeEach(() => {
 })
 
 afterEach(() => auth.setAvailability(null))
-
-async function csrf(agent) {
-  return (await agent.get('/api/auth/csrf').set('Origin', process.env.CLIENT_URL)).body.data.csrfToken
-}
 
 describe('Phase 6B — Session Inactivity Timeout Tests', () => {
   describe('Configuration & Parsing', () => {
@@ -97,7 +94,6 @@ describe('Phase 6B — Session Inactivity Timeout Tests', () => {
 
     test('refresh cannot revive an idle-expired session', async () => {
       const issued = await auth.issue(memory.user)
-      const sid = jwt.decode(issued.refreshToken).sid
       const idleTime = Date.now() + 16 * 60 * 1000 // 16 minutes later
 
       await expect(auth.rotate(issued.refreshToken, { now: idleTime })).rejects.toMatchObject({

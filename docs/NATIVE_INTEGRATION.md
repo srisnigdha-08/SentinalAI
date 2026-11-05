@@ -33,7 +33,7 @@ https://fastdl.mongodb.org/windows/mongodb-windows-x86_64-7.0.45.zip
 Checksum source: the same URL with .sha256 appended.
 
 Proposed new root:
-C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014
+<repo>.native-integration\mongodb-acceptance-20261014
 
 It does not exist. Its existing ancestor directories have no reparse points.
 The C: filesystem reported approximately 10.7 GB free at review time.

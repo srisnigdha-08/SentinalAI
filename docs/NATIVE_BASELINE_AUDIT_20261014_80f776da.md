@@ -1,7 +1,7 @@
 # Native baseline audit — 2026-10-14
 
 Read-only baseline established before runtime edits. Project is
-`C:\Users\srisn\Desktop\Projects\sentinelai-complete`; no .git directory exists.
+`<repo>`; no .git directory exists.
 The six authoritative architecture/auth/reporting/native documents and current
 implementation/tests were inspected. No database, acceptance services, Docker,
 WSL, recovered data, or protected disks were opened/started during this stage.

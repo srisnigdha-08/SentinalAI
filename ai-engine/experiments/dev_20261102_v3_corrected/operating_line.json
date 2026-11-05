@@ -1,0 +1,327 @@
+{
+ "rule": {
+  "max_wilson_ub": 0.001,
+  "z": 1.959963984540054,
+  "t_min": 0.5,
+  "pooled_over": "all 11 D17+D18 test folds",
+  "labels": "corrected_v3"
+ },
+ "candidates": {
+  "C4AI": {
+   "predictions_sha256": "7a6fce16c3a0eb7282230d980780609d9cedd391ec4aedc7570eb4e39c83d7b8",
+   "line": {
+    "t": 0.915614,
+    "fp": 148,
+    "benign": 174358,
+    "fpr": 0.0008488282728638778,
+    "wilson_ub": 0.0009969604925930875
+   },
+   "at_argmax_equivalent_0_5": {
+    "pooled_recall": 0.4193,
+    "pooled_fpr": 0.002707,
+    "per_fold": {
+     "2017-Monday": {
+      "recall": null,
+      "fpr": 0.002662,
+      "fp": 32
+     },
+     "2017-Tuesday": {
+      "recall": 0.0026,
+      "fpr": 0.003617,
+      "fp": 43
+     },
+     "2017-Wednesday": {
+      "recall": 0.6063,
+      "fpr": 0.002289,
+      "fp": 27
+     },
+     "2017-Thursday": {
+      "recall": 0.4785,
+      "fpr": 0.003553,
+      "fp": 75
+     },
+     "2017-Friday": {
+      "recall": 0.5363,
+      "fpr": 0.000476,
+      "fp": 17
+     },
+     "2018-01-03-2018": {
+      "recall": 0.0125,
+      "fpr": 0.014229,
+      "fp": 185
+     },
+     "2018-02-03-2018": {
+      "recall": 0.626,
+      "fpr": 0.001474,
+      "fp": 21
+     },
+     "2018-14-02-2018": {
+      "recall": 0.4359,
+      "fpr": 0.000857,
+      "fp": 11
+     },
+     "2018-15-02-2018": {
+      "recall": 0.7138,
+      "fpr": 0.003132,
+      "fp": 41
+     },
+     "2018-21-02-2018": {
+      "recall": 0.1239,
+      "fpr": 0.000333,
+      "fp": 5
+     },
+     "2018-23-02-2018": {
+      "recall": 0.3383,
+      "fpr": 0.001099,
+      "fp": 15
+     }
+    },
+    "per_family_flagged": {
+     "Botnet": 0.4984,
+     "Brute Force": 0.1741,
+     "DoS/DDoS": 0.5521,
+     "Exploit": 0.0,
+     "Infiltration": 0.0125,
+     "Reconnaissance": 0.7205,
+     "Web Attack": 0.2998
+    },
+    "macro_recall_2017": 0.4059,
+    "macro_fpr_2017": 0.002519,
+    "macro_recall_2018": 0.3751,
+    "macro_fpr_2018": 0.003521
+   },
+   "at_line": {
+    "pooled_recall": 0.191,
+    "pooled_fpr": 0.000849,
+    "per_fold": {
+     "2017-Monday": {
+      "recall": null,
+      "fpr": 0.000416,
+      "fp": 5
+     },
+     "2017-Tuesday": {
+      "recall": 0.0002,
+      "fpr": 0.000841,
+      "fp": 10
+     },
+     "2017-Wednesday": {
+      "recall": 0.2243,
+      "fpr": 0.000339,
+      "fp": 4
+     },
+     "2017-Thursday": {
+      "recall": 0.2417,
+      "fpr": 0.001848,
+      "fp": 39
+     },
+     "2017-Friday": {
+      "recall": 0.5029,
+      "fpr": 0.000112,
+      "fp": 4
+     },
+     "2018-01-03-2018": {
+      "recall": 0.0033,
+      "fpr": 0.004922,
+      "fp": 64
+     },
+     "2018-02-03-2018": {
+      "recall": 0.0668,
+      "fpr": 0.000281,
+      "fp": 4
+     },
+     "2018-14-02-2018": {
+      "recall": 0.0,
+      "fpr": 7.8e-05,
+      "fp": 1
+     },
+     "2018-15-02-2018": {
+      "recall": 0.3348,
+      "fpr": 0.00107,
+      "fp": 14
+     },
+     "2018-21-02-2018": {
+      "recall": 0.0,
+      "fpr": 0.0,
+      "fp": 0
+     },
+     "2018-23-02-2018": {
+      "recall": 0.0425,
+      "fpr": 0.00022,
+      "fp": 3
+     }
+    },
+    "per_family_flagged": {
+     "Botnet": 0.0532,
+     "Brute Force": 0.0073,
+     "DoS/DDoS": 0.2997,
+     "Exploit": 0.0,
+     "Infiltration": 0.0033,
+     "Reconnaissance": 0.5299,
+     "Web Attack": 0.0309
+    },
+    "macro_recall_2017": 0.2423,
+    "macro_fpr_2017": 0.000711,
+    "macro_recall_2018": 0.0746,
+    "macro_fpr_2018": 0.001095
+   }
+  },
+  "C0": {
+   "predictions_sha256": "7347ffd10eed73a9af3fa7c9df00ac9ddaaa65bb651267481af42554883e4341",
+   "line": {
+    "t": 0.974834,
+    "fp": 148,
+    "benign": 174358,
+    "fpr": 0.0008488282728638778,
+    "wilson_ub": 0.0009969604925930875
+   },
+   "at_argmax_equivalent_0_5": {
+    "pooled_recall": 0.1902,
+    "pooled_fpr": 0.003,
+    "per_fold": {
+     "2017-Monday": {
+      "recall": null,
+      "fpr": 0.002495,
+      "fp": 30
+     },
+     "2017-Tuesday": {
+      "recall": 0.0225,
+      "fpr": 0.004038,
+      "fp": 48
+     },
+     "2017-Wednesday": {
+      "recall": 0.1501,
+      "fpr": 0.002798,
+      "fp": 33
+     },
+     "2017-Thursday": {
+      "recall": 0.399,
+      "fpr": 0.004121,
+      "fp": 87
+     },
+     "2017-Friday": {
+      "recall": 0.4885,
+      "fpr": 0.001372,
+      "fp": 49
+     },
+     "2018-01-03-2018": {
+      "recall": 0.0356,
+      "fpr": 0.015921,
+      "fp": 207
+     },
+     "2018-02-03-2018": {
+      "recall": 0.0,
+      "fpr": 0.001194,
+      "fp": 17
+     },
+     "2018-14-02-2018": {
+      "recall": 0.0116,
+      "fpr": 0.001013,
+      "fp": 13
+     },
+     "2018-15-02-2018": {
+      "recall": 0.341,
+      "fpr": 0.001681,
+      "fp": 22
+     },
+     "2018-21-02-2018": {
+      "recall": 0.0,
+      "fpr": 6.7e-05,
+      "fp": 1
+     },
+     "2018-23-02-2018": {
+      "recall": 0.0018,
+      "fpr": 0.001172,
+      "fp": 16
+     }
+    },
+    "per_family_flagged": {
+     "Botnet": 0.0,
+     "Brute Force": 0.0309,
+     "DoS/DDoS": 0.2848,
+     "Exploit": 0.0,
+     "Infiltration": 0.0356,
+     "Reconnaissance": 0.7496,
+     "Web Attack": 0.1693
+    },
+    "macro_recall_2017": 0.265,
+    "macro_fpr_2017": 0.002965,
+    "macro_recall_2018": 0.065,
+    "macro_fpr_2018": 0.003508
+   },
+   "at_line": {
+    "pooled_recall": 0.0939,
+    "pooled_fpr": 0.000849,
+    "per_fold": {
+     "2017-Monday": {
+      "recall": null,
+      "fpr": 0.00025,
+      "fp": 3
+     },
+     "2017-Tuesday": {
+      "recall": 0.0017,
+      "fpr": 0.000505,
+      "fp": 6
+     },
+     "2017-Wednesday": {
+      "recall": 0.0115,
+      "fpr": 0.000509,
+      "fp": 6
+     },
+     "2017-Thursday": {
+      "recall": 0.2728,
+      "fpr": 0.002037,
+      "fp": 43
+     },
+     "2017-Friday": {
+      "recall": 0.019,
+      "fpr": 8.4e-05,
+      "fp": 3
+     },
+     "2018-01-03-2018": {
+      "recall": 0.0114,
+      "fpr": 0.005461,
+      "fp": 71
+     },
+     "2018-02-03-2018": {
+      "recall": 0.0,
+      "fpr": 0.000281,
+      "fp": 4
+     },
+     "2018-14-02-2018": {
+      "recall": 0.0083,
+      "fpr": 0.000234,
+      "fp": 3
+     },
+     "2018-15-02-2018": {
+      "recall": 0.3284,
+      "fpr": 0.000153,
+      "fp": 2
+     },
+     "2018-21-02-2018": {
+      "recall": 0.0,
+      "fpr": 6.7e-05,
+      "fp": 1
+     },
+     "2018-23-02-2018": {
+      "recall": 0.0,
+      "fpr": 0.000439,
+      "fp": 6
+     }
+    },
+    "per_family_flagged": {
+     "Botnet": 0.0,
+     "Brute Force": 0.0036,
+     "DoS/DDoS": 0.1386,
+     "Exploit": 0.0,
+     "Infiltration": 0.0113,
+     "Reconnaissance": 0.7111,
+     "Web Attack": 0.0011
+    },
+    "macro_recall_2017": 0.0762,
+    "macro_fpr_2017": 0.000677,
+    "macro_recall_2018": 0.058,
+    "macro_fpr_2018": 0.001106
+   }
+  }
+ }
+}

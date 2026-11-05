@@ -80,7 +80,6 @@ const mongoose = require('mongoose')
 const { accessToken } = require('./helpers/accessFixture')
 const request = require('supertest')
 
-const { CANONICAL_CLASSES } = require('../utils/canonicalClasses')
 const TrainingSample = require('../models/TrainingSample')
 const AIPrediction = require('../models/AIPrediction')
 const User = require('../models/User')
@@ -281,12 +280,10 @@ describe('Phase 2.5C-6: Eligibility Validation & Quarantine Ingestion', () => {
 describe('Phase 2.5C-6: Service Ingestion, Idempotency & Re-Verification Safety', () => {
   let mockPrediction
   let analystId
-  let adminId
 
   beforeEach(() => {
     jest.clearAllMocks()
     analystId = new mongoose.Types.ObjectId()
-    adminId = new mongoose.Types.ObjectId()
     mockPrediction = {
       _id: new mongoose.Types.ObjectId(),
       verified: true,
@@ -487,7 +484,6 @@ describe('Phase 2.5C-6: State Machine Transitions & Governance RBAC', () => {
 describe('Phase 2.5C-6: API Routes & Leakage Prevention', () => {
   let analystToken
   let viewerToken
-  let adminToken
   let analystUser
   let adminUser
   let viewerUser
@@ -516,7 +512,6 @@ describe('Phase 2.5C-6: API Routes & Leakage Prevention', () => {
     }
 
     analystToken = accessToken(analystUser)
-    adminToken = accessToken(adminUser)
     viewerToken = accessToken(viewerUser)
 
     jest.spyOn(User, 'findById').mockImplementation((id) => ({

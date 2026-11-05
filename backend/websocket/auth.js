@@ -1,4 +1,6 @@
 const auth = require('../services/authSessionService')
+const PACKET_AUTH_CACHE_MS = 5000
+
 function install(io) {
   auth.attachSocketServer(io)
   io.use(async (socket, next) => {
@@ -29,11 +31,18 @@ function install(io) {
       clearTimeout(expiry)
       clearInterval(recheck)
     })
+    // Re-authorising every packet cost one session read per message (M4). A successful check is reused for
+    // PACKET_AUTH_CACHE_MS; revocation still disconnects at once via the session/user rooms, and the
+    // 15 s recheck below still runs.
+    let packetAuthAt = 0
     socket.use(async (_packet, next) => {
       try {
         await ready
-        const state = await auth.authorize(socket.authToken)
-        if (state.user.role !== socket.role || state.user.mustChangePassword) throw new auth.AuthError()
+        if (Date.now() - packetAuthAt >= PACKET_AUTH_CACHE_MS) {
+          const state = await auth.authorize(socket.authToken)
+          if (state.user.role !== socket.role || state.user.mustChangePassword) throw new auth.AuthError()
+          packetAuthAt = Date.now()
+        }
         next()
       } catch {
         socket.disconnect(true)

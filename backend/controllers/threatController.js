@@ -4,17 +4,37 @@ const socketManager = require('../websocket/socketManager')
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse')
 const logger = require('../utils/logger')
 const { isValidIP, parsePagination } = require('../utils/querySecurity')
+const { redactThreat, redactIP } = require('../utils/redact')
+
 const getThreats = async (req, res, next) => {
   try {
     const r = await threatService.findThreats(req.query)
-    sendPaginated(res, r.data, r.total, r.page, r.limit)
+    const role = req.user?.role || 'viewer'
+    const safeData = r.data.map((t) => redactThreat(t, role))
+    sendPaginated(res, safeData, r.total, r.page, r.limit)
   } catch (err) {
     next(err)
   }
 }
 const getAnalytics = async (req, res, next) => {
   try {
-    sendSuccess(res, await threatService.getDashboardAnalytics(), 'Analytics retrieved')
+    const role = req.user?.role || 'viewer'
+    const analytics = await threatService.getDashboardAnalytics()
+    if (role === 'viewer') {
+      if (Array.isArray(analytics?.intelligence?.topSourceIPs)) {
+        analytics.intelligence.topSourceIPs = analytics.intelligence.topSourceIPs.map((t) => ({
+          ...t,
+          _id: redactIP(t._id),
+        }))
+      }
+      if (Array.isArray(analytics?.topSourceIPs)) {
+        analytics.topSourceIPs = analytics.topSourceIPs.map((t) => ({
+          ...t,
+          _id: redactIP(t._id),
+        }))
+      }
+    }
+    sendSuccess(res, analytics, 'Analytics retrieved')
   } catch (err) {
     next(err)
   }
@@ -33,7 +53,10 @@ const getVectorTrend = async (req, res, next) => {
 }
 const getRecent = async (req, res, next) => {
   try {
-    sendSuccess(res, { threats: await threatService.getRecentThreats(parseInt(req.query.limit) || 10) })
+    const role = req.user?.role || 'viewer'
+    const raw = await threatService.getRecentThreats(parseInt(req.query.limit) || 10)
+    const safe = raw.map((t) => redactThreat(t, role))
+    sendSuccess(res, { threats: safe })
   } catch (err) {
     next(err)
   }
@@ -42,13 +65,26 @@ const getThreat = async (req, res, next) => {
   try {
     const t = await threatService.findThreatById(req.params.id)
     if (!t) return sendError(res, 'Not found', 404)
-    sendSuccess(res, { threat: t })
+    const role = req.user?.role || 'viewer'
+    sendSuccess(res, { threat: redactThreat(t, role) })
   } catch (err) {
     next(err)
   }
 }
 const ThreatLog = require('../models/ThreatLog')
-const ALLOWED_THREAT_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED']
+
+const ALLOWED_THREAT_STATUSES = [
+  'DETECTED',
+  'INVESTIGATING',
+  'CONTAINED',
+  'MONITORING',
+  'BLOCKED',
+  'ESCALATED',
+  'RESOLVED',
+  'FALSE_POSITIVE',
+  'DEGRADED',
+]
+
 const ALLOWED_THREAT_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 const ALLOWED_ATTACK_TYPES = ThreatLog.ALLOWED_ATTACK_TYPES || [
   'SSH Brute Force',
@@ -120,8 +156,10 @@ const createThreat = async (req, res, next) => {
       sourceIP: sourceIP.trim(),
       attackType: attackType.trim(),
       severity: severity ? severity.toUpperCase() : 'MEDIUM',
-      destinationIP: typeof req.body.destinationIP === 'string' ? req.body.destinationIP.trim().slice(0, 100) : 'INTERNAL',
-      targetService: typeof req.body.targetService === 'string' ? req.body.targetService.trim().slice(0, 100) : 'UNKNOWN',
+      destinationIP:
+        typeof req.body.destinationIP === 'string' ? req.body.destinationIP.trim().slice(0, 100) : 'INTERNAL',
+      targetService:
+        typeof req.body.targetService === 'string' ? req.body.targetService.trim().slice(0, 100) : 'UNKNOWN',
       notes: typeof req.body.notes === 'string' ? req.body.notes.trim().slice(0, 1000) : '',
       handledBy: req.user?._id || null,
       aiScore: 0,
@@ -141,7 +179,8 @@ const createThreat = async (req, res, next) => {
 
     if (req.body.geoLocation && typeof req.body.geoLocation === 'object') {
       cleanData.geoLocation = {
-        country: typeof req.body.geoLocation.country === 'string' ? req.body.geoLocation.country.slice(0, 100) : 'Unknown',
+        country:
+          typeof req.body.geoLocation.country === 'string' ? req.body.geoLocation.country.slice(0, 100) : 'Unknown',
         city: typeof req.body.geoLocation.city === 'string' ? req.body.geoLocation.city.slice(0, 100) : 'Unknown',
         lat: typeof req.body.geoLocation.lat === 'number' ? req.body.geoLocation.lat : undefined,
         lon: typeof req.body.geoLocation.lon === 'number' ? req.body.geoLocation.lon : undefined,
@@ -162,21 +201,26 @@ const createThreat = async (req, res, next) => {
 }
 const updateThreat = async (req, res, next) => {
   try {
-    // SEC-03: autonomousAction removed from allowed updates
-    const allowed = ['status', 'notes', 'handledBy']
+    if (req.body && req.body.status !== undefined) {
+      return sendError(
+        res,
+        'Status cannot be modified via PUT. Use PATCH /api/threats/:id/triage or containment endpoints.',
+        400
+      )
+    }
+    const allowed = ['notes', 'tags', 'triageNotes', 'handledBy']
     const updates = {}
     allowed.forEach((f) => {
       if (req.body[f] !== undefined) updates[f] = req.body[f]
     })
-    if (updates.status !== undefined) {
-      if (typeof updates.status !== 'string' || !ALLOWED_THREAT_STATUSES.includes(updates.status.toUpperCase())) {
-        return sendError(res, 'Invalid threat status', 400)
-      }
-      updates.status = updates.status.toUpperCase()
-    }
     if (updates.notes !== undefined) {
       if (typeof updates.notes !== 'string' || updates.notes.length > 1000) {
         return sendError(res, 'Notes must be a string up to 1000 characters', 400)
+      }
+    }
+    if (updates.tags !== undefined) {
+      if (!Array.isArray(updates.tags)) {
+        return sendError(res, 'Tags must be an array of strings', 400)
       }
     }
     if (updates.handledBy !== undefined && updates.handledBy !== null) {
@@ -195,8 +239,55 @@ const updateThreat = async (req, res, next) => {
 }
 const blockIP = async (req, res, next) => {
   try {
-    const threat = await threatService.blockThreatIP(req.params.id, req.user._id)
+    const { runWithTransactionOrFallback } = require('../utils/transactionHelper')
+    const { logAudit } = require('../utils/auditLogger')
+
+    const threat = await runWithTransactionOrFallback({
+      transactionFn: async (session) => {
+        const blockedThreat = await threatService.blockThreatIP(req.params.id, req.user._id, session)
+        if (!blockedThreat) return null
+
+        await logAudit({
+          action: 'THREAT_BLOCKED',
+          actor: req.user,
+          target: { id: blockedThreat._id.toString(), identifier: blockedThreat.sourceIP, type: 'ThreatLog' },
+          status: 'SUCCESS',
+          details: { sourceIP: blockedThreat.sourceIP },
+          ip: req.ip,
+          session,
+        })
+        return blockedThreat
+      },
+      fallbackFn: async () => {
+        const blockedThreat = await threatService.blockThreatIP(req.params.id, req.user._id)
+        if (!blockedThreat) return null
+
+        try {
+          await logAudit({
+            action: 'THREAT_BLOCKED',
+            actor: req.user,
+            target: { id: blockedThreat._id.toString(), identifier: blockedThreat.sourceIP, type: 'ThreatLog' },
+            status: 'SUCCESS',
+            details: { sourceIP: blockedThreat.sourceIP },
+            ip: req.ip,
+          })
+        } catch (auditErr) {
+          const BlockedIP = require('../models/BlockedIP')
+          await BlockedIP.deleteOne({ ip: blockedThreat.sourceIP })
+          await ThreatLog.findByIdAndUpdate(blockedThreat._id, { status: blockedThreat.preBlockStatus || 'DETECTED' })
+          logger.error(
+            `[AUDIT_FAILURE] Reverted threat block for ${blockedThreat._id} due to audit failure: ${auditErr.message}`
+          )
+          const err = new Error('Security audit logging failed; change not applied')
+          err.statusCode = 500
+          throw err
+        }
+        return blockedThreat
+      },
+    })
+
     if (!threat) return sendError(res, 'Not found', 404)
+
     const alert = await alertService.createAlert({
       title: 'IP Address Blocked',
       message: 'IP ' + threat.sourceIP + ' blocked by ' + req.user.name,
@@ -208,15 +299,47 @@ const blockIP = async (req, res, next) => {
     socketManager.emitThreatUpdated(threat)
     socketManager.emitNewAlert(alert)
     logger.info('IP ' + threat.sourceIP + ' blocked by ' + req.user.email)
-    sendSuccess(res, { threat, blockedIP: threat.sourceIP }, 'IP blocked')
+
+    // After the deny-list write and its audit succeeded: enforce through the containment adapter as well
+    const enforcement = await require('../services/containmentService').enforceManualBlock({
+      ip: threat.sourceIP,
+      requester: req.user,
+      reason: 'Manual threat block',
+      threatRef: threat._id,
+    })
+
+    sendSuccess(res, { threat, blockedIP: threat.sourceIP, enforcement }, 'IP blocked')
   } catch (err) {
+    if (err.message && err.message.includes('Security audit logging failed')) {
+      return sendError(res, err.message, err.statusCode || 500)
+    }
     next(err)
   }
 }
 const deleteThreat = async (req, res, next) => {
   try {
+    const existing = await ThreatLog.findById(req.params.id)
+    if (!existing) return sendError(res, 'Not found', 404)
+
+    const { logAudit } = require('../utils/auditLogger')
+    try {
+      await logAudit({
+        action: 'THREAT_DELETED',
+        actor: req.user,
+        target: { id: req.params.id, type: 'ThreatLog' },
+        status: 'SUCCESS',
+        ip: req.ip,
+      })
+    } catch (auditErr) {
+      logger.error(
+        `[AUDIT_FAILURE] Threat deletion aborted for ${req.params.id} due to audit failure: ${auditErr.message}`
+      )
+      return sendError(res, 'Security audit logging failed; change not applied', 500)
+    }
+
     const t = await threatService.deleteThreat(req.params.id)
     if (!t) return sendError(res, 'Not found', 404)
+
     sendSuccess(res, {}, 'Deleted')
   } catch (err) {
     next(err)
@@ -243,12 +366,38 @@ const updateSettings = async (req, res, next) => {
       return sendError(res, 'autoBlockEnabled field is required', 400)
     }
     const SystemSetting = require('../models/SystemSetting')
+    const prevSettingDoc = await SystemSetting.findOne({ key: 'autoBlockEnabled' })
+    const prevValue = prevSettingDoc ? prevSettingDoc.value : false
+
     const autoBlock = await SystemSetting.findOneAndUpdate(
       { key: 'autoBlockEnabled' },
       { value: autoBlockEnabled === true },
       { upsert: true, new: true }
     )
     logger.info(`System setting autoBlockEnabled updated to ${autoBlock.value} by admin ${req.user.email}`)
+
+    const { logAudit } = require('../utils/auditLogger')
+    try {
+      await logAudit({
+        action: 'SETTINGS_CHANGED',
+        actor: req.user,
+        target: { identifier: 'autoBlockEnabled', type: 'SystemSetting' },
+        status: 'SUCCESS',
+        details: { autoBlockEnabled: autoBlock.value },
+        ip: req.ip,
+      })
+    } catch (auditErr) {
+      await SystemSetting.findOneAndUpdate(
+        { key: 'autoBlockEnabled' },
+        { value: prevValue },
+        { upsert: true, new: true }
+      )
+      logger.error(
+        `[AUDIT_FAILURE] Reverted autoBlockEnabled to ${prevValue} due to audit failure: ${auditErr.message}`
+      )
+      return sendError(res, 'Security audit logging failed; change not applied', 500)
+    }
+
     sendSuccess(res, { autoBlockEnabled: autoBlock.value }, 'Settings updated')
   } catch (err) {
     next(err)
@@ -271,7 +420,15 @@ const getBlockedIPs = async (req, res, next) => {
       .sort({ blockedAt: -1 })
       .skip(skip)
       .limit(safeLimit)
-    sendSuccess(res, { blockedIPs: list })
+      .lean()
+    const role = req.user?.role || 'viewer'
+    const safeList = list.map((item) => {
+      if (role === 'viewer') {
+        return { ...item, ip: redactIP(item.ip) }
+      }
+      return item
+    })
+    sendSuccess(res, { blockedIPs: safeList })
   } catch (err) {
     next(err)
   }
@@ -296,6 +453,22 @@ const blockIPManual = async (req, res, next) => {
       analystEmail: req.user.email,
     })
 
+    const { logAudit } = require('../utils/auditLogger')
+    try {
+      await logAudit({
+        action: 'IP_BLOCKED_MANUAL',
+        actor: req.user,
+        target: { identifier: cleanIP, type: 'BlockedIP' },
+        status: 'SUCCESS',
+        details: { reason: cleanReason },
+        ip: req.ip,
+      })
+    } catch (auditErr) {
+      await containmentService.unblockIPManual({ ip: cleanIP })
+      logger.error(`[AUDIT_FAILURE] Reverted manual IP block for ${cleanIP} due to audit failure: ${auditErr.message}`)
+      return sendError(res, 'Security audit logging failed; change not applied', 500)
+    }
+
     if (updatedThreats && updatedThreats.length > 0) {
       updatedThreats.forEach((t) => socketManager.emitThreatUpdated(t))
     }
@@ -312,7 +485,13 @@ const blockIPManual = async (req, res, next) => {
     socketManager.emitNewAlert(alert)
     logger.info(`IP ${cleanIP} blocked manually by ${req.user.email}`)
 
-    sendSuccess(res, { blockedIP }, 'IP blocked successfully')
+    const enforcement = await containmentService.enforceManualBlock({
+      ip: cleanIP,
+      requester: req.user,
+      reason: cleanReason,
+    })
+
+    sendSuccess(res, { blockedIP, enforcement }, 'IP blocked successfully')
   } catch (err) {
     if (err.isInconsistent) {
       logger.error(`[CRITICAL] Containment inconsistency on blockIPManual: ${err.message}`)
@@ -347,6 +526,23 @@ const unblockIPManual = async (req, res, next) => {
       return sendError(res, 'IP is not blocked', 404)
     }
 
+    const { logAudit } = require('../utils/auditLogger')
+    try {
+      await logAudit({
+        action: 'IP_UNBLOCKED_MANUAL',
+        actor: req.user,
+        target: { identifier: cleanIP, type: 'BlockedIP' },
+        status: 'SUCCESS',
+        ip: req.ip,
+      })
+    } catch (auditErr) {
+      await containmentService.blockIPManual({ ip: cleanIP, reason: 'Compensating rollback' })
+      logger.error(
+        `[AUDIT_FAILURE] Reverted manual IP unblock for ${cleanIP} due to audit failure: ${auditErr.message}`
+      )
+      return sendError(res, 'Security audit logging failed; change not applied', 500)
+    }
+
     if (result.restoredThreats && result.restoredThreats.length > 0) {
       result.restoredThreats.forEach((t) => socketManager.emitThreatUpdated(t))
     }
@@ -363,7 +559,10 @@ const unblockIPManual = async (req, res, next) => {
     socketManager.emitNewAlert(alert)
     logger.info(`IP ${cleanIP} unblocked manually by ${req.user.email}`)
 
-    sendSuccess(res, {}, 'IP unblocked successfully')
+    // Remove the adapter rule(s) too, otherwise the firewall keeps blocking an IP the dashboard shows as free
+    const enforcement = await containmentService.releaseManualBlock({ ip: cleanIP, operator: req.user })
+
+    sendSuccess(res, { enforcement }, 'IP unblocked successfully')
   } catch (err) {
     if (err.isInconsistent) {
       logger.error(`[CRITICAL] Containment inconsistency on unblockIPManual: ${err.message}`)
@@ -377,7 +576,88 @@ const unblockIPManual = async (req, res, next) => {
   }
 }
 
+const ALLOWED_TRIAGE_TRANSITIONS = {
+  DETECTED: ['INVESTIGATING', 'MONITORING', 'ESCALATED', 'FALSE_POSITIVE'],
+  INVESTIGATING: ['CONTAINED', 'RESOLVED', 'FALSE_POSITIVE', 'MONITORING', 'ESCALATED'],
+  MONITORING: ['INVESTIGATING', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE'],
+  ESCALATED: ['INVESTIGATING', 'CONTAINED', 'RESOLVED', 'FALSE_POSITIVE'],
+  CONTAINED: ['RESOLVED', 'INVESTIGATING'],
+  RESOLVED: ['INVESTIGATING', 'DETECTED'],
+  FALSE_POSITIVE: ['INVESTIGATING', 'DETECTED'],
+  BLOCKED: ['INVESTIGATING', 'CONTAINED', 'RESOLVED'],
+  DEGRADED: ['INVESTIGATING', 'RESOLVED'],
+}
+
+const triageThreat = async (req, res, next) => {
+  try {
+    const { status, triageNotes } = req.body || {}
+    const updates = {}
+
+    if (status !== undefined) {
+      if (typeof status !== 'string' || !ALLOWED_THREAT_STATUSES.includes(status.toUpperCase())) {
+        return sendError(res, 'Invalid threat status', 400)
+      }
+      const targetStatus = status.toUpperCase()
+      if (targetStatus === 'BLOCKED') {
+        return sendError(res, "Status 'BLOCKED' requires firewall containment flow. Use containment endpoints.", 400)
+      }
+
+      const existingThreat = await ThreatLog.findById(req.params.id)
+      if (!existingThreat) return sendError(res, 'Not found', 404)
+
+      if (targetStatus !== existingThreat.status) {
+        const allowed = ALLOWED_TRIAGE_TRANSITIONS[existingThreat.status] || []
+        if (!allowed.includes(targetStatus)) {
+          return sendError(res, `Invalid status transition from ${existingThreat.status} to ${targetStatus}`, 400)
+        }
+      }
+      updates.status = targetStatus
+    }
+
+    if (triageNotes !== undefined) {
+      if (typeof triageNotes !== 'string' || triageNotes.length > 1000) {
+        return sendError(res, 'Triage notes must be a string up to 1000 characters', 400)
+      }
+      updates.triageNotes = triageNotes.trim()
+    }
+    updates.handledBy = req.user?._id || null
+
+    const threat = await threatService.updateThreat(req.params.id, updates)
+    if (!threat) return sendError(res, 'Not found', 404)
+
+    socketManager.emitThreatUpdated(threat)
+
+    const { logAudit } = require('../utils/auditLogger')
+    await logAudit({
+      action: 'THREAT_TRIAGED',
+      actor: req.user,
+      target: { id: threat._id.toString(), identifier: threat.sourceIP, type: 'ThreatLog' },
+      status: 'SUCCESS',
+      details: { status: threat.status, triageNotes: threat.triageNotes },
+      ip: req.ip,
+    })
+
+    sendSuccess(res, { threat }, 'Threat triage updated')
+  } catch (err) {
+    next(err)
+  }
+}
+
+/** GET /threats/:id/explanation: on-demand SHAP explanation from the stored vector (XAI-001). */
+const explainThreat = async (req, res, next) => {
+  const { explainThreat: explain, ExplanationError } = require('../services/threatExplanationService')
+  try {
+    sendSuccess(res, await explain(req.params.id), 'Threat explanation')
+  } catch (err) {
+    if (err instanceof ExplanationError) {
+      return sendError(res, err.message, err.statusCode, { reason: err.reason, ...(err.detail || {}) })
+    }
+    next(err)
+  }
+}
+
 module.exports = {
+  explainThreat,
   getThreats,
   getAnalytics,
   getVectorTrend,
@@ -385,6 +665,7 @@ module.exports = {
   getThreat,
   createThreat,
   updateThreat,
+  triageThreat,
   blockIP,
   deleteThreat,
   getSettings,

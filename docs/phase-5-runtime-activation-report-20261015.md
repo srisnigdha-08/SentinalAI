@@ -2,8 +2,8 @@
 
 **Date:** 2026-10-15  
 **Environment:** Windows 11 Pro Native Development Environment  
-**Project Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Project Path:** `<repo>`  
+**Native Integration Path:** `<repo>.native-integration`  
 **Author:** Senior Windows Platform & Application Security Verification Engineer  
 
 ---

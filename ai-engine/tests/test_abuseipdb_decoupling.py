@@ -10,7 +10,7 @@ TEST 3: Action is unchanged (BLOCK for >= 0.92, MONITOR for >= 0.70, ALLOW other
 TEST 4: Containment is unchanged (no side-effects triggered by inference).
 TEST 16: Predict output threatScore is mathematically invariant to source IP reputation.
 TEST 17: Predict output action is invariant to source IP reputation.
-Verification: get_ip_reputation is never invoked synchronously during predict().
+Verification: no HTTP request is made during predict() (the engine has no reputation client).
 """
 import sys
 import os
@@ -70,30 +70,28 @@ def test_normal_prediction_works_without_abuseipdb(predictor_instance):
 
 
 # ── Latency & Synchronous Purge Verification ──────────────────────────────────
-def test_get_ip_reputation_never_called_synchronously_during_predict(predictor_instance):
+def test_predict_makes_no_outbound_http_call(predictor_instance):
     """
-    Verifies that get_ip_reputation is NOT called synchronously before or during predict().
-    Prediction latency must be completely independent of AbuseIPDB.
+    Prediction latency must be independent of AbuseIPDB: no HTTP request is made during predict() (the
+    reputation client was removed from the engine, L5).
     """
     record = {"sourceIP": "8.8.8.8", "flow_duration": 1500.0}
 
-    with patch("inference.predictor.get_ip_reputation") as mock_get_rep:
+    with patch("requests.sessions.Session.request") as mock_http:
         res = predictor_instance.predict(record)
-        assert mock_get_rep.call_count == 0  # Zero calls!
+        assert mock_http.call_count == 0
 
     assert res["threatScore"] > 0
     assert res["ipReputationScore"] is None
 
 
-def test_get_ip_reputation_never_called_synchronously_during_honeypot(predictor_instance):
-    """
-    Verifies that get_ip_reputation is NOT called synchronously during predict_from_honeypot().
-    """
+def test_honeypot_scoring_makes_no_outbound_http_call(predictor_instance):
+    """No HTTP request is made during predict_from_honeypot()."""
     session = {"sourceIP": "185.220.101.5", "commands": [{"command": "id"}, {"command": "uname -a"}]}
 
-    with patch("inference.predictor.get_ip_reputation") as mock_get_rep:
+    with patch("requests.sessions.Session.request") as mock_http:
         res = predictor_instance.predict_from_honeypot(session)
-        assert mock_get_rep.call_count == 0  # Zero calls!
+        assert mock_http.call_count == 0
 
     assert res["threatScore"] > 0
     assert res["ipReputationScore"] is None
@@ -102,8 +100,8 @@ def test_get_ip_reputation_never_called_synchronously_during_honeypot(predictor_
 # ── TEST 2: ThreatScore is mathematically unchanged ───────────────────────────
 def test_threat_score_mathematically_unchanged(predictor_instance):
     """
-    TEST 2: ThreatScore is mathematically unchanged.
-    Formula is strictly: round(0.70 * rf_s + 0.30 * if_sig, 4).
+    TEST 2: ThreatScore is mathematically unchanged by reputation.
+    Formula (C3): for attack classes round(max(rf_s, 0.70 * rf_s + 0.30 * if_sig), 4).
     """
     record = {"sourceIP": "185.220.101.5"}
     res = predictor_instance.predict(record)
@@ -113,10 +111,11 @@ def test_threat_score_mathematically_unchanged(predictor_instance):
     # val = -0.55, offset = -0.47402357424116837
     # deflection = -0.47402357424116837 - (-0.55) = 0.07597642575883163
     # if_sig = min(0.07597642575883163 / 0.20, 1.0) = 0.379882... -> round(..., 4) = 0.3799
-    # expected score = round(0.7 * 0.95 + 0.3 * 0.3799, 4) = round(0.665 + 0.11397, 4) = 0.7790
+    # if_score = -0.55 is exactly ANOMALY_THRESHOLD -> if_sig 0; blend = 0.665; attack class -> max(0.95, 0.665)
     expected_rf_s = 0.95
-    expected_if_sig = round(float((-0.47402357424116837 - (-0.55)) / 0.20), 4)
-    expected_score = round(0.7 * expected_rf_s + 0.3 * expected_if_sig, 4)
+    expected_if_sig = 0.0
+    expected_score = round(max(expected_rf_s, 0.7 * expected_rf_s + 0.3 * expected_if_sig), 4)
+    assert expected_score == 0.95
 
     assert res["threatScore"] == expected_score
 
@@ -126,12 +125,18 @@ def test_action_is_unchanged(predictor_instance):
     """
     TEST 3: Action is unchanged:
       score >= 0.92 -> BLOCK
-      score >= 0.70 -> MONITOR
+      score >= 0.90 -> MONITOR (alert line)
       otherwise     -> ALLOW
     """
-    # Test MONITOR (score ~ 0.7790)
+    # Test MONITOR (attack at 0.91 confidence, IF at the anomaly boundary -> 0.91: between the 0.90 alert
+    # line and the 0.92 block line)
+    predictor_instance.rf.predict_proba.return_value = [[0.09, 0.91]]
     res = predictor_instance.predict({"sourceIP": "185.220.101.5"})
+    assert res["threatScore"] == 0.91
     assert res["action"] == "MONITOR"
+    # Below the alert line the flow is allowed
+    predictor_instance.rf.predict_proba.return_value = [[0.20, 0.80]]
+    assert predictor_instance.predict({"sourceIP": "185.220.101.5"})["action"] == "ALLOW"
 
     # Test BLOCK (max_p = 1.0, severe outlier)
     predictor_instance.rf.predict_proba.return_value = [[0.0, 1.0]]

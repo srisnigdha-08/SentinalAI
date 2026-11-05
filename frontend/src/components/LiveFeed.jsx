@@ -2,19 +2,10 @@
 import { useRealTimeFeed } from '../hooks/useRealTimeFeed.js'
 import SeverityBadge from './SeverityBadge.jsx'
 
-// ============================================================================
-// SIMULATION FEED (INTENTIONALLY PRESERVED FOR DEMO/TESTING)
-// import { useLiveFeed } from '../hooks/useLiveFeed.js'
-// ============================================================================
-
 export default function LiveFeed() {
   // REAL DATA SOURCE:
   // Listens to real detection pipeline events emitted by backend via Socket.IO
   const { feed, connected } = useRealTimeFeed(30)
-
-  // PRESERVED SIMULATION CALL (disabled in REAL DATA MODE):
-  // To re-enable simulated feed for testing/demo purposes, switch back to:
-  // const feed = useLiveFeed(30, 2200)
 
   return (
     <div style={{

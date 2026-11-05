@@ -1,11 +1,22 @@
+const { severityFor, currentAlertLine } = require('../utils/severity')
 const reportTime = require('../utils/reportingTime')
+const mongoose = require('mongoose')
 const AIPrediction = require('../models/AIPrediction')
 const ThreatLog = require('../models/ThreatLog')
 const logger = require('../utils/logger')
 const { parsePagination } = require('../utils/querySecurity')
 const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonicalClasses')
 
-const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}) => {
+// While the AI engine is down every analysed flow is degraded. Each one is still recorded as a
+// DEGRADED threat (held in MONITOR), but only one SYSTEM_HEALTH alert is raised per cooldown window.
+const HONEYPOT_CORROBORATION_DAYS = parseFloat(process.env.HONEYPOT_CORROBORATION_DAYS) || 7
+const DEGRADED_ALERT_COOLDOWN_MS = parseInt(process.env.DEGRADED_ALERT_COOLDOWN_MS, 10) || 5 * 60 * 1000
+let lastDegradedAlertAt = 0
+const resetDegradedAlertCooldown = () => {
+  lastDegradedAlertAt = 0
+}
+
+const findPredictions = async ({ page = 1, limit = 20, minScore, verified, review } = {}) => {
   const {
     page: safePage,
     limit: safeLimit,
@@ -24,6 +35,8 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}
     }
   }
   if (verified !== undefined) filter.verified = verified === true || verified === 'true'
+  // Analyst-review queue: anomalous flows the classifier called BENIGN, not yet verified
+  if (review === true || review === 'true') Object.assign(filter, { needsReview: true, verified: false })
   const total = await AIPrediction.countDocuments(filter)
   const data = await AIPrediction.find(filter)
     .sort({ createdAt: -1 })
@@ -37,6 +50,23 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified } = {}
 
 const storePrediction = async (data) => {
   const payload = { ...data }
+  payload.needsReview = data.action === 'REVIEW'
+  // Honeypot feedback (U4): a network flow from an IP that attacked the honeypot recently but was classified
+  // BENIGN/Unknown is a likely missed attack. It joins the analyst review queue; once verified it becomes a
+  // training sample through the existing verification -> TrainingSample path. Never a threat or block by itself.
+  // Only on an open connection: a buffered query would otherwise stall every prediction while Mongo is down
+  if (data.inputSource === 'network_traffic' && data.sourceIP && module.exports.dbConnected()) {
+    try {
+      const since = new Date(Date.now() - HONEYPOT_CORROBORATION_DAYS * 24 * 3600 * 1000)
+      const HoneypotSession = require('../models/HoneypotSession')
+      if (await HoneypotSession.exists({ sourceIP: data.sourceIP, createdAt: { $gte: since } })) {
+        payload.honeypotCorroborated = true
+        if (['BENIGN', 'Unknown'].includes(data.predictedClass)) payload.needsReview = true
+      }
+    } catch (err) {
+      logger.warn('[AI Persistence] Honeypot corroboration lookup failed (' + err.name + ')')
+    }
+  }
 
   if (data.featureVector !== undefined && data.featureVector !== null) {
     const isArr = Array.isArray(data.featureVector)
@@ -55,21 +85,32 @@ const storePrediction = async (data) => {
     }
   }
 
+  const isDegraded =
+    data.status === 'DEGRADED' || data.status === 'UNAVAILABLE' || data.predictedClass === 'UNINSPECTED_TRAFFIC'
+  // Alert line shared with the AI engine (its MONITOR threshold, validated on held-out data).
+  const alertThreshold = await require('./aiEngineService').getAlertThreshold()
+  const willCreateThreat =
+    !data.generatedThreat &&
+    (isDegraded || (Number(data.threatScore) >= alertThreshold && data.predictedClass !== 'BENIGN'))
+  // The threat's id is chosen before either write, so the prediction is stored already linked to it and no
+  // follow-up save can leave a threat whose prediction does not point back (M3).
+  const threatId = willCreateThreat ? new mongoose.Types.ObjectId() : null
+  if (threatId) payload.generatedThreat = threatId
   const pred = await AIPrediction.create(payload)
-  const isDegraded = data.status === 'DEGRADED' || data.status === 'UNAVAILABLE' || data.predictedClass === 'UNINSPECTED_TRAFFIC'
-  if (!data.generatedThreat && (isDegraded || (pred.threatScore >= 0.7 && pred.predictedClass !== 'BENIGN'))) {
-    const severity = isDegraded ? 'MEDIUM' : pred.threatScore >= 0.9 ? 'CRITICAL' : pred.threatScore >= 0.75 ? 'HIGH' : 'MEDIUM'
-
+  if (willCreateThreat) {
     // Authoritative Block Threshold & autoBlockEnabled setting
     const aiEngineService = require('./aiEngineService')
-    const BlockedIP = require('../models/BlockedIP')
     const SystemSetting = require('../models/SystemSetting')
 
     const blockThreshold = await aiEngineService.getBlockThreshold()
+    // Same scale as the engine's severity field (M1): CRITICAL >= block line, HIGH >= alert line
+    const severity = isDegraded ? 'MEDIUM' : severityFor(pred.threatScore, { alertThreshold, blockThreshold })
     const setting = await SystemSetting.findOne({ key: 'autoBlockEnabled' })
     const autoBlockEnabled = setting ? setting.value === true : false
 
-    const shouldBlock = !isDegraded && pred.threatScore >= blockThreshold && autoBlockEnabled
+    // Incomplete input (M2): many features were filled with defaults, so the score describes a partly
+    // fabricated flow. It may still raise a threat for an analyst, but it never triggers an automatic block.
+    const shouldBlock = !isDegraded && !data.incompleteInput && pred.threatScore >= blockThreshold && autoBlockEnabled
     const status = isDegraded ? 'DEGRADED' : shouldBlock ? 'BLOCKED' : 'MONITORING'
 
     const rawEventTime = data.eventTime || data.timestamp
@@ -81,7 +122,8 @@ const storePrediction = async (data) => {
       }
     }
 
-    const threat = await ThreatLog.create({
+    const threatDoc = {
+      _id: threatId,
       severity,
       sourceIP: pred.sourceIP,
       attackType: pred.predictedClass,
@@ -96,10 +138,25 @@ const storePrediction = async (data) => {
         actionType: shouldBlock ? 'IP_BLOCKED' : null,
         actionTime: shouldBlock ? new Date() : null,
       },
-      notes: isDegraded ? (data.notes || (data.status === 'UNAVAILABLE' ? 'AI engine unavailable - held in MONITOR' : 'Explicit AI engine degraded fallback')) : ''
-    })
-    pred.generatedThreat = threat._id
-    await pred.save()
+      notes: isDegraded
+        ? data.notes ||
+          (data.status === 'UNAVAILABLE'
+            ? 'AI engine unavailable - held in MONITOR'
+            : 'Explicit AI engine degraded fallback')
+        : '',
+    }
+    let threat
+    try {
+      threat = await ThreatLog.create(threatDoc)
+    } catch (threatErr) {
+      // Compensate: the prediction must not reference a threat that was never written.
+      await AIPrediction.updateOne({ _id: pred._id }, { $unset: { generatedThreat: 1 } }).catch((unlinkErr) =>
+        logger.error(
+          `[AI Persistence] Could not unlink prediction ${pred._id} from failed threat: ${unlinkErr.message}`
+        )
+      )
+      throw threatErr
+    }
 
     // If automatic block occurred, execute centralized autoBlock with compensating rollback support
     if (shouldBlock) {
@@ -122,7 +179,10 @@ const storePrediction = async (data) => {
       const alertService = require('./alertService')
       socketManager.emitNewThreat(threat)
 
-      if (isDegraded) {
+      if (isDegraded && Date.now() - lastDegradedAlertAt < DEGRADED_ALERT_COOLDOWN_MS) {
+        logger.debug('[AI] Degraded-state alert suppressed (cooldown active)')
+      } else if (isDegraded) {
+        lastDegradedAlertAt = Date.now()
         const alert = await alertService.createAlert({
           title: `System Alert: AI Engine ${data.status || 'DEGRADED'}`,
           message: `Traffic from ${threat.sourceIP} held in MONITOR due to uninspected/degraded state.`,
@@ -142,7 +202,7 @@ const storePrediction = async (data) => {
 
     // Asynchronous Threat Intelligence Enrichment (Phase 2.4B - Option B)
     // Decoupled from detection and containment; runs in background and updates ThreatLog.threatIntel
-    if (threat.aiScore >= 0.7) {
+    if (threat.aiScore >= alertThreshold) {
       try {
         const threatIntelService = require('./threatIntelService')
         setImmediate(() => {
@@ -191,6 +251,7 @@ const verifyPrediction = async (id, userId, actualClass) => {
         verifiedBy: userId,
         actualClass: trimmed,
         verifiedAt,
+        needsReview: false,
       },
       $push: {
         verificationHistory: historyEntry,
@@ -217,18 +278,33 @@ const verifyPrediction = async (id, userId, actualClass) => {
   return pred
 }
 
+// Score/class/anomaly/latency aggregates cover the last ANALYTICS_WINDOW_DAYS (default 30, max 90) instead of
+// every prediction ever stored (M6). Total uses the collection count metadata; verified accuracy stays all-time
+// (indexed on `verified`, a small subset).
+const analyticsWindowDays = () => {
+  const days = parseInt(process.env.ANALYTICS_WINDOW_DAYS, 10)
+  return Number.isInteger(days) && days >= 1 && days <= 90 ? days : 30
+}
+
 const getModelStats = async (now = new Date()) => {
   const weekAgo = reportTime.filter(7, now)
+  const windowDays = analyticsWindowDays()
+  const inWindow = { $match: { createdAt: reportTime.filter(windowDays, now) } }
   const [total, weekPreds, avgScores, byClass, anomalyStats, verifiedAcc, inferPerf, scoreDistrib, dailyPreds] =
     await Promise.all([
-      AIPrediction.countDocuments(),
+      AIPrediction.estimatedDocumentCount(),
       AIPrediction.countDocuments({ createdAt: weekAgo }),
-      AIPrediction.aggregate([{ $group: { _id: null, avg: { $avg: '$threatScore' }, max: { $max: '$threatScore' } } }]),
       AIPrediction.aggregate([
+        inWindow,
+        { $group: { _id: null, avg: { $avg: '$threatScore' }, max: { $max: '$threatScore' } } },
+      ]),
+      AIPrediction.aggregate([
+        inWindow,
         { $group: { _id: '$predictedClass', count: { $sum: 1 }, avgScore: { $avg: '$threatScore' } } },
         { $sort: { count: -1 } },
       ]),
       AIPrediction.aggregate([
+        inWindow,
         { $group: { _id: null, anomalies: { $sum: { $cond: ['$isAnomaly', 1, 0] } }, total: { $sum: 1 } } },
       ]),
       AIPrediction.aggregate([
@@ -242,10 +318,12 @@ const getModelStats = async (now = new Date()) => {
         },
       ]),
       AIPrediction.aggregate([
+        inWindow,
         { $match: { inferenceTimeMs: { $exists: true } } },
         { $group: { _id: null, avg: { $avg: '$inferenceTimeMs' }, max: { $max: '$inferenceTimeMs' } } },
       ]),
       AIPrediction.aggregate([
+        inWindow,
         {
           $bucket: {
             groupBy: '$threatScore',
@@ -261,7 +339,8 @@ const getModelStats = async (now = new Date()) => {
           $group: {
             _id: reportTime.dayGroup(),
             count: { $sum: 1 },
-            threats: { $sum: { $cond: [{ $gte: ['$threatScore', 0.7] }, 1, 0] } },
+            // Predictions at/above the alert line, where the pipeline raises threats (THR-002; was 0.70)
+            threats: { $sum: { $cond: [{ $gte: ['$threatScore', currentAlertLine()] }, 1, 0] } },
           },
         },
         { $sort: { _id: 1 } },
@@ -284,7 +363,7 @@ const getModelStats = async (now = new Date()) => {
   ]
 
   return {
-    reporting: reportTime.reporting(now),
+    reporting: { ...reportTime.reporting(now), analyticsWindow: reportTime.metadata(windowDays, now) },
     summary: {
       totalPredictions: total,
       weekPredictions: weekPreds,
@@ -301,4 +380,14 @@ const getModelStats = async (now = new Date()) => {
   }
 }
 
-module.exports = { findPredictions, storePrediction, verifyPrediction, getModelStats }
+// Exported so tests can simulate an open connection (mongoose's readyState is not configurable)
+const dbConnected = () => mongoose.connection.readyState === 1
+
+module.exports = {
+  findPredictions,
+  storePrediction,
+  verifyPrediction,
+  getModelStats,
+  resetDegradedAlertCooldown,
+  dbConnected,
+}

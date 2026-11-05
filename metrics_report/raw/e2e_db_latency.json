@@ -1,0 +1,81 @@
+{
+ "replayed": 120,
+ "threats_created": 56,
+ "alerts_created": 56,
+ "predictions_stored": 120,
+ "threat_severity": {
+  "CRITICAL": 54,
+  "HIGH": 2
+ },
+ "threat_attack_types": {
+  "Credential Stuffing": 7,
+  "Port Scan": 24,
+  "DDoS": 25
+ },
+ "threats_with_mitre": 56,
+ "sent_to_prediction_stored_ms": {
+  "n": 120,
+  "mean": 75,
+  "p50": 57,
+  "p95": 229,
+  "p99": 341,
+  "max": 346
+ },
+ "sent_to_threatlog_stored_ms": {
+  "n": 56,
+  "mean": 75.4,
+  "p50": 65,
+  "p95": 123,
+  "p99": 204,
+  "max": 299
+ },
+ "mongo_query_ms": {
+  "threatlogs_recent_20": {
+   "n": 200,
+   "mean": 2,
+   "p50": 2,
+   "p95": 4,
+   "p99": 5,
+   "max": 6
+  },
+  "threatlogs_count_by_severity": {
+   "n": 200,
+   "mean": 4.3,
+   "p50": 3,
+   "p95": 10,
+   "p99": 32,
+   "max": 60
+  },
+  "aipredictions_recent_50": {
+   "n": 200,
+   "mean": 9.2,
+   "p50": 7,
+   "p95": 16,
+   "p99": 36,
+   "max": 87
+  },
+  "honeypotsessions_recent_20": {
+   "n": 200,
+   "mean": 8.6,
+   "p50": 7,
+   "p95": 16,
+   "p99": 56,
+   "max": 116
+  }
+ },
+ "collection_counts": {
+  "users": 1,
+  "threatlogs": 206,
+  "containmentactions": 0,
+  "aipredictions": 200,
+  "authsessions": 1,
+  "auditlogs": 1,
+  "campaigns": 0,
+  "alerts": 78,
+  "honeypotsessions": 40,
+  "blockedips": 0,
+  "systemsettings": 0,
+  "trainingsamples": 0
+ },
+ "note": "mongo_query_ms is measured from mongosh on the same host (includes client round trip); bench DB is small"
+}

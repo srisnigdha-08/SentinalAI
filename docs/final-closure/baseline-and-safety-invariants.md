@@ -12,7 +12,7 @@
 The environment consists of two co-located project trees on the local filesystem:
 
 1. **Primary Application Root**:  
-   `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
+   `<repo>`  
    Contains full application source code:
    - `backend/`: Node.js / Express REST API and Socket.IO real-time engine
    - `frontend/`: React / Vite single-page dashboard application
@@ -20,7 +20,7 @@ The environment consists of two co-located project trees on the local filesystem
    - `docs/`: Technical specifications, architecture audits, runbooks, and closure documentation
 
 2. **Native Windows Integration Root**:  
-   `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+   `<repo>.native-integration`  
    Contains integration assets and database data directories:
    - `mongodb-dev/data/`: Active development database storage backing port 27017
    - `mongodb-acceptance-20261014/data/`: **Protected Acceptance Database**. Strictly isolated; never used as an active development database or test fixture.

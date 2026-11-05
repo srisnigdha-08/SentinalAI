@@ -1,0 +1,287 @@
+{
+  "generated_at": "2026-10-20T20:39:38.357198+00:00",
+  "data_dir": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\datasets\\cicids2017",
+  "rows_after_cleaning": 2827876,
+  "class_counts_after_cleaning": {
+    "BENIGN": 2271320,
+    "DDoS": 379737,
+    "Port Scan": 158804,
+    "Credential Stuffing": 9442,
+    "SSH Brute Force": 5897,
+    "Malware Beacon": 1956,
+    "XSS Attempt": 652,
+    "Lateral Movement": 36,
+    "SQL Injection": 21,
+    "RCE Attempt": 11
+  },
+  "recipe": {
+    "rf_params": {
+      "n_estimators": 200,
+      "max_depth": 20,
+      "min_samples_split": 5,
+      "min_samples_leaf": 1,
+      "class_weight": "balanced",
+      "n_jobs": -1,
+      "random_state": 42
+    },
+    "if_params": {
+      "n_estimators": 200,
+      "contamination": 0.1,
+      "max_samples": "auto",
+      "random_state": 42,
+      "n_jobs": -1
+    },
+    "train_caps_per_file": {
+      "BENIGN": 15000,
+      "Port Scan": 10000,
+      "DDoS": 10000
+    },
+    "test_caps_per_file": {
+      "BENIGN": 20000,
+      "Port Scan": 10000,
+      "DDoS": 10000
+    },
+    "chronological": {
+      "train_fraction": 0.7,
+      "purge_fraction": 0.01
+    },
+    "threat_raised_threshold": 0.7,
+    "block_threshold": 0.92,
+    "score_rule": "current = max(rf_s, 0.7*rf_s + 0.3*if_sig) for attack classes"
+  },
+  "smoke": false,
+  "protocols": {
+    "temporal": {
+      "train_rows": 162606,
+      "train_classes": {
+        "BENIGN": 120000,
+        "DDoS": 20000,
+        "Port Scan": 10000,
+        "Credential Stuffing": 6608,
+        "SSH Brute Force": 4127,
+        "Malware Beacon": 1369,
+        "XSS Attempt": 456,
+        "Lateral Movement": 25,
+        "SQL Injection": 14,
+        "RCE Attempt": 7
+      },
+      "n_test": 195232,
+      "accuracy": 0.9757,
+      "f1_macro": 0.739,
+      "f1_weighted": 0.9796,
+      "benign": {
+        "n": 160000,
+        "fpr_classifier": 0.013931,
+        "fpr_classifier_ci95": [
+          0.013369,
+          0.014517
+        ],
+        "fpr_threat_raised": 0.004962,
+        "fpr_threat_raised_ci95": [
+          0.00463,
+          0.005319
+        ]
+      },
+      "attacks": {
+        "n": 35232,
+        "detection_rate_classifier": 0.9386,
+        "detection_rate_threat_raised": 0.8967
+      },
+      "per_class": {
+        "BENIGN": {
+          "precision": 0.9865,
+          "recall": 0.9861,
+          "f1": 0.9863,
+          "support": 160000
+        },
+        "SSH Brute Force": {
+          "precision": 1.0,
+          "recall": 0.9848,
+          "f1": 0.9923,
+          "support": 1712
+        },
+        "SQL Injection": {
+          "precision": 0.4,
+          "recall": 0.2857,
+          "f1": 0.3333,
+          "support": 7
+        },
+        "Port Scan": {
+          "precision": 0.996,
+          "recall": 0.9969,
+          "f1": 0.9965,
+          "support": 10000
+        },
+        "DDoS": {
+          "precision": 0.9917,
+          "recall": 0.9186,
+          "f1": 0.9538,
+          "support": 20000
+        },
+        "RCE Attempt": {
+          "precision": 1.0,
+          "recall": 0.75,
+          "f1": 0.8571,
+          "support": 4
+        },
+        "XSS Attempt": {
+          "precision": 0.3353,
+          "recall": 0.6105,
+          "f1": 0.4328,
+          "support": 190
+        },
+        "Malware Beacon": {
+          "precision": 0.0351,
+          "recall": 0.1338,
+          "f1": 0.0557,
+          "support": 568
+        },
+        "Credential Stuffing": {
+          "precision": 0.9753,
+          "recall": 0.908,
+          "f1": 0.9405,
+          "support": 2740
+        },
+        "Lateral Movement": {
+          "precision": 1.0,
+          "recall": 0.7273,
+          "f1": 0.8421,
+          "support": 11
+        }
+      },
+      "score_rules": {
+        "current": {
+          "threat_raised": {
+            "benign_fpr": 0.004962,
+            "benign_fpr_ci95": [
+              0.00463,
+              0.005319
+            ],
+            "attack_detection": 0.8967
+          },
+          "block_line": {
+            "benign_fpr": 0.000463,
+            "benign_fpr_ci95": [
+              0.000368,
+              0.000581
+            ],
+            "attack_detection": 0.8651
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.004962,
+              "attack_detection": 0.8967
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.003219,
+              "attack_detection": 0.8917
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.00105,
+              "attack_detection": 0.8849
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.000725,
+              "attack_detection": 0.878
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.000531,
+              "attack_detection": 0.8684
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.000463,
+              "attack_detection": 0.8651
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.000369,
+              "attack_detection": 0.8612
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.000313,
+              "attack_detection": 0.8407
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.000169,
+              "attack_detection": 0.7733
+            }
+          ]
+        },
+        "legacy_blend": {
+          "threat_raised": {
+            "benign_fpr": 0.000294,
+            "benign_fpr_ci95": [
+              0.000221,
+              0.000391
+            ],
+            "attack_detection": 0.2941
+          },
+          "block_line": {
+            "benign_fpr": 0.0,
+            "benign_fpr_ci95": [
+              0.0,
+              2.4e-05
+            ],
+            "attack_detection": 0.0499
+          },
+          "sweep": [
+            {
+              "line": 0.7,
+              "benign_fpr": 0.000294,
+              "attack_detection": 0.2941
+            },
+            {
+              "line": 0.75,
+              "benign_fpr": 0.000294,
+              "attack_detection": 0.1601
+            },
+            {
+              "line": 0.8,
+              "benign_fpr": 0.000194,
+              "attack_detection": 0.1596
+            },
+            {
+              "line": 0.85,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.1496
+            },
+            {
+              "line": 0.9,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0609
+            },
+            {
+              "line": 0.92,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0499
+            },
+            {
+              "line": 0.95,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0208
+            },
+            {
+              "line": 0.97,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0006
+            },
+            {
+              "line": 0.99,
+              "benign_fpr": 0.0,
+              "attack_detection": 0.0005
+            }
+          ]
+        }
+      }
+    }
+  },
+  "runtime_seconds": 66.8
+}

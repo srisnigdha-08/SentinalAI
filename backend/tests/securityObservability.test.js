@@ -12,7 +12,7 @@ describe('Phase 7 — Security Monitoring, Event Reliability & Observability Tes
     })
 
     test('sanitizes CRLF characters to prevent Log Injection / Forging', () => {
-      const maliciousPayload = "admin\r\n[CRITICAL] System Compromised\nUser logged in"
+      const maliciousPayload = 'admin\r\n[CRITICAL] System Compromised\nUser logged in'
       const cleaned = sanitizeLogString(maliciousPayload)
       expect(cleaned).not.toContain('\r')
       expect(cleaned).not.toContain('\n')
@@ -118,10 +118,7 @@ describe('Phase 7 — Security Monitoring, Event Reliability & Observability Tes
       })
 
       await expect(
-        bus.publishDurable(
-          { eventType: 'IP_BLOCKED', payload: { targetIP: '192.0.2.55' } },
-          failingPersistFn
-        )
+        bus.publishDurable({ eventType: 'IP_BLOCKED', payload: { targetIP: '192.0.2.55' } }, failingPersistFn)
       ).rejects.toThrow('Database connection lost')
 
       // Event was NOT emitted to subscribers and was NOT added to history

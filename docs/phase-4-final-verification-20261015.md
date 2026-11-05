@@ -27,26 +27,26 @@
 ## 2. Inventory of Files Changed & Technical Rationale
 
 ### 2.1 Backend Source Modifications
-1. [`backend/services/containmentService.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containmentService.js):
+1. [`backend/services/containmentService.js`](<repo>/backend/services/containmentService.js):
    - **Line 811:** Fixed compensating rollback state restoration. Replaced hardcoded empty object `{ taken: false, actionType: null, actionTime: null }` with `priorAutonomousAction` captured before the operation. This resolves a genuine state-restoration defect and eliminates the unused-variable lint warning.
-2. [`backend/services/containment/adapterInterface.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/adapterInterface.js):
+2. [`backend/services/containment/adapterInterface.js`](<repo>/backend/services/containment/adapterInterface.js):
    - **Lines 28, 49, 67:** Prefixed abstract method parameter contracts with underscores (`_params`) to satisfy ESLint rule `Allowed unused args must match /^_/u` while preserving documentation contracts and caller compatibility.
-3. [`backend/services/containment/MockContainmentAdapter.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/MockContainmentAdapter.js):
+3. [`backend/services/containment/MockContainmentAdapter.js`](<repo>/backend/services/containment/MockContainmentAdapter.js):
    - **Lines 93, 127:** Prefixed interface-contract parameters unused in the in-memory simulation (`_ruleName`, `_target`) with underscores.
-4. [`backend/services/containment/WindowsFirewallAdapter.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containment/WindowsFirewallAdapter.js):
+4. [`backend/services/containment/WindowsFirewallAdapter.js`](<repo>/backend/services/containment/WindowsFirewallAdapter.js):
    - **Lines 65, 107, 142:** Added `_sanitizeRuleName(ruleName)` method. Enforces that any rule name passed to `netsh` strictly belongs to the `SentinelAI-Rule-` namespace and contains only alphanumeric characters and hyphens. Prevents operator error or unauthorized rule deletion of host Windows Firewall rules (e.g. "Core Networking").
    - Prefixed unused interface parameters (`_targetType`, `_target`) with underscores.
-5. [`backend/services/containmentPolicyService.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containmentPolicyService.js):
+5. [`backend/services/containmentPolicyService.js`](<repo>/backend/services/containmentPolicyService.js):
    - Added `CORE_SERVICE_PORTS = [3000, 5000, 8000, 27017]`.
    - Added IPv4 link-local protection: `/^169\.254\./` (RFC 3927).
    - Expanded IPv4 multicast protection to full `/^(22[4-9]|23[0-9])\./` range (`224.0.0.0/4`).
    - Added IPv4-mapped IPv6 unwrapping in `checkSafetyExclusions`: detects `^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$` and validates the embedded IPv4 address against loopback, link-local, broadcast, and multicast exclusions.
    - Enhanced `validateTarget` to detect and reject port specifications in targets (e.g., `192.168.1.1:5000`, `:8000`), enforcing L3 host-level containment purity and preventing service disruption.
    - Exported `CORE_SERVICE_PORTS`, `PROTECTED_IPV4_PATTERNS`, and `PROTECTED_IPV6_PATTERNS`.
-6. [`backend/services/containmentReconciliationService.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/services/containmentReconciliationService.js):
+6. [`backend/services/containmentReconciliationService.js`](<repo>/backend/services/containmentReconciliationService.js):
    - Expanded sweep query to `{ enforcementStatus: { $in: ['ACTIVE', 'ROLLBACK_FAILED'] }, expiresAt: { $ne: null, $lte: now } }`.
    - Enabled automated rollback retry: if an action is in `ROLLBACK_FAILED` state, the reconciler transitions directly to `ROLLING_BACK` and re-invokes adapter removal.
-7. [`backend/tests/containmentLifecycle.test.js`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/backend/tests/containmentLifecycle.test.js):
+7. [`backend/tests/containmentLifecycle.test.js`](<repo>/backend/tests/containmentLifecycle.test.js):
    - Added Tests 1.12–1.15: Adversarial link-local/unspecified rejection, IPv4-mapped IPv6 unwrapping, core service port rejection, and IPv6 prefix boundaries.
    - Added Tests 3.7–3.8: Firewall shell input sanitization against 9 injection payloads and rule ownership namespace enforcement.
    - Added Tests 4.6–4.8: Permanent containment preservation, idempotent reconciliation, and rollback failure retry.
@@ -75,7 +75,7 @@ The four suites previously skipped due to absence of `AUTH_TEST_MONGO_URI` were 
 - **Disposable Instance Configuration:**
   - Port: `27029` (verified unbound prior to startup)
   - Bind Address: `127.0.0.1`
-  - dbPath: `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-disposable-27029\data`
+  - dbPath: `<repo>.native-integration\mongodb-disposable-27029\data`
   - Target Database: `sentinelai_auth_timezone_test_20261014`
   - Connection URI: `mongodb://127.0.0.1:27029/sentinelai_auth_timezone_test_20261014`
 - **Suite-by-Suite Results:**
@@ -203,7 +203,7 @@ When an operational maintenance window is formally authorized to restart the bac
 2. Verify port 5000 is released (`Get-NetTCPConnection -LocalPort 5000 -ErrorAction SilentlyContinue`).
 3. Launch backend service with new Phase 4 routes:
    ```powershell
-   powershell -ExecutionPolicy Bypass -File "C:\Users\srisn\Desktop\Projects\sentinelai-complete\start-backend.ps1"
+   powershell -ExecutionPolicy Bypass -File "<repo>\start-backend.ps1"
    ```
 4. Verify new process is listening on port 5000.
 

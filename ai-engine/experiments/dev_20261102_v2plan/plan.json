@@ -1,0 +1,509 @@
+{
+  "generated_at": "2026-11-02T09:12:49.663680+00:00",
+  "mode": "plan",
+  "versions": {
+    "python": "3.11.9",
+    "numpy": "1.26.4",
+    "pandas": "2.2.0",
+    "sklearn": "1.4.0",
+    "xgboost": "2.0.3",
+    "git_commit": "3b1f349e864c3143e97303bbb3d7a4b8c9fde83a",
+    "git_dirty": true
+  },
+  "seed": 42,
+  "caps_2018": {
+    "benign": 15000,
+    "each_attack_label": 10000
+  },
+  "pool": {
+    "rows_2017": 124534,
+    "rows_2018": 129374,
+    "build_seconds": 194.8,
+    "raw_label_counts": {
+      "2017:benign": 93353,
+      "2017:bot": 1437,
+      "2017:ddos": 10000,
+      "2017:dos goldeneye": 418,
+      "2017:dos hulk": 7213,
+      "2017:dos slowhttptest": 195,
+      "2017:dos slowloris": 224,
+      "2017:ftp patator": 5931,
+      "2017:heartbleed": 11,
+      "2017:infiltration": 36,
+      "2017:portscan": 354,
+      "2017:ssh patator": 3219,
+      "2017:web attack brute force": 1470,
+      "2017:web attack sql injection": 21,
+      "2017:web attack xss": 652,
+      "2018:benign": 81821,
+      "2018:bot": 5610,
+      "2018:brute force web": 340,
+      "2018:brute force xss": 150,
+      "2018:ddos attack hoic": 8193,
+      "2018:ddos attack loic udp": 1730,
+      "2018:dos attacks goldeneye": 9993,
+      "2018:dos attacks slowloris": 8854,
+      "2018:ftp bruteforce": 39,
+      "2018:infilteration": 7548,
+      "2018:sql injection": 51,
+      "2018:ssh bruteforce": 5045
+    },
+    "files_2018_used": [
+      "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+      "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+      "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+      "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
+      "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+      "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv"
+    ],
+    "protected_files_present_not_read": [],
+    "data_sha256": {
+      "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+      "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+      "Friday-WorkingHours-Morning.pcap_ISCX.csv": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+      "Monday-WorkingHours.pcap_ISCX.csv": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+      "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+      "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+      "Tuesday-WorkingHours.pcap_ISCX.csv": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+      "Wednesday-workingHours.pcap_ISCX.csv": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a",
+      "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": "d96f38e7496aba83475031e6fb8c6fdf1abf6aa1b71325a917798f3c7de93de1",
+      "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": "d0a7f5059d9823b6e9b392b759e306481a3502d190dea7a1b5502ae079ea069b",
+      "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv": "b0534c5d7d8b41e03df71c6966c995d116a8ed28e61f377c8b14cdf5d28f4edf",
+      "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": "fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b",
+      "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147",
+      "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": "a5f4a1c2689e0aa6566c03a58466de9c407c0be0cbd3cc69306544026611be04"
+    }
+  },
+  "candidates": {
+    "C4": {
+      "config": {
+        "features": "C",
+        "taxonomy": "T1",
+        "arch": "two_stage",
+        "model": "xgb",
+        "data": "2017+2018dev",
+        "note": "multi-dataset"
+      },
+      "features": [
+        "flow_duration",
+        "total_fwd_packets",
+        "total_bwd_packets",
+        "total_len_fwd_packets",
+        "total_len_bwd_packets",
+        "fwd_packet_len_max",
+        "fwd_packet_len_min",
+        "fwd_packet_len_mean",
+        "fwd_packet_len_std",
+        "bwd_packet_len_max",
+        "bwd_packet_len_min",
+        "bwd_packet_len_mean",
+        "bwd_packet_len_std",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "flow_iat_mean",
+        "flow_iat_std",
+        "flow_iat_max",
+        "flow_iat_min",
+        "fwd_iat_total",
+        "fwd_iat_mean",
+        "fwd_iat_std",
+        "fwd_iat_max",
+        "fwd_iat_min",
+        "bwd_iat_total",
+        "bwd_iat_mean",
+        "bwd_iat_std",
+        "bwd_iat_max",
+        "bwd_iat_min",
+        "fwd_psh_flags",
+        "fwd_urg_flags",
+        "fin_flag_count",
+        "syn_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "ack_flag_count",
+        "urg_flag_count",
+        "fwd_header_len",
+        "bwd_header_len",
+        "active_mean",
+        "active_std",
+        "idle_mean",
+        "idle_std",
+        "down_up_ratio",
+        "payload_entropy"
+      ],
+      "folds": [
+        {
+          "fold": "2017-Monday",
+          "train_rows": 241886,
+          "test_rows": 12022,
+          "manifest_sha256": "255238b2d259b2e26863eb1bf5816321377847f7b340b84f3126c0653459e49c",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Tuesday",
+          "train_rows": 232870,
+          "test_rows": 21038,
+          "manifest_sha256": "3d14517b25b155ae5209a18203b3846c762ee56ad3ad02863132448445596fa1",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Wednesday",
+          "train_rows": 234052,
+          "test_rows": 19856,
+          "manifest_sha256": "6611391f612fb54c3dc63cfdc20869595cc7a9e0e9cab9a221bae10e944bdc75",
+          "test_families_absent_from_training": [
+            "Exploit"
+          ]
+        },
+        {
+          "fold": "2017-Thursday",
+          "train_rows": 229804,
+          "test_rows": 24104,
+          "manifest_sha256": "c22360f2b2db69e94e1422271a7dba3c53eef3c48da159aa7bb3398845362f6b",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Friday",
+          "train_rows": 206394,
+          "test_rows": 47514,
+          "manifest_sha256": "c0c5a93ec5587882c082dae525f056006023563f43794fb4ed443770f29128f2",
+          "test_families_absent_from_training": [
+            "Reconnaissance"
+          ]
+        },
+        {
+          "fold": "2018-01-03-2018",
+          "train_rows": 233358,
+          "test_rows": 20550,
+          "manifest_sha256": "4bf8163dd43a73064fa6805f8dd82c8f256b3f53448987088821ee0518053f50",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-02-03-2018",
+          "train_rows": 234055,
+          "test_rows": 19853,
+          "manifest_sha256": "be8f1a5ffbd6bf0a9e0b0ac6929145b3191fcfd48ec4c96814eaab766b816501",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-14-02-2018",
+          "train_rows": 235989,
+          "test_rows": 17919,
+          "manifest_sha256": "ede8adc7e2f206e7c0050c7690b4d53faf222f3484f492cb1cd4076d8b8b5e57",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-15-02-2018",
+          "train_rows": 221972,
+          "test_rows": 31936,
+          "manifest_sha256": "b4055f851a58f8bf2c0ea8e68b9c1a2a13d83db5bd4399fb10f43fb41de75a98",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-21-02-2018",
+          "train_rows": 228986,
+          "test_rows": 24922,
+          "manifest_sha256": "3b1a8ef848292b192b28f383ea1e68c10856089b1c2e7079767002bfb62d6904",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-23-02-2018",
+          "train_rows": 239714,
+          "test_rows": 14194,
+          "manifest_sha256": "3a04a8bde0e1c504222e0b144f9b3eea4f656b25a55bfd76d03a4435d0418426",
+          "test_families_absent_from_training": []
+        }
+      ]
+    },
+    "C4A": {
+      "config": {
+        "features": "A",
+        "taxonomy": "T1",
+        "arch": "two_stage",
+        "model": "xgb",
+        "data": "2017+2018dev",
+        "note": "v2: multi-dataset, 53 features"
+      },
+      "features": [
+        "flow_duration",
+        "total_fwd_packets",
+        "total_bwd_packets",
+        "total_len_fwd_packets",
+        "total_len_bwd_packets",
+        "fwd_packet_len_max",
+        "fwd_packet_len_min",
+        "fwd_packet_len_mean",
+        "fwd_packet_len_std",
+        "bwd_packet_len_max",
+        "bwd_packet_len_min",
+        "bwd_packet_len_mean",
+        "bwd_packet_len_std",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "flow_iat_mean",
+        "flow_iat_std",
+        "flow_iat_max",
+        "flow_iat_min",
+        "fwd_iat_total",
+        "fwd_iat_mean",
+        "fwd_iat_std",
+        "fwd_iat_max",
+        "fwd_iat_min",
+        "bwd_iat_total",
+        "bwd_iat_mean",
+        "bwd_iat_std",
+        "bwd_iat_max",
+        "bwd_iat_min",
+        "fwd_psh_flags",
+        "bwd_psh_flags",
+        "fwd_urg_flags",
+        "bwd_urg_flags",
+        "fin_flag_count",
+        "syn_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "ack_flag_count",
+        "urg_flag_count",
+        "fwd_header_len",
+        "bwd_header_len",
+        "fwd_avg_bytes_per_bulk",
+        "bwd_avg_bytes_per_bulk",
+        "init_win_bytes_forward",
+        "init_win_bytes_backward",
+        "active_mean",
+        "active_std",
+        "idle_mean",
+        "idle_std",
+        "down_up_ratio",
+        "payload_entropy",
+        "time_of_day_sin",
+        "time_of_day_cos"
+      ],
+      "folds": [
+        {
+          "fold": "2017-Monday",
+          "train_rows": 241886,
+          "test_rows": 12022,
+          "manifest_sha256": "255238b2d259b2e26863eb1bf5816321377847f7b340b84f3126c0653459e49c",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Tuesday",
+          "train_rows": 232870,
+          "test_rows": 21038,
+          "manifest_sha256": "3d14517b25b155ae5209a18203b3846c762ee56ad3ad02863132448445596fa1",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Wednesday",
+          "train_rows": 234052,
+          "test_rows": 19856,
+          "manifest_sha256": "6611391f612fb54c3dc63cfdc20869595cc7a9e0e9cab9a221bae10e944bdc75",
+          "test_families_absent_from_training": [
+            "Exploit"
+          ]
+        },
+        {
+          "fold": "2017-Thursday",
+          "train_rows": 229804,
+          "test_rows": 24104,
+          "manifest_sha256": "c22360f2b2db69e94e1422271a7dba3c53eef3c48da159aa7bb3398845362f6b",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Friday",
+          "train_rows": 206394,
+          "test_rows": 47514,
+          "manifest_sha256": "c0c5a93ec5587882c082dae525f056006023563f43794fb4ed443770f29128f2",
+          "test_families_absent_from_training": [
+            "Reconnaissance"
+          ]
+        },
+        {
+          "fold": "2018-01-03-2018",
+          "train_rows": 233358,
+          "test_rows": 20550,
+          "manifest_sha256": "4bf8163dd43a73064fa6805f8dd82c8f256b3f53448987088821ee0518053f50",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-02-03-2018",
+          "train_rows": 234055,
+          "test_rows": 19853,
+          "manifest_sha256": "be8f1a5ffbd6bf0a9e0b0ac6929145b3191fcfd48ec4c96814eaab766b816501",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-14-02-2018",
+          "train_rows": 235989,
+          "test_rows": 17919,
+          "manifest_sha256": "ede8adc7e2f206e7c0050c7690b4d53faf222f3484f492cb1cd4076d8b8b5e57",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-15-02-2018",
+          "train_rows": 221972,
+          "test_rows": 31936,
+          "manifest_sha256": "b4055f851a58f8bf2c0ea8e68b9c1a2a13d83db5bd4399fb10f43fb41de75a98",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-21-02-2018",
+          "train_rows": 228986,
+          "test_rows": 24922,
+          "manifest_sha256": "3b1a8ef848292b192b28f383ea1e68c10856089b1c2e7079767002bfb62d6904",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-23-02-2018",
+          "train_rows": 239714,
+          "test_rows": 14194,
+          "manifest_sha256": "3a04a8bde0e1c504222e0b144f9b3eea4f656b25a55bfd76d03a4435d0418426",
+          "test_families_absent_from_training": []
+        }
+      ]
+    },
+    "C4B": {
+      "config": {
+        "features": "B",
+        "taxonomy": "T1",
+        "arch": "two_stage",
+        "model": "xgb",
+        "data": "2017+2018dev",
+        "note": "v2: multi-dataset, 47 features (constants removed)"
+      },
+      "features": [
+        "flow_duration",
+        "total_fwd_packets",
+        "total_bwd_packets",
+        "total_len_fwd_packets",
+        "total_len_bwd_packets",
+        "fwd_packet_len_max",
+        "fwd_packet_len_min",
+        "fwd_packet_len_mean",
+        "fwd_packet_len_std",
+        "bwd_packet_len_max",
+        "bwd_packet_len_min",
+        "bwd_packet_len_mean",
+        "bwd_packet_len_std",
+        "flow_bytes_per_sec",
+        "flow_packets_per_sec",
+        "flow_iat_mean",
+        "flow_iat_std",
+        "flow_iat_max",
+        "flow_iat_min",
+        "fwd_iat_total",
+        "fwd_iat_mean",
+        "fwd_iat_std",
+        "fwd_iat_max",
+        "fwd_iat_min",
+        "bwd_iat_total",
+        "bwd_iat_mean",
+        "bwd_iat_std",
+        "bwd_iat_max",
+        "bwd_iat_min",
+        "fwd_psh_flags",
+        "fwd_urg_flags",
+        "fin_flag_count",
+        "syn_flag_count",
+        "rst_flag_count",
+        "psh_flag_count",
+        "ack_flag_count",
+        "urg_flag_count",
+        "fwd_header_len",
+        "bwd_header_len",
+        "init_win_bytes_forward",
+        "init_win_bytes_backward",
+        "active_mean",
+        "active_std",
+        "idle_mean",
+        "idle_std",
+        "down_up_ratio",
+        "payload_entropy"
+      ],
+      "folds": [
+        {
+          "fold": "2017-Monday",
+          "train_rows": 241886,
+          "test_rows": 12022,
+          "manifest_sha256": "255238b2d259b2e26863eb1bf5816321377847f7b340b84f3126c0653459e49c",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Tuesday",
+          "train_rows": 232870,
+          "test_rows": 21038,
+          "manifest_sha256": "3d14517b25b155ae5209a18203b3846c762ee56ad3ad02863132448445596fa1",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Wednesday",
+          "train_rows": 234052,
+          "test_rows": 19856,
+          "manifest_sha256": "6611391f612fb54c3dc63cfdc20869595cc7a9e0e9cab9a221bae10e944bdc75",
+          "test_families_absent_from_training": [
+            "Exploit"
+          ]
+        },
+        {
+          "fold": "2017-Thursday",
+          "train_rows": 229804,
+          "test_rows": 24104,
+          "manifest_sha256": "c22360f2b2db69e94e1422271a7dba3c53eef3c48da159aa7bb3398845362f6b",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2017-Friday",
+          "train_rows": 206394,
+          "test_rows": 47514,
+          "manifest_sha256": "c0c5a93ec5587882c082dae525f056006023563f43794fb4ed443770f29128f2",
+          "test_families_absent_from_training": [
+            "Reconnaissance"
+          ]
+        },
+        {
+          "fold": "2018-01-03-2018",
+          "train_rows": 233358,
+          "test_rows": 20550,
+          "manifest_sha256": "4bf8163dd43a73064fa6805f8dd82c8f256b3f53448987088821ee0518053f50",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-02-03-2018",
+          "train_rows": 234055,
+          "test_rows": 19853,
+          "manifest_sha256": "be8f1a5ffbd6bf0a9e0b0ac6929145b3191fcfd48ec4c96814eaab766b816501",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-14-02-2018",
+          "train_rows": 235989,
+          "test_rows": 17919,
+          "manifest_sha256": "ede8adc7e2f206e7c0050c7690b4d53faf222f3484f492cb1cd4076d8b8b5e57",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-15-02-2018",
+          "train_rows": 221972,
+          "test_rows": 31936,
+          "manifest_sha256": "b4055f851a58f8bf2c0ea8e68b9c1a2a13d83db5bd4399fb10f43fb41de75a98",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-21-02-2018",
+          "train_rows": 228986,
+          "test_rows": 24922,
+          "manifest_sha256": "3b1a8ef848292b192b28f383ea1e68c10856089b1c2e7079767002bfb62d6904",
+          "test_families_absent_from_training": []
+        },
+        {
+          "fold": "2018-23-02-2018",
+          "train_rows": 239714,
+          "test_rows": 14194,
+          "manifest_sha256": "3a04a8bde0e1c504222e0b144f9b3eea4f656b25a55bfd76d03a4435d0418426",
+          "test_families_absent_from_training": []
+        }
+      ]
+    }
+  }
+}

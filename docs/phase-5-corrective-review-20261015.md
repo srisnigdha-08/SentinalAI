@@ -2,8 +2,8 @@
 
 **Date:** 2026-10-15  
 **Environment:** Windows 11 Pro Native Development Environment  
-**Project Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Project Path:** `<repo>`  
+**Native Integration Path:** `<repo>.native-integration`  
 **Author:** Senior Windows Platform & Application Security Engineer  
 
 ---
@@ -38,10 +38,10 @@ The Phase 5 operations runbook instructed operators to set `$env:Q_TABLE_PATH` t
    - `DeceptionQLearner.save()` opens `self.q_table_path` with `"w"` and dumps the updated Q-table JSON.
    - If `q_table_path` is the baseline model file, it overwrites the baseline.
 3. Running AI Engine Process (PID 35672):
-   - Confirmed launched with `$env:Q_TABLE_PATH = 'C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json'`. The defect was in the operations runbook instruction, not the running process.
+   - Confirmed launched with `$env:Q_TABLE_PATH = '<repo>\ai-engine\runtime\q_table.json'`. The defect was in the operations runbook instruction, not the running process.
 
 #### Corrective Actions Implemented
-1. **Runbook Correction:** Updated `docs/phase-5-operations-runbook.md` (Section 2.1) to configure `$env:Q_TABLE_PATH = "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json"`. Added an explicit security alert explaining why `models\q_table.json` is immutable.
+1. **Runbook Correction:** Updated `docs/phase-5-operations-runbook.md` (Section 2.1) to configure `$env:Q_TABLE_PATH = "<repo>\ai-engine\runtime\q_table.json"`. Added an explicit security alert explaining why `models\q_table.json` is immutable.
 2. **Defense-in-Depth Guard in Source Code (`ai-engine/inference/deception.py`):**
    Added an explicit check before initialization:
    ```python

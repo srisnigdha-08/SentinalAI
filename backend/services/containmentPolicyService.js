@@ -279,7 +279,68 @@ const checkSafetyExclusions = (targetInfo) => {
     }
   }
 
+  // Operator-protected IPv4 hosts/ranges (own hosts, gateway, analyst LAN) from CONTAINMENT_PROTECTED_TARGETS
+  if (targetInfo.isIPv4 || /^\d{1,3}(\.\d{1,3}){3}$/.test(ipPart)) {
+    const targetRange = ipv4Range(ipPart, targetType === 'cidr' ? prefix : 32)
+    if (targetRange) {
+      for (const entry of getOperatorProtectedRanges()) {
+        if (targetRange.start <= entry.end && entry.start <= targetRange.end) {
+          return {
+            isSafe: false,
+            decision: 'DENIED',
+            reason: `Target ${normalizedTarget} overlaps operator-protected range ${entry.label}`,
+          }
+        }
+      }
+    }
+  }
+
   return { isSafe: true, decision: 'ALLOWED' }
+}
+
+const ipv4ToInt = (ip) => {
+  const parts = String(ip).split('.')
+  if (parts.length !== 4) return null
+  let n = 0
+  for (const p of parts) {
+    if (!/^\d{1,3}$/.test(p) || Number(p) > 255) return null
+    n = n * 256 + Number(p)
+  }
+  return n
+}
+
+const ipv4Range = (ip, prefix = 32) => {
+  const base = ipv4ToInt(ip)
+  if (base === null || !Number.isInteger(prefix) || prefix < 0 || prefix > 32) return null
+  const size = 2 ** (32 - prefix)
+  const start = Math.floor(base / size) * size
+  return { start, end: start + size - 1 }
+}
+
+/**
+ * Parses CONTAINMENT_PROTECTED_TARGETS ("10.0.0.1,192.168.56.0/24"). Read on every call so
+ * tests and operators can change it without a restart. Invalid entries are ignored.
+ */
+const getOperatorProtectedRanges = () =>
+  String(process.env.CONTAINMENT_PROTECTED_TARGETS || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((label) => {
+      const [ip, bits] = label.split('/')
+      const range = ipv4Range(ip, bits === undefined ? 32 : Number(bits))
+      return range ? { ...range, label } : null
+    })
+    .filter(Boolean)
+
+/**
+ * Safety check for code paths that record blocks without a full policy evaluation
+ * (auto-block, legacy block endpoints). Returns { isSafe, reason }.
+ */
+const checkTargetSafety = (target) => {
+  const info = validateTarget(target)
+  if (!info.isValid) return { isSafe: false, reason: info.error || 'Invalid containment target' }
+  return checkSafetyExclusions(info)
 }
 
 /**
@@ -480,6 +541,7 @@ module.exports = {
   normalizeTarget,
   validateTarget,
   checkSafetyExclusions,
+  checkTargetSafety,
   checkRequesterAuthorization,
   calculateExpiration,
   evaluatePolicy,

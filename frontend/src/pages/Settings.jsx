@@ -2,15 +2,18 @@ import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { useState, useEffect } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
-import { threatAPI, containmentAPI } from '../services/api.js'
+import { threatAPI, containmentAPI, auditAPI } from '../services/api.js'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
 import toast from 'react-hot-toast'
+import { containmentOutcome } from '../utils/containmentLabels.js'
 
 export default function Settings() {
   const [autoBlockEnabled, setAutoBlockEnabled] = useState(false)
   const [blockedIPs, setBlockedIPs] = useState([])
   const [containmentStatus, setContainmentStatus] = useState(null)
+  const [auditLogs, setAuditLogs] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [ipInput, setIpInput] = useState('')
   const [reasonInput, setReasonInput] = useState('')
   const [submittingBlock, setSubmittingBlock] = useState(false)
@@ -20,16 +23,21 @@ export default function Settings() {
   const [modalReason, setModalReason] = useState('')
 
   const loadData = async () => {
+    setLoading(true)
+    setError(null)
     try {
-      const [settingsRes, blockedRes, containmentRes] = await Promise.all([
+      const [settingsRes, blockedRes, containmentRes, auditRes] = await Promise.all([
         threatAPI.getSettings(),
         threatAPI.getBlockedIPs(),
         containmentAPI.getStatus().catch(() => ({ data: { data: null } })),
+        auditAPI.list({ limit: 20 }).catch(() => ({ data: { data: [] } })),
       ])
       setAutoBlockEnabled(settingsRes.data?.data?.autoBlockEnabled || false)
       setBlockedIPs(blockedRes.data?.data?.blockedIPs || [])
       setContainmentStatus(containmentRes.data?.data || null)
-    } catch (err) {
+      setAuditLogs(auditRes.data?.data || [])
+    } catch {
+      setError('System configuration is unavailable. Retry to load firewall and blocklist state.')
       toast.error('Failed to load settings data')
     } finally {
       setLoading(false)
@@ -61,10 +69,15 @@ export default function Settings() {
 
   const handleBlockManual = (e) => {
     e.preventDefault()
-    if (!ipInput.trim()) {
+    const ip = ipInput.trim()
+    if (!ip) {
       return toast.error('IP address is required')
     }
-    setModalTarget(ipInput.trim())
+    const ipRegex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(([0-9a-fA-F]{1,4}:){1,7}[0-9a-fA-F]{1,4}|::1|([0-9a-fA-F]{1,4})?::([0-9a-fA-F]{1,4})?)$/
+    if (!ipRegex.test(ip)) {
+      return toast.error('Please enter a valid IPv4 or IPv6 address')
+    }
+    setModalTarget(ip)
     setModalReason(reasonInput.trim())
     setModalOpen(true)
   }
@@ -72,14 +85,14 @@ export default function Settings() {
   const handleConfirmContainment = async ({ target, durationSeconds, isPermanent, reason }) => {
     setSubmittingBlock(true)
     try {
-      await containmentAPI.requestAction({
+      const res = await containmentAPI.requestAction({
         target,
         actionType: 'block_ip',
         durationSeconds,
         isPermanent,
         reason,
       })
-      toast.success(`IP ${target} containment policy applied`)
+      toast.success(containmentOutcome(target, res))
       setIpInput('')
       setReasonInput('')
       setModalOpen(false)
@@ -137,6 +150,47 @@ export default function Settings() {
       <div style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: '#3a6a88', letterSpacing: 2, marginBottom: '1.5rem' }}>
         // SYSTEM ENFORCEMENT CONFIGURATION & LAB FIREWALL CONTROL
       </div>
+
+      {error && (
+        <div
+          role="alert"
+          style={{
+            padding: '12px 16px',
+            marginBottom: '1.5rem',
+            background: 'rgba(255, 170, 0, 0.1)',
+            border: '1px solid #ffaa00',
+            borderRadius: 2,
+            fontFamily: 'Share Tech Mono, monospace',
+            fontSize: 12,
+            color: '#ffaa00',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 12,
+          }}
+        >
+          <span>⚠ {error}</span>
+          <button
+            onClick={loadData}
+            style={{
+              background: '#ffaa00',
+              border: 'none',
+              color: '#020b18',
+              fontFamily: 'Rajdhani, sans-serif',
+              fontWeight: 700,
+              fontSize: 12,
+              padding: '4px 14px',
+              borderRadius: 2,
+              cursor: 'pointer',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <div style={{
@@ -282,7 +336,8 @@ export default function Settings() {
 
           {/* Blocklist Table */}
           <Panel title="Enforced Honeypot Blocklist Queue" badge={`${blockedIPs.length} Blocked`} badgeType="live">
-            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <div className="sentinel-table-scroll" role="region" aria-label="Enforced honeypot blocklist" tabIndex={0}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
                   {['Enforced IP', 'Blocked At', 'Triggered By / Author', 'Reason', 'Action'].map(h => (
@@ -349,12 +404,95 @@ export default function Settings() {
                 )}
               </tbody>
             </table>
+            </div>
+          </Panel>
+
+          {/* Security Audit Trail Panel (Admin Only) */}
+          <Panel title="Security & Compliance Audit Trail" badge="AUDIT" badgeType="info">
+            <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <span style={{ fontSize: 12, color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace' }}>
+                Immutable security event history recording privileged operations and authorization decisions.
+              </span>
+              <button
+                onClick={loadData}
+                style={{
+                  background: '#0d3352',
+                  border: '1px solid #1a4a6e',
+                  color: '#00d4ff',
+                  padding: '4px 10px',
+                  borderRadius: 2,
+                  fontFamily: 'Share Tech Mono,monospace',
+                  fontSize: 11,
+                  cursor: 'pointer',
+                }}
+              >
+                Refresh Log
+              </button>
+            </div>
+            <div className="sentinel-table-scroll" role="region" aria-label="Security and compliance audit trail" tabIndex={0}>
+            <table style={{ width: '100%', minWidth: 640, borderCollapse: 'collapse', textAlign: 'left' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid #0d3352', color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>
+                  <th style={{ padding: '8px 10px' }}>TIMESTAMP</th>
+                  <th style={{ padding: '8px 10px' }}>ACTION</th>
+                  <th style={{ padding: '8px 10px' }}>ACTOR</th>
+                  <th style={{ padding: '8px 10px' }}>TARGET</th>
+                  <th style={{ padding: '8px 10px' }}>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {auditLogs.map((log, i) => (
+                  <tr key={log._id || i} style={{ borderBottom: '1px solid rgba(13,51,82,.4)', fontSize: 12 }}>
+                    <td style={{ padding: '10px', color: '#7ab3cc', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>
+                      {log.createdAt ? new Date(log.createdAt).toLocaleString('en-US', { timeZone: REPORT_TIME_ZONE }) : '-'}
+                    </td>
+                    <td style={{ padding: '10px', color: '#00d4ff', fontFamily: 'Share Tech Mono,monospace' }}>
+                      {log.action}
+                    </td>
+                    <td style={{ padding: '10px', color: '#c8e6f5' }}>
+                      {log.actor?.email || 'System'}
+                      {log.actor?.role && (
+                        <span style={{ marginLeft: 6, fontSize: 10, padding: '2px 6px', background: '#081f35', border: '1px solid #1a4a6e', color: '#7ab3cc', borderRadius: 2 }}>
+                          {log.actor.role}
+                        </span>
+                      )}
+                    </td>
+                    <td style={{ padding: '10px', color: '#c8e6f5', fontFamily: 'Share Tech Mono,monospace' }}>
+                      {log.target?.identifier || log.target?.id || '-'}
+                    </td>
+                    <td style={{ padding: '10px' }}>
+                      <span style={{
+                        padding: '2px 8px',
+                        fontSize: 10,
+                        fontFamily: 'Share Tech Mono,monospace',
+                        borderRadius: 2,
+                        background: log.status === 'SUCCESS' || log.status === 'EXECUTED' ? 'rgba(0,255,136,.1)' : 'rgba(255,45,85,.1)',
+                        border: `1px solid ${log.status === 'SUCCESS' || log.status === 'EXECUTED' ? '#00ff88' : '#ff2d55'}`,
+                        color: log.status === 'SUCCESS' || log.status === 'EXECUTED' ? '#00ff88' : '#ff2d55',
+                      }}>
+                        {log.status || 'LOGGED'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+                {auditLogs.length === 0 && (
+                  <tr>
+                    <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
+                      No audit events recorded yet.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+            </div>
           </Panel>
           
         </div>
       )}
 
+
       <ContainmentConfirmModal
+        key={modalOpen ? 'open-' + modalTarget : 'closed'} // fresh duration/reason on every open
         isOpen={modalOpen}
         target={modalTarget}
         threatInfo={{ attackType: modalReason }}

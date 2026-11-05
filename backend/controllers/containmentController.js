@@ -155,10 +155,24 @@ const getStatus = async (req, res, next) => {
   }
 }
 
+/**
+ * GET /api/containment/recovery
+ * Read-only list of containment requests stuck before ACTIVE/FAILED and rules flagged by a fenced request (CONT-003).
+ */
+const getRecovery = async (req, res, next) => {
+  try {
+    const { defaultReconciliationService } = require('../services/containmentReconciliationService')
+    sendSuccess(res, await defaultReconciliationService.getRecoveryReport())
+  } catch (err) {
+    next(err)
+  }
+}
+
 module.exports = {
   requestContainment,
   rollbackContainment,
   getActions,
   getAction,
   getStatus,
+  getRecovery,
 }
