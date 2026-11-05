@@ -59,6 +59,28 @@ const supersededError = (actionDoc) => {
   return error
 }
 
+/**
+ * CONT-006: an operator rollback lost the race to TTL expiry (or another rollback) for the same action. Reports what
+ * the action is now, so callers can tell "released by someone else" from a failed removal.
+ */
+const concurrentReleaseError = async (containmentId) => {
+  let current = null
+  try {
+    current = await ContainmentAction.findOne({ containmentId }).lean()
+  } catch {
+    // reported as unknown below
+  }
+  const status = current?.enforcementStatus || 'UNKNOWN'
+  const error = new Error(
+    `Containment action changed while it was being rolled back (now ${status}); it is being or has been released by another process`
+  )
+  error.statusCode = 409
+  error.code = 'CONTAINMENT_CONCURRENT_RELEASE'
+  error.currentStatus = status
+  error.action = current
+  return error
+}
+
 /** Saves a request-owned transition; a fenced save becomes CONTAINMENT_SUPERSEDED. */
 const fencedSave = async (actionDoc) => {
   try {
@@ -339,6 +361,10 @@ const requestContainment = async ({
   // Step 11: Transition APPLYING -> ACTIVE
   actionDoc.transitionTo('ACTIVE', {
     appliedAt: new Date(),
+    // CONT-005: recorded in the same save as ACTIVE, cleared only after the deny-list/threat sync below succeeded
+    ...(syncLegacyState && {
+      legacySync: { pending: true, reason: cleanReason, threatRef: threatRef || null, attempts: 0 },
+    }),
     enforcementDetails: {
       adapterName: adapter.constructor.name,
       ruleName: adapterResult.ruleName,
@@ -380,7 +406,10 @@ const requestContainment = async ({
     },
   })
 
-  if (syncLegacyState) await syncLegacyBlockState({ normalized, cleanReason, requester, threatRef, actionDoc })
+  if (syncLegacyState) {
+    const synced = await syncLegacyBlockState({ normalized, cleanReason, requester, threatRef, actionDoc })
+    await markLegacySync(actionDoc._id, synced)
+  }
 
   // Step 14: Emit WebSocket events (callers that emit their own, such as auto-block, opt out)
   if (emitEvents) {
@@ -395,7 +424,31 @@ const requestContainment = async ({
   return { success: true, action: actionDoc }
 }
 
+/**
+ * Records the outcome of a post-ACTIVE sync (CONT-005) without a version check: it only describes state written
+ * outside the action, so it must not fence or be fenced by a concurrent rollback.
+ */
+const markLegacySync = async (actionId, { ok, error }) => {
+  try {
+    await ContainmentAction.updateOne(
+      { _id: actionId },
+      ok
+        ? { $set: { 'legacySync.pending': false, 'legacySync.lastError': null } }
+        : { $set: { 'legacySync.lastError': String(error || 'sync failed').slice(0, 500) } }
+    )
+  } catch (err) {
+    // The flag stays pending: the reconciliation pass re-runs the sync
+    logger.error(`[Containment] Could not record deny-list sync for ${actionId}: ${err.message}`)
+  }
+}
+
+/**
+ * Writes the deny-list entry and marks the address's open threats BLOCKED for an ACTIVE action. Idempotent: the
+ * deny-list write is an upsert and threats already BLOCKED are not touched, so it can be re-run by the
+ * reconciliation pass. Returns { ok, error } instead of only logging a failure (CONT-005).
+ */
 const syncLegacyBlockState = async ({ normalized, cleanReason, requester, threatRef, actionDoc }) => {
+  const errors = []
   // Step 12: Maintain Backward Compatibility with BlockedIP
   try {
     await BlockedIP.findOneAndUpdate(
@@ -410,6 +463,7 @@ const syncLegacyBlockState = async ({ normalized, cleanReason, requester, threat
       { upsert: true, new: true }
     )
   } catch (blockedIpErr) {
+    errors.push(`deny-list: ${blockedIpErr.message}`)
     logger.warn(`[Containment] BlockedIP sync warning: ${blockedIpErr.message}`)
   }
 
@@ -432,8 +486,10 @@ const syncLegacyBlockState = async ({ normalized, cleanReason, requester, threat
       await t.save()
     }
   } catch (threatErr) {
+    errors.push(`threats: ${threatErr.message}`)
     logger.warn(`[Containment] Candidate threat update warning: ${threatErr.message}`)
   }
+  return { ok: errors.length === 0, error: errors.join('; ') || null }
 }
 
 /**
@@ -464,9 +520,15 @@ const rollbackContainment = async ({ containmentId, operator, reason, releaseLeg
   const correlationId = uuidv4()
   const cleanReason = reason || 'Manual operator rollback'
 
-  // Step 1: Transition to ROLLING_BACK
+  // Step 1: Transition to ROLLING_BACK. VersionError: another path (TTL expiry, a second operator) changed the action
+  // since it was loaded. The version check stays; the caller gets the current state as a 409 instead of a 500.
   actionDoc.transitionTo('ROLLING_BACK')
-  await actionDoc.save()
+  try {
+    await actionDoc.save()
+  } catch (err) {
+    if (!isFenced(err)) throw err
+    throw await concurrentReleaseError(containmentId)
+  }
 
   logContainmentAudit({
     action: 'ROLLBACK_INITIATED',
@@ -649,6 +711,16 @@ const releaseManualBlock = async ({ ip, operator }) => {
       })
       results.push({ containmentId: action.containmentId, status: 'ROLLED_BACK' })
     } catch (err) {
+      if (err.code === 'CONTAINMENT_CONCURRENT_RELEASE') {
+        // TTL expiry (or another operator) is releasing this rule: not a failed removal (CONT-006)
+        logger.info(`[Containment] ${action.containmentId} for ${ip} released concurrently (${err.currentStatus})`)
+        results.push({
+          containmentId: action.containmentId,
+          status: 'RELEASED_CONCURRENTLY',
+          current: err.currentStatus,
+        })
+        continue
+      }
       logger.error(`[Containment] Adapter rule removal failed for ${ip} (${action.containmentId}): ${err.message}`)
       results.push({ containmentId: action.containmentId, status: 'ROLLBACK_FAILED', error: err.message })
     }
@@ -1114,6 +1186,9 @@ module.exports = {
   executeAutoBlock,
   enforceManualBlock,
   releaseManualBlock,
+  syncLegacyBlockState,
+  markLegacySync,
+  releaseLegacyBlockState,
   MANUAL_BLOCK_DURATION_SECONDS,
   AUTO_BLOCK_REQUESTER,
 }

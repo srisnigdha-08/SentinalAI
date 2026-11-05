@@ -259,7 +259,7 @@ describe('operator view of recovery problems (GET /api/containment/recovery)', (
   test('nothing to investigate: empty report', async () => {
     await request()
     const report = await new ContainmentReconciliationService().getRecoveryReport()
-    expect(report.counts).toEqual({ stuck: 0, lateRulesUnremoved: 0, needsInvestigation: 0 })
+    expect(report.counts).toEqual({ stuck: 0, lateRulesUnremoved: 0, legacySyncPending: 0, needsInvestigation: 0 })
     expect(report.items).toEqual([])
   })
 })

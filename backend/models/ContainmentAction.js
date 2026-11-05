@@ -174,6 +174,20 @@ const ContainmentActionSchema = new mongoose.Schema(
       // PRESENT_UNREMOVED while the rule may still exist (retried by the reconciliation pass, never silently dropped)
       lateRule: { type: String, enum: [null, 'REMOVED', 'PRESENT_UNREMOVED'], default: null },
       lateRuleAt: { type: Date, default: null },
+      // CONT-007: bounded exponential back-off for the late-rule retry (never releases anything when exhausted)
+      lateRuleAttempts: { type: Number, default: 0 },
+      lateRuleNextAttemptAt: { type: Date, default: null },
+      lateRuleLastError: { type: String, default: null, maxlength: 500 },
+    },
+    // CONT-005: the deny-list entry and threat statuses written after ACTIVE. pending is set in the ACTIVE save and
+    // cleared once that sync succeeded; the reconciliation pass re-runs the (idempotent) sync while it is set.
+    legacySync: {
+      pending: { type: Boolean, default: false },
+      reason: { type: String, default: null, maxlength: 200 },
+      threatRef: { type: mongoose.Schema.Types.ObjectId, default: null },
+      attempts: { type: Number, default: 0 },
+      lastAttemptAt: { type: Date, default: null },
+      lastError: { type: String, default: null, maxlength: 500 },
     },
     correlationId: {
       type: String,

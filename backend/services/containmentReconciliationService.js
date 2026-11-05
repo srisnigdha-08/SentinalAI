@@ -20,12 +20,19 @@ const { restoreStatusFor } = require('../utils/severity')
 const STUCK_GRACE_MS = () => parseInt(process.env.CONTAINMENT_STUCK_GRACE_MS, 10) || 5 * 60000
 // Statuses of a request that holds targetLock but has not reached ACTIVE or FAILED
 const IN_FLIGHT_STATUSES = ['VALIDATING', 'APPROVED', 'APPLYING']
+// CONT-007: late-rule retry back-off, 1, 2, 4 ... minutes, capped at an hour
+const LATE_RULE_BASE_DELAY_MS = 60000
+const LATE_RULE_MAX_DELAY_MS = 60 * 60000
+// CONT-005: how long the original request gets to write the deny-list/threat state itself after ACTIVE
+const LEGACY_SYNC_GRACE_MS = () => parseInt(process.env.CONTAINMENT_LEGACY_SYNC_GRACE_MS, 10) || 60000
 
 class ContainmentReconciliationService {
   constructor(options = {}) {
     this.intervalMs = options.intervalMs || 60000 // 1 minute default
     this.stuckGraceMs = options.stuckGraceMs || STUCK_GRACE_MS()
-    this.lastCounts = { stuck: 0, lateRulesUnremoved: 0, needsInvestigation: 0 } // from the last periodic pass
+    this.legacySyncGraceMs = options.legacySyncGraceMs || LEGACY_SYNC_GRACE_MS()
+    // from the last periodic pass
+    this.lastCounts = { stuck: 0, lateRulesUnremoved: 0, legacySyncPending: 0, needsInvestigation: 0 }
     this.timer = null
     this.isRunning = false
   }
@@ -59,13 +66,14 @@ class ContainmentReconciliationService {
     const expiredActions = [...byId.values()]
 
     if (expiredActions.length === 0) {
-      return { processed: 0, successful: 0, failed: 0, actions: [] }
+      return { processed: 0, successful: 0, failed: 0, skipped: 0, actions: [] }
     }
 
     logger.info(`[ContainmentReconciliation] Found ${expiredActions.length} expired containment actions to reconcile`)
 
     let successful = 0
     let failed = 0
+    let skipped = 0
     const processedSummaries = []
 
     for (const action of expiredActions) {
@@ -159,6 +167,14 @@ class ContainmentReconciliationService {
           `[ContainmentReconciliation] Successfully rolled back expired containment ${action.containmentId} for ${action.normalizedTarget}`
         )
       } catch (err) {
+        if (err?.name === 'VersionError') {
+          // CONT-006: an operator rollback (or another worker) changed this action after it was loaded; that path
+          // owns the release now. Not a failure: nothing was done here and the version check prevented a conflict.
+          logger.info(`[ContainmentReconciliation] ${action.containmentId} changed concurrently; left to its owner`)
+          skipped++
+          processedSummaries.push({ containmentId: action.containmentId, status: 'SKIPPED_CONCURRENT' })
+          continue
+        }
         logger.error(`[ContainmentReconciliation] Error reconciling action ${action.containmentId}: ${err.message}`)
         failed++
         processedSummaries.push({ containmentId: action.containmentId, status: 'ERROR', error: err.message })
@@ -169,6 +185,7 @@ class ContainmentReconciliationService {
       processed: expiredActions.length,
       successful,
       failed,
+      skipped,
       actions: processedSummaries,
     }
   }
@@ -278,8 +295,12 @@ class ContainmentReconciliationService {
    * confirm (recovery.lateRule PRESENT_UNREMOVED). Removed and confirmed ABSENT -> REMOVED; anything else stays
    * flagged (never assumed gone) and is retried on the next pass.
    */
-  async removeLateRules() {
-    const flagged = await ContainmentAction.find({ 'recovery.lateRule': 'PRESENT_UNREMOVED' })
+  async removeLateRules(now = new Date()) {
+    // CONT-007: only rules whose back-off has elapsed, so an unavailable adapter is not hit on every pass
+    const flagged = await ContainmentAction.find({
+      'recovery.lateRule': 'PRESENT_UNREMOVED',
+      $or: [{ 'recovery.lateRuleNextAttemptAt': null }, { 'recovery.lateRuleNextAttemptAt': { $lte: now } }],
+    })
     const summary = { processed: 0, removed: 0, unresolved: 0 }
     const adapter = getContainmentAdapter()
     for (const action of flagged || []) {
@@ -307,14 +328,97 @@ class ContainmentReconciliationService {
       if (state === 'ABSENT') {
         await ContainmentAction.updateOne(
           { _id: action._id, 'recovery.lateRule': 'PRESENT_UNREMOVED' },
-          { $set: { 'recovery.lateRule': 'REMOVED', 'recovery.lateRuleAt': new Date() } }
+          {
+            $set: {
+              'recovery.lateRule': 'REMOVED',
+              'recovery.lateRuleAt': now,
+              'recovery.lateRuleNextAttemptAt': null,
+              'recovery.lateRuleLastError': null,
+            },
+          }
         )
         summary.removed++
         logContainmentAudit({ action: 'LATE_RULE_REMOVED', containmentId: action.containmentId, target: rule.target })
       } else {
         summary.unresolved++
+        const attempts = (action.recovery?.lateRuleAttempts || 0) + 1
+        const delay = Math.min(LATE_RULE_BASE_DELAY_MS * 2 ** (attempts - 1), LATE_RULE_MAX_DELAY_MS)
+        // The flag stays PRESENT_UNREMOVED however many attempts fail: the rule may still be enforced
+        await ContainmentAction.updateOne(
+          { _id: action._id, 'recovery.lateRule': 'PRESENT_UNREMOVED' },
+          {
+            $set: {
+              'recovery.lateRuleAttempts': attempts,
+              'recovery.lateRuleNextAttemptAt': new Date(now.getTime() + delay),
+              'recovery.lateRuleLastError': String(state || 'no answer').slice(0, 500),
+            },
+          }
+        )
         logger.warn(
-          `[ContainmentReconciliation] late rule of ${action.containmentId} (${rule.target}) still unconfirmed: ${state}`
+          `[ContainmentReconciliation] late rule of ${action.containmentId} (${rule.target}) still unconfirmed: ${state}; ` +
+            `attempt ${attempts}, next in ${Math.round(delay / 1000)} s`
+        )
+      }
+    }
+    return summary
+  }
+
+  /**
+   * CONT-005: ACTIVE actions whose deny-list entry / threat statuses were not written (MongoDB failure or a stop right
+   * after the ACTIVE save). Re-runs the idempotent sync once the original request had its chance (legacySyncGraceMs).
+   * Claimed per action without a version bump, so a concurrent rollback is not fenced; if the action stopped being
+   * ACTIVE while the sync ran, the sync is undone (releaseLegacyBlockState) so a released address is not re-blocked.
+   */
+  async resyncLegacyState(now = new Date()) {
+    const containment = require('./containmentService')
+    const cutoff = new Date(now.getTime() - this.legacySyncGraceMs)
+    const candidates = await ContainmentAction.find({
+      enforcementStatus: 'ACTIVE',
+      'legacySync.pending': true,
+      updatedAt: { $lte: cutoff },
+    })
+      .select('_id legacySync')
+      .lean()
+    const summary = { processed: 0, synced: 0, failed: 0, compensated: 0 }
+    for (const candidate of candidates) {
+      const action = await ContainmentAction.findOneAndUpdate(
+        {
+          _id: candidate._id,
+          enforcementStatus: 'ACTIVE',
+          'legacySync.pending': true,
+          'legacySync.lastAttemptAt': candidate.legacySync?.lastAttemptAt ?? null,
+        },
+        { $set: { 'legacySync.lastAttemptAt': now }, $inc: { 'legacySync.attempts': 1 } },
+        { new: true }
+      )
+      if (!action) continue // claimed by another pass, or released meanwhile
+      summary.processed++
+      const result = await containment.syncLegacyBlockState({
+        normalized: action.normalizedTarget,
+        cleanReason: action.legacySync.reason || `Containment ${action.containmentId}`,
+        requester: action.requestedBy ? { id: String(action.requestedBy) } : null,
+        threatRef: action.legacySync.threatRef || null,
+        actionDoc: action,
+      })
+      const fresh = await ContainmentAction.findById(action._id).lean()
+      if (fresh && fresh.enforcementStatus !== 'ACTIVE') {
+        await containment.releaseLegacyBlockState(fresh, null) // released while syncing: undo what was written
+        await containment.markLegacySync(action._id, { ok: true })
+        summary.compensated++
+        continue
+      }
+      await containment.markLegacySync(action._id, result)
+      if (result.ok) {
+        summary.synced++
+        logContainmentAudit({
+          action: 'LEGACY_STATE_RESYNCED',
+          containmentId: action.containmentId,
+          target: action.normalizedTarget,
+        })
+      } else {
+        summary.failed++
+        logger.warn(
+          `[ContainmentReconciliation] deny-list sync of ${action.containmentId} still failing: ${result.error}`
         )
       }
     }
@@ -330,16 +434,19 @@ class ContainmentReconciliationService {
   async getRecoveryReport(now = new Date()) {
     const VERIFIED = { NOT_APPLIED: 'not applied', RULE_ABSENT: 'absent', RULE_REMOVED: 'removed' }
     const cutoff = new Date(now.getTime() - this.stuckGraceMs)
-    const [stuck, late] = await Promise.all([
+    const [stuck, late, legacy] = await Promise.all([
       ContainmentAction.find({ enforcementStatus: { $in: IN_FLIGHT_STATUSES }, updatedAt: { $lte: cutoff } })
         .sort({ updatedAt: 1 })
         .limit(100)
         .lean(),
       ContainmentAction.find({ 'recovery.lateRule': 'PRESENT_UNREMOVED' }).limit(100).lean(),
+      // CONT-005: ACTIVE actions whose deny-list entry / threat statuses are not written yet
+      ContainmentAction.find({ enforcementStatus: 'ACTIVE', 'legacySync.pending': true }).limit(100).lean(),
     ])
     const view = (a) => {
       const recovery = a.recovery || {}
       const ruleState = VERIFIED[recovery.lastOutcome] || null
+      const legacySyncPending = Boolean(a.legacySync?.pending) && a.enforcementStatus === 'ACTIVE'
       return {
         containmentId: a.containmentId,
         target: a.normalizedTarget,
@@ -351,18 +458,31 @@ class ContainmentReconciliationService {
         lastOutcome: recovery.lastOutcome || null,
         lastDetail: recovery.lastDetail || null,
         lateRule: recovery.lateRule || null,
+        lateRuleAttempts: recovery.lateRuleAttempts || 0,
+        lateRuleNextAttemptAt: recovery.lateRuleNextAttemptAt || null,
+        lateRuleLastError: recovery.lateRuleLastError || null,
+        legacySyncPending,
+        legacySyncAttempts: legacySyncPending ? a.legacySync.attempts || 0 : 0,
+        legacySyncLastError: legacySyncPending ? a.legacySync.lastError || null : null,
         ruleVerified: Boolean(ruleState) && recovery.lateRule !== 'PRESENT_UNREMOVED',
         // Not yet attempted means the next pass will try; anything attempted and still here needs a person
-        needsInvestigation: recovery.lateRule === 'PRESENT_UNREMOVED' || (recovery.attempts || 0) > 0,
+        needsInvestigation:
+          recovery.lateRule === 'PRESENT_UNREMOVED' ||
+          (IN_FLIGHT_STATUSES.includes(a.enforcementStatus) && (recovery.attempts || 0) > 0) ||
+          (legacySyncPending && (a.legacySync.attempts || 0) > 0),
       }
     }
-    const items = [...stuck.map(view), ...late.map(view)]
+    // One row per action even if it is in more than one list
+    const byId = new Map()
+    for (const a of [...stuck, ...late, ...legacy]) byId.set(String(a._id), a)
+    const items = [...byId.values()].map(view)
     return {
       generatedAt: now,
       graceSeconds: Math.round(this.stuckGraceMs / 1000),
       counts: {
         stuck: stuck.length,
         lateRulesUnremoved: late.length,
+        legacySyncPending: legacy.length,
         needsInvestigation: items.filter((i) => i.needsInvestigation).length,
       },
       items,
@@ -374,12 +494,13 @@ class ContainmentReconciliationService {
     const ttl = await this.reconcileExpiredActions()
     const recovered = await this.recoverAbandonedApplications()
     const lateRules = await this.removeLateRules()
+    const legacySync = await this.resyncLegacyState()
     try {
       this.lastCounts = (await this.getRecoveryReport()).counts // read by the Prometheus gauge
     } catch (err) {
       logger.warn(`[ContainmentReconciliation] recovery report failed: ${err.message}`)
     }
-    return { ttl, recovered, lateRules }
+    return { ttl, recovered, lateRules, legacySync }
   }
 
   start() {
