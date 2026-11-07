@@ -3,6 +3,7 @@ process.env.JWT_SECRET = 'test-health-access-secret-0123456789'
 process.env.JWT_REFRESH_SECRET = 'test-health-refresh-secret-0123456789'
 process.env.HONEYPOT_API_KEY = 'test-health-honeypot-secret-0123456789'
 process.env.SENTINEL_KEY = 'test-health-sentinel-secret-0123456789'
+process.env.HEALTH_READY_AI_CACHE_MS = '0' // these tests switch the AI state between requests
 /**
  * F-03: GET /health is a strict "every dependency healthy" check, so it answered 503 whenever only the AI engine was
  * down although the backend keeps serving safely in degraded mode (threats held as MONITOR, never blocked). An
@@ -82,5 +83,19 @@ test('liveness never calls a dependency, and no endpoint reports versions or err
   const ready = await request(app).get('/health/ready')
   for (const body of [live.body, ready.body]) {
     expect(JSON.stringify(body)).not.toMatch(/down|error|version|mongodb:\/\//i)
+  }
+})
+
+test('readiness probes the AI engine at most once per cache window, also under concurrent requests', async () => {
+  state(true, true, true)
+  process.env.HEALTH_READY_AI_CACHE_MS = '5000'
+  try {
+    mockAi.getHealth.mockClear()
+    await Promise.all(Array.from({ length: 20 }, () => request(app).get('/health/ready')))
+    await request(app).get('/health/ready')
+    // at most one: a probe cached by the previous test may still be fresh (was one engine call per request)
+    expect(mockAi.getHealth.mock.calls.length).toBeLessThanOrEqual(1)
+  } finally {
+    process.env.HEALTH_READY_AI_CACHE_MS = '0'
   }
 })

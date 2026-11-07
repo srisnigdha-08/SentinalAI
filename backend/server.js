@@ -189,15 +189,25 @@ app.get('/health', async (_, res) => {
 app.get('/health/live', (_, res) =>
   res.status(200).json({ status: 'alive', uptimeSeconds: Math.round(process.uptime()) })
 )
+// The AI engine answer is cached briefly and shared by concurrent probes: /health/ready is unauthenticated, and
+// one engine call (two HTTP requests) per probe would let anyone multiply load on the engine.
+let readyAiProbe = { at: 0, promise: null }
+const readyAiOk = () => {
+  const ttl = Number(process.env.HEALTH_READY_AI_CACHE_MS ?? 5000)
+  if (readyAiProbe.promise && Date.now() - readyAiProbe.at < ttl) return readyAiProbe.promise
+  const aiSvc = require('./services/aiEngineService')
+  const promise = Promise.resolve()
+    .then(() => aiSvc.getHealth())
+    .then(
+      (h) => h?.status === 'ok',
+      () => false
+    )
+  readyAiProbe = { at: Date.now(), promise }
+  return promise
+}
 app.get('/health/ready', async (_, res) => {
   const mongoose = require('mongoose')
-  const aiSvc = require('./services/aiEngineService')
-  let aiOk = false
-  try {
-    aiOk = (await aiSvc.getHealth())?.status === 'ok'
-  } catch {
-    aiOk = false
-  }
+  const aiOk = await readyAiOk()
   const dbOk = mongoose.connection.readyState === 1
   const revocationOk = revocationDelivery.available()
   const ready = dbOk && revocationOk
