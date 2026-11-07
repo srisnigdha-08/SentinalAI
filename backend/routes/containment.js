@@ -9,6 +9,7 @@ const {
   getAction,
   getStatus,
   getRecovery,
+  getAuditTrail,
 } = require('../controllers/containmentController')
 const { protect, restrictTo } = require('../middleware/auth')
 
@@ -159,5 +160,28 @@ router.get('/actions/:id', restrictTo('admin', 'analyst'), getAction)
  *         description: Action not found
  */
 router.post('/actions/:id/rollback', restrictTo('admin', 'analyst'), rollbackContainment)
+
+/**
+ * @openapi
+ * /containment/actions/{id}/audit:
+ *   get:
+ *     tags:
+ *       - Containment & Response
+ *     summary: Durable audit trail of one containment action, in database-assigned order (read-only)
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Audit events, oldest first
+ *       404:
+ *         description: Action not found
+ */
+router.get('/actions/:id/audit', restrictTo('admin', 'analyst'), getAuditTrail)
 
 module.exports = router

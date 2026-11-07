@@ -248,6 +248,8 @@ class ContainmentReconciliationService {
         target: action.normalizedTarget,
         enforcementStatus: action.enforcementStatus,
         details: { outcome, detail, attempts: action.recovery.attempts },
+        // one durable record per recovery attempt, even if this pass's audit write is retried (F-07)
+        eventKey: released ? null : `RECOVERY_DEFERRED:${action.recovery.attempts}`,
       })
       if (released) summary.released++
       else {

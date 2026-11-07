@@ -168,6 +168,39 @@ const getRecovery = async (req, res, next) => {
   }
 }
 
+/**
+ * GET /api/containment/actions/:id/audit
+ * Durable audit trail of one containment action (F-07), oldest first, in database-assigned order.
+ */
+const getAuditTrail = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    if (typeof id !== 'string' || id.length > 128) return sendError(res, 'Containment action not found', 404)
+    let action = await ContainmentAction.findOne({ containmentId: id }).select('containmentId').lean()
+    if (!action && /^[0-9a-fA-F]{24}$/.test(id))
+      action = await ContainmentAction.findById(id).select('containmentId').lean()
+    if (!action) return sendError(res, 'Containment action not found', 404)
+
+    const ContainmentAuditEvent = require('../models/ContainmentAuditEvent')
+    const LIMIT = 500
+    const events = await ContainmentAuditEvent.find({ containmentId: action.containmentId })
+      .sort({ seq: 1 })
+      .limit(LIMIT + 1)
+      .select('-_id')
+      .lean()
+    const { containmentAuditBacklog } = require('../utils/containmentAudit')
+    sendSuccess(res, {
+      containmentId: action.containmentId,
+      events: events.slice(0, LIMIT),
+      truncated: events.length > LIMIT,
+      // events still waiting for MongoDB (whole process, not only this action): the trail may be incomplete
+      pendingDurableWrites: containmentAuditBacklog().queued,
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
 module.exports = {
   requestContainment,
   rollbackContainment,
@@ -175,4 +208,5 @@ module.exports = {
   getAction,
   getStatus,
   getRecovery,
+  getAuditTrail,
 }

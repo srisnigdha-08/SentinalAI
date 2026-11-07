@@ -182,6 +182,7 @@ jest.mock('../controllers/containmentController', () => ({
   requestContainment: jest.fn((req, res) => res.status(201).json({ success: true, data: { actionId: 'act-1' } })),
   rollbackContainment: jest.fn((req, res) => res.json({ success: true, data: { rolledBack: true } })),
   getRecovery: jest.fn((req, res) => res.json({ success: true, data: { counts: {}, items: [] } })),
+  getAuditTrail: jest.fn((req, res) => res.json({ success: true, data: { events: [] } })),
 }))
 
 jest.mock('../utils/logger', () => ({
@@ -599,6 +600,12 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     {
       method: 'post',
       path: '/api/containment/actions/:id/rollback',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    // F-07: durable audit trail; same access as the action itself
+    {
+      method: 'get',
+      path: '/api/containment/actions/:id/audit',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
     },
 
