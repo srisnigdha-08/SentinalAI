@@ -201,7 +201,34 @@ const getAuditTrail = async (req, res, next) => {
   }
 }
 
+/** GET /api/containment/actions/:id/recovery-diagnosis (admin). Read-only; see services/containmentOperatorRecovery. */
+const diagnoseRecovery = async (req, res, next) => {
+  const { diagnose, RecoveryError } = require('../services/containmentOperatorRecovery')
+  try {
+    res.set('Cache-Control', 'no-store')
+    sendSuccess(res, await diagnose(req.params.id, req.user))
+  } catch (err) {
+    if (err instanceof RecoveryError) return sendError(res, err.message, err.statusCode)
+    next(err)
+  }
+}
+
+/** POST /api/containment/actions/:id/recover (admin, trusted Origin, confirmation token from the diagnosis). */
+const operatorRecover = async (req, res, next) => {
+  const { recover, RecoveryError } = require('../services/containmentOperatorRecovery')
+  try {
+    res.set('Cache-Control', 'no-store')
+    const result = await recover(req.params.id, req.body || {}, req.user)
+    sendSuccess(res, result, result.released ? 'Recovered and released' : 'Not released: lock kept')
+  } catch (err) {
+    if (err instanceof RecoveryError) return sendError(res, err.message, err.statusCode)
+    next(err)
+  }
+}
+
 module.exports = {
+  diagnoseRecovery,
+  operatorRecover,
   requestContainment,
   rollbackContainment,
   getActions,

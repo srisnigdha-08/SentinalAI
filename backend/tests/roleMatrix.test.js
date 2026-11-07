@@ -183,6 +183,8 @@ jest.mock('../controllers/containmentController', () => ({
   rollbackContainment: jest.fn((req, res) => res.json({ success: true, data: { rolledBack: true } })),
   getRecovery: jest.fn((req, res) => res.json({ success: true, data: { counts: {}, items: [] } })),
   getAuditTrail: jest.fn((req, res) => res.json({ success: true, data: { events: [] } })),
+  diagnoseRecovery: jest.fn((req, res) => res.json({ success: true, data: { recoverable: false } })),
+  operatorRecover: jest.fn((req, res) => res.json({ success: true, data: { released: false } })),
 }))
 
 jest.mock('../utils/logger', () => ({
@@ -608,6 +610,18 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       path: '/api/containment/actions/:id/audit',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
     },
+    // CONT-R2: operator recovery is admin-only; the mutation also needs a trusted Origin, which this loop does not
+    // send, so admin is 403 here (the Origin cases are tested separately below)
+    {
+      method: 'get',
+      path: '/api/containment/actions/:id/recovery-diagnosis',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/containment/actions/:id/recover',
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 403 },
+    },
 
     // 5. Honeypot Ingest (internalAuth) - 401 without X-API-KEY
     {
@@ -917,6 +931,36 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     expect(unmappedInMatrix).toEqual([])
     expect(extraInMatrix).toEqual([])
     expect(matrixKeys.size).toBe(extractedKeys.size)
+  })
+
+  describe('CONT-R2: operator recovery requires a trusted Origin', () => {
+    const url = () => `/api/containment/actions/${dummyId}/recover`
+    const { allowedOrigins } = require('../middleware/authCookies')
+    test('admin with the client Origin: allowed', async () => {
+      const res = await request(app)
+        .post(url())
+        .set('Authorization', `Bearer ${tokens.admin}`)
+        .set('Origin', allowedOrigins()[0])
+        .send({})
+      expect(res.status).toBe(200)
+    })
+    test('admin from a foreign Origin, or a cross-site fetch: rejected', async () => {
+      for (const headers of [
+        { Origin: 'https://evil.example' },
+        { Origin: allowedOrigins()[0], 'Sec-Fetch-Site': 'cross-site' },
+      ]) {
+        const res = await request(app).post(url()).set('Authorization', `Bearer ${tokens.admin}`).set(headers).send({})
+        expect(res.status).toBe(403)
+      }
+    })
+    test('analyst with the client Origin: still forbidden', async () => {
+      const res = await request(app)
+        .post(url())
+        .set('Authorization', `Bearer ${tokens.analyst}`)
+        .set('Origin', allowedOrigins()[0])
+        .send({})
+      expect(res.status).toBe(403)
+    })
   })
 
   // 81 endpoints x 4 roles = 324 dynamic matrix assertions
