@@ -25,6 +25,19 @@ const SOURCES = [
   ['315700c', 'scratch/run_browser_script.mjs'],
   ['a7fa029', 'scratch/run_all_verify.ps1'],
 ]
+// The nine records the leaked passwords unlocked when SEC-001 was assessed (audit/SEC001_ROTATION_RUNBOOK.md).
+// Only these decide the result; any other record is reported 'n/a' unless a leaked password still unlocks it.
+const DEFAULT_AFFECTED = [
+  'sentinel-db/admin@sentinel.io',
+  'sentinel-db/arjun@sentinel.io',
+  'sentinel-db/priya@sentinel.io',
+  'sentinel-db/sara@sentinel.io',
+  'sentinel-demo/admin@sentinel.io',
+  'sentinel-demo/arjun@sentinel.io',
+  'sentinel-demo/priya@sentinel.io',
+  'sentinel-demo/sara@sentinel.io',
+  'sentinel-demo/pallavi@sentinel.io',
+]
 const ASSIGN = /\b[$\w.]*pass(?:word|wd)?\w*['"]?\s*[:=]\s*(['"`])([^'"`\r\n]{6,200})\1/gi
 
 function arg(name, all = false) {
@@ -102,28 +115,46 @@ async function main() {
   if (!candidates.size) throw new Error('no candidate values found; refusing to report "resolved"')
   const client = new MongoClient(uri, { serverSelectionTimeoutMS: 5000, readPreference: 'primaryPreferred' })
   await client.connect()
+  const affectedArgs = arg('--affected', true)
+  const affected = new Set((affectedArgs.length ? affectedArgs : DEFAULT_AFFECTED).map((x) => x.toLowerCase()))
   let unresolved = 0
+  let affectedChecked = 0
   try {
     for (const name of names) {
       const rows = await checkDatabase(client, name, candidates, bcrypt)
       console.log(`\n${name}: ${rows.length} account(s)`)
+      const seen = new Set()
       for (const r of rows) {
-        const bad = r.leakedValid || r.preChangeOpen > 0
-        if (bad) unresolved++
+        const key = `${name}/${String(r.email).toLowerCase()}`.toLowerCase()
+        const isAffected = affected.has(key)
+        if (isAffected) {
+          affectedChecked++
+          seen.add(key)
+        }
+        // A leaked password that still works is open on any record; sessions only matter for affected records.
+        const status = r.leakedValid || (isAffected && r.preChangeOpen > 0) ? 'OPEN' : isAffected ? 'ok' : 'n/a'
+        if (status === 'OPEN') unresolved++
         console.log(
-          `  ${bad ? 'OPEN    ' : 'ok      '} ${r.email.padEnd(28)} ${String(r.role).padEnd(8)} ${String(r.status).padEnd(9)} ` +
+          `  ${status.padEnd(8)} ${r.email.padEnd(28)} ${String(r.role).padEnd(8)} ${String(r.status).padEnd(9)} ` +
             `leaked password valid: ${r.leakedValid ? 'YES' : 'no '}  password changed: ${r.passwordChanged}  ` +
-            `open sessions: ${r.openSessions} (pre-change: ${r.preChangeOpen})`
+            `open sessions: ${r.openSessions} (pre-change: ${r.preChangeOpen})${isAffected ? '' : '  [not an affected record]'}`
         )
+      }
+      for (const key of affected) {
+        if (key.startsWith(name.toLowerCase() + '/') && !seen.has(key)) {
+          unresolved++
+          console.log(`  MISSING  ${key.slice(name.length + 1)} (affected record not found: not counted as resolved)`)
+        }
       }
     }
   } finally {
     await client.close()
   }
+  console.log(`\naffected records: ${affectedChecked} checked, ${unresolved} open`)
   console.log(
     unresolved
-      ? `\nSEC-001 NOT resolved: ${unresolved} account record(s) still affected.`
-      : '\nNo leaked password is valid and no pre-change session is open in the checked databases.'
+      ? `SEC-001 NOT resolved: ${unresolved} record(s) still open (leaked password valid, pre-change session open, or missing).`
+      : 'No leaked password is valid and no pre-change session of an affected record is open in the checked databases.'
   )
   return unresolved ? 1 : 0
 }
