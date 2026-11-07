@@ -449,6 +449,9 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     // 1. Root & Health
     { method: 'get', path: '/', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/health', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
+    // F-03: unauthenticated probes, like /health; they report dependency states only.
+    { method: 'get', path: '/health/live', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
+    { method: 'get', path: '/health/ready', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
     // Not JWT-gated: METRICS_TOKEN when set, otherwise loopback only; supertest connects over loopback.
     { method: 'get', path: '/metrics', expected: { 'no-token': 200, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/system/health', expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 } },

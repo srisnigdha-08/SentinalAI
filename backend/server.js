@@ -182,6 +182,34 @@ app.get('/health', async (_, res) => {
     status: ready ? 'ok' : 'unavailable',
   })
 })
+// F-03. /health above stays strict (every dependency healthy) for existing consumers. These two separate the
+// questions an orchestrator asks: is the process alive (never restart it for a dependency outage), and can it
+// serve requests. MongoDB and revocation delivery are required to serve; the AI engine is reported but optional,
+// because without it the backend holds threats as MONITOR and never blocks (degraded, still safe).
+app.get('/health/live', (_, res) =>
+  res.status(200).json({ status: 'alive', uptimeSeconds: Math.round(process.uptime()) })
+)
+app.get('/health/ready', async (_, res) => {
+  const mongoose = require('mongoose')
+  const aiSvc = require('./services/aiEngineService')
+  let aiOk = false
+  try {
+    aiOk = (await aiSvc.getHealth())?.status === 'ok'
+  } catch {
+    aiOk = false
+  }
+  const dbOk = mongoose.connection.readyState === 1
+  const revocationOk = revocationDelivery.available()
+  const ready = dbOk && revocationOk
+  res.status(ready ? 200 : 503).json({
+    status: ready ? (aiOk ? 'ready' : 'degraded') : 'unavailable',
+    dependencies: {
+      database: dbOk ? 'connected' : 'disconnected',
+      aiEngine: aiOk ? 'available' : 'unavailable',
+      revocation: revocationOk ? 'available' : 'unavailable',
+    },
+  })
+})
 const { protect: authProtect, requirePermission: authRequirePermission } = require('./middleware/auth')
 
 app.get('/api/system/health', authProtect, authRequirePermission('system:telemetry_full'), async (_, res) => {
