@@ -26,7 +26,12 @@
       "services/**/*.js",
       "utils/**/*.js",
       "controllers/**/*.js",
-      "middleware/**/*.js"
+      "middleware/**/*.js",
+      "websocket/**/*.js",
+      "routes/**/*.js",
+      "models/**/*.js",
+      "config/**/*.js",
+      "server.js"
     ],
     "coveragePathIgnorePatterns": [
       "/node_modules/"
