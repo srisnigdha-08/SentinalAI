@@ -68,3 +68,20 @@ The load section raised `RATE_LIMIT_MAX` for the probe process only.
 ML models, Isolation Forest, registry hashes, Q-tables, RL behaviour, thresholds; real firewall enforcement;
 the developer's MongoDB installation and databases; credentials; Git history; network exposure; standalone
 MongoDB support.
+
+## G. Pre-PR safety review (addendum)
+
+Six defects found by reviewing the diff (not by the earlier tests), each fixed with a regression test that fails
+on the previous code: REV-001 … REV-006 in `FINDINGS.md` (commits fc1064b, 3452bbf, bd01bfc, 6cdcd2f, 435abc1).
+TEST-012 root cause: orphaned test processes from an aborted run plus post-install scanning; no harness defect.
+SEC-001: owner runbook `SEC001_ROTATION_RUNBOOK.md` and read-only checker `scripts/security/sec001_check.cjs`.
+
+Audit durability guarantees (F-07): stored events survive MongoDB restarts (probe); retries cannot duplicate
+(unique eventId, tested); per-action order is preserved across outages (tested); events queued during an outage
+are in memory only and are lost if the process dies before MongoDB returns (still in the application log);
+shutdown waits for in-flight writes and flushes once (finalizer).
+
+Final verification after the review fixes: backend Jest 1438 passed / 13 skipped in 2 consecutive full runs (no
+start timeouts); integration harness 36/36 (`runs/20261107_121210`); live probe all expected; load 0 5xx
+(/health/ready 2766 req/s p95 12 ms, /api/threats 273 req/s p95 102 ms); frontend 84/84, lint, build; secret scans
+0; models, registry and Q-tables unchanged; `db-fixes` still `f04eae0`.

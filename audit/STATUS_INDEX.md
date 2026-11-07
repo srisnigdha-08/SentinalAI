@@ -7,7 +7,7 @@ row) that states one, else from the latest status cell for it in `FIXES.md`. NO 
 file states one: it is not evidence that the finding is fixed, or that it is still open. "Entries" links every
 line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand in `status_overrides.json`.
 
-113 findings. FIXED / CLOSED: 71 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 6 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
+119 findings. FIXED / CLOSED: 78 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 5 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
 
 | ID | Priority | Current status | Status taken from (truncated) | Entries |
 |---|---|---|---|---|
@@ -90,6 +90,12 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | PR-001 | P3 | DOCUMENTED / PREPARED | [1180](FINDINGS.md#L1180): CLEANUP PREPARED (uncommitted) | [1110](FINDINGS.md#L1110), [1180](FINDINGS.md#L1180) |
 | REPRO-001 | P3 | FIXED / CLOSED | [791](FINDINGS.md#L791): CONFIRMED / FIXED 2026-11-03 | [791](FINDINGS.md#L791), [fix 341](FIXES.md#L341) |
 | RET-001 | P2 | OWNER ACTION / ACCEPTED | [fix 146](FIXES.md#L146): REQUIRES APPROVAL | [364](FINDINGS.md#L364), [fix 146](FIXES.md#L146) |
+| REV-001 | P1 | FIXED / CLOSED | [1376](FINDINGS.md#L1376): FIXED (fc1064b) — retention insert-only archive (regression from b93a550) kept a stale copy of | [1376](FINDINGS.md#L1376) |
+| REV-002 | P1 | FIXED / CLOSED | [1378](FINDINGS.md#L1378): FIXED (fc1064b) — updateUser compensation wrote absolute session counters back and could undo a | [1378](FINDINGS.md#L1378) |
+| REV-003 | P2 | FIXED / CLOSED | [1380](FINDINGS.md#L1380): FIXED (3452bbf) — new containment audit events could overtake queued ones; queue after write | [1380](FINDINGS.md#L1380) |
+| REV-004 | P2 | FIXED / CLOSED | [1382](FINDINGS.md#L1382): FIXED (bd01bfc) — operator recovery acted before its AuditLog record; now fails closed (503) | [1382](FINDINGS.md#L1382) |
+| REV-005 | P2 | FIXED / CLOSED | [1383](FINDINGS.md#L1383): FIXED (6cdcd2f) — /health/ready made 2 AI-engine requests per unauthenticated probe; 5 s cache | [1383](FINDINGS.md#L1383) |
+| REV-006 | P3 | FIXED / CLOSED | [1384](FINDINGS.md#L1384): FIXED (435abc1) — module-level retry timer (added in 3452bbf) failed 2 suites to load; now lazy | [1384](FINDINGS.md#L1384) |
 | RL-001 | P3 | PARTIALLY FIXED | [520](FINDINGS.md#L520): PARTIALLY RESOLVED — persisted decisions applied by id (audit/RL001_DESIGN.md). | [441](FINDINGS.md#L441), [490](FINDINGS.md#L490), [520](FINDINGS.md#L520), [fix 145](FIXES.md#L145), [fix 179](FIXES.md#L179) |
 | SCAN-001 | P2 | FIXED / CLOSED | [506](FINDINGS.md#L506): CONFIRMED (tests) / RESOLVED | [506](FINDINGS.md#L506), [fix 175](FIXES.md#L175) |
 | SEC-001 | P0 | OPEN / OWNER ACTION * | override: Key rotated, old key refused; leaked account passwords unchanged, public history; risk accepted 2026-11-02 for | [12](FINDINGS.md#L12), [285](FINDINGS.md#L285), [459](FINDINGS.md#L459), [fix 59](FIXES.md#L59), [fix 137](FIXES.md#L137), [fix 173](FIXES.md#L173), [fix 201](FIXES.md#L201), [fix 227](FIXES.md#L227), [fix 247](FIXES.md#L247), [fix 268](FIXES.md#L268), [fix 300](FIXES.md#L300), [fix 320](FIXES.md#L320) |
@@ -111,7 +117,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | TEST-009 | P3 | FIXED / CLOSED | [947](FINDINGS.md#L947): FIXED (test) — blind spot closed | [860](FINDINGS.md#L860), [871](FINDINGS.md#L871), [947](FINDINGS.md#L947), [fix 367](FIXES.md#L367), [fix 390](FIXES.md#L390) |
 | TEST-010 | P3 | FIXED / CLOSED | [1256](FINDINGS.md#L1256): FIXED 2026-11-04 (uncommitted) | [1203](FINDINGS.md#L1203), [1256](FINDINGS.md#L1256) |
 | TEST-011 | P2 | FIXED / CLOSED | [1319](FINDINGS.md#L1319): CONFIRMED (E2E, regression from batch 19) / FIXED 2026-11-04 (uncommitted) | [1319](FINDINGS.md#L1319) |
-| TEST-012 | P3 | OPEN | [1368](FINDINGS.md#L1368): OBSERVED 2026-11-07 / OPEN (environment) — in-memory mongod start timeout (10 s) under parallel load: | [1368](FINDINGS.md#L1368) |
+| TEST-012 | P3 | FIXED / CLOSED | [1385](FINDINGS.md#L1385): ROOT CAUSE ESTABLISHED / CLOSED (environment) — the two failing runs coincided with an | [1368](FINDINGS.md#L1368), [1385](FINDINGS.md#L1385) |
 | THR-002 | P3 | FIXED / CLOSED | [1123](FINDINGS.md#L1123): CONFIRMED (tests) / FIXED 2026-11-04 (owner approved the recommended correction) | [1052](FINDINGS.md#L1052), [1099](FINDINGS.md#L1099), [1123](FINDINGS.md#L1123) |
 | THR-003 | P3 | FIXED / CLOSED | [1155](FINDINGS.md#L1155): CONFIRMED (unit + E2E) / FIXED 2026-11-04 (uncommitted) | [1155](FINDINGS.md#L1155) |
 | THR-004 | P3 | FIXED / CLOSED | [1245](FINDINGS.md#L1245): CONFIRMED (tests) / FIXED 2026-11-04 (uncommitted) | [1245](FINDINGS.md#L1245) |

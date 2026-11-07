@@ -1369,3 +1369,23 @@ ID: TEST-012 | P3 | OBSERVED 2026-11-07 / OPEN (environment) — in-memory mongo
             2 of 5 full Jest runs after the lockfile change (both right after npm install), last 3 clean; suites pass alone.
             mongodb-memory-server version unchanged. Timeouts deliberately not raised.
 ```
+
+## Pre-PR safety review 2026-11-07 — `backend-remediation` (local, not pushed)
+
+```
+ID: REV-001 | P1 | FIXED (fc1064b) — retention insert-only archive (regression from b93a550) kept a stale copy of
+            a restored, changed record and deleted the current version; now replace-upsert
+ID: REV-002 | P1 | FIXED (fc1064b) — updateUser compensation wrote absolute session counters back and could undo a
+            concurrent force-logout (authVersion since before f04eae0); counters now only restored if untouched
+ID: REV-003 | P2 | FIXED (3452bbf) — new containment audit events could overtake queued ones; queue after write
+            failures flushed only on reconnect; shutdown did not wait for audit writes
+ID: REV-004 | P2 | FIXED (bd01bfc) — operator recovery acted before its AuditLog record; now fails closed (503)
+ID: REV-005 | P2 | FIXED (6cdcd2f) — /health/ready made 2 AI-engine requests per unauthenticated probe; 5 s cache
+ID: REV-006 | P3 | FIXED (435abc1) — module-level retry timer (added in 3452bbf) failed 2 suites to load; now lazy
+ID: TEST-012 (update) | P3 | ROOT CAUSE ESTABLISHED / CLOSED (environment) — the two failing runs coincided with an
+            orphaned Jest run (+ its mongod) left by an aborted check, and with Defender scanning right after
+            npm install, on a 7.7 GB machine running 4 Jest workers. mongod start: median 0.6-1.9 s, max 5.3 s
+            (cold), 0 failures in 88 starts incl. 8 concurrent and during a full Jest run; every MongoDB suite stops
+            its servers; 4 consecutive full runs clean after the orphans were stopped. No harness defect; timeouts
+            unchanged.
+```
