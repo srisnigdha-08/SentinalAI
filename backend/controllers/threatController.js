@@ -259,6 +259,18 @@ const blockIP = async (req, res, next) => {
         return blockedThreat
       },
       fallbackFn: async () => {
+        // Compensation snapshot (F-06): the threat's block-related fields and the IP's existing deny-list entry,
+        // read before the block. The old compensation deleted the BlockedIP entry and reset the threat to its
+        // pre-block status unconditionally, so an audit failure on a repeated block (or on an IP another threat
+        // had already deny-listed) unblocked an IP that had been blocked legitimately.
+        const BlockedIP = require('../models/BlockedIP')
+        const THREAT_FIELDS = ['status', 'preBlockStatus', 'containmentId', 'handledBy', 'autonomousAction']
+        const priorThreat = await ThreatLog.findById(req.params.id)
+          .select([...THREAT_FIELDS, 'sourceIP'].join(' '))
+          .lean()
+        const priorBlockedDoc = priorThreat ? await BlockedIP.findOne({ ip: priorThreat.sourceIP }) : null
+        const priorBlocked = priorBlockedDoc?.toObject ? priorBlockedDoc.toObject() : priorBlockedDoc
+
         const blockedThreat = await threatService.blockThreatIP(req.params.id, req.user._id)
         if (!blockedThreat) return null
 
@@ -272,9 +284,18 @@ const blockIP = async (req, res, next) => {
             ip: req.ip,
           })
         } catch (auditErr) {
-          const BlockedIP = require('../models/BlockedIP')
-          await BlockedIP.deleteOne({ ip: blockedThreat.sourceIP })
-          await ThreatLog.findByIdAndUpdate(blockedThreat._id, { status: blockedThreat.preBlockStatus || 'DETECTED' })
+          if (priorBlocked) await BlockedIP.replaceOne({ _id: priorBlocked._id }, priorBlocked, { upsert: true })
+          else await BlockedIP.deleteOne({ ip: blockedThreat.sourceIP })
+          const restore = {}
+          const unset = {}
+          for (const f of THREAT_FIELDS) {
+            if (priorThreat[f] === undefined) unset[f] = ''
+            else restore[f] = priorThreat[f]
+          }
+          await ThreatLog.collection.updateOne(
+            { _id: blockedThreat._id },
+            { $set: restore, ...(Object.keys(unset).length ? { $unset: unset } : {}) }
+          )
           logger.error(
             `[AUDIT_FAILURE] Reverted threat block for ${blockedThreat._id} due to audit failure: ${auditErr.message}`
           )

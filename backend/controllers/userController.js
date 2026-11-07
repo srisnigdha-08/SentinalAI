@@ -174,9 +174,13 @@ const updateUser = async (req, res, next) => {
     }
 
     const isSecurityChange = updates.role || updates.status
-    const prevRole = targetUser.role
-    const prevStatus = targetUser.status
-    const prevAuthVersion = targetUser.authVersion || 0
+    // Compensation snapshot (standalone fallback): every field this update can change, plus both session
+    // counters. Reverting only role/status/authVersion left name/department changes and the tokenVersion
+    // increment applied while the API answered "change not applied" (F-06).
+    const prevValues = {}
+    for (const f of Object.keys(updates)) prevValues[f] = targetUser[f]
+    prevValues.authVersion = targetUser.authVersion || 0
+    prevValues.tokenVersion = targetUser.tokenVersion || 0
 
     const { runWithTransactionOrFallback } = require('../utils/transactionHelper')
     const { logAudit } = require('../utils/auditLogger')
@@ -223,9 +227,7 @@ const updateUser = async (req, res, next) => {
             ip: req.ip,
           })
         } catch (auditErr) {
-          await User.findByIdAndUpdate(req.params.id, {
-            $set: { role: prevRole, status: prevStatus, authVersion: prevAuthVersion },
-          })
+          await User.findByIdAndUpdate(req.params.id, { $set: prevValues })
           logger.error(
             `[AUDIT_FAILURE] Reverted user ${req.params.id} mutation due to audit failure: ${auditErr.message}`
           )
