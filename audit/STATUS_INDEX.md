@@ -7,7 +7,7 @@ row) that states one, else from the latest status cell for it in `FIXES.md`. NO 
 file states one: it is not evidence that the finding is fixed, or that it is still open. "Entries" links every
 line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand in `status_overrides.json`.
 
-102 findings. FIXED / CLOSED: 64 · NO STATUS RECORDED: 21 · OPEN: 5 · PARTIALLY FIXED: 4 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
+113 findings. FIXED / CLOSED: 71 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 6 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
 
 | ID | Priority | Current status | Status taken from (truncated) | Entries |
 |---|---|---|---|---|
@@ -23,6 +23,8 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | CONT-005 | P2 | FIXED / CLOSED | [1280](FINDINGS.md#L1280): CONFIRMED (real-database test) / FIXED 2026-11-04 (uncommitted) | [1280](FINDINGS.md#L1280) |
 | CONT-006 | P3 | FIXED / CLOSED | [1293](FINDINGS.md#L1293): CONFIRMED (forced interleaving) / FIXED 2026-11-04 (uncommitted) | [1293](FINDINGS.md#L1293) |
 | CONT-007 | P3 | FIXED / CLOSED | [1302](FINDINGS.md#L1302): CONFIRMED / FIXED 2026-11-04 (uncommitted) | [1302](FINDINGS.md#L1302) |
+| CONT-R1 | P3 | FIXED / CLOSED | [1365](FINDINGS.md#L1365): VERIFIED (fbbbd37, 3f6a603) — single-clock comparisons; audit uses database time; no expiry change | [1365](FINDINGS.md#L1365) |
+| CONT-R2 | P2 | FIXED / CLOSED | [1366](FINDINGS.md#L1366): FIXED (3f6a603) — admin operator recovery: diagnosis token, trusted Origin, never releases on UNKNOWN | [1366](FINDINGS.md#L1366) |
 | CORE-001 | P2 | PARTIALLY FIXED | [292](FINDINGS.md#L292): MOSTLY FIXED | [133](FINDINGS.md#L133), [292](FINDINGS.md#L292), [348](FINDINGS.md#L348), [fix 60](FIXES.md#L60) |
 | CORE-002 | P1 | FIXED / CLOSED | [293](FINDINGS.md#L293): FIXED | [159](FINDINGS.md#L159), [293](FINDINGS.md#L293) |
 | CORE-003 | P1 | FIXED / CLOSED | [294](FINDINGS.md#L294): FIXED as replay | [174](FINDINGS.md#L174), [294](FINDINGS.md#L294), [fix 61](FIXES.md#L61), [fix 62](FIXES.md#L62) |
@@ -38,6 +40,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | DATA-005 | P2 | NO STATUS RECORDED | [665](FINDINGS.md#L665): CONFIRMED pattern / UNVERIFIED label error (ran: thursday_fp_2017.py, no training) | [665](FINDINGS.md#L665) |
 | DATA-005-V | P2 | FIXED / CLOSED | [673](FINDINGS.md#L673): VERIFIED (ran: verify_labels_2017.py, pre-registered rule; no training, no relabelling) | [673](FINDINGS.md#L673) |
 | DEP-001 | P2 | OPEN | [1065](FINDINGS.md#L1065): CONFIRMED (config) / OPEN (deployment limitation) | [391](FINDINGS.md#L391), [1065](FINDINGS.md#L1065), [fix 149](FIXES.md#L149) |
+| DEP-002 | P2 | PARTIALLY FIXED | [1367](FINDINGS.md#L1367): PARTIALLY FIXED (60020f1) — compatible npm fixes; major upgrades (vite 8, swagger-jsdoc, jest) need approval | [1367](FINDINGS.md#L1367) |
 | DOC-001 | P2 | FIXED / CLOSED | [290](FINDINGS.md#L290): FIXED | [92](FINDINGS.md#L92), [290](FINDINGS.md#L290) |
 | DOC-002 | P3 | FIXED / CLOSED | [987](FINDINGS.md#L987): CONFIRMED (rehearsal) / FIXED (docs/text) | [272](FINDINGS.md#L272), [290](FINDINGS.md#L290), [987](FINDINGS.md#L987), [fix 419](FIXES.md#L419) |
 | DOC-003 | P3 | FIXED / CLOSED | [1044](FINDINGS.md#L1044): CONFIRMED / FIXED (docs) | [545](FINDINGS.md#L545), [1044](FINDINGS.md#L1044), [fix 208](FIXES.md#L208) |
@@ -46,6 +49,13 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | E2E-002 | P3 | FIXED / CLOSED | [1263](FINDINGS.md#L1263): NOT REPRODUCED / TEST SYNCHRONISED | [434](FINDINGS.md#L434), [481](FINDINGS.md#L481), [513](FINDINGS.md#L513), [551](FINDINGS.md#L551), [762](FINDINGS.md#L762), [902](FINDINGS.md#L902), [1263](FINDINGS.md#L1263), [fix 144](FIXES.md#L144), [fix 180](FIXES.md#L180), [fix 207](FIXES.md#L207), [fix 297](FIXES.md#L297), [fix 319](FIXES.md#L319), [fix 365](FIXES.md#L365), [fix 395](FIXES.md#L395) |
 | ENV-001 | P3 | NO STATUS RECORDED | [474](FINDINGS.md#L474): CONFIRMED (static) | [474](FINDINGS.md#L474) |
 | EVT-001 | P3 | FIXED / CLOSED | [fix 114](FIXES.md#L114): FIXED | [389](FINDINGS.md#L389), [fix 114](FIXES.md#L114) |
+| F-03 | P2 | FIXED / CLOSED | [1358](FINDINGS.md#L1358): FIXED (b8cc177) — /health/live and /health/ready added; /health unchanged; compose healthcheck | [1358](FINDINGS.md#L1358) |
+| F-04 | P2 | FIXED / CLOSED | [1359](FINDINGS.md#L1359): FIXED (943788d) — shutdown order, single exit, repeated signals, unhandled rejection exits 1 | [1359](FINDINGS.md#L1359) |
+| F-05 | P3 | FIXED / CLOSED | [1360](FINDINGS.md#L1360): FIXED (90addc5) — fixed messages for body-parser errors (400/413/415) | [1360](FINDINGS.md#L1360) |
+| F-06 | P1 | PARTIALLY FIXED | [1361](FINDINGS.md#L1361): PARTIALLY FIXED (b93a550) — 3 standalone compensation defects fixed; replica set needs owner approval | [1361](FINDINGS.md#L1361) |
+| F-07 | P2 | FIXED / CLOSED | [1362](FINDINGS.md#L1362): FIXED (fbbbd37) — durable, deduplicated, ordered containment audit trail with RBAC read endpoint | [1362](FINDINGS.md#L1362) |
+| F-08 | P2 | PARTIALLY FIXED | [1363](FINDINGS.md#L1363): PARTIALLY FIXED (7e5ecaa) — scope widened, priority files tested; server.js 76 % (out-of-process test) | [1363](FINDINGS.md#L1363) |
+| F-09 | P3 | FIXED / CLOSED | [1364](FINDINGS.md#L1364): FIXED (7f90cc4) — generated STATUS_INDEX.md; history unchanged | [1364](FINDINGS.md#L1364) |
 | F1-001 | P1 | OPEN | [299](FINDINGS.md#L299): OPEN | [220](FINDINGS.md#L220), [299](FINDINGS.md#L299), [fix 61](FIXES.md#L61), [fix 62](FIXES.md#L62), [fix 139](FIXES.md#L139) |
 | HYG-001 | P3 | FIXED / CLOSED | [1194](FINDINGS.md#L1194): KEEP RECOMMENDED | [113](FINDINGS.md#L113), [291](FINDINGS.md#L291), [1117](FINDINGS.md#L1117), [1194](FINDINGS.md#L1194), [fix 66](FIXES.md#L66) |
 | HYG-002 | P3 | FIXED / CLOSED | [1059](FINDINGS.md#L1059): FIXED | [1059](FINDINGS.md#L1059) |
@@ -101,6 +111,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | TEST-009 | P3 | FIXED / CLOSED | [947](FINDINGS.md#L947): FIXED (test) — blind spot closed | [860](FINDINGS.md#L860), [871](FINDINGS.md#L871), [947](FINDINGS.md#L947), [fix 367](FIXES.md#L367), [fix 390](FIXES.md#L390) |
 | TEST-010 | P3 | FIXED / CLOSED | [1256](FINDINGS.md#L1256): FIXED 2026-11-04 (uncommitted) | [1203](FINDINGS.md#L1203), [1256](FINDINGS.md#L1256) |
 | TEST-011 | P2 | FIXED / CLOSED | [1319](FINDINGS.md#L1319): CONFIRMED (E2E, regression from batch 19) / FIXED 2026-11-04 (uncommitted) | [1319](FINDINGS.md#L1319) |
+| TEST-012 | P3 | OPEN | [1368](FINDINGS.md#L1368): OBSERVED 2026-11-07 / OPEN (environment) — in-memory mongod start timeout (10 s) under parallel load: | [1368](FINDINGS.md#L1368) |
 | THR-002 | P3 | FIXED / CLOSED | [1123](FINDINGS.md#L1123): CONFIRMED (tests) / FIXED 2026-11-04 (owner approved the recommended correction) | [1052](FINDINGS.md#L1052), [1099](FINDINGS.md#L1099), [1123](FINDINGS.md#L1123) |
 | THR-003 | P3 | FIXED / CLOSED | [1155](FINDINGS.md#L1155): CONFIRMED (unit + E2E) / FIXED 2026-11-04 (uncommitted) | [1155](FINDINGS.md#L1155) |
 | THR-004 | P3 | FIXED / CLOSED | [1245](FINDINGS.md#L1245): CONFIRMED (tests) / FIXED 2026-11-04 (uncommitted) | [1245](FINDINGS.md#L1245) |

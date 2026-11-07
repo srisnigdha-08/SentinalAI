@@ -1348,3 +1348,24 @@ attempts; failure-artifact uploads skipped). Per-test counts are in the job log,
 same configuration reproduced locally passed 82/82. Fix commit changed only e2e.yml, the new workflow test and the
 audit records; registry and Q-table hashes unchanged.
 ```
+
+## Remediation 2026-11-07 — branch `backend-remediation` from `f04eae0` (local commits, not pushed)
+
+Findings F-03…F-09, CONT-R1, CONT-R2 come from the 2026-11-07 backend verification report. Details, tests and
+evidence: `audit/REMEDIATION_2026-11-07.md`.
+
+```
+ID: F-03 | P2 | FIXED (b8cc177) — /health/live and /health/ready added; /health unchanged; compose healthcheck
+ID: F-04 | P2 | FIXED (943788d) — shutdown order, single exit, repeated signals, unhandled rejection exits 1
+ID: F-05 | P3 | FIXED (90addc5) — fixed messages for body-parser errors (400/413/415)
+ID: F-06 | P1 | PARTIALLY FIXED (b93a550) — 3 standalone compensation defects fixed; replica set needs owner approval
+ID: F-07 | P2 | FIXED (fbbbd37) — durable, deduplicated, ordered containment audit trail with RBAC read endpoint
+ID: F-08 | P2 | PARTIALLY FIXED (7e5ecaa) — scope widened, priority files tested; server.js 76 % (out-of-process test)
+ID: F-09 | P3 | FIXED (7f90cc4) — generated STATUS_INDEX.md; history unchanged
+ID: CONT-R1 | P3 | VERIFIED (fbbbd37, 3f6a603) — single-clock comparisons; audit uses database time; no expiry change
+ID: CONT-R2 | P2 | FIXED (3f6a603) — admin operator recovery: diagnosis token, trusted Origin, never releases on UNKNOWN
+ID: DEP-002 | P2 | PARTIALLY FIXED (60020f1) — compatible npm fixes; major upgrades (vite 8, swagger-jsdoc, jest) need approval
+ID: TEST-012 | P3 | OBSERVED 2026-11-07 / OPEN (environment) — in-memory mongod start timeout (10 s) under parallel load:
+            2 of 5 full Jest runs after the lockfile change (both right after npm install), last 3 clean; suites pass alone.
+            mongodb-memory-server version unchanged. Timeouts deliberately not raised.
+```
