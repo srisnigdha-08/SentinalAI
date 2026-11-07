@@ -1,6 +1,7 @@
 'use strict'
 
 const crypto = require('crypto')
+const mongoose = require('mongoose')
 const logger = require('./logger')
 
 /**
@@ -111,14 +112,12 @@ const chains = new Map() // containmentId -> tail of that action's write chain (
 let dropped = 0
 
 const dbReady = () => {
-  const mongoose = require('mongoose')
   return mongoose.connection.readyState === 1 && Boolean(mongoose.connection.db)
 }
 
 // Database-assigned order and time: one atomic counter increment returns the next sequence number together with
 // the server clock, so ordering never depends on the backend host's clock (CONT-R1).
 async function nextSequence() {
-  const mongoose = require('mongoose')
   const doc = await mongoose.connection.db
     .collection('counters')
     .findOneAndUpdate(
@@ -172,6 +171,25 @@ function enqueue(entry) {
     )
   }
   backlog.push(entry)
+  ensureRetryTimer()
+}
+
+// A flush that paused on a write error resumes on the next event, on reconnect, or from this timer. The timer exists
+// only while events are queued (no module-level timer), never keeps the process alive, and never throws.
+let retryTimer = null
+function ensureRetryTimer() {
+  if (retryTimer) return
+  retryTimer = setInterval(() => {
+    try {
+      if (!backlog.length) {
+        clearInterval(retryTimer)
+        retryTimer = null
+      } else if (dbReady()) flushContainmentAuditBacklog()
+    } catch {
+      // module torn down (tests) or mongoose unavailable: retried on the next tick or event
+    }
+  }, 30000)
+  retryTimer.unref?.()
 }
 
 async function store(entry) {
@@ -245,13 +263,8 @@ async function settleContainmentAudit() {
 const containmentAuditBacklog = () => ({ queued: backlog.length, dropped })
 
 try {
-  const mongoose = require('mongoose')
   mongoose.connection.on('connected', () => flushContainmentAuditBacklog())
   mongoose.connection.on('reconnected', () => flushContainmentAuditBacklog())
-  // A flush that paused on a write error resumes on the next event or here, without needing a reconnect.
-  setInterval(() => {
-    if (backlog.length && dbReady()) flushContainmentAuditBacklog()
-  }, 30000).unref()
   require('./metrics').gauge(
     'sentinel_containment_audit_backlog',
     'Containment audit events waiting for MongoDB (stored in order once it is reachable)',
