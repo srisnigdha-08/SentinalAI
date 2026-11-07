@@ -173,6 +173,88 @@ test('ACTIVE and terminal actions are not offered for recovery', async () => {
   expect(d.confirmationToken).toBeNull()
 })
 
+test('AuditLog unavailable: recovery is refused (503) before anything changes; the token stays usable', async () => {
+  const stuck = await stuckAt('ACTIVE')
+  const d = await recovery.diagnose(stuck.containmentId, ADMIN)
+  const before = await current()
+  jest.spyOn(AuditLog, 'create').mockRejectedValueOnce(new Error('audit store down'))
+  const body = { confirmationToken: d.confirmationToken, reason: REASON }
+  await expect(recovery.recover(stuck.containmentId, body, ADMIN)).rejects.toMatchObject({ statusCode: 503 })
+  const after = await current()
+  expect(after.__v).toBe(before.__v) // not claimed
+  expect(after.enforcementStatus).toBe('APPLYING')
+  expect(adapter.activeRules.size).toBe(1) // rule untouched
+  const r = await recovery.recover(stuck.containmentId, body, ADMIN) // audit back: the same token works once
+  expect(r.released).toBe(true)
+  const entries = await AuditLog.find({ 'target.id': stuck.containmentId }).sort({ createdAt: 1 }).lean()
+  expect(entries.map((e) => e.action)).toEqual([
+    'CONTAINMENT_OPERATOR_RECOVERY_REQUESTED',
+    'CONTAINMENT_OPERATOR_RECOVERY',
+  ])
+})
+
+describe('concurrency and replay', () => {
+  test('two administrators recovering the same action at once: exactly one claims it, the other gets 409', async () => {
+    const stuck = await stuckAt('ACTIVE')
+    const d1 = await recovery.diagnose(stuck.containmentId, ADMIN)
+    const d2 = await recovery.diagnose(stuck.containmentId, OTHER_ADMIN)
+    const results = await Promise.allSettled([
+      recovery.recover(stuck.containmentId, { confirmationToken: d1.confirmationToken, reason: REASON }, ADMIN),
+      recovery.recover(stuck.containmentId, { confirmationToken: d2.confirmationToken, reason: REASON }, OTHER_ADMIN),
+    ])
+    const ok = results.filter((r) => r.status === 'fulfilled')
+    const refused = results.filter((r) => r.status === 'rejected')
+    expect(ok).toHaveLength(1)
+    expect(refused).toHaveLength(1)
+    expect(refused[0].reason).toMatchObject({ statusCode: 409, code: 'STATE_CHANGED' })
+    expect((await current()).recovery.attempts).toBe(1)
+  })
+
+  test('the same token sent twice at once: one runs, the other is refused', async () => {
+    const stuck = await stuckAt('ACTIVE')
+    const d = await recovery.diagnose(stuck.containmentId, ADMIN)
+    const body = { confirmationToken: d.confirmationToken, reason: REASON }
+    const results = await Promise.allSettled([
+      recovery.recover(stuck.containmentId, body, ADMIN),
+      recovery.recover(stuck.containmentId, body, ADMIN),
+    ])
+    expect(results.filter((r) => r.status === 'fulfilled')).toHaveLength(1)
+    expect(results.find((r) => r.status === 'rejected').reason.statusCode).toBe(409)
+  })
+
+  test('replay after a process restart (used-token memory empty) is still refused: the token is bound to the version', async () => {
+    const stuck = await stuckAt('ACTIVE')
+    const d = await recovery.diagnose(stuck.containmentId, ADMIN)
+    jest.spyOn(adapter, 'inspectRule').mockResolvedValue({ state: 'UNKNOWN' }) // keeps the action recoverable
+    const body = { confirmationToken: d.confirmationToken, reason: REASON }
+    await recovery.recover(stuck.containmentId, body, ADMIN)
+    recovery._usedTokens.clear() // what a restart does to the in-memory list
+    await expect(recovery.recover(stuck.containmentId, body, ADMIN)).rejects.toMatchObject({
+      statusCode: 409,
+      code: 'STATE_CHANGED',
+    })
+  })
+
+  test('a token for one action cannot be used on another', async () => {
+    const stuck = await stuckAt('ACTIVE')
+    const d = await recovery.diagnose(stuck.containmentId, ADMIN)
+    const other = await ContainmentAction.create({
+      containmentId: 'CTN-other-' + Date.now(),
+      target: '198.51.100.78',
+      normalizedTarget: '198.51.100.78',
+      targetType: 'ipv4',
+      actionType: 'block_ip',
+      enforcementStatus: 'FAILED',
+      reason: 'x',
+    })
+    expect(await ContainmentAction.exists({ containmentId: other.containmentId })).toBeTruthy()
+    const otherId = other.containmentId
+    await expect(
+      recovery.recover(otherId, { confirmationToken: d.confirmationToken, reason: REASON }, ADMIN)
+    ).rejects.toMatchObject({ statusCode: 403, code: 'TOKEN_INVALID' })
+  })
+})
+
 describe('confirmation token', () => {
   test('is single-use', async () => {
     const stuck = await stuckAt('ACTIVE')

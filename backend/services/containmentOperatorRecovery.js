@@ -176,6 +176,26 @@ async function recover(id, { confirmationToken, reason } = {}, user, now = Date.
   if (usedTokens.has(claims.jti)) throw new RecoveryError('Confirmation token already used', 409, 'TOKEN_USED')
   usedTokens.set(claims.jti, claims.exp)
 
+  // Fail closed: an operator override of containment state is not run unless its request is on record first.
+  // The containment audit trail is best-effort by design (it must never block containment), so the general,
+  // synchronous AuditLog is the gate here. On failure nothing has changed and the token is released for a retry.
+  const { logAudit } = require('../utils/auditLogger')
+  try {
+    await logAudit({
+      action: 'CONTAINMENT_OPERATOR_RECOVERY_REQUESTED',
+      actor: user,
+      target: { type: 'ContainmentAction', id: action.containmentId, identifier: action.normalizedTarget },
+      status: 'SUCCESS',
+      details: { diagnosedRuleState: claims.rs, diagnosedStatus: claims.st, reason: cleanReason },
+    })
+  } catch (err) {
+    usedTokens.delete(claims.jti)
+    logger.error(
+      `[OperatorRecovery] Refused for ${action.containmentId}: audit record could not be written (${err.message})`
+    )
+    throw new RecoveryError('Audit log unavailable; recovery not started', 503, 'AUDIT_UNAVAILABLE')
+  }
+
   // Claim: only if the action is exactly as diagnosed. __v + 1 fences the original request, as the pass does.
   const claimed = await ContainmentAction.findOneAndUpdate(
     { _id: action._id, __v: claims.v, enforcementStatus: claims.st },
@@ -221,7 +241,6 @@ async function recover(id, { confirmationToken, reason } = {}, user, now = Date.
   }
   logContainmentAudit({ action: released ? 'OPERATOR_RECOVERY_RELEASED' : 'OPERATOR_RECOVERY_DEFERRED', ...auditBase })
   try {
-    const { logAudit } = require('../utils/auditLogger')
     await logAudit({
       action: 'CONTAINMENT_OPERATOR_RECOVERY',
       actor: user,
