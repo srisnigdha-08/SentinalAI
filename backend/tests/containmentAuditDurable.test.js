@@ -130,6 +130,45 @@ test('while MongoDB is unavailable events are queued, then stored in their origi
   expect(audit.containmentAuditBacklog().queued).toBe(0)
 })
 
+test('an event logged while older ones are still being flushed is stored after them (no overtaking)', async () => {
+  const id = 'CTN-order-' + Date.now()
+  mongoose.connection.readyState = 0
+  const a1 = audit.logContainmentAudit({ action: 'CONTAINMENT_REQUESTED', containmentId: id })
+  const a2 = audit.logContainmentAudit({ action: 'CONTAINMENT_ACTIVE', containmentId: id })
+  await Promise.all([a1.persisted, a2.persisted])
+  // Slow down the flush of the first queued event so a newer event has the chance to overtake it.
+  const realExists = ContainmentAuditEvent.exists.bind(ContainmentAuditEvent)
+  jest.spyOn(ContainmentAuditEvent, 'exists').mockImplementation(async (filter) => {
+    if (filter?.eventId === a1.eventId) await new Promise((r) => setTimeout(r, 150))
+    return realExists(filter)
+  })
+  mongoose.connection.readyState = 1 // 'connected': flush starts
+  audit.logContainmentAudit({ action: 'ROLLBACK_INITIATED', containmentId: id })
+  await audit.settleContainmentAudit()
+  expect((await events(id)).map((e) => e.action)).toEqual([
+    'CONTAINMENT_REQUESTED',
+    'CONTAINMENT_ACTIVE',
+    'ROLLBACK_INITIATED',
+  ])
+})
+
+test('events queued after write failures while connected are flushed without waiting for a reconnect', async () => {
+  const id = 'CTN-stuck-' + Date.now()
+  jest
+    .spyOn(ContainmentAuditEvent, 'create')
+    .mockRejectedValueOnce(new Error('timeout 1'))
+    .mockRejectedValueOnce(new Error('timeout 2'))
+    .mockRejectedValueOnce(new Error('timeout 3'))
+  expect(await audit.logContainmentAudit({ action: 'CONTAINMENT_REQUESTED', containmentId: id }).persisted).toBe(
+    'queued'
+  )
+  jest.restoreAllMocks()
+  audit.logContainmentAudit({ action: 'CONTAINMENT_ACTIVE', containmentId: id })
+  await audit.settleContainmentAudit()
+  expect((await events(id)).map((e) => e.action)).toEqual(['CONTAINMENT_REQUESTED', 'CONTAINMENT_ACTIVE'])
+  expect(audit.containmentAuditBacklog().queued).toBe(0)
+})
+
 test('recordedAt comes from the database clock, not the backend clock', async () => {
   const id = 'CTN-clock-' + Date.now()
   const realNow = Date.now()

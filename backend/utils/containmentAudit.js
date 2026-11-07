@@ -162,16 +162,7 @@ async function writeOnce(entry) {
   }
 }
 
-async function store(entry) {
-  let lastErr
-  for (let attempt = 1; attempt <= WRITE_ATTEMPTS; attempt++) {
-    if (!dbReady()) break
-    try {
-      return await writeOnce(entry)
-    } catch (err) {
-      lastErr = err
-    }
-  }
+function enqueue(entry) {
   if (backlog.length >= BACKLOG_MAX) {
     const lost = backlog.shift()
     dropped++
@@ -181,6 +172,26 @@ async function store(entry) {
     )
   }
   backlog.push(entry)
+}
+
+async function store(entry) {
+  // Older events still waiting: this one goes behind them, so a newer event can never be stored (and given a
+  // lower seq) before an older one; the flush is started here rather than only on a reconnect event.
+  if (backlog.length) {
+    enqueue(entry)
+    if (dbReady()) flushContainmentAuditBacklog()
+    return 'queued'
+  }
+  let lastErr
+  for (let attempt = 1; attempt <= WRITE_ATTEMPTS; attempt++) {
+    if (!dbReady()) break
+    try {
+      return await writeOnce(entry)
+    } catch (err) {
+      lastErr = err
+    }
+  }
+  enqueue(entry)
   if (lastErr) logger.warn(`[AUDIT] Containment audit event queued after write failure: ${lastErr.message}`)
   return 'queued'
 }
@@ -237,6 +248,10 @@ try {
   const mongoose = require('mongoose')
   mongoose.connection.on('connected', () => flushContainmentAuditBacklog())
   mongoose.connection.on('reconnected', () => flushContainmentAuditBacklog())
+  // A flush that paused on a write error resumes on the next event or here, without needing a reconnect.
+  setInterval(() => {
+    if (backlog.length && dbReady()) flushContainmentAuditBacklog()
+  }, 30000).unref()
   require('./metrics').gauge(
     'sentinel_containment_audit_backlog',
     'Containment audit events waiting for MongoDB (stored in order once it is reachable)',

@@ -8,6 +8,7 @@ class GracefulShutdownManager {
     this.io = options.io || null
     this.mongoose = options.mongoose || null
     this.services = options.services || []
+    this.finalizers = [] // run after requests drained, before MongoDB closes (e.g. flush durable audit writes)
     this.drainTimeoutMs = options.drainTimeoutMs || 5000
     this.emergencyTimeoutMs = options.emergencyTimeoutMs || 10000
     this.onExit = options.onExit || ((code) => process.exit(code))
@@ -29,6 +30,10 @@ class GracefulShutdownManager {
 
   setMongoose(mongoose) {
     this.mongoose = mongoose
+  }
+
+  registerFinalizer(finalizer) {
+    if (finalizer && typeof finalizer.run === 'function') this.finalizers.push(finalizer)
   }
 
   registerService(service) {
@@ -200,9 +205,21 @@ class GracefulShutdownManager {
         }
       }
 
-      // Step 6: Close MongoDB connection
+      // Step 6: Finalizers that still need MongoDB (in-flight audit writes). Errors are reported, never fatal.
+      for (const fin of this.finalizers) {
+        const key = 'finalizer_' + (fin.name || 'unnamed')
+        try {
+          await fin.run()
+          report.steps[key] = 'done'
+        } catch (err) {
+          logger.warn(`[Shutdown] Finalizer ${fin.name || 'unnamed'} failed: ${err.message}`)
+          report.steps[key] = `error: ${err.message}`
+        }
+      }
+
+      // Step 7: Close MongoDB connection
       if (this.mongoose && this.mongoose.connection) {
-        logger.info('[Shutdown] Step 6: Closing MongoDB connection')
+        logger.info('[Shutdown] Step 7: Closing MongoDB connection')
         try {
           if (this.mongoose.connection.readyState !== 0) {
             await this.mongoose.connection.close(false)

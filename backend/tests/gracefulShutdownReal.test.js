@@ -79,6 +79,30 @@ test('a server that was never started or already closed is reported as already_c
   expect(report.success).toBe(true)
 })
 
+test('finalizers run after requests drained and before MongoDB closes; a failing one does not stop the close', async () => {
+  const order = []
+  const mongoose = { connection: { readyState: 1, close: jest.fn(async () => order.push('database')) } }
+  const manager = new GracefulShutdownManager({ mongoose, emergencyTimeoutMs: 8000, onExit: () => {} })
+  expect(typeof manager.registerFinalizer).toBe('function')
+  manager.registerFinalizer({ name: 'audit', run: async () => order.push('audit') })
+  manager.registerFinalizer({
+    name: 'broken',
+    run: async () => {
+      throw new Error('flush failed')
+    },
+  })
+  const report = await manager.shutdown('SIGTERM')
+  expect(order).toEqual(['audit', 'database'])
+  expect(report.steps.finalizer_audit).toBe('done')
+  expect(report.steps.finalizer_broken).toBe('error: flush failed')
+  expect(report.steps.database).toBe('closed')
+})
+
+test('server.js registers the containment audit flush as a shutdown finalizer', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'server.js'), 'utf8')
+  expect(src).toMatch(/registerFinalizer\(\{\s*name: 'containmentAudit'/)
+})
+
 describe('signal handling', () => {
   let before
   const EVENTS = ['SIGTERM', 'SIGINT', 'message', 'unhandledRejection']

@@ -361,6 +361,19 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
 defaultShutdownManager.setServer(server)
 defaultShutdownManager.setIO(io)
 defaultShutdownManager.setMongoose(require('mongoose'))
+// F-07: let in-flight containment audit writes finish and try one last flush of events queued during an outage
+// while MongoDB is still open. Whatever is still queued afterwards is lost with the process (it is in the log).
+defaultShutdownManager.registerFinalizer({
+  name: 'containmentAudit',
+  run: async () => {
+    const audit = require('./utils/containmentAudit')
+    await audit.settleContainmentAudit()
+    await audit.flushContainmentAuditBacklog()
+    const { queued } = audit.containmentAuditBacklog()
+    if (queued)
+      logger.error(`[Shutdown] ${queued} containment audit event(s) not stored durably (application log only)`)
+  },
+})
 defaultShutdownManager.registerService({
   name: 'healthBroadcast',
   stop: () => socketManager.stopHealthBroadcast(),
