@@ -167,12 +167,14 @@ async function dryRunRetention(options = {}) {
  */
 // Archive copies keep the original _id. With insertMany, a run that archived and then failed before deleting
 // (connection reset, timeout) left the live records in place but made every later run fail with E11000 on the
-// archive, so retention stayed stuck until someone cleaned the archive by hand (F-06). An upsert that only
-// inserts keeps the first archived copy and lets the retry finish the delete.
+// archive, so retention stayed stuck until someone cleaned the archive by hand (F-06). A replace-upsert keyed
+// by _id lets the retry finish, and always stores the version that is about to be deleted. (Insert-only was
+// wrong: restoreFromArchive keeps the archive copy, so a restored record that changed and was archived again
+// kept the stale copy while the current version was deleted.)
 async function archiveIdempotent(collection, docs) {
   if (!docs.length) return
   await collection.bulkWrite(
-    docs.map((doc) => ({ updateOne: { filter: { _id: doc._id }, update: { $setOnInsert: doc }, upsert: true } })),
+    docs.map((doc) => ({ replaceOne: { filter: { _id: doc._id }, replacement: doc, upsert: true } })),
     { ordered: false }
   )
 }

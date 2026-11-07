@@ -150,6 +150,26 @@ function sharedCases(mode) {
     expect(strip(await User.findById(user._id).lean())).toEqual(before)
   })
 
+  test(`[${mode}] updateUser audit failure never undoes a concurrent force-logout (counters only move up)`, async () => {
+    const user = await seedUser()
+    // Another administrator force-logs-out the same user while this update's audit write is in flight.
+    // Standalone: the write lands between the update and the compensation. Under a transaction it waits for the
+    // transaction's document lock (awaiting it here would deadlock the test), so it is started and awaited after.
+    let concurrent = Promise.resolve()
+    jest.spyOn(AuditLog, 'create').mockImplementationOnce(async () => {
+      concurrent = User.collection.updateOne({ _id: user._id }, { $inc: { authVersion: 1, tokenVersion: 1 } })
+      if (mode === 'standalone') await concurrent
+      throw new Error('simulated audit write timeout')
+    })
+    const r = await call(userController.updateUser, { params: { id: user._id.toString() }, body: { role: 'viewer' } })
+    await concurrent
+    expect(r.status).toBe(500)
+    const after = await User.findById(user._id).lean()
+    expect(after.role).toBe('analyst') // the failed change is reverted
+    expect(after.authVersion).toBeGreaterThan(3) // the force-logout's revocation stands
+    expect(after.tokenVersion).toBeGreaterThan(5)
+  })
+
   test(`[${mode}] forceLogout: audit failure leaves sessions valid (authVersion unchanged)`, async () => {
     const user = await seedUser()
     failAuditOnce()
@@ -236,6 +256,32 @@ describe('standalone MongoDB (compensating fallback)', () => {
     expect(result.applied).toBe(true)
     expect(await ThreatLog.findById(old._id)).toBeNull()
     expect(await db.collection('archived_threatlogs').countDocuments({ _originalId: old._id })).toBe(1)
+    await db.collection('archived_threatlogs').deleteMany({})
+  })
+
+  test('retention: a restored record that changed and is archived again keeps its latest version (no stale copy)', async () => {
+    const { applyRetention, restoreFromArchive } = require('../services/retentionService')
+    const db = mongoose.connection.db
+    await db.collection('archived_threatlogs').deleteMany({})
+    const old = await ThreatLog.create({
+      sourceIP: '203.0.113.11',
+      attackType: 'SSH Brute Force',
+      severity: 'HIGH',
+      status: 'DETECTED',
+      createdAt: new Date(Date.now() - 120 * 86400000),
+    })
+    const opts = { force: true, dryRun: false, daysThreats: 90, daysSessions: 90 }
+    await applyRetention(opts)
+    await restoreFromArchive() // restore keeps the archive copy
+    expect(await ThreatLog.findById(old._id)).not.toBeNull()
+    // an analyst updates the restored record (raw write: keep createdAt old so it is eligible again)
+    await ThreatLog.collection.updateOne({ _id: old._id }, { $set: { status: 'RESOLVED', severity: 'LOW' } })
+
+    await applyRetention(opts)
+    expect(await ThreatLog.findById(old._id)).toBeNull()
+    const copies = await db.collection('archived_threatlogs').find({ _originalId: old._id }).toArray()
+    expect(copies).toHaveLength(1)
+    expect(copies[0]).toMatchObject({ status: 'RESOLVED', severity: 'LOW' }) // not the pre-restore version
     await db.collection('archived_threatlogs').deleteMany({})
   })
 })
