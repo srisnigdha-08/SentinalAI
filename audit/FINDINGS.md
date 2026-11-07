@@ -1389,3 +1389,18 @@ ID: TEST-012 (update) | P3 | ROOT CAUSE ESTABLISHED / CLOSED (environment) — t
             its servers; 4 consecutive full runs clean after the orphans were stopped. No harness defect; timeouts
             unchanged.
 ```
+
+## PR #2 CI (2026-11-07)
+
+```
+ID: CI-003 | P2 | FIXED (local commit, not pushed) — "Backend (MongoDB-backed suites)" failed on PR #2 (push and
+            pull_request runs): authBrowser.test.js threw ERR_REQUIRE_ESM loading puppeteer-core. Cause: the
+            semver-compatible `npm audit fix` in 60020f1 also moved the lockfile from Jest 30.4.2 to 30.5.2, whose
+            runtime intercepts native createRequire of ES modules (verified: puppeteer-core 25.10 and 25.16 both load
+            under Jest 30.4.2, both fail under 30.5.2). Not a remediation code defect; reproduced locally with the CI
+            command, env and a disposable mongod on 27029 (1 failed / 12 passed, identical to CI).
+            Fix: lockfile rebuilt from f04eae0 with only the security updates (body-parser, fast-uri, follow-redirects;
+            puppeteer-core 25.16.0 for zod GHSA-mrhx-c7xc-m3w5), Jest toolchain kept at 30.4.2; package.json
+            puppeteer-core ^25.16.0. Guard: tests/jestEsmInterop.test.js (default job) fails under Jest 30.5.2.
+            After: CI MongoDB job locally 4/4 suites, 13/13; full backend 1439 passed / 13 skipped; npm audit 0 high.
+```

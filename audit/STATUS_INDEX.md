@@ -7,7 +7,7 @@ row) that states one, else from the latest status cell for it in `FIXES.md`. NO 
 file states one: it is not evidence that the finding is fixed, or that it is still open. "Entries" links every
 line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand in `status_overrides.json`.
 
-119 findings. FIXED / CLOSED: 78 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 5 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
+120 findings. FIXED / CLOSED: 79 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 5 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
 
 | ID | Priority | Current status | Status taken from (truncated) | Entries |
 |---|---|---|---|---|
@@ -15,6 +15,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | CFG-001 | P3 | FIXED / CLOSED | [290](FINDINGS.md#L290): FIXED | [104](FINDINGS.md#L104), [290](FINDINGS.md#L290) |
 | CI-001 | P1 | FIXED / CLOSED | [769](FINDINGS.md#L769): CONFIRMED (Linux reproduction) / FIXED 2026-11-03 (batch 12) | [122](FINDINGS.md#L122), [287](FINDINGS.md#L287), [769](FINDINGS.md#L769), [fix 336](FIXES.md#L336), [fix 337](FIXES.md#L337), [fix 338](FIXES.md#L338) |
 | CI-002 | P2 | FIXED / CLOSED | [1344](FINDINGS.md#L1344): VERIFIED ON GITHUB 2026-11-05 | [1331](FINDINGS.md#L1331), [1344](FINDINGS.md#L1344), [fix 110](FIXES.md#L110) |
+| CI-003 | P2 | FIXED / CLOSED | [1396](FINDINGS.md#L1396): FIXED (local commit, not pushed) — "Backend (MongoDB-backed suites)" failed on PR #2 (push and | [1396](FINDINGS.md#L1396) |
 | CLAIM-001 | P1 | NO STATUS RECORDED | [306](FINDINGS.md#L306): Label: CONFIRMED (static) | [306](FINDINGS.md#L306) |
 | CONT-001 | P2 | FIXED / CLOSED | [963](FINDINGS.md#L963): CONFIRMED (live rehearsal + real-database test) / FIXED 2026-11-03 | [963](FINDINGS.md#L963), [fix 417](FIXES.md#L417) |
 | CONT-002 | P2 | FIXED / CLOSED | [1005](FINDINGS.md#L1005): CONFIRMED (real-database test) / FIXED 2026-11-04 | [1005](FINDINGS.md#L1005) |
