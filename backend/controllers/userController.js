@@ -174,9 +174,37 @@ const updateUser = async (req, res, next) => {
     }
 
     const isSecurityChange = updates.role || updates.status
-    const prevRole = targetUser.role
-    const prevStatus = targetUser.status
+    // Compensation snapshot (standalone fallback): every field this update can change, plus both session
+    // counters. Reverting only role/status/authVersion left name/department changes and the tokenVersion
+    // increment applied while the API answered "change not applied" (F-06).
+    const prevValues = {}
+    for (const f of Object.keys(updates)) prevValues[f] = targetUser[f]
     const prevAuthVersion = targetUser.authVersion || 0
+    const prevTokenVersion = targetUser.tokenVersion || 0
+    // Restores the fields this update changed. The session counters are put back only when they still hold
+    // exactly the values this update produced: if anything else bumped them meanwhile (a force-logout, a
+    // password change), lowering them would re-validate the sessions that change revoked, so they stay.
+    const compensate = async () => {
+      const $set = {}
+      const $unset = {}
+      for (const [f, v] of Object.entries(prevValues)) {
+        if (v === undefined) $unset[f] = ''
+        else $set[f] = v
+      }
+      const fieldOps = {
+        ...(Object.keys($set).length ? { $set } : {}),
+        ...(Object.keys($unset).length ? { $unset } : {}),
+      }
+      if (isSecurityChange) {
+        // null when the counters moved on: then only the fields are restored, below
+        const exact = await User.findOneAndUpdate(
+          { _id: req.params.id, authVersion: prevAuthVersion + 1, tokenVersion: prevTokenVersion + 1 },
+          { ...fieldOps, $set: { ...$set, authVersion: prevAuthVersion, tokenVersion: prevTokenVersion } }
+        )
+        if (exact) return
+      }
+      if (Object.keys(fieldOps).length) await User.findByIdAndUpdate(req.params.id, fieldOps)
+    }
 
     const { runWithTransactionOrFallback } = require('../utils/transactionHelper')
     const { logAudit } = require('../utils/auditLogger')
@@ -223,9 +251,7 @@ const updateUser = async (req, res, next) => {
             ip: req.ip,
           })
         } catch (auditErr) {
-          await User.findByIdAndUpdate(req.params.id, {
-            $set: { role: prevRole, status: prevStatus, authVersion: prevAuthVersion },
-          })
+          await compensate()
           logger.error(
             `[AUDIT_FAILURE] Reverted user ${req.params.id} mutation due to audit failure: ${auditErr.message}`
           )

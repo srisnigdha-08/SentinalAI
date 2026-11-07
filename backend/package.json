@@ -26,7 +26,12 @@
       "services/**/*.js",
       "utils/**/*.js",
       "controllers/**/*.js",
-      "middleware/**/*.js"
+      "middleware/**/*.js",
+      "websocket/**/*.js",
+      "routes/**/*.js",
+      "models/**/*.js",
+      "config/**/*.js",
+      "server.js"
     ],
     "coveragePathIgnorePatterns": [
       "/node_modules/"
@@ -63,7 +68,7 @@
     "mongodb-memory-server": "^11.3.0",
     "nodemon": "^3.0.3",
     "prettier": "^3.4.2",
-    "puppeteer-core": "^25.10.0",
+    "puppeteer-core": "^25.16.0",
     "supertest": "^7.2.2"
   },
   "lint-staged": {

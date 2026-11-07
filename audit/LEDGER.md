@@ -22,6 +22,7 @@ Started 2026-10-20. Auditor: Claude. Writes only under `audit/`, except fix batc
 | Batch 7 | DONE 2026-11-02 — generalisation root cause (tool fingerprints), ranked options, CSE-CIC-IDS2018 plan, hybrid-eval mode (not run), deployment doc safety |
 | Batch 8 | DONE 2026-11-02 — pre-registered development protocol (ML_DEV_PROTOCOL.md), protected-test guard, feature/taxonomy/runner infrastructure (plan only) |
 | PR #1 | 2026-11-05 — first e2e.yml run failed: CI-002 rate-limit config, fixed in a9a706a and verified on GitHub (CI 7/7 push + PR, Chromium E2E passed) (FINDINGS.md) |
+| Remediation 2026-11-07 | DONE locally on backend-remediation (not pushed) — F-03…F-09, CONT-R1, CONT-R2, DEP-002 (REMEDIATION_2026-11-07.md, STATUS_INDEX.md); SEC-001 owner action |
 | Batch 20 | DONE 2026-11-04 — CONT-005 post-ACTIVE re-sync, CONT-006 concurrent release 409, CONT-007 back-off, THR-005 startup warm-up, TEST-011 batch 19 sign-out regression (FINDINGS.md) |
 | Batch 19 | DONE 2026-11-04 — CI 7/7 on f90d23a; CONT-004 fencing, OBS-001 recovery view, THR-004 source, TEST-010 fixed; E2E-002 synchronised (FINDINGS.md) |
 | Batch 18 | DONE 2026-11-04 — CI 7/7 on 97dfa87; THR-003 fixed; CONT-003 review; PR-001 cleanup prepared; HYG-001 keep; TEST-010 (FINDINGS.md) |

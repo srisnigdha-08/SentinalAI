@@ -122,3 +122,39 @@ reason: `secret-scan: allow (<reason>)` on the line (a bare marker no longer cou
 (`SENTINEL_KEY`), credentials in any URI scheme, backup copies (`*.bak`, `*.bak-*`, `*.orig`), and real values
 containing "test" inside a word. Tests: `scripts/security/secret_scan.test.cjs` (9, including a throwaway-repository
 range scan and a check that no 4-character fragment of the value is printed).
+
+## 2026-11-07 — redacted inventory and remediation procedure (branch `backend-remediation`)
+
+No secret was read, printed, reset or rotated in this pass, no account was changed, the real databases
+(`sentinel-db`, `sentinel-demo`) were not opened, and Git history was not rewritten. **Status: OPEN —
+REQUIRES OWNER ACTION** (risk accepted 2026-11-02 for loopback-only use). It can be marked RESOLVED only after
+steps 1–5 below are done **and** the read-only checker confirms them.
+
+### Inventory (redacted: types, locations and state only)
+
+| # | Secret | Exposed where | Current state | Needed | Verified by |
+|---|---|---|---|---|---|
+| S1 | Honeypot ingest API key (old value) | public history: `315700c` `scratch/run_browser_script.mjs`, `scratch/regenerate_audit_and_fixtures.mjs` | **rotated**; old value refused by `/api/honeypot/ingest*` (2026-11-01 integration run) | nothing (history purge optional) | integration harness, env scan |
+| S2–S4 | 3 verification-account passwords | public history: `315700c`, `a7fa029` (`scratch/run_all_verify.ps1`) | **still valid** for 9 account records (4 in `sentinel-db`, 5 in `sentinel-demo`) as of 2026-11-02; not re-checked since | change each password (checklist above) | read-only checker (match flags), login attempt → 401 |
+| — | 114 historical sessions of the affected `sentinel-db` accounts | database only | unusable (inactivity timeout, refresh rotation), not revoked | revoked by step 1 | checker: 0 unrevoked pre-change sessions |
+| — | JWT secrets, `SENTINEL_KEY`, `CSRF` key, MongoDB credentials | not in history | not exposed | none | secret scan |
+
+Scans on this branch (2026-11-07; value lengths only): tracked files 0 findings; commits `f04eae0..HEAD`
+0 findings; full history 0 findings outside the reviewed baseline; scanner tests pass. No test added on this
+branch contains a real credential: every secret in new tests is generated per run or is a fixed `test-…` string.
+
+### Procedure (owner)
+
+1. Change the 9 passwords (checklist above), `sentinel-db` first; a different password per account and
+   per database. This also revokes the 114 sessions.
+2. Change the same passwords wherever else they were reused.
+3. Ask for the read-only checker run; expect "leaked password not valid" for all 9 and 0 unrevoked
+   pre-change sessions.
+4. Optional, destructive, shared: purge history (`git filter-repo --replace-text` on a mirror clone,
+   force-push every branch containing `315700c` / `a7fa029`, collaborators re-clone, GitHub Support for
+   cached views). Not needed for safety once steps 1–3 are done; never done without explicit approval.
+5. Then update SEC-001 to RESOLVED with the checker evidence; remove the SEC-001 lines from
+   `scripts/security/secret_scan_baseline.txt` only after the purge (step 4), otherwise keep them.
+
+Until step 3 passes: keep the backend on loopback (`HOST=127.0.0.1`, compose `BACKEND_BIND_ADDRESS` unset) and do
+not copy either database to another machine.

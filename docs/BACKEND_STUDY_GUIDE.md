@@ -50,6 +50,8 @@ error → `{success:false, error, code, timestamp}`; paginated → `{success, da
 |---|---|---|---|
 | GET `/` | none | Banner JSON | 109 |
 | GET `/health` | none | `{status:'ok'}` 200 only if Mongo connected **and** AI `/ready` ok **and** revocation delivery available, else 503 | 118-133 |
+| GET `/health/live` | none | `{status:'alive', uptimeSeconds}` 200 always; no dependency checks (liveness probe) | — |
+| GET `/health/ready` | none | 200 `ready` (all up) or `degraded` (AI engine down); 503 `unavailable` if Mongo or revocation delivery is down; `dependencies` lists each state | — |
 | GET `/api/system/health` | P + Perm(system:telemetry_full) | Memory, DB, AI, honeypot node, socket client counts | 136-186 |
 | GET `/api/ws/stats` | P + Perm(system:telemetry_full) | `socketManager.getStats()` | 187 |
 | GET `/api/docs`, `/api/docs.json` | none (non-production only) | Swagger UI / spec | 192-210 |

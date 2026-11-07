@@ -2,6 +2,7 @@
 
 Labels: CONFIRMED / LIKELY / POSSIBLE / UNKNOWN. Source: static / ran / prior-report / docs.
 No secret values appear in this file.
+Append-only history: an early entry may be superseded further down. Current status per ID: `STATUS_INDEX.md`.
 
 ---
 
@@ -1346,4 +1347,60 @@ SentinelAI E2E Tests run 41983986359 passed (Chromium; Playwright step 3 min 32 
 attempts; failure-artifact uploads skipped). Per-test counts are in the job log, which needs a signed-in account; the
 same configuration reproduced locally passed 82/82. Fix commit changed only e2e.yml, the new workflow test and the
 audit records; registry and Q-table hashes unchanged.
+```
+
+## Remediation 2026-11-07 — branch `backend-remediation` from `f04eae0` (local commits, not pushed)
+
+Findings F-03…F-09, CONT-R1, CONT-R2 come from the 2026-11-07 backend verification report. Details, tests and
+evidence: `audit/REMEDIATION_2026-11-07.md`.
+
+```
+ID: F-03 | P2 | FIXED (b8cc177) — /health/live and /health/ready added; /health unchanged; compose healthcheck
+ID: F-04 | P2 | FIXED (943788d) — shutdown order, single exit, repeated signals, unhandled rejection exits 1
+ID: F-05 | P3 | FIXED (90addc5) — fixed messages for body-parser errors (400/413/415)
+ID: F-06 | P1 | PARTIALLY FIXED (b93a550) — 3 standalone compensation defects fixed; replica set needs owner approval
+ID: F-07 | P2 | FIXED (fbbbd37) — durable, deduplicated, ordered containment audit trail with RBAC read endpoint
+ID: F-08 | P2 | PARTIALLY FIXED (7e5ecaa) — scope widened, priority files tested; server.js 76 % (out-of-process test)
+ID: F-09 | P3 | FIXED (7f90cc4) — generated STATUS_INDEX.md; history unchanged
+ID: CONT-R1 | P3 | VERIFIED (fbbbd37, 3f6a603) — single-clock comparisons; audit uses database time; no expiry change
+ID: CONT-R2 | P2 | FIXED (3f6a603) — admin operator recovery: diagnosis token, trusted Origin, never releases on UNKNOWN
+ID: DEP-002 | P2 | PARTIALLY FIXED (60020f1) — compatible npm fixes; major upgrades (vite 8, swagger-jsdoc, jest) need approval
+ID: TEST-012 | P3 | OBSERVED 2026-11-07 / OPEN (environment) — in-memory mongod start timeout (10 s) under parallel load:
+            2 of 5 full Jest runs after the lockfile change (both right after npm install), last 3 clean; suites pass alone.
+            mongodb-memory-server version unchanged. Timeouts deliberately not raised.
+```
+
+## Pre-PR safety review 2026-11-07 — `backend-remediation` (local, not pushed)
+
+```
+ID: REV-001 | P1 | FIXED (fc1064b) — retention insert-only archive (regression from b93a550) kept a stale copy of
+            a restored, changed record and deleted the current version; now replace-upsert
+ID: REV-002 | P1 | FIXED (fc1064b) — updateUser compensation wrote absolute session counters back and could undo a
+            concurrent force-logout (authVersion since before f04eae0); counters now only restored if untouched
+ID: REV-003 | P2 | FIXED (3452bbf) — new containment audit events could overtake queued ones; queue after write
+            failures flushed only on reconnect; shutdown did not wait for audit writes
+ID: REV-004 | P2 | FIXED (bd01bfc) — operator recovery acted before its AuditLog record; now fails closed (503)
+ID: REV-005 | P2 | FIXED (6cdcd2f) — /health/ready made 2 AI-engine requests per unauthenticated probe; 5 s cache
+ID: REV-006 | P3 | FIXED (435abc1) — module-level retry timer (added in 3452bbf) failed 2 suites to load; now lazy
+ID: TEST-012 (update) | P3 | ROOT CAUSE ESTABLISHED / CLOSED (environment) — the two failing runs coincided with an
+            orphaned Jest run (+ its mongod) left by an aborted check, and with Defender scanning right after
+            npm install, on a 7.7 GB machine running 4 Jest workers. mongod start: median 0.6-1.9 s, max 5.3 s
+            (cold), 0 failures in 88 starts incl. 8 concurrent and during a full Jest run; every MongoDB suite stops
+            its servers; 4 consecutive full runs clean after the orphans were stopped. No harness defect; timeouts
+            unchanged.
+```
+
+## PR #2 CI (2026-11-07)
+
+```
+ID: CI-003 | P2 | FIXED (local commit, not pushed) — "Backend (MongoDB-backed suites)" failed on PR #2 (push and
+            pull_request runs): authBrowser.test.js threw ERR_REQUIRE_ESM loading puppeteer-core. Cause: the
+            semver-compatible `npm audit fix` in 60020f1 also moved the lockfile from Jest 30.4.2 to 30.5.2, whose
+            runtime intercepts native createRequire of ES modules (verified: puppeteer-core 25.10 and 25.16 both load
+            under Jest 30.4.2, both fail under 30.5.2). Not a remediation code defect; reproduced locally with the CI
+            command, env and a disposable mongod on 27029 (1 failed / 12 passed, identical to CI).
+            Fix: lockfile rebuilt from f04eae0 with only the security updates (body-parser, fast-uri, follow-redirects;
+            puppeteer-core 25.16.0 for zod GHSA-mrhx-c7xc-m3w5), Jest toolchain kept at 30.4.2; package.json
+            puppeteer-core ^25.16.0. Guard: tests/jestEsmInterop.test.js (default job) fails under Jest 30.5.2.
+            After: CI MongoDB job locally 4/4 suites, 13/13; full backend 1439 passed / 13 skipped; npm audit 0 high.
 ```

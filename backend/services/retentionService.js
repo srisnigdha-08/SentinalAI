@@ -165,6 +165,20 @@ async function dryRunRetention(options = {}) {
  * @param {Object} [options.actor] - User or system initiating the retention run
  * @returns {Promise<Object>}
  */
+// Archive copies keep the original _id. With insertMany, a run that archived and then failed before deleting
+// (connection reset, timeout) left the live records in place but made every later run fail with E11000 on the
+// archive, so retention stayed stuck until someone cleaned the archive by hand (F-06). A replace-upsert keyed
+// by _id lets the retry finish, and always stores the version that is about to be deleted. (Insert-only was
+// wrong: restoreFromArchive keeps the archive copy, so a restored record that changed and was archived again
+// kept the stale copy while the current version was deleted.)
+async function archiveIdempotent(collection, docs) {
+  if (!docs.length) return
+  await collection.bulkWrite(
+    docs.map((doc) => ({ replaceOne: { filter: { _id: doc._id }, replacement: doc, upsert: true } })),
+    { ordered: false }
+  )
+}
+
 async function applyRetention(options = {}) {
   const config = getRetentionConfig()
 
@@ -217,7 +231,7 @@ async function applyRetention(options = {}) {
       _archivedAt: archiveTime,
       _retentionBatch: archiveTime.toISOString(),
     }))
-    await db.collection('archived_threatlogs').insertMany(threatArchiveDocs)
+    await archiveIdempotent(db.collection('archived_threatlogs'), threatArchiveDocs)
     logger.info(`[Retention] Archived ${candidates.threats.length} threat records to archived_threatlogs`)
   }
 
@@ -229,7 +243,7 @@ async function applyRetention(options = {}) {
       _archivedAt: archiveTime,
       _retentionBatch: archiveTime.toISOString(),
     }))
-    await db.collection('archived_honeypotsessions').insertMany(sessionArchiveDocs)
+    await archiveIdempotent(db.collection('archived_honeypotsessions'), sessionArchiveDocs)
     logger.info(`[Retention] Archived ${candidates.sessions.length} session records to archived_honeypotsessions`)
   }
 
@@ -241,7 +255,7 @@ async function applyRetention(options = {}) {
       _archivedAt: archiveTime,
       _retentionBatch: archiveTime.toISOString(),
     }))
-    await db.collection('archived_alerts').insertMany(alertArchiveDocs)
+    await archiveIdempotent(db.collection('archived_alerts'), alertArchiveDocs)
     logger.info(`[Retention] Archived ${candidates.alerts.length} alert records to archived_alerts`)
   }
 
