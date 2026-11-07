@@ -2,6 +2,7 @@
 
 Labels: CONFIRMED / LIKELY / POSSIBLE / UNKNOWN. Source: static / ran / prior-report / docs.
 No secret values appear in this file.
+Append-only history: an early entry may be superseded further down. Current status per ID: `STATUS_INDEX.md`.
 
 ---
 
