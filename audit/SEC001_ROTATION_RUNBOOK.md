@@ -1,6 +1,6 @@
 # SEC-001 — credential rotation and session revocation runbook (owner-executed)
 
-Status: **OPEN — REQUIRES OWNER ACTION.** Nothing in this runbook has been executed. No leaked value appears here
+Status: **RESOLVED 2026-11-08** (bulk rotation by sec001_rotate.cjs, verified by the checker; see SEC001_REMEDIATION.md). Kept as a record of the procedure. No leaked value appears here
 or in any output of the tools it uses. Background and history: `SEC001_REMEDIATION.md`.
 
 ## What must change

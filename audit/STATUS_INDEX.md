@@ -7,7 +7,7 @@ row) that states one, else from the latest status cell for it in `FIXES.md`. NO 
 file states one: it is not evidence that the finding is fixed, or that it is still open. "Entries" links every
 line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand in `status_overrides.json`.
 
-120 findings. FIXED / CLOSED: 79 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 5 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · OPEN / OWNER ACTION: 1 · WITHDRAWN: 1
+120 findings. FIXED / CLOSED: 80 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 5 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · WITHDRAWN: 1
 
 | ID | Priority | Current status | Status taken from (truncated) | Entries |
 |---|---|---|---|---|
@@ -99,7 +99,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | REV-006 | P3 | FIXED / CLOSED | [1384](FINDINGS.md#L1384): FIXED (435abc1) — module-level retry timer (added in 3452bbf) failed 2 suites to load; now lazy | [1384](FINDINGS.md#L1384) |
 | RL-001 | P3 | PARTIALLY FIXED | [520](FINDINGS.md#L520): PARTIALLY RESOLVED — persisted decisions applied by id (audit/RL001_DESIGN.md). | [441](FINDINGS.md#L441), [490](FINDINGS.md#L490), [520](FINDINGS.md#L520), [fix 145](FIXES.md#L145), [fix 179](FIXES.md#L179) |
 | SCAN-001 | P2 | FIXED / CLOSED | [506](FINDINGS.md#L506): CONFIRMED (tests) / RESOLVED | [506](FINDINGS.md#L506), [fix 175](FIXES.md#L175) |
-| SEC-001 | P0 | OPEN / OWNER ACTION * | override: Key rotated, old key refused; leaked account passwords unchanged, public history; risk accepted 2026-11-02 for | [12](FINDINGS.md#L12), [285](FINDINGS.md#L285), [459](FINDINGS.md#L459), [fix 59](FIXES.md#L59), [fix 137](FIXES.md#L137), [fix 173](FIXES.md#L173), [fix 201](FIXES.md#L201), [fix 227](FIXES.md#L227), [fix 247](FIXES.md#L247), [fix 268](FIXES.md#L268), [fix 300](FIXES.md#L300), [fix 320](FIXES.md#L320) |
+| SEC-001 | P0 | FIXED / CLOSED * | override: Resolved 2026-11-08: nine records rotated, sessions revoked, checker 9 checked / 0 open. Dead values remain in | [12](FINDINGS.md#L12), [285](FINDINGS.md#L285), [459](FINDINGS.md#L459), [1411](FINDINGS.md#L1411), [fix 59](FIXES.md#L59), [fix 137](FIXES.md#L137), [fix 173](FIXES.md#L173), [fix 201](FIXES.md#L201), [fix 227](FIXES.md#L227), [fix 247](FIXES.md#L247), [fix 268](FIXES.md#L268), [fix 300](FIXES.md#L300), [fix 320](FIXES.md#L320) |
 | SEC-002 | P1 | FIXED / CLOSED | [298](FINDINGS.md#L298): FIXED | [205](FINDINGS.md#L205), [298](FINDINGS.md#L298) |
 | SEC-003 | P3 | FIXED / CLOSED | [298](FINDINGS.md#L298): FIXED | [266](FINDINGS.md#L266), [298](FINDINGS.md#L298) |
 | SEC-004 | P2 | NO STATUS RECORDED | [328](FINDINGS.md#L328): Priority: P2 (P1 once real enforcement is enabled) / Label: LIKELY (static) | [328](FINDINGS.md#L328) |

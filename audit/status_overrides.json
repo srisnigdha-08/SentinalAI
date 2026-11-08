@@ -1,6 +1,6 @@
 {
   "SEC-001": {
-    "status": "OPEN / OWNER ACTION",
-    "note": "Key rotated, old key refused; leaked account passwords unchanged, public history; risk accepted 2026-11-02 for loopback-only use (SEC001_REMEDIATION.md, LEDGER.md)"
+    "status": "FIXED / CLOSED",
+    "note": "Resolved 2026-11-08: nine records rotated, sessions revoked, checker 9 checked / 0 open. Dead values remain in public history (purge optional)"
   }
 }

@@ -1404,3 +1404,14 @@ ID: CI-003 | P2 | FIXED (local commit, not pushed) — "Backend (MongoDB-backed 
             puppeteer-core ^25.16.0. Guard: tests/jestEsmInterop.test.js (default job) fails under Jest 30.5.2.
             After: CI MongoDB job locally 4/4 suites, 13/13; full backend 1439 passed / 13 skipped; npm audit 0 high.
 ```
+
+## SEC-001 resolution (2026-11-08)
+
+```
+ID: SEC-001 (resolution) | P0 | RESOLVED 2026-11-08 (owner-approved rotation; verified) — all nine affected records
+            rotated by scripts/security/sec001_rotate.cjs (9/9, 115 sessions revoked, 0 conflicts) after archive backups
+            were verified. Read-only checker across 8 local databases: 9 checked, 0 open, exit 0; no leaked password
+            valid on any record. Residual (not blocking): the leaked values remain readable in public Git history but
+            unlock nothing (purge optional, needs approval); reuse of those passwords on other services can only be
+            checked by the owner; temporary passwords must be moved to a password manager and the file deleted.
+```

@@ -158,3 +158,16 @@ branch contains a real credential: every secret in new tests is generated per ru
 
 Until step 3 passes: keep the backend on loopback (`HOST=127.0.0.1`, compose `BACKEND_BIND_ADDRESS` unset) and do
 not copy either database to another machine.
+
+## 2026-11-08 — rotation executed and verified
+
+Owner-approved run of `scripts/security/sec001_rotate.cjs` (plan fingerprint `21f7c7aac0b5faf6`), after both archive
+backups passed `mongorestore --dryRun`. Result: 9/9 records rotated, 115 unrevoked sessions revoked (76 / 1 / 2 / 36 in
+`sentinel-db`, 0 in `sentinel-demo`), no conflicts. Each account must set its own password at first sign-in.
+
+Verification with `scripts/security/sec001_check.cjs` across all 8 local SentinelAI databases: affected records 9
+checked, 0 open, exit 0; no leaked password valid on any record; other accounts' sessions unchanged.
+
+**SEC-001: RESOLVED** for the credentials. Still with the owner: move the temporary passwords to a password manager
+and delete the credentials file and journal; change any leaked password reused on another service; decide whether to
+purge history (optional: the values no longer unlock anything).
