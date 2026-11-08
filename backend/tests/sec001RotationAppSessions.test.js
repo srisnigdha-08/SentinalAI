@@ -46,6 +46,7 @@ test('old access and refresh tokens die, the temporary password signs in, the ch
   const backup = path.join(tmp, 'backup', DB)
   fs.mkdirSync(backup, { recursive: true })
   fs.writeFileSync(path.join(backup, 'users.bson'), 'synthetic')
+  fs.writeFileSync(path.join(backup, 'authsessions.bson'), 'synthetic')
   const uri = mongo.getUri()
   const run = (argv) => spawnSync(process.execPath, [TOOL, ...argv], { encoding: 'utf8' })
   const pre = run(['preflight', '--mongo', uri, '--targets-file', targets])

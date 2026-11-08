@@ -136,7 +136,10 @@ function printPlan(rows) {
 function restrictToOwner(target) {
   if (process.platform === 'win32') {
     const who = `${process.env.USERDOMAIN || os.hostname()}\\${process.env.USERNAME || os.userInfo().username}`
-    execFileSync('icacls', [target, '/inheritance:r', '/grant:r', `${who}:F`], { stdio: 'ignore' })
+    // Directories pass the owner-only entry on to new files. Without an inheritable entry a new file takes the
+    // process token's default ACL, which can include a logon-session SID that icacls cannot remove by name.
+    const grant = fs.statSync(target).isDirectory() ? `${who}:(OI)(CI)F` : `${who}:F`
+    execFileSync('icacls', [target, '/inheritance:r', '/grant:r', grant], { stdio: 'ignore' })
     // New files also get explicit ACEs from the process token (e.g. BUILTIN\Administrators, NT AUTHORITY\SYSTEM);
     // /grant:r leaves those, so every principal other than the owner is removed explicitly.
     const principals = (acl) =>
@@ -149,7 +152,8 @@ function restrictToOwner(target) {
       if (p.toLowerCase() !== who.toLowerCase()) execFileSync('icacls', [target, '/remove:g', p], { stdio: 'ignore' })
     }
     const left = principals(execFileSync('icacls', [target], { encoding: 'utf8' }))
-    if (left.length !== 1 || left[0].toLowerCase() !== who.toLowerCase())
+    // Several entries are fine (Windows can keep "this folder" and "inherit" entries apart); all must be the owner's.
+    if (!left.length || left.some((p) => p.toLowerCase() !== who.toLowerCase()))
       throw new Error(`could not restrict ${target} to ${who}`)
   } else {
     fs.chmodSync(target, fs.statSync(target).isDirectory() ? 0o700 : 0o600)
@@ -398,4 +402,13 @@ if (require.main === module) {
     }
   )
 }
-module.exports = { generatePassword, fingerprintOf, assertLoopback, checkBackup, DEFAULT_TARGETS, AUTHORIZE_PHRASE }
+module.exports = {
+  generatePassword,
+  fingerprintOf,
+  assertLoopback,
+  checkBackup,
+  restrictToOwner,
+  writeOwnerOnly,
+  DEFAULT_TARGETS,
+  AUTHORIZE_PHRASE,
+}

@@ -285,3 +285,21 @@ test('archive backups count only when mongorestore --dryRun shows users and auth
   checkBackup(dir, ['rot_a'], { uri: mongo.getUri() })
   assert.deepStrictEqual(await snapshot(), before, 'the dry run restored something')
 })
+
+test('an existing credentials folder with a plain owner entry is accepted, and new files in it are owner-only', (t) => {
+  if (process.platform !== 'win32') return t.skip('Windows ACLs only')
+  const { restrictToOwner, writeOwnerOnly } = require(TOOL)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sec001-acl-'))
+  try {
+    const who = [process.env.USERDOMAIN, process.env.USERNAME].join(String.fromCharCode(92))
+    execFileSync('icacls', [dir, '/inheritance:r', '/grant:r', `${who}:F`], { stdio: 'ignore' }) // left by an earlier run
+    restrictToOwner(dir)
+    const file = path.join(dir, 'x.json')
+    writeOwnerOnly(file, '{}')
+    const lines = execFileSync('icacls', [file], { encoding: 'utf8' }).split(/\r?\n/).filter((l) => /:\(/.test(l))
+    assert.ok(lines.length >= 1 && lines.every((l) => l.toLowerCase().includes(who.toLowerCase())), lines.join('\n'))
+    assert.strictEqual(fs.readFileSync(file, 'utf8'), '{}')
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})
