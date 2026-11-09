@@ -328,4 +328,4 @@ if (require.main === module) {
     }
   )
 }
-module.exports = { PROJECT, buildSecrets, redactor, publishProblems, livePublishProblems, enforcementProblems, leftoverProblems }
+module.exports = { PROJECT, ALL_DENIED_JS, buildSecrets, redactor, publishProblems, livePublishProblems, enforcementProblems, leftoverProblems }

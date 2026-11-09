@@ -75,3 +75,32 @@ jobs:
         if: always()
         working-directory: ${{ runner.temp }}
         run: docker compose -p sentinelai-verify down -v --remove-orphans
+
+  replicaset:
+    name: Replica-set verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Verification safety checks
+        run: node --test scripts/deploy/replicaset_verify.test.cjs
+      - name: Prove cleanup after a failed run
+        run: |
+          status=0
+          node scripts/deploy/replicaset_verify.cjs --inject-failure > "$RUNNER_TEMP/failure-path.log" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/failure-path.log"
+          test "$status" -eq 1
+          grep -q 'injected failure' "$RUNNER_TEMP/failure-path.log"
+          label='label=com.docker.compose.project=sentinelai-verify'
+          test -z "$(docker ps -aq --filter "$label")"
+          test -z "$(docker network ls -q --filter "$label")"
+          test -z "$(docker volume ls -q --filter "$label")"
+      - name: Build and verify the replica set on disposable infrastructure
+        run: node scripts/deploy/replicaset_verify.cjs
+      - name: Remove any remaining disposable resources
+        if: always()
+        working-directory: ${{ runner.temp }}
+        run: docker compose -p sentinelai-verify down -v --remove-orphans
