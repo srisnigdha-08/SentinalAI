@@ -86,6 +86,15 @@ const sentinelAppPrivileges = [
     resource: { db: targetDbName, collection: 'auditlogs' },
     actions: ['insert']
   },
+  // Containment audit trail: also append-only at the engine layer. Its sequence counter advances but cannot be removed.
+  {
+    resource: { db: targetDbName, collection: 'containment_audit_events' },
+    actions: ['insert']
+  },
+  {
+    resource: { db: targetDbName, collection: 'counters' },
+    actions: ['insert', 'update']
+  },
   // 3. Full operational write privileges on application domain collections
   ...operationalCollections.map(col => ({
     resource: { db: targetDbName, collection: col },
