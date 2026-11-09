@@ -105,7 +105,7 @@ test('server.js registers the containment audit flush as a shutdown finalizer', 
 
 describe('signal handling', () => {
   let before
-  const EVENTS = ['SIGTERM', 'SIGINT', 'message', 'unhandledRejection']
+  const EVENTS = ['SIGTERM', 'SIGINT', 'message', 'unhandledRejection', 'uncaughtException']
   beforeEach(() => {
     before = Object.fromEntries(EVENTS.map((e) => [e, process.listeners(e)]))
   })
@@ -144,6 +144,21 @@ describe('signal handling', () => {
     manager.attachSignalHandlers()
     process.emit('unhandledRejection', new Error('boom'), Promise.resolve())
     await new Promise((r) => setTimeout(r, 50))
+    expect(exits).toEqual([1])
+  })
+
+  test('an uncaught exception runs the graceful shutdown and exits with code 1', async () => {
+    const exits = []
+    const service = { name: 'svc', stop: jest.fn().mockResolvedValue() }
+    const manager = new GracefulShutdownManager({
+      services: [service],
+      emergencyTimeoutMs: 8000,
+      onExit: (c) => exits.push(c),
+    })
+    manager.attachSignalHandlers()
+    process.emit('uncaughtException', new Error('boom'), 'uncaughtException')
+    await new Promise((r) => setTimeout(r, 50))
+    expect(service.stop).toHaveBeenCalledTimes(1)
     expect(exits).toEqual([1])
   })
 

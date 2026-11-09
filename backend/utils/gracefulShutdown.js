@@ -269,6 +269,11 @@ class GracefulShutdownManager {
       logger.error('[Shutdown] Unhandled rejection: ' + (err?.message || err))
       handler('UNHANDLED', 1)
     })
+    // Same path for a synchronous crash: in-flight requests finish and audit writes are flushed before exit 1.
+    process.on('uncaughtException', (err) => {
+      logger.error('[Shutdown] Uncaught exception: ' + (err?.message || err))
+      handler('UNCAUGHT', 1)
+    })
   }
 }
 

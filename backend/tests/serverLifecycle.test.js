@@ -114,6 +114,16 @@ test('MongoDB stops: not ready, still alive, requests fail cleanly; it comes bac
   expect(back).toBe(true)
 })
 
+test('password changes share the auth rate limit (each attempt costs a bcrypt compare)', async () => {
+  let last
+  for (let i = 0; i < 101; i++) {
+    last = await fetch(base + '/api/auth/update-password', { method: 'PUT' })
+    await last.arrayBuffer()
+    if (last.status === 429) break
+  }
+  expect(last.status).toBe(429)
+})
+
 test('graceful shutdown over IPC: exit 0, every step closed, no false close error, no secret in the log', async () => {
   const exited = new Promise((resolve) => child.on('exit', (code) => resolve(code)))
   const t0 = Date.now()
