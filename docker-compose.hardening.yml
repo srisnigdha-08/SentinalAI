@@ -1,0 +1,42 @@
+# Least-capability and resource limits, added on top of the TLS and replica-set overlays:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml -f docker-compose.replicaset.yml \
+#     -f docker-compose.hardening.yml up --build
+services:
+  mongo:
+    # Only what the image's entrypoint needs to set ownership and drop to the mongodb user.
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 1536m
+    cpus: 1.5
+    pids_limit: 512
+
+  ai-engine:
+    mem_limit: 2g
+    cpus: 1.5
+    pids_limit: 256
+
+  backend:
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 768m
+    cpus: 1
+    pids_limit: 256
+
+  frontend:
+    mem_limit: 128m
+    cpus: 0.5
+    pids_limit: 64
