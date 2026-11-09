@@ -29,6 +29,9 @@ const METRICS_TOKEN_FILE = path.join(ROOT, 'deployment', 'metrics_token')
 const ROLLBACK_REF = process.env.ROLLBACK_REF || '8b9db80'
 const FILLER_DOCUMENTS = 100000
 const MONGO_CAPS = ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID']
+// One backend health probe cycle (15 s interval, 5 s timeout) plus margin. Docker's flag lags real readiness by up to
+// that long, and `up --wait` fails immediately on a flag still showing the outage (run 42633735070).
+const DOCKER_HEALTH_WAIT_MS = 30000
 
 const RTO_TARGETS_SECONDS = {
   backend_crash: 120,
@@ -71,6 +74,15 @@ function auditProblems({ acknowledged, stored, sequence, counter, duplicates, in
   const newest = sequence[sequence.length - 1] ?? 0
   if ((counter ?? 0) < newest) problems.push('counter is behind the newest event')
   if ((counter ?? 0) - newest > inFlight) problems.push('counter is far ahead of the stored trail')
+  return problems
+}
+
+const unhealthyServices = (statuses) => Object.entries(statuses).filter(([, status]) => status !== 'healthy').map(([name]) => name)
+
+function crashProblems({ observedNotReady, restartsBefore, restartsAfter }) {
+  const problems = []
+  if (!observedNotReady) problems.push('the outage was never observed, so the timing means nothing')
+  if (restartsAfter !== restartsBefore + 1) problems.push(`restart count went from ${restartsBefore} to ${restartsAfter}`)
   return problems
 }
 
@@ -269,7 +281,34 @@ async function main() {
     if (ok) rto[name] = seconds
     return { ok, seconds }
   }
+  const dockerHealth = () =>
+    Object.fromEntries(SERVICES.map((s) => [s, docker('inspect', '-f', '{{.State.Health.Status}}', must(STACK, 'ps', '-q', s).stdout.trim()).stdout.trim()]))
+  const dockerHealthRecovered = async (name) => {
+    must(STACK, 'up', '-d', ...SERVICES) // brings back anything a scenario that stopped early left down
+    const ok = await waitFor(() => unhealthyServices(dockerHealth()).length === 0, DOCKER_HEALTH_WAIT_MS)
+    check(`${name}: Docker health returns to healthy`, ok, JSON.stringify(dockerHealth()))
+  }
+  const crashAndRecover = async (rtoName, service) => {
+    const id = must(STACK, 'ps', '-q', service).stdout.trim()
+    const restarts = () => Number(docker('inspect', '-f', '{{.RestartCount}}', id).stdout.trim())
+    const restartsBefore = restarts()
+    hostKill(service)
+    const injectedAt = Date.now()
+    const observedNotReady = await waitFor(() => readiness().body.status !== 'ready', 30000, 100)
+    const ok = await waitReady()
+    const seconds = Math.round((Date.now() - injectedAt) / 100) / 10
+    if (ok) rto[rtoName] = seconds
+    const problems = crashProblems({ observedNotReady, restartsBefore, restartsAfter: restarts() })
+    check(`${service} crash was observed and Docker restarted the container`, problems.length === 0, problems.join('; '))
+    return { ok, seconds }
+  }
+  const socketCloseSeconds = async (name, socket, injectedAt, limitMs) => {
+    const closed = await socket.closed(limitMs).then(() => true, () => false)
+    if (closed) rto[name] = Math.round((socket.closedAt() - injectedAt) / 100) / 10
+    return { ok: closed, seconds: rto[name] }
+  }
   const assertRecovered = async (name) => {
+    await dockerHealthRecovered(name)
     start(STACK, ...SERVICES)
     check(`${name}: stack is ready again`, await waitReady(), readiness().line)
     const session = await signIn()
@@ -420,20 +459,42 @@ async function main() {
       const { token } = await signIn()
       const traffic = startTraffic(token, { max: 60, intervalMs: 100 })
       await sleep(2500)
-      hostKill('backend')
-      const back = await measure('backend_crash', () => waitReady())
+      const back = await crashAndRecover('backend_crash', 'backend')
       check('backend returns on its own after SIGKILL', back.ok, `${back.seconds} s`)
       await traffic.stop()
       check('traffic was acknowledged before the crash', acknowledged(traffic.records).length > 0, acknowledged(traffic.records).length)
       await assertAudit('backend crash', traffic.records)
     })
 
+    await scenario('Audit spool replay after a crash', async () => {
+      const { token } = await signIn()
+      const privileges = "[{resource:{db:'sentinel-db',collection:'containment_audit_events'},actions:['insert']},{resource:{db:'sentinel-db',collection:'counters'},actions:['insert','update']}]"
+      mongo(`db.revokePrivilegesFromRole('sentinel_app_role',${privileges})`)
+      let id
+      try {
+        const created = await contain(token)
+        id = created.json?.data?.action?.containmentId
+        check('containment is acknowledged while audit writes are refused', created.status === 201, created.status)
+        const queued = await waitFor(async () => (await api('GET', `/api/containment/actions/${id}/audit`, { headers: bearer(token) })).json?.data?.pendingDurableWrites > 0, 30000)
+        check('its events are queued, not stored', queued && mongo(`print(db.containment_audit_events.countDocuments({containmentId:'${id}'}))`).out === '0')
+        const spool = run(STACK, ['exec', '-T', 'backend', 'sh', '-c', 'wc -c < logs/containment-audit-spool-sentinel-db.jsonl']).stdout.trim()
+        check('the events are on the durable spool', Number(spool) > 0, `${spool} bytes`)
+        const back = await crashAndRecover('spool_replay_restart', 'backend')
+        check('backend returns on its own after SIGKILL', back.ok, `${back.seconds} s`)
+      } finally {
+        mongo(`db.grantPrivilegesToRole('sentinel_app_role',${privileges})`)
+      }
+      check('events held only in the spool are stored after the crash', await waitFor(() => Number(mongo(`print(db.containment_audit_events.countDocuments({containmentId:'${id}'}))`).out) >= 2, 90000, 2000))
+      const after = await signIn()
+      const drained = await waitFor(async () => (await api('GET', `/api/containment/actions/${id}/audit`, { headers: bearer(after.token) })).json?.data?.pendingDurableWrites === 0, 60000, 2000)
+      check('nothing is left queued after replay', drained)
+    })
+
     await scenario('MongoDB crash during audit writes', async () => {
       const { token } = await signIn()
       const traffic = startTraffic(token, { max: 60, intervalMs: 100 })
       await sleep(2500)
-      hostKill('mongo')
-      const back = await measure('mongo_crash', () => waitReady())
+      const back = await crashAndRecover('mongo_crash', 'mongo')
       check('MongoDB returns on its own after SIGKILL', back.ok, `${back.seconds} s`)
       await traffic.stop()
       check('traffic was acknowledged before the crash', acknowledged(traffic.records).length > 0, acknowledged(traffic.records).length)
@@ -444,9 +505,10 @@ async function main() {
       const session = await signIn()
       const { socket, reply } = await liveSocket(session.token)
       check('socket connected before the outage', reply.startsWith('40'), reply.slice(0, 16))
+      const outageAt = Date.now()
       must(STACK, 'stop', 'mongo')
       check('readiness fails closed', await waitFor(() => readiness().code === 503, 60000, 2000), readiness().line)
-      const closed = await measure('socket_close_on_outage', () => socket.closed(30000).then(() => true, () => false))
+      const closed = await socketCloseSeconds('socket_close_on_outage', socket, outageAt, 30000)
       check('open sockets are closed during the outage', closed.ok, `${closed.seconds} s`)
       socket.destroy()
       check('requests are refused rather than served from stale state', (await api('GET', '/api/auth/me', { headers: bearer(session.token) })).status === 503)
@@ -463,11 +525,12 @@ async function main() {
       check('socket connected before the partition', reply.startsWith('40'), reply.slice(0, 16))
       const backend = must(STACK, 'ps', '-q', 'backend').stdout.trim()
       const net_ = `${PROJECT}_default`
+      const partitionAt = Date.now()
       if (docker('network', 'disconnect', net_, backend).status !== 0) throw new Error('could not disconnect the backend')
       check('readiness fails closed during the partition', await waitFor(() => readiness().code === 503, 60000, 2000), readiness().line)
       const changed = mongo(`const u=db.users.findOne({email:'${ADMIN_EMAIL}'});print(db.authsessions.updateMany({user:u._id,revokedAt:null},{$set:{revokedAt:new Date(),revocationReason:'partition-test'}}).modifiedCount)`).out
       check('session revoked in the database while the backend cannot see it', Number(changed) >= 1, changed)
-      const closed = await measure('socket_close_on_partition', () => socket.closed(45000).then(() => true, () => false))
+      const closed = await socketCloseSeconds('socket_close_on_partition', socket, partitionAt, 45000)
       check('the socket does not outlive the partition', closed.ok, `${closed.seconds} s`)
       socket.destroy()
       if (docker('network', 'connect', '--alias', 'backend', net_, backend).status !== 0) throw new Error('could not reconnect the backend')
@@ -580,7 +643,7 @@ async function main() {
       const filled = mongo(`for(let b=0;b<${FILLER_DOCUMENTS / 1000};b++){db.reliability_fill.insertMany(Array.from({length:1000},(_,i)=>({b,i,pad:'x'.repeat(256)})))};print(db.reliability_fill.countDocuments())`)
       check(`${FILLER_DOCUMENTS} synthetic documents loaded`, filled.out === String(FILLER_DOCUMENTS), filled.out)
       const { token } = await signIn()
-      const traffic = startTraffic(token, { max: 150, intervalMs: 150 })
+      const traffic = startTraffic(token, { max: 150, intervalMs: 50 })
       await sleep(1500)
       const dumpStarted = Date.now()
       const made2 = await backupTool('backup', '--project', PROJECT, ...composeFlags, '--compose-env', envFile, '--out', backups, '--recipient', recipient, '--keep', '3', '--cwd', ROOT)
@@ -628,8 +691,10 @@ async function main() {
         const refusedKey = await backupTool(...restoreArgs(summary.file, wrongKey))
         check('the wrong key cannot restore, and writes nothing', refusedKey.code !== 0 && mongo('print(db.getSiblingDB(\'sentinel-db\').getCollectionNames().length)').out === '0', refusedKey.err.slice(-120))
         const loaded = await backupTool(...restoreArgs(summary.file, identity))
-        check('encrypted backup restored onto a brand-new volume with oplog replay', loaded.code === 0, loaded.err.slice(-300))
+        check('encrypted backup restored onto a brand-new volume', loaded.code === 0, loaded.err.slice(-300))
         if (loaded.code !== 0) return false
+        const applied = JSON.parse(loaded.out || '{}').appliedOplogEntries
+        check('oplog entries captured during the backup were replayed', applied >= 1, applied)
         must(STACK, 'restart', 'mongo')
         start(STACK, ...SERVICES)
         return waitReady()
@@ -638,6 +703,8 @@ async function main() {
       const state = auditState()
       const problems = auditProblems({ ...state, acknowledged: acknowledged(before), inFlight: 6 })
       check('restored trail: everything acknowledged before the backup is present, ordered, gap-free and unique', problems.length === 0, problems.join('; ') || JSON.stringify({ events: state.sequence.length, counter: state.counter }))
+      const restoredDuring = acknowledged(during).filter((id) => state.stored.includes(id))
+      check('an action acknowledged during the backup was restored', restoredDuring.length >= 1, `${restoredDuring.length} of ${during.length}`)
       const restored = JSON.parse(mongo(SNAPSHOT).out)
       check('filler data restored completely', restored.reliability_fill?.n === FILLER_DOCUMENTS, restored.reliability_fill?.n)
       const indexIssues = Object.keys(live).filter((c) => JSON.stringify(live[c].i) !== JSON.stringify(restored[c]?.i))
@@ -702,6 +769,8 @@ async function main() {
     const leftovers = leftoverProblems({ containers: list('ps', '-aq'), networks: list('network', 'ls', '-q'), volumes: list('volume', 'ls', '-q') })
     check('disposable containers, networks and volumes removed', leftovers.length === 0, leftovers.join('; '))
     fs.rmSync(tmp, { recursive: true, force: true })
+    const worktrees = spawnSync('git', ['worktree', 'list', '--porcelain'], { cwd: ROOT, encoding: 'utf8' }).stdout
+    check('temporary secrets and working files removed', !fs.existsSync(tmp) && !fs.existsSync(METRICS_TOKEN_FILE) && !worktrees.includes(path.basename(rollbackDir) + '\n'), `${tmp}`)
   }
   console.log(`\n${failures ? `${failures} check(s) failed` : 'All recovery checks passed'}`)
   return failures ? 1 : 0
@@ -716,4 +785,4 @@ if (require.main === module) {
     }
   )
 }
-module.exports = { RTO_TARGETS_SECONDS, RPO_STATEMENTS, hardeningProblems, auditProblems, rtoProblems, memoryProblems, issueExpired }
+module.exports = { RTO_TARGETS_SECONDS, RPO_STATEMENTS, hardeningProblems, auditProblems, rtoProblems, memoryProblems, unhealthyServices, crashProblems, issueExpired }

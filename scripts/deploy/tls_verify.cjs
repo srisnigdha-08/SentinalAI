@@ -266,9 +266,11 @@ function wsConnect(target, { origin }) {
       const waiters = []
       let buffer = Buffer.alloc(0)
       let isClosed = false
+      let closedAt = null
       const closeWaiters = []
       const markClosed = () => {
         isClosed = true
+        closedAt = Date.now()
         closeWaiters.splice(0).forEach((done) => done())
         waiters.splice(0).forEach((w) => w.reject(new Error('socket closed')))
       }
@@ -314,6 +316,7 @@ function wsConnect(target, { origin }) {
             const timer = setTimeout(() => fail(new Error('socket stayed open')), ms)
             closeWaiters.push(() => (clearTimeout(timer), done()))
           }),
+        closedAt: () => closedAt,
         destroy: () => socket.destroy(),
       })
     })

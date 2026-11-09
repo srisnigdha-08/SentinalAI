@@ -92,6 +92,50 @@ test('every failure scenario has recovery assertions', () => {
   assert.match(source, /const scenario = async[\s\S]{0,900}assertRecovered/)
 })
 
+test('only a service that reports healthy counts as recovered', () => {
+  assert.deepEqual(v.unhealthyServices({ mongo: 'healthy', backend: 'healthy' }), [])
+  assert.deepEqual(v.unhealthyServices({ mongo: 'healthy', backend: 'unhealthy' }), ['backend'])
+  assert.deepEqual(v.unhealthyServices({ backend: 'starting', frontend: '' }), ['backend', 'frontend'])
+})
+
+test('a crash counts only when it was seen and Docker restarted the container', () => {
+  assert.deepEqual(v.crashProblems({ observedNotReady: true, restartsBefore: 2, restartsAfter: 3 }), [])
+  assert.equal(v.crashProblems({ observedNotReady: false, restartsBefore: 2, restartsAfter: 3 }).length, 1)
+  assert.equal(v.crashProblems({ observedNotReady: true, restartsBefore: 2, restartsAfter: 2 }).length, 1)
+})
+
+test('recovery checks wait out a stale Docker health flag instead of failing on it (run 42633735070)', () => {
+  const source = read('scripts/deploy/recovery_verify.cjs')
+  const body = source.slice(source.indexOf('const assertRecovered = async'), source.indexOf('const scenario = async'))
+  assert.ok(body.indexOf('dockerHealthRecovered') >= 0, 'the health flag must be an explicit assertion')
+  assert.ok(body.indexOf('dockerHealthRecovered') < body.indexOf('start(STACK'), 'up --wait fails at once on a stale flag')
+  assert.match(source, /DOCKER_HEALTH_WAIT_MS = 30000/, 'one probe cycle: 15 s interval, 5 s timeout, and margin')
+})
+
+test('crash timing cannot start before the crash is visible', () => {
+  const source = read('scripts/deploy/recovery_verify.cjs')
+  assert.equal((source.match(/hostKill\(/g) || []).length, 1, 'only the shared crash helper may kill, so every crash is checked')
+  assert.match(source, /measure\('socket_close|socketCloseSeconds/)
+  assert.doesNotMatch(source, /measure\('socket_close/, 'a socket already closed would measure as 0 s')
+  assert.match(source, /closedAt\(\) - injectedAt/)
+})
+
+test('backup evidence shows oplog replay and a forced spool replay', () => {
+  const source = read('scripts/deploy/recovery_verify.cjs')
+  assert.match(source, /appliedOplogEntries/)
+  assert.match(source, /acknowledged during the backup/)
+  assert.match(source, /await scenario\('Audit spool replay after a crash'/)
+  const spool = source.slice(source.indexOf("await scenario('Audit spool replay after a crash'"))
+  assert.ok(spool.indexOf('revokePrivilegesFromRole') < spool.indexOf('crashAndRecover'))
+  assert.match(spool, /grantPrivilegesToRole/)
+  assert.match(spool, /finally/, 'the privilege must come back even if the scenario fails')
+})
+
+test('cleanup of temporary secrets is asserted', () => {
+  const source = read('scripts/deploy/recovery_verify.cjs')
+  assert.match(source, /temporary secrets and working files removed/)
+})
+
 test('the failure injections stay bounded', () => {
   assert.match(read('scripts/deploy/compose.spool-limit.yml'), /\/spool-limit:size=16k/)
   assert.doesNotMatch(read('scripts/deploy/recovery_verify.cjs'), /fallocate|\/dev\/sda|dd if=\/dev\/zero of=\//)
