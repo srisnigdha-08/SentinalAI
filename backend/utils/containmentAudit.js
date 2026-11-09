@@ -1,6 +1,8 @@
 'use strict'
 
 const crypto = require('crypto')
+const fs = require('fs')
+const path = require('path')
 const mongoose = require('mongoose')
 const logger = require('./logger')
 
@@ -82,6 +84,8 @@ const logContainmentAudit = ({
       : ONCE_PER_CONTAINMENT.has(action)
         ? `${containmentId}:${action}`
         : crypto.randomUUID()
+    // On disk before the database write is tried, so the event survives a crash at any point after this returns.
+    spoolAppend(auditEntry)
     // Durable copy (F-07). Never throws and never delays the containment operation; see persistContainmentAudit.
     Object.defineProperty(auditEntry, 'persisted', { value: persistContainmentAudit(auditEntry), enumerable: false })
   }
@@ -110,6 +114,113 @@ const WRITE_ATTEMPTS = 3
 const backlog = [] // events not yet stored because MongoDB was unavailable, oldest first
 const chains = new Map() // containmentId -> tail of that action's write chain (keeps per-action order)
 let dropped = 0
+
+// ---------------------------------------------------------------------------------------------------------------
+// Crash durability: a write-ahead spool, one file per database (a spool must never replay into another database).
+// Guarantee: once logContainmentAudit has returned, the event survives a process crash and is stored on the next
+// connection, once (eventId is unique) and in order. A crash during the append can tear only that final line.
+// The file is emptied whenever nothing is outstanding. Limits: CONTAINMENT_AUDIT_SPOOL_MAX_BYTES (default 16 MiB);
+// a spool that is full or unwritable is counted and logged and the event still goes to MongoDB, so a disk problem
+// never blocks containment. Off under NODE_ENV=test unless CONTAINMENT_AUDIT_SPOOL_DIR is set.
+// ---------------------------------------------------------------------------------------------------------------
+let spoolBytes = null
+let spoolFailures = 0
+let spoolLoaded = false
+
+const spoolEnabled = () => process.env.NODE_ENV !== 'test' || Boolean(process.env.CONTAINMENT_AUDIT_SPOOL_DIR)
+const spoolPath = () => {
+  const uri = String(process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db')
+  const db = (uri.split('://')[1]?.split('/')[1]?.split('?')[0] || 'default').replace(/[^\w.-]/g, '_')
+  const dir = process.env.CONTAINMENT_AUDIT_SPOOL_DIR || path.join(__dirname, '..', 'logs')
+  return path.join(dir, `containment-audit-spool-${db}.jsonl`)
+}
+function countLoss(reason) {
+  try {
+    require('./metrics').inc(
+      'sentinel_containment_audit_loss_total',
+      'Containment audit events that lost a durability layer',
+      { reason }
+    )
+  } catch {
+    // metrics are optional here
+  }
+}
+function spoolAppend(entry) {
+  if (!spoolEnabled()) return
+  try {
+    const file = spoolPath()
+    if (spoolBytes === null) {
+      fs.mkdirSync(path.dirname(file), { recursive: true })
+      spoolBytes = fs.existsSync(file) ? fs.statSync(file).size : 0
+    }
+    const line = JSON.stringify(entry) + '\n'
+    const size = Buffer.byteLength(line)
+    if (spoolBytes + size > (Number(process.env.CONTAINMENT_AUDIT_SPOOL_MAX_BYTES) || 16 * 1024 * 1024)) {
+      throw new Error('spool is full')
+    }
+    const fd = fs.openSync(file, 'a', 0o600)
+    try {
+      fs.writeSync(fd, line)
+      fs.fsyncSync(fd)
+    } finally {
+      fs.closeSync(fd)
+    }
+    spoolBytes += size
+  } catch (err) {
+    spoolFailures++
+    countLoss('spool_unavailable')
+    logger.error(
+      `[AUDIT] Containment audit spool not written (${err.message}); event ${entry.action} is not crash-safe`
+    )
+  }
+}
+function compactSpool() {
+  if (!spoolEnabled() || !spoolBytes || chains.size || backlog.length || flushing) return
+  try {
+    fs.truncateSync(spoolPath(), 0)
+    spoolBytes = 0
+  } catch (err) {
+    logger.warn(`[AUDIT] Containment audit spool not compacted: ${err.message}`)
+  }
+}
+/** Replays events left by a previous process (first call only), then flushes everything queued. */
+function recoverContainmentAuditSpool() {
+  if (!spoolLoaded && spoolEnabled()) {
+    spoolLoaded = true
+    try {
+      const file = spoolPath()
+      if (fs.existsSync(file)) {
+        const known = new Set(backlog.map((e) => e.eventId))
+        const replay = []
+        let torn = 0
+        for (const line of fs.readFileSync(file, 'utf8').split('\n')) {
+          if (!line.trim()) continue
+          try {
+            const entry = JSON.parse(line)
+            if (entry.eventId && !known.has(entry.eventId)) {
+              known.add(entry.eventId)
+              replay.push(entry)
+            }
+          } catch {
+            torn++
+          }
+        }
+        if (torn) logger.warn(`[AUDIT] Containment audit spool: ${torn} incomplete line(s) skipped`)
+        if (replay.length) {
+          logger.warn(`[AUDIT] Containment audit spool: replaying ${replay.length} event(s) from a previous process`)
+          backlog.unshift(...replay)
+          ensureRetryTimer()
+        }
+        spoolBytes = fs.statSync(file).size
+      }
+    } catch (err) {
+      spoolFailures++
+      countLoss('spool_unreadable')
+      logger.error(`[AUDIT] Containment audit spool not replayed: ${err.message}`)
+    }
+  }
+  return flushContainmentAuditBacklog()
+}
 
 const dbReady = () => {
   return mongoose.connection.readyState === 1 && Boolean(mongoose.connection.db)
@@ -165,6 +276,7 @@ function enqueue(entry) {
   if (backlog.length >= BACKLOG_MAX) {
     const lost = backlog.shift()
     dropped++
+    countLoss('backlog_full')
     logger.error(
       `[AUDIT] Containment audit backlog full (${BACKLOG_MAX}); oldest event not stored durably: ` +
         `${lost.action} ${lost.containmentId} (it remains in the application log)`
@@ -226,6 +338,7 @@ function persistContainmentAudit(entry) {
   chains.set(key, run)
   run.then(() => {
     if (chains.get(key) === run) chains.delete(key)
+    compactSpool()
   })
   return run
 }
@@ -250,6 +363,7 @@ function flushContainmentAuditBacklog() {
     return stored
   })().finally(() => {
     flushing = null
+    compactSpool()
   })
   return flushing
 }
@@ -260,11 +374,11 @@ async function settleContainmentAudit() {
   if (flushing) await flushing
 }
 
-const containmentAuditBacklog = () => ({ queued: backlog.length, dropped })
+const containmentAuditBacklog = () => ({ queued: backlog.length, dropped, spoolFailures })
 
 try {
-  mongoose.connection.on('connected', () => flushContainmentAuditBacklog())
-  mongoose.connection.on('reconnected', () => flushContainmentAuditBacklog())
+  mongoose.connection.on('connected', () => recoverContainmentAuditSpool())
+  mongoose.connection.on('reconnected', () => recoverContainmentAuditSpool())
   require('./metrics').gauge(
     'sentinel_containment_audit_backlog',
     'Containment audit events waiting for MongoDB (stored in order once it is reachable)',
@@ -279,6 +393,7 @@ module.exports = {
   logContainmentAudit,
   persistContainmentAudit,
   flushContainmentAuditBacklog,
+  recoverContainmentAuditSpool,
   settleContainmentAudit,
   containmentAuditBacklog,
   ONCE_PER_CONTAINMENT,

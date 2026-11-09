@@ -382,7 +382,9 @@ defaultShutdownManager.registerFinalizer({
     await audit.flushContainmentAuditBacklog()
     const { queued } = audit.containmentAuditBacklog()
     if (queued)
-      logger.error(`[Shutdown] ${queued} containment audit event(s) not stored durably (application log only)`)
+      logger.error(
+        `[Shutdown] ${queued} containment audit event(s) still queued (kept in the crash spool, replayed on next start)`
+      )
   },
 })
 defaultShutdownManager.registerService({

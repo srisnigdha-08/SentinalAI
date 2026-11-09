@@ -84,6 +84,25 @@ groups:
 
       # CONT-003: a containment request recovery could not settle (rule state unknown, adapter unavailable, backend
       # mismatch, or a late rule not confirmed removed). The target stays locked/flagged until a person looks.
+      # Containment audit events waiting for MongoDB; they are in the crash spool and are stored when it returns.
+      - alert: SentinelContainmentAuditBacklog
+        expr: sentinel_containment_audit_backlog > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} containment audit event(s) not yet stored in MongoDB"
+          description: Check MongoDB connectivity; the events are replayed in order once it is reachable.
+
+      # A durability layer failed for at least one audit event (spool full or unwritable, or the queue overflowed).
+      - alert: SentinelContainmentAuditLoss
+        expr: increase(sentinel_containment_audit_loss_total[15m]) > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: Containment audit durability degraded ({{ $labels.reason }})
+          description: Check disk space and permissions for the spool directory (CONTAINMENT_AUDIT_SPOOL_DIR).
+
       - alert: SentinelContainmentRecoveryUnresolved
         expr: sentinel_containment_recovery_unresolved > 0
         for: 15m

@@ -8,7 +8,7 @@
  */
 
 const mongoose = require('mongoose')
-const { MongoMemoryServer } = require('mongodb-memory-server')
+const { MongoMemoryServer, MongoMemoryReplSet } = require('mongodb-memory-server')
 const {
   isTransactionsEnabled,
   serverSupportsTransactions,
@@ -140,46 +140,28 @@ describe('Task 9: Transaction Support & Atomic Rollback', () => {
     })
   })
 
-  describe('Part A.3: Replica Set Transaction Path (Separate Port 27030)', () => {
+  describe('Part A.3: Replica Set Transaction Path (disposable replica set)', () => {
     let rsConnection
-    const RS_URI =
-      process.env.TEST_RS_URI ||
-      'mongodb://root_admin:TestAdminPassword123!@127.0.0.1:27030/sentinel-db-test?replicaSet=rs0&authSource=admin'
+    let replSet
 
+    // Always a real replica set: these used to pass without asserting anything when none was listening on a fixed port.
     beforeAll(async () => {
-      try {
-        rsConnection = await mongoose
-          .createConnection(RS_URI, {
-            serverSelectionTimeoutMS: 1500,
-            connectTimeoutMS: 1500,
-          })
-          .asPromise()
-      } catch {
-        rsConnection = null
-      }
-    })
+      replSet = await MongoMemoryReplSet.create({ replSet: { count: 1, storageEngine: 'wiredTiger' } })
+      rsConnection = await mongoose.createConnection(replSet.getUri('sentinel-db-test')).asPromise()
+    }, 60000)
 
     afterAll(async () => {
-      if (rsConnection) {
-        await rsConnection.close()
-      }
+      await rsConnection?.close()
+      await replSet?.stop()
     })
 
-    it('verifies the port 27030 instance is a replica set primary', () => {
-      if (!rsConnection) {
-        console.log('Skipping: isolated test replica set on port 27030 is not running')
-        return
-      }
+    it('runs against a replica set primary', () => {
       const topoType = rsConnection.client?.topology?.description?.type
-      expect(['ReplicaSetWithPrimary', 'Single']).toContain(topoType)
+      expect(topoType).toBe('ReplicaSetWithPrimary')
       expect(rsConnection.name).toBe('sentinel-db-test')
     })
 
     it('aborts transaction and leaves ZERO partial state on audit failure', async () => {
-      if (!rsConnection) {
-        console.log('Skipping: isolated test replica set on port 27030 is not running')
-        return
-      }
       // Bind models to the test replica set connection
       const TestUser = rsConnection.model('User', User.schema)
       const TestAudit = rsConnection.model('AuditLog', AuditLog.schema)
@@ -228,10 +210,6 @@ describe('Task 9: Transaction Support & Atomic Rollback', () => {
     })
 
     it('aborts threat block transaction and leaves threat DETECTED and BlockedIP empty', async () => {
-      if (!rsConnection) {
-        console.log('Skipping: isolated test replica set on port 27030 is not running')
-        return
-      }
       const TestThreat = rsConnection.model('ThreatLog', ThreatLog.schema)
       const TestBlockedIP = rsConnection.model('BlockedIP', BlockedIP.schema)
 
