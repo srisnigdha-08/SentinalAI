@@ -1,6 +1,6 @@
 {
   "SEC-001": {
-    "status": "FIXED / CLOSED",
-    "note": "Resolved 2026-11-08: nine records rotated, sessions revoked, checker 9 checked / 0 open. Dead values remain in public history (purge optional)"
+    "status": "PARTIALLY FIXED",
+    "note": "Passwords rotated and sessions revoked (verified). Real first sign-in, temporary-file handling and public Git history remain with the owner"
   }
 }

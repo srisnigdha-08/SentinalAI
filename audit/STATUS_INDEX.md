@@ -7,7 +7,7 @@ row) that states one, else from the latest status cell for it in `FIXES.md`. NO 
 file states one: it is not evidence that the finding is fixed, or that it is still open. "Entries" links every
 line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand in `status_overrides.json`.
 
-120 findings. FIXED / CLOSED: 80 · NO STATUS RECORDED: 21 · PARTIALLY FIXED: 7 · OPEN: 5 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · WITHDRAWN: 1
+125 findings. FIXED / CLOSED: 88 · NO STATUS RECORDED: 20 · PARTIALLY FIXED: 6 · OPEN: 4 · DOCUMENTED / PREPARED: 3 · OWNER ACTION / ACCEPTED: 3 · WITHDRAWN: 1
 
 | ID | Priority | Current status | Status taken from (truncated) | Entries |
 |---|---|---|---|---|
@@ -15,18 +15,18 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | CFG-001 | P3 | FIXED / CLOSED | [290](FINDINGS.md#L290): FIXED | [104](FINDINGS.md#L104), [290](FINDINGS.md#L290) |
 | CI-001 | P1 | FIXED / CLOSED | [769](FINDINGS.md#L769): CONFIRMED (Linux reproduction) / FIXED 2026-11-03 (batch 12) | [122](FINDINGS.md#L122), [287](FINDINGS.md#L287), [769](FINDINGS.md#L769), [fix 336](FIXES.md#L336), [fix 337](FIXES.md#L337), [fix 338](FIXES.md#L338) |
 | CI-002 | P2 | FIXED / CLOSED | [1344](FINDINGS.md#L1344): VERIFIED ON GITHUB 2026-11-05 | [1331](FINDINGS.md#L1331), [1344](FINDINGS.md#L1344), [fix 110](FIXES.md#L110) |
-| CI-003 | P2 | FIXED / CLOSED | [1396](FINDINGS.md#L1396): FIXED (local commit, not pushed) — "Backend (MongoDB-backed suites)" failed on PR #2 (push and | [1396](FINDINGS.md#L1396) |
+| CI-003 | P2 | FIXED / CLOSED | [1435](FINDINGS.md#L1435): FIXED — pushed as 03ee497; GitHub checks passed (owner report). | [1396](FINDINGS.md#L1396), [1435](FINDINGS.md#L1435) |
 | CLAIM-001 | P1 | NO STATUS RECORDED | [306](FINDINGS.md#L306): Label: CONFIRMED (static) | [306](FINDINGS.md#L306) |
 | CONT-001 | P2 | FIXED / CLOSED | [963](FINDINGS.md#L963): CONFIRMED (live rehearsal + real-database test) / FIXED 2026-11-03 | [963](FINDINGS.md#L963), [fix 417](FIXES.md#L417) |
 | CONT-002 | P2 | FIXED / CLOSED | [1005](FINDINGS.md#L1005): CONFIRMED (real-database test) / FIXED 2026-11-04 | [1005](FINDINGS.md#L1005) |
-| CONT-003 | P3 | OPEN | [1167](FINDINGS.md#L1167): OPEN (hardening, not implemented) | [1019](FINDINGS.md#L1019), [1077](FINDINGS.md#L1077), [1167](FINDINGS.md#L1167) |
+| CONT-003 | P3 | FIXED / CLOSED | [1424](FINDINGS.md#L1424): CLOSED — item 1 by version fencing (CONT-004), item 2 by the operator recovery endpoints and | [1019](FINDINGS.md#L1019), [1077](FINDINGS.md#L1077), [1167](FINDINGS.md#L1167), [1424](FINDINGS.md#L1424) |
 | CONT-004 | P2 | FIXED / CLOSED | [1217](FINDINGS.md#L1217): CONFIRMED (deterministic test) / FIXED 2026-11-04 (uncommitted) | [1217](FINDINGS.md#L1217) |
 | CONT-005 | P2 | FIXED / CLOSED | [1280](FINDINGS.md#L1280): CONFIRMED (real-database test) / FIXED 2026-11-04 (uncommitted) | [1280](FINDINGS.md#L1280) |
 | CONT-006 | P3 | FIXED / CLOSED | [1293](FINDINGS.md#L1293): CONFIRMED (forced interleaving) / FIXED 2026-11-04 (uncommitted) | [1293](FINDINGS.md#L1293) |
 | CONT-007 | P3 | FIXED / CLOSED | [1302](FINDINGS.md#L1302): CONFIRMED / FIXED 2026-11-04 (uncommitted) | [1302](FINDINGS.md#L1302) |
 | CONT-R1 | P3 | FIXED / CLOSED | [1365](FINDINGS.md#L1365): VERIFIED (fbbbd37, 3f6a603) — single-clock comparisons; audit uses database time; no expiry change | [1365](FINDINGS.md#L1365) |
 | CONT-R2 | P2 | FIXED / CLOSED | [1366](FINDINGS.md#L1366): FIXED (3f6a603) — admin operator recovery: diagnosis token, trusted Origin, never releases on UNKNOWN | [1366](FINDINGS.md#L1366) |
-| CORE-001 | P2 | PARTIALLY FIXED | [292](FINDINGS.md#L292): MOSTLY FIXED | [133](FINDINGS.md#L133), [292](FINDINGS.md#L292), [348](FINDINGS.md#L348), [fix 60](FIXES.md#L60) |
+| CORE-001 | P2 | FIXED / CLOSED | [1426](FINDINGS.md#L1426): FIXED — manual and automatic blocks run through the adapter (FIXES.md, CONT-001). | [133](FINDINGS.md#L133), [292](FINDINGS.md#L292), [348](FINDINGS.md#L348), [1426](FINDINGS.md#L1426), [fix 60](FIXES.md#L60) |
 | CORE-002 | P1 | FIXED / CLOSED | [293](FINDINGS.md#L293): FIXED | [159](FINDINGS.md#L159), [293](FINDINGS.md#L293) |
 | CORE-003 | P1 | FIXED / CLOSED | [294](FINDINGS.md#L294): FIXED as replay | [174](FINDINGS.md#L174), [294](FINDINGS.md#L294), [fix 61](FIXES.md#L61), [fix 62](FIXES.md#L62) |
 | CORE-004 | P1 | PARTIALLY FIXED | [295](FINDINGS.md#L295): PARTLY FIXED | [186](FINDINGS.md#L186), [295](FINDINGS.md#L295), [fix 63](FIXES.md#L63), [fix 139](FIXES.md#L139) |
@@ -53,7 +53,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | F-03 | P2 | FIXED / CLOSED | [1358](FINDINGS.md#L1358): FIXED (b8cc177) — /health/live and /health/ready added; /health unchanged; compose healthcheck | [1358](FINDINGS.md#L1358) |
 | F-04 | P2 | FIXED / CLOSED | [1359](FINDINGS.md#L1359): FIXED (943788d) — shutdown order, single exit, repeated signals, unhandled rejection exits 1 | [1359](FINDINGS.md#L1359) |
 | F-05 | P3 | FIXED / CLOSED | [1360](FINDINGS.md#L1360): FIXED (90addc5) — fixed messages for body-parser errors (400/413/415) | [1360](FINDINGS.md#L1360) |
-| F-06 | P1 | PARTIALLY FIXED | [1361](FINDINGS.md#L1361): PARTIALLY FIXED (b93a550) — 3 standalone compensation defects fixed; replica set needs owner approval | [1361](FINDINGS.md#L1361) |
+| F-06 | P1 | FIXED / CLOSED | [1428](FINDINGS.md#L1428): FIXED (453cb73) — manual block-ip/unblock-ip compensation exact; transactions and primary failover | [1361](FINDINGS.md#L1361), [1428](FINDINGS.md#L1428) |
 | F-07 | P2 | FIXED / CLOSED | [1362](FINDINGS.md#L1362): FIXED (fbbbd37) — durable, deduplicated, ordered containment audit trail with RBAC read endpoint | [1362](FINDINGS.md#L1362) |
 | F-08 | P2 | PARTIALLY FIXED | [1363](FINDINGS.md#L1363): PARTIALLY FIXED (7e5ecaa) — scope widened, priority files tested; server.js 76 % (out-of-process test) | [1363](FINDINGS.md#L1363) |
 | F-09 | P3 | FIXED / CLOSED | [1364](FINDINGS.md#L1364): FIXED (7f90cc4) — generated STATUS_INDEX.md; history unchanged | [1364](FINDINGS.md#L1364) |
@@ -97,12 +97,16 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | REV-004 | P2 | FIXED / CLOSED | [1382](FINDINGS.md#L1382): FIXED (bd01bfc) — operator recovery acted before its AuditLog record; now fails closed (503) | [1382](FINDINGS.md#L1382) |
 | REV-005 | P2 | FIXED / CLOSED | [1383](FINDINGS.md#L1383): FIXED (6cdcd2f) — /health/ready made 2 AI-engine requests per unauthenticated probe; 5 s cache | [1383](FINDINGS.md#L1383) |
 | REV-006 | P3 | FIXED / CLOSED | [1384](FINDINGS.md#L1384): FIXED (435abc1) — module-level retry timer (added in 3452bbf) failed 2 suites to load; now lazy | [1384](FINDINGS.md#L1384) |
+| REV-007 | P1 | FIXED / CLOSED | [1430](FINDINGS.md#L1430): FIXED (453cb73) — block-ip audit failure removed an existing block; unblock-ip rebuilt a different entry. | [1430](FINDINGS.md#L1430) |
+| REV-008 | P1 | FIXED / CLOSED | [1431](FINDINGS.md#L1431): FIXED (2a40995) — containment audit events now survive a process crash (write-ahead spool). | [1431](FINDINGS.md#L1431) |
+| REV-009 | P1 | FIXED / CLOSED | [1432](FINDINGS.md#L1432): FIXED (d80ff3c) — uncaught exceptions take the graceful shutdown path. | [1432](FINDINGS.md#L1432) |
+| REV-010 | P2 | FIXED / CLOSED | [1433](FINDINGS.md#L1433): FIXED (d80ff3c) — password change is under the auth rate limiter. | [1433](FINDINGS.md#L1433) |
 | RL-001 | P3 | PARTIALLY FIXED | [520](FINDINGS.md#L520): PARTIALLY RESOLVED — persisted decisions applied by id (audit/RL001_DESIGN.md). | [441](FINDINGS.md#L441), [490](FINDINGS.md#L490), [520](FINDINGS.md#L520), [fix 145](FIXES.md#L145), [fix 179](FIXES.md#L179) |
 | SCAN-001 | P2 | FIXED / CLOSED | [506](FINDINGS.md#L506): CONFIRMED (tests) / RESOLVED | [506](FINDINGS.md#L506), [fix 175](FIXES.md#L175) |
-| SEC-001 | P0 | FIXED / CLOSED * | override: Resolved 2026-11-08: nine records rotated, sessions revoked, checker 9 checked / 0 open. Dead values remain in | [12](FINDINGS.md#L12), [285](FINDINGS.md#L285), [459](FINDINGS.md#L459), [1411](FINDINGS.md#L1411), [fix 59](FIXES.md#L59), [fix 137](FIXES.md#L137), [fix 173](FIXES.md#L173), [fix 201](FIXES.md#L201), [fix 227](FIXES.md#L227), [fix 247](FIXES.md#L247), [fix 268](FIXES.md#L268), [fix 300](FIXES.md#L300), [fix 320](FIXES.md#L320) |
+| SEC-001 | P0 | PARTIALLY FIXED * | override: Passwords rotated and sessions revoked (verified). Real first sign-in, temporary-file handling and public Git  | [12](FINDINGS.md#L12), [285](FINDINGS.md#L285), [459](FINDINGS.md#L459), [1411](FINDINGS.md#L1411), [1422](FINDINGS.md#L1422), [fix 59](FIXES.md#L59), [fix 137](FIXES.md#L137), [fix 173](FIXES.md#L173), [fix 201](FIXES.md#L201), [fix 227](FIXES.md#L227), [fix 247](FIXES.md#L247), [fix 268](FIXES.md#L268), [fix 300](FIXES.md#L300), [fix 320](FIXES.md#L320) |
 | SEC-002 | P1 | FIXED / CLOSED | [298](FINDINGS.md#L298): FIXED | [205](FINDINGS.md#L205), [298](FINDINGS.md#L298) |
 | SEC-003 | P3 | FIXED / CLOSED | [298](FINDINGS.md#L298): FIXED | [266](FINDINGS.md#L266), [298](FINDINGS.md#L298) |
-| SEC-004 | P2 | NO STATUS RECORDED | [328](FINDINGS.md#L328): Priority: P2 (P1 once real enforcement is enabled) / Label: LIKELY (static) | [328](FINDINGS.md#L328) |
+| SEC-004 | P2 | FIXED / CLOSED | [1427](FINDINGS.md#L1427): FIXED (d80ff3c) — real enforcement refused at startup without protected targets and approval mode. | [328](FINDINGS.md#L328), [1427](FINDINGS.md#L1427) |
 | SEC-005 | P3 | FIXED / CLOSED | [fix 113](FIXES.md#L113): FIXED | [390](FINDINGS.md#L390), [fix 113](FIXES.md#L113) |
 | SETUP-001 | P2 | FIXED / CLOSED | [907](FINDINGS.md#L907): CONFIRMED (clean clone) / FIXED (docs) | [907](FINDINGS.md#L907), [fix 391](FIXES.md#L391) |
 | SETUP-002 | P3 | DOCUMENTED / PREPARED | [914](FINDINGS.md#L914): CONFIRMED (clean clone) / DOCUMENTED | [914](FINDINGS.md#L914), [fix 392](FIXES.md#L392) |
@@ -119,6 +123,7 @@ line that records the ID ("fix N" = FIXES.md). A `*` marks a status set by hand 
 | TEST-010 | P3 | FIXED / CLOSED | [1256](FINDINGS.md#L1256): FIXED 2026-11-04 (uncommitted) | [1203](FINDINGS.md#L1203), [1256](FINDINGS.md#L1256) |
 | TEST-011 | P2 | FIXED / CLOSED | [1319](FINDINGS.md#L1319): CONFIRMED (E2E, regression from batch 19) / FIXED 2026-11-04 (uncommitted) | [1319](FINDINGS.md#L1319) |
 | TEST-012 | P3 | FIXED / CLOSED | [1385](FINDINGS.md#L1385): ROOT CAUSE ESTABLISHED / CLOSED (environment) — the two failing runs coincided with an | [1368](FINDINGS.md#L1368), [1385](FINDINGS.md#L1385) |
+| TEST-013 | P2 | FIXED / CLOSED | [1434](FINDINGS.md#L1434): FIXED (2a40995) — transactionSupport Part A.3 passed without asserting when no replica set was running. | [1434](FINDINGS.md#L1434) |
 | THR-002 | P3 | FIXED / CLOSED | [1123](FINDINGS.md#L1123): CONFIRMED (tests) / FIXED 2026-11-04 (owner approved the recommended correction) | [1052](FINDINGS.md#L1052), [1099](FINDINGS.md#L1099), [1123](FINDINGS.md#L1123) |
 | THR-003 | P3 | FIXED / CLOSED | [1155](FINDINGS.md#L1155): CONFIRMED (unit + E2E) / FIXED 2026-11-04 (uncommitted) | [1155](FINDINGS.md#L1155) |
 | THR-004 | P3 | FIXED / CLOSED | [1245](FINDINGS.md#L1245): CONFIRMED (tests) / FIXED 2026-11-04 (uncommitted) | [1245](FINDINGS.md#L1245) |
