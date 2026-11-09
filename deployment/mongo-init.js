@@ -77,9 +77,11 @@ const operationalCollections = [
 const sentinelAppPrivileges = [
   // 1. Read access on all collections in sentinel-db, plus index management: Mongoose builds each model's
   //    indexes (unique, TTL) at startup and fails without these.
+  //    changeStream: session revocation (AUTH_REVOCATION_MODE=mongo-stream) watches this database. It exposes nothing
+  //    that find does not already allow, and has no effect on a standalone server.
   {
     resource: { db: targetDbName, collection: '' },
-    actions: ['find', 'listIndexes', 'createIndex', 'listCollections', 'createCollection']
+    actions: ['find', 'listIndexes', 'createIndex', 'listCollections', 'createCollection', 'changeStream']
   },
   // 2. Strict append-only privilege for auditlogs: INSERT only (no update, no remove)
   {
