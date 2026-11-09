@@ -19,6 +19,8 @@ const crypto = require('crypto')
 const fs = require('fs')
 const path = require('path')
 
+// mongorestore prints the oplog count before its index rebuild lines, so a short tail loses it (run 42637455517).
+const STDERR_KEPT_CHARS = 256 * 1024
 const NAME = /^sentinel-backup-\d{8}T\d{6}Z\.archive\.gz\.age$/
 const DUMP_COMMAND = 'mongodump -u sentinel_backup -p "$SENTINEL_BACKUP_PASSWORD" --authenticationDatabase admin --oplog --archive --gzip --quiet'
 const RESTORE_COMMAND = 'mongorestore -u root -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --oplogReplay --archive --gzip'
@@ -78,7 +80,7 @@ const composeArgs = (o, ...rest) => ['compose', '-p', o.project, '--env-file', o
 function pipe(source, sink, label) {
   const collect = (proc) => {
     let err = ''
-    proc.stderr.on('data', (d) => (err = (err + d).slice(-2000)))
+    proc.stderr.on('data', (d) => (err = (err + d).slice(-STDERR_KEPT_CHARS)))
     return new Promise((resolve, reject) => {
       proc.on('error', reject)
       proc.on('close', (code) => resolve({ code, err }))
@@ -88,7 +90,7 @@ function pipe(source, sink, label) {
   sink.stdin.on('error', () => {}) // EPIPE when the sink exits first; its exit code reports the failure
   source.stdout.pipe(sink.stdin)
   return done.then(([a, b]) => {
-    if (a.code !== 0 || b.code !== 0) throw new Error(`${label} failed: ${a.code}/${b.code} ${a.err} ${b.err}`.trim())
+    if (a.code !== 0 || b.code !== 0) throw new Error(`${label} failed: ${a.code}/${b.code} ${a.err.slice(-2000)} ${b.err.slice(-2000)}`.trim())
     return b.err
   })
 }
@@ -180,4 +182,4 @@ if (require.main === module) {
   )
 }
 
-module.exports = { DUMP_COMMAND, RESTORE_COMMAND, EMPTY_TARGET_COMMAND, appliedOplogEntries, recipientProblem, keySeparationProblem, backupName, selectExpired, writeChecksum, verifyChecksum }
+module.exports = { DUMP_COMMAND, RESTORE_COMMAND, EMPTY_TARGET_COMMAND, appliedOplogEntries, pipe, recipientProblem, keySeparationProblem, backupName, selectExpired, writeChecksum, verifyChecksum }

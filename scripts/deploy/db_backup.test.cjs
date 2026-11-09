@@ -6,7 +6,7 @@ const crypto = require('crypto')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { spawnSync } = require('child_process')
+const { spawn, spawnSync } = require('child_process')
 const b = require('./db_backup.cjs')
 
 const TOOL = path.join(__dirname, 'db_backup.cjs')
@@ -78,6 +78,22 @@ test('replayed oplog entries are read from real mongorestore output', () => {
   assert.equal(b.appliedOplogEntries(output), 27)
   assert.equal(b.appliedOplogEntries('2026-11-09T20:08:31\t10 document(s) restored successfully.'), null)
   assert.doesNotMatch(b.RESTORE_COMMAND, /--quiet/, 'the count is only printed without --quiet')
+})
+
+test('the replay count survives the index rebuild output that follows it (run 42637455517)', async () => {
+  const child = (script, stdio) => spawn(process.execPath, ['-e', script], { stdio })
+  const source = child("process.stdout.write('archive')", ['ignore', 'pipe', 'pipe'])
+  const sink = child(
+    "process.stdin.resume();process.stdin.on('end',()=>{console.error('replaying oplog');console.error('applied 45 oplog entries');for(let i=0;i<1200;i++)console.error('restoring indexes for collection sentinel-db.collection_'+i+' from metadata')})",
+    ['pipe', 'ignore', 'pipe']
+  )
+  assert.equal(b.appliedOplogEntries(await b.pipe(source, sink, 'test')), 45)
+})
+
+test('a failed pipe still reports a short error', async () => {
+  const source = spawn(process.execPath, ['-e', "console.error('x'.repeat(60000));process.exit(3)"], { stdio: ['ignore', 'pipe', 'pipe'] })
+  const sink = spawn(process.execPath, ['-e', 'process.stdin.resume()'], { stdio: ['pipe', 'ignore', 'pipe'] })
+  await assert.rejects(b.pipe(source, sink, 'test'), (err) => err.message.length < 5000 && /test failed: 3\/0/.test(err.message))
 })
 
 for (const [label, argv, message] of [
