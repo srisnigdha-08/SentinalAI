@@ -1,0 +1,29 @@
+name: SentinelAI Deployment
+
+on:
+  push:
+    branches:
+      - '**'
+  pull_request:
+    branches:
+      - '**'
+
+permissions:
+  contents: read
+
+jobs:
+  compose:
+    name: Docker Compose verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Verification safety checks
+        run: node --test scripts/deploy/compose_verify.test.cjs
+      - name: Build and verify the real stack on disposable volumes
+        run: node scripts/deploy/compose_verify.cjs
+      - name: Scan the built images
+        run: bash scripts/deploy/scan_images.sh
