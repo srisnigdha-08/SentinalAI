@@ -56,3 +56,6 @@ networks:
     ipam:
       config:
         - subnet: 172.30.250.0/29
+          # Docker assigns from the bottom of a subnet. Without this range another container would be handed the
+          # proxy's address, which nginx then cannot claim and TRUST_PROXY would trust.
+          ip_range: 172.30.250.4/30

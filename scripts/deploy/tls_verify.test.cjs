@@ -16,7 +16,10 @@ const ROOT = path.join(__dirname, '..', '..')
 const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8')
 
 const goodConfig = () => ({
-  networks: { proxy: { internal: true }, ingress: {} },
+  networks: {
+    proxy: { internal: true, ipam: { config: [{ subnet: '172.30.250.0/29', ip_range: '172.30.250.4/30' }] } },
+    ingress: {},
+  },
   services: {
     backend: {
       environment: {
@@ -58,6 +61,16 @@ for (const [name, mutate] of [
   ['writable filesystem', (c) => (c.services.frontend.read_only = false)],
   ['capabilities kept', (c) => (c.services.frontend.cap_drop = [])],
   ['privilege gain allowed', (c) => (c.services.frontend.security_opt = [])],
+  // Run 42609479868: with no range, the backend was handed the proxy's address and nginx could not start.
+  ['no dynamic range, so another container can take the trusted address', (c) => delete c.networks.proxy.ipam.config[0].ip_range],
+  ['proxy address inside the dynamic range', (c) => {
+    c.services.frontend.networks.proxy.ipv4_address = '172.30.250.5'
+    c.services.backend.environment.TRUST_PROXY = '172.30.250.5/32'
+  }],
+  ['proxy address outside the subnet', (c) => {
+    c.services.frontend.networks.proxy.ipv4_address = '172.30.250.20'
+    c.services.backend.environment.TRUST_PROXY = '172.30.250.20/32'
+  }],
 ]) {
   test(`configuration check catches: ${name}`, () => {
     const config = goodConfig()

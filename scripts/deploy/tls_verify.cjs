@@ -35,6 +35,14 @@ const SERVICES = ['mongo', 'ai-engine', 'backend', 'frontend']
 const SPOOFED_IP = '203.0.113.9'
 const WS_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11'
 
+const ipNumber = (ip) => ip.split('.').reduce((total, part) => total * 256 + Number(part), 0)
+function inCidr(ip, cidr) {
+  const [base, bits] = cidr.split('/')
+  const size = 2 ** (32 - Number(bits))
+  const start = Math.floor(ipNumber(base) / size) * size
+  return ipNumber(ip) >= start && ipNumber(ip) < start + size
+}
+
 /** Rules the merged Compose configuration must satisfy before anything is started. */
 function tlsConfigProblems(config) {
   const problems = []
@@ -50,6 +58,10 @@ function tlsConfigProblems(config) {
   if (!proxyIp || env.TRUST_PROXY !== `${proxyIp}/32`) problems.push('TRUST_PROXY is not exactly the proxy address')
   if (!['single', 'mongo-stream'].includes(env.AUTH_REVOCATION_MODE)) problems.push('AUTH_REVOCATION_MODE is not set')
   if (config.networks?.proxy?.internal !== true) problems.push('the proxy network has a route out')
+  const pool = config.networks?.proxy?.ipam?.config?.[0] || {}
+  if (!pool.ip_range || (proxyIp && inCidr(proxyIp, pool.ip_range)))
+    problems.push('another container can be assigned the proxy address')
+  if (proxyIp && (!pool.subnet || !inCidr(proxyIp, pool.subnet))) problems.push('the proxy address is outside its subnet')
   if (frontend.networks && 'default' in frontend.networks) problems.push('the proxy can reach the database network')
   if (!/^[1-9]\d*(:[1-9]\d*)?$/.test(frontend.user || '')) problems.push('nginx is not configured as non-root')
   if (frontend.read_only !== true) problems.push('nginx filesystem is writable')
