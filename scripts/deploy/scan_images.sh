@@ -9,7 +9,7 @@ set -euo pipefail
 TRIVY='aquasec/trivy@sha256:8f6bb947dbc528902e11f2f5be52f7b519f6a39d5d148f41166f2040499768fb'
 PROJECT='sentinelai-verify'
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+trap 'rm -rf "$WORK"; docker volume rm sentinel-trivy-cache >/dev/null 2>&1 || true' EXIT
 
 scan() { # name severity exit-code
   docker run --rm -v "$WORK:/scan:ro" -v sentinel-trivy-cache:/root/.cache "$TRIVY" image \
@@ -28,5 +28,4 @@ for image in backend frontend ai-engine; do
   echo "== $image: fixable CRITICAL (gate: $gate)"
   scan "$image" CRITICAL "$gate" || status=1
 done
-docker volume rm sentinel-trivy-cache >/dev/null 2>&1 || true
 exit "$status"

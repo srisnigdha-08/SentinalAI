@@ -74,6 +74,17 @@ const enforcementProblems = (config) => {
     : []
 }
 
+/** What teardown left behind, given one docker listing per resource kind. A listing that failed proves nothing. */
+function leftoverProblems(listings) {
+  const problems = []
+  for (const [kind, result] of Object.entries(listings)) {
+    const found = (result.stdout || '').trim()
+    if (result.status !== 0) problems.push(`could not list ${kind}`)
+    else if (found) problems.push(`${kind} left: ${found.split('\n').join(' ')}`)
+  }
+  return problems
+}
+
 const ALL_DENIED_JS = `
 const out = {}; const t = (n, f) => { try { f(); out[n] = 'ALLOWED' } catch (e) { out[n] = e.code } };
 t('audit_update', () => db.containment_audit_events.updateOne({}, { $set: { x: 1 } }));
@@ -199,6 +210,8 @@ async function main() {
     const t0 = Date.now()
     mustCompose('up', '-d', '--build', '--wait', '--wait-timeout', '600', ...SERVICES)
     check('real images built and every service healthy', true, `${Math.round((Date.now() - t0) / 1000)} s`)
+    // Lets CI prove the teardown below on a run that really fails with the whole stack up.
+    if (process.argv.includes('--inject-failure')) throw new Error('injected failure (cleanup test)')
     const live = livePublishProblems(mustCompose('ps', '--format', 'json').stdout)
     check('running containers publish on loopback only', live.length === 0, live.join('; '))
     check('backend runs as non-root', compose('exec', '-T', 'backend', 'id', '-u').stdout.trim() !== '0')
@@ -293,8 +306,13 @@ async function main() {
       for (const s of SERVICES) console.log(`\n--- ${s} log tail ---\n${clean(compose('logs', '--tail', '40', s).stdout)}`)
     }
     compose('down', '-v', '--remove-orphans')
-    const left = spawnSync('docker', ['volume', 'ls', '-q', '--filter', `name=${PROJECT}_`], { encoding: 'utf8' }).stdout.trim()
-    check('disposable containers and volumes removed', left === '', left)
+    const list = (...args) => spawnSync('docker', [...args, '--filter', `label=com.docker.compose.project=${PROJECT}`], { encoding: 'utf8' })
+    const leftovers = leftoverProblems({
+      containers: list('ps', '-aq'),
+      networks: list('network', 'ls', '-q'),
+      volumes: list('volume', 'ls', '-q'),
+    })
+    check('disposable containers, networks and volumes removed', leftovers.length === 0, leftovers.join('; '))
     fs.rmSync(tmp, { recursive: true, force: true })
   }
   console.log(`\n${failures ? `${failures} check(s) failed` : 'All deployment checks passed'}`)
@@ -310,4 +328,4 @@ if (require.main === module) {
     }
   )
 }
-module.exports = { buildSecrets, redactor, publishProblems, livePublishProblems, enforcementProblems }
+module.exports = { buildSecrets, redactor, publishProblems, livePublishProblems, enforcementProblems, leftoverProblems }

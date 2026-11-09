@@ -46,6 +46,27 @@ test('the repository Compose file itself passes the configured checks', () => {
   assert.doesNotMatch(text, /^\s+- "?(\d+:\d+|0\.0\.0\.0:)/m, 'a port is published without a loopback default')
 })
 
+test('cleanup reports anything left behind, and a listing that failed is not "nothing left"', () => {
+  const empty = { status: 0, stdout: '' }
+  assert.deepEqual(v.leftoverProblems({ containers: empty, networks: empty, volumes: { status: 0, stdout: '\n' } }), [])
+  assert.equal(v.leftoverProblems({ containers: { status: 0, stdout: 'abc123\n' }, volumes: empty }).length, 1)
+  assert.equal(v.leftoverProblems({ networks: { status: 0, stdout: 'net1\n' } }).length, 1)
+  assert.equal(v.leftoverProblems({ volumes: { status: 1, stdout: '' } }).length, 1)
+  assert.equal(v.leftoverProblems({ containers: { status: null, stdout: null } }).length, 1)
+})
+
+test('the workflow proves cleanup after a failed run and always removes leftovers', () => {
+  const workflow = fs.readFileSync(path.join(__dirname, '..', '..', '.github', 'workflows', 'deployment.yml'), 'utf8')
+  assert.match(workflow, /compose_verify\.cjs --inject-failure/)
+  assert.match(workflow, /if: always\(\)[\s\S]*down -v --remove-orphans/)
+  assert.ok(workflow.indexOf('--inject-failure') < workflow.indexOf('scan_images.sh'))
+})
+
+test('the scan script removes its cache volume on every exit path', () => {
+  const scan = fs.readFileSync(path.join(__dirname, 'scan_images.sh'), 'utf8')
+  assert.match(scan, /trap '[^']*docker volume rm sentinel-trivy-cache[^']*' EXIT/)
+})
+
 test('refuses to start containers outside CI without --disposable', () => {
   const env = { ...process.env }
   delete env.CI
