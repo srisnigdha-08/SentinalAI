@@ -2,6 +2,7 @@
 // Rules of the recovery verifier and hardening overlay, without Docker.
 // Run: node --test scripts/deploy/recovery_verify.test.cjs
 const test = require('node:test')
+const { describe } = test
 const assert = require('node:assert')
 const fs = require('fs')
 const https = require('https')
@@ -54,6 +55,107 @@ test('audit consistency needs every acknowledged action, in order, without dupli
   assert.equal(v.auditProblems({ ...good, counter: 2 }).length, 1)
   assert.equal(v.auditProblems({ ...good, counter: 9 }).length, 1, 'a counter far past the trail means lost events')
   assert.deepEqual(v.auditProblems({ ...good, counter: 5 }), [], 'in-flight increments at the cut are allowed')
+})
+
+describe('audit sequence gaps need recorded evidence', () => {
+  const trail = (over = {}) => ({ acknowledged: ['a', 'b'], stored: ['a', 'b', 'c'], sequence: [1, 2, 4, 5], counter: 5, duplicates: 0, inFlight: 2, ...over })
+  const window24 = { from: 2, to: 4, count: 1 }
+
+  test('a gap inside a recorded window and budget is valid', () => {
+    assert.deepEqual(v.auditProblems(trail({ gapAllowances: [window24] })), [])
+  })
+
+  test('an unexplained gap fails', () => {
+    const problems = v.auditProblems(trail())
+    assert.equal(problems.length, 1)
+    assert.match(problems[0], /no recorded cause/)
+  })
+
+  test('a window elsewhere in the trail explains nothing', () => {
+    assert.match(v.auditProblems(trail({ gapAllowances: [{ from: 10, to: 12, count: 1 }] }))[0], /no recorded cause/)
+  })
+
+  test('the boundaries of a window are exact', () => {
+    const missingThree = (from, to) => v.auditProblems(trail({ gapAllowances: [{ from, to, count: 1 }] }))
+    assert.deepEqual(missingThree(2, 3), [], 'the missing number is 3, inside (2, 3]')
+    assert.match(missingThree(3, 4)[0], /no recorded cause/, 'from is exclusive')
+    assert.match(missingThree(1, 2)[0], /no recorded cause/, 'to is inclusive of 2 only')
+  })
+
+  test('more gaps than a window allows are excessive', () => {
+    const problems = v.auditProblems(trail({ sequence: [1, 5], counter: 5, gapAllowances: [{ from: 1, to: 5, count: 2 }] }))
+    assert.equal(problems.length, 1)
+    assert.match(problems[0], /1 number\(s\) beyond the allowance/)
+  })
+
+  test('one window cannot pay for a gap in another place', () => {
+    const problems = v.auditProblems(trail({ sequence: [1, 3, 5, 7, 8], counter: 8, gapAllowances: [{ from: 1, to: 3, count: 1 }] }))
+    assert.match(problems.join(), /2 number\(s\) with no recorded cause/)
+  })
+
+  test('checking a trail never uses up the recorded allowance', () => {
+    const allowances = [{ ...window24 }]
+    v.auditProblems(trail({ gapAllowances: allowances }))
+    assert.deepEqual(allowances, [window24])
+    assert.deepEqual(v.auditProblems(trail({ gapAllowances: allowances })), [])
+  })
+
+  test('an allowance never excuses a missing acknowledged action', () => {
+    const problems = v.auditProblems(trail({ stored: ['a'], gapAllowances: [window24] }))
+    assert.deepEqual(problems, ['1 acknowledged action(s) have no audit event'])
+  })
+
+  test('an allowance never excuses duplicates', () => {
+    assert.deepEqual(v.auditProblems(trail({ duplicates: 1, gapAllowances: [window24] })), ['1 duplicate event id(s)'])
+  })
+
+  test('an allowance never excuses a non-increasing or repeated sequence', () => {
+    assert.match(v.auditProblems(trail({ sequence: [1, 2, 2, 4, 5], gapAllowances: [window24] })).join(), /not strictly increasing/)
+    assert.match(v.auditProblems(trail({ sequence: [1, 2, 5, 4], gapAllowances: [{ from: 2, to: 5, count: 2 }] })).join(), /not strictly increasing/)
+  })
+
+  test('an allowance never excuses an inconsistent counter', () => {
+    assert.match(v.auditProblems(trail({ counter: 4, gapAllowances: [window24] })).join(), /behind the newest/)
+    assert.match(v.auditProblems(trail({ counter: 8, gapAllowances: [window24] })).join(), /far ahead/)
+  })
+
+  test('a restore allows exactly the numbers its verified counter says were taken but never stored', () => {
+    assert.deepEqual(v.restoreGapAllowance({ sequence: [1, 2, 130], counter: 131 }), { from: 130, to: 131, count: 1 })
+    assert.equal(v.restoreGapAllowance({ sequence: [1, 2, 130], counter: 130 }), null, 'a level counter explains nothing')
+    assert.equal(v.restoreGapAllowance({ sequence: [1, 2, 130], counter: 129 }), null, 'a counter behind the trail explains nothing')
+    assert.equal(v.restoreGapAllowance({ sequence: [], counter: 3 }), null, 'an empty trail explains nothing')
+  })
+
+  test('the restore seen in CI: the one number its counter recorded is valid, and nothing past it', () => {
+    const restored = { sequence: [129, 130], counter: 131 }
+    const gapAllowances = [v.restoreGapAllowance(restored)]
+    const after = (sequence) => v.auditProblems({ acknowledged: [], stored: [], sequence, counter: sequence[sequence.length - 1], duplicates: 0, gapAllowances })
+    assert.deepEqual(after([129, 130, 132]), [], '131 was taken before the backup and never stored')
+    assert.match(after([129, 130, 133]).join(), /1 number\(s\) with no recorded cause/, '132 has no explanation')
+    assert.match(after([127, 130, 132]).join(), /2 number\(s\) with no recorded cause/, 'a gap before the backup boundary has no explanation')
+  })
+
+  test('a crash allows a gap only when it was verified and audit writes were in flight', () => {
+    const verified = { verified: true, auditWritesInFlight: true, before: 10, after: 16 }
+    assert.deepEqual(v.crashGapAllowance(verified), { from: 10, to: 16, count: v.MAX_ORPHANED_PER_CRASH })
+    assert.equal(v.MAX_ORPHANED_PER_CRASH, 2, 'one traffic request at a time: the current action and the tail of the previous one')
+    assert.equal(v.crashGapAllowance({ ...verified, verified: false }), null, 'an unverified crash explains nothing')
+    assert.equal(v.crashGapAllowance({ ...verified, auditWritesInFlight: false }), null, 'no writes in flight, no orphaned number')
+    assert.equal(v.crashGapAllowance({ ...verified, after: 10 }), null, 'a counter that did not move took no number')
+    assert.equal(v.crashGapAllowance({ ...verified, after: 9 }), null)
+  })
+
+  test('the verifier records allowances only from that evidence and applies them everywhere', () => {
+    const source = read('scripts/deploy/recovery_verify.cjs')
+    assert.equal((source.match(/gapAllowances\.push\(/g) || []).length, 2, 'one for a verified crash, one for a verified restore')
+    assert.match(source, /crashAndRecover\('backend_crash', 'backend', \{ auditWritesInFlight: true \}\)/)
+    assert.match(source, /crashAndRecover\('mongo_crash', 'mongo', \{ auditWritesInFlight: true \}\)/)
+    assert.match(source, /crashAndRecover\('spool_replay_restart', 'backend'\)/, 'audit writes are refused here, so no number can be taken')
+    assert.equal((source.match(/auditProblems\(\{ \.\.\.[^}]*gapAllowances[^}]*\}\)/g) || []).length, 3, 'every trail check uses the same evidence')
+    assert.match(source, /if \(restoredBoundary && problems\.length === 0\) gapAllowances\.push/, 'only a restored trail that passed its own check')
+    const crash = source.slice(source.indexOf('const crashAndRecover = async'), source.indexOf('const socketCloseSeconds'))
+    assert.ok(crash.indexOf('auditState().counter') < crash.indexOf('hostKill(service)'), 'the counter is read before the crash')
+  })
 })
 
 test('recovery objectives are explicit and never promise zero loss without a usable spool', () => {

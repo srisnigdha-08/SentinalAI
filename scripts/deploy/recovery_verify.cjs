@@ -63,13 +63,52 @@ function hardeningProblems(config) {
   return problems
 }
 
-function auditProblems({ acknowledged, stored, sequence, counter, duplicates, inFlight = 4 }) {
+// A sequence number is taken before its event is inserted (models/ContainmentAuditEvent.js documents that gaps are
+// possible), so a crash or a backup between those two steps leaves a number that is never stored. A gap is accepted only
+// inside a window recorded from verified evidence: { from (exclusive), to (inclusive), count }. Anything else fails.
+//
+// Crash: one SIGKILL can break at most one insert per write chain, because a retry after it either fails before taking a
+// number or succeeds once MongoDB is back. Each action's events are one chain and the verifier sends one containment
+// request at a time, so only the current action and the tail of the previous one can be writing when the process dies.
+const MAX_ORPHANED_PER_CRASH = 2
+
+function crashGapAllowance({ verified, auditWritesInFlight, before, after }) {
+  if (!verified || !auditWritesInFlight || !(after > before)) return null
+  return { from: before, to: after, count: MAX_ORPHANED_PER_CRASH }
+}
+
+/** Numbers the restored counter says were taken but never stored: exactly those, and only when the counter is ahead. */
+function restoreGapAllowance({ sequence, counter }) {
+  const newest = sequence[sequence.length - 1]
+  return newest !== undefined && counter > newest ? { from: newest, to: counter, count: counter - newest } : null
+}
+
+function gapProblems(sequence, gapAllowances) {
+  const budgets = gapAllowances.map((window) => ({ ...window }))
+  let unexplained = 0
+  let excessive = 0
+  sequence.forEach((value, i) => {
+    for (let missing = sequence[i - 1] + 1; i > 0 && missing < value; missing++) {
+      const windows = budgets.filter((window) => missing > window.from && missing <= window.to)
+      const open = windows.find((window) => window.count > 0)
+      if (open) open.count--
+      else if (windows.length) excessive++
+      else unexplained++
+    }
+  })
+  return [
+    ...(unexplained ? [`gap inside the audit sequence: ${unexplained} number(s) with no recorded cause`] : []),
+    ...(excessive ? [`gap inside the audit sequence: ${excessive} number(s) beyond the allowance`] : []),
+  ]
+}
+
+function auditProblems({ acknowledged, stored, sequence, counter, duplicates, inFlight = 4, gapAllowances = [] }) {
   const problems = []
   const present = new Set(stored)
   const missing = acknowledged.filter((id) => !present.has(id))
   if (missing.length) problems.push(`${missing.length} acknowledged action(s) have no audit event`)
   if (sequence.some((value, i) => i > 0 && value <= sequence[i - 1])) problems.push('sequence is not strictly increasing')
-  if (sequence.some((value, i) => i > 0 && value > sequence[i - 1] + 1)) problems.push('gap inside the audit sequence')
+  problems.push(...gapProblems(sequence, gapAllowances))
   if (duplicates) problems.push(`${duplicates} duplicate event id(s)`)
   const newest = sequence[sequence.length - 1] ?? 0
   if ((counter ?? 0) < newest) problems.push('counter is behind the newest event')
@@ -157,6 +196,7 @@ async function main() {
 
   let failures = 0
   const rto = {}
+  const gapAllowances = []
   const check = (name, ok, detail = '') => {
     console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail !== '' ? `  [${clean(detail)}]` : ''}`)
     if (!ok) failures++
@@ -257,7 +297,7 @@ async function main() {
     const ids = acknowledged(records)
     let problems = ['not checked']
     await waitFor(() => {
-      problems = auditProblems({ ...auditState(), acknowledged: ids, inFlight })
+      problems = auditProblems({ ...auditState(), acknowledged: ids, inFlight, gapAllowances })
       return problems.length === 0
     }, 60000, 2000)
     check(`${label}: all ${ids.length} acknowledged actions audited, in order, with no duplicates`, problems.length === 0, problems.join('; '))
@@ -288,10 +328,11 @@ async function main() {
     const ok = await waitFor(() => unhealthyServices(dockerHealth()).length === 0, DOCKER_HEALTH_WAIT_MS)
     check(`${name}: Docker health returns to healthy`, ok, JSON.stringify(dockerHealth()))
   }
-  const crashAndRecover = async (rtoName, service) => {
+  const crashAndRecover = async (rtoName, service, { auditWritesInFlight = false } = {}) => {
     const id = must(STACK, 'ps', '-q', service).stdout.trim()
     const restarts = () => Number(docker('inspect', '-f', '{{.RestartCount}}', id).stdout.trim())
     const restartsBefore = restarts()
+    const counterBefore = auditWritesInFlight ? auditState().counter : 0
     hostKill(service)
     const injectedAt = Date.now()
     const observedNotReady = await waitFor(() => readiness().body.status !== 'ready', 30000, 100)
@@ -300,6 +341,8 @@ async function main() {
     if (ok) rto[rtoName] = seconds
     const problems = crashProblems({ observedNotReady, restartsBefore, restartsAfter: restarts() })
     check(`${service} crash was observed and Docker restarted the container`, problems.length === 0, problems.join('; '))
+    const crashWindow = crashGapAllowance({ verified: ok && problems.length === 0, auditWritesInFlight, before: counterBefore, after: ok ? auditState().counter : counterBefore })
+    if (crashWindow) gapAllowances.push(crashWindow)
     return { ok, seconds }
   }
   const socketCloseSeconds = async (name, socket, injectedAt, limitMs) => {
@@ -314,7 +357,7 @@ async function main() {
     const session = await signIn()
     check(`${name}: sign-in works after recovery`, session.login.status === 200, session.login.status)
     const state = auditState()
-    const problems = auditProblems({ ...state, acknowledged: [] })
+    const problems = auditProblems({ ...state, acknowledged: [], gapAllowances })
     check(`${name}: audit trail is consistent after recovery`, problems.length === 0, problems.join('; '))
     const leftover = run(STACK, ['ps', '-a', '--format', '{{.Service}} {{.State}}']).stdout.split('\n').filter((l) => SERVICES.some((s) => l.startsWith(`${s} `)) && !/running/.test(l))
     check(`${name}: every service is running`, leftover.length === 0, leftover.join('; '))
@@ -339,6 +382,8 @@ async function main() {
     owned(certs.dir, 'privkey.new')
     fs.renameSync(path.join(certs.dir, 'privkey.new'), certs.key)
   }
+  // Certificate validation is off on purpose. This reads which certificate the disposable test stack presents, including
+  // expired and rotated ones that could not validate, then closes without sending anything. Trust is tested separately.
   const fingerprint = () =>
     new Promise((resolve, reject) => {
       const socket = require('tls').connect({ host: target.host, port: target.port, servername: HOST, rejectUnauthorized: false }, () => {
@@ -461,7 +506,7 @@ async function main() {
       const { token } = await signIn()
       const traffic = startTraffic(token, { max: 60, intervalMs: 100 })
       await sleep(2500)
-      const back = await crashAndRecover('backend_crash', 'backend')
+      const back = await crashAndRecover('backend_crash', 'backend', { auditWritesInFlight: true })
       check('backend returns on its own after SIGKILL', back.ok, `${back.seconds} s`)
       await traffic.stop()
       check('traffic was acknowledged before the crash', acknowledged(traffic.records).length > 0, acknowledged(traffic.records).length)
@@ -496,7 +541,7 @@ async function main() {
       const { token } = await signIn()
       const traffic = startTraffic(token, { max: 60, intervalMs: 100 })
       await sleep(2500)
-      const back = await crashAndRecover('mongo_crash', 'mongo')
+      const back = await crashAndRecover('mongo_crash', 'mongo', { auditWritesInFlight: true })
       check('MongoDB returns on its own after SIGKILL', back.ok, `${back.seconds} s`)
       await traffic.stop()
       check('traffic was acknowledged before the crash', acknowledged(traffic.records).length > 0, acknowledged(traffic.records).length)
@@ -709,8 +754,10 @@ async function main() {
       })
       check('stack is ready after disaster recovery', recovered.ok, `${recovered.seconds} s`)
       const state = auditState()
-      const problems = auditProblems({ ...state, acknowledged: acknowledged(before), inFlight: 6 })
+      const problems = auditProblems({ ...state, acknowledged: acknowledged(before), inFlight: 6, gapAllowances })
       check('restored trail: everything acknowledged before the backup is present, ordered, gap-free and unique', problems.length === 0, problems.join('; ') || JSON.stringify({ events: state.sequence.length, counter: state.counter }))
+      const restoredBoundary = restoreGapAllowance(state)
+      if (restoredBoundary && problems.length === 0) gapAllowances.push(restoredBoundary) // kept for later scenarios on this same restored data
       const restoredDuring = acknowledged(during).filter((id) => state.stored.includes(id))
       check('an action acknowledged during the backup was restored', restoredDuring.length >= 1, `${restoredDuring.length} of ${during.length}`)
       const restored = JSON.parse(mongo(SNAPSHOT).out)
@@ -793,4 +840,4 @@ if (require.main === module) {
     }
   )
 }
-module.exports = { RTO_TARGETS_SECONDS, RPO_STATEMENTS, hardeningProblems, auditProblems, rtoProblems, memoryProblems, unhealthyServices, crashProblems, issueExpired }
+module.exports = { RTO_TARGETS_SECONDS, RPO_STATEMENTS, hardeningProblems, auditProblems, rtoProblems, memoryProblems, unhealthyServices, crashProblems, issueExpired, MAX_ORPHANED_PER_CRASH, crashGapAllowance, restoreGapAllowance }
