@@ -466,7 +466,7 @@ const blockIPManual = async (req, res, next) => {
     const cleanReason = (typeof reason === 'string' ? reason.trim().slice(0, 200) : '') || 'Manual analyst block'
 
     const containmentService = require('../services/containmentService')
-    const { blockedIP, updatedThreats } = await containmentService.blockIPManual({
+    const { blockedIP, updatedThreats, undo } = await containmentService.blockIPManual({
       ip: cleanIP,
       reason: cleanReason,
       analystId: req.user._id,
@@ -485,7 +485,7 @@ const blockIPManual = async (req, res, next) => {
         ip: req.ip,
       })
     } catch (auditErr) {
-      await containmentService.unblockIPManual({ ip: cleanIP })
+      await containmentService.undoManualContainment(undo)
       logger.error(`[AUDIT_FAILURE] Reverted manual IP block for ${cleanIP} due to audit failure: ${auditErr.message}`)
       return sendError(res, 'Security audit logging failed; change not applied', 500)
     }
@@ -557,7 +557,7 @@ const unblockIPManual = async (req, res, next) => {
         ip: req.ip,
       })
     } catch (auditErr) {
-      await containmentService.blockIPManual({ ip: cleanIP, reason: 'Compensating rollback' })
+      await containmentService.undoManualContainment(result.undo)
       logger.error(
         `[AUDIT_FAILURE] Reverted manual IP unblock for ${cleanIP} due to audit failure: ${auditErr.message}`
       )
