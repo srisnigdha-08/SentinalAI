@@ -73,6 +73,13 @@ test('the database commands stay consistent, least-privileged and free of plaint
   assert.doesNotMatch(b.RESTORE_COMMAND, /--nsInclude|--nsExclude/, 'mongorestore refuses --oplogReplay with a namespace filter')
 })
 
+test('replayed oplog entries are read from real mongorestore output', () => {
+  const output = '2026-11-09T20:08:31\treplaying oplog\n2026-11-09T20:08:31\tapplied 27 oplog entries\n2026-11-09T20:08:31\t150010 document(s) restored successfully.\n'
+  assert.equal(b.appliedOplogEntries(output), 27)
+  assert.equal(b.appliedOplogEntries('2026-11-09T20:08:31\t10 document(s) restored successfully.'), null)
+  assert.doesNotMatch(b.RESTORE_COMMAND, /--quiet/, 'the count is only printed without --quiet')
+})
+
 for (const [label, argv, message] of [
   ['an unknown command', ['bogus'], /Usage/],
   ['a backup with no project', ['backup', '--out', 'x', '--recipient', RECIPIENT], /--project/],

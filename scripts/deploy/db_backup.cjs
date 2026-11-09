@@ -21,7 +21,7 @@ const path = require('path')
 
 const NAME = /^sentinel-backup-\d{8}T\d{6}Z\.archive\.gz\.age$/
 const DUMP_COMMAND = 'mongodump -u sentinel_backup -p "$SENTINEL_BACKUP_PASSWORD" --authenticationDatabase admin --oplog --archive --gzip --quiet'
-const RESTORE_COMMAND = 'mongorestore -u root -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --oplogReplay --archive --gzip --quiet'
+const RESTORE_COMMAND = 'mongorestore -u root -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin --oplogReplay --archive --gzip'
 const EMPTY_TARGET_COMMAND =
   'mongosh --quiet -u root -p "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase admin admin --eval "const used = db.adminCommand({ listDatabases: 1 }).databases.map((d) => d.name).filter((n) => ![\'admin\', \'config\', \'local\'].includes(n)); print(used.join(\',\')); quit(used.length ? 3 : 0)"'
 
@@ -67,6 +67,11 @@ async function verifyChecksum(file) {
   return true
 }
 
+const appliedOplogEntries = (output) => {
+  const match = /applied (\d+) oplog entries/.exec(output)
+  return match ? Number(match[1]) : null
+}
+
 const composeArgs = (o, ...rest) => ['compose', '-p', o.project, '--env-file', o.envFile, ...o.files.flatMap((f) => ['-f', f]), ...rest]
 
 /** Pipes source into sink and rejects, with both stderr tails, if either process fails. */
@@ -84,6 +89,7 @@ function pipe(source, sink, label) {
   source.stdout.pipe(sink.stdin)
   return done.then(([a, b]) => {
     if (a.code !== 0 || b.code !== 0) throw new Error(`${label} failed: ${a.code}/${b.code} ${a.err} ${b.err}`.trim())
+    return b.err
   })
 }
 
@@ -123,8 +129,8 @@ async function restore(o) {
   const started = Date.now()
   const age = spawn(o.ageBin, ['-d', '-i', o.identity, o.backup], { stdio: ['ignore', 'pipe', 'pipe'] })
   const load = spawn('docker', composeArgs(o, 'exec', '-T', 'mongo', 'sh', '-c', RESTORE_COMMAND), { cwd: o.cwd, stdio: ['pipe', 'ignore', 'pipe'] })
-  await pipe(age, load, 'restore')
-  return { seconds: (Date.now() - started) / 1000 }
+  const output = await pipe(age, load, 'restore')
+  return { seconds: (Date.now() - started) / 1000, appliedOplogEntries: appliedOplogEntries(output) }
 }
 
 function parse(argv) {
@@ -174,4 +180,4 @@ if (require.main === module) {
   )
 }
 
-module.exports = { DUMP_COMMAND, RESTORE_COMMAND, EMPTY_TARGET_COMMAND, recipientProblem, keySeparationProblem, backupName, selectExpired, writeChecksum, verifyChecksum }
+module.exports = { DUMP_COMMAND, RESTORE_COMMAND, EMPTY_TARGET_COMMAND, appliedOplogEntries, recipientProblem, keySeparationProblem, backupName, selectExpired, writeChecksum, verifyChecksum }
