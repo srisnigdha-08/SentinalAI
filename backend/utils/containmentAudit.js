@@ -134,13 +134,11 @@ const spoolPath = () => {
   const dir = process.env.CONTAINMENT_AUDIT_SPOOL_DIR || path.join(__dirname, '..', 'logs')
   return path.join(dir, `containment-audit-spool-${db}.jsonl`)
 }
+const LOSS_METRIC = 'sentinel_containment_audit_loss_total'
+const LOSS_HELP = 'Containment audit events that lost a durability layer'
 function countLoss(reason) {
   try {
-    require('./metrics').inc(
-      'sentinel_containment_audit_loss_total',
-      'Containment audit events that lost a durability layer',
-      { reason }
-    )
+    require('./metrics').inc(LOSS_METRIC, LOSS_HELP, { reason })
   } catch {
     // metrics are optional here
   }
@@ -379,6 +377,11 @@ const containmentAuditBacklog = () => ({ queued: backlog.length, dropped, spoolF
 try {
   mongoose.connection.on('connected', () => recoverContainmentAuditSpool())
   mongoose.connection.on('reconnected', () => recoverContainmentAuditSpool())
+  // Exported at 0 from startup: Prometheus cannot see an increase on a series that first appears already non-zero,
+  // so the first loss would never raise SentinelContainmentAuditLoss.
+  for (const reason of ['backlog_full', 'spool_unavailable', 'spool_unreadable']) {
+    require('./metrics').inc(LOSS_METRIC, LOSS_HELP, { reason }, 0)
+  }
   require('./metrics').gauge(
     'sentinel_containment_audit_backlog',
     'Containment audit events waiting for MongoDB (stored in order once it is reachable)',
