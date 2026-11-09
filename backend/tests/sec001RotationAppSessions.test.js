@@ -48,7 +48,9 @@ test('old access and refresh tokens die, the temporary password signs in, the ch
   fs.writeFileSync(path.join(backup, 'users.bson'), 'synthetic')
   fs.writeFileSync(path.join(backup, 'authsessions.bson'), 'synthetic')
   const uri = mongo.getUri()
-  const run = (argv) => spawnSync(process.execPath, [TOOL, ...argv], { encoding: 'utf8' })
+  // spawnSync blocks the event loop, so Jest's own timeout cannot fire while the tool is stuck.
+  const run = (argv) =>
+    spawnSync(process.execPath, [TOOL, ...argv], { encoding: 'utf8', timeout: 45000, killSignal: 'SIGKILL' })
   const pre = run(['preflight', '--mongo', uri, '--targets-file', targets])
   expect(pre.status).toBe(0)
   const fingerprint = pre.stdout.match(/fingerprint: ([0-9a-f]{16})/)[1]

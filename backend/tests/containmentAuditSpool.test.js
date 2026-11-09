@@ -44,10 +44,10 @@ const PRELUDE = `
   const log = (action, id) => audit.logContainmentAudit({ action, containmentId: id, target: '198.51.100.9' });
   const die = () => process.kill(process.pid, 'SIGKILL');
 `
-function child(body, { db = dbName, env = {} } = {}) {
+function child(body, { db = dbName, env = {}, timeoutMs = 30000 } = {}) {
   const script = `${PRELUDE}(async () => { await mongoose.connect(process.env.MONGO_URI); ${body} })()
     .catch((e) => { console.error(e); process.exit(3) })`
-  return spawnSync(process.execPath, ['-e', script], {
+  const result = spawnSync(process.execPath, ['-e', script], {
     cwd: BACKEND,
     encoding: 'utf8',
     env: {
@@ -58,12 +58,41 @@ function child(body, { db = dbName, env = {} } = {}) {
       CONTAINMENT_AUDIT_SPOOL_DIR: dir,
       ...env,
     },
+    // spawnSync blocks the event loop, so Jest's own timeout cannot fire while a child is stuck (CI run 42611611697).
+    timeout: timeoutMs,
+    killSignal: 'SIGKILL',
   })
+  if (result.error) {
+    throw new Error(
+      `child did not finish within ${timeoutMs} ms (${result.error.code}):\n${result.stdout}\n${result.stderr}`
+    )
+  }
+  return result
 }
 const RECOVER =
   'await audit.recoverContainmentAuditSpool(); await audit.settleContainmentAudit(); await mongoose.disconnect(); process.exit(0);'
 const ACTIONS = ['CONTAINMENT_REQUESTED', 'CONTAINMENT_ACTIVE', 'ROLLBACK_INITIATED']
 const logAll = ACTIONS.map((a) => `log('${a}', 'CTN-1');`).join(' ')
+
+test('a child that never finishes fails fast and by name instead of freezing Jest', () => {
+  const started = Date.now()
+  expect(() => child('await new Promise(() => setInterval(() => {}, 1000));', { timeoutMs: 2000 })).toThrow(
+    /did not finish within 2000 ms/
+  )
+  expect(Date.now() - started).toBeLessThan(15000)
+})
+
+test('no test can block Jest indefinitely on a synchronous child process', () => {
+  const dirs = [__dirname, path.join(__dirname, 'helpers')]
+  const unbounded = dirs
+    .flatMap((d) => fs.readdirSync(d).map((name) => path.join(d, name)))
+    .filter((file) => file.endsWith('.js') && file !== __filename)
+    .filter((file) => {
+      const text = fs.readFileSync(file, 'utf8')
+      return /\b(spawnSync|execSync|execFileSync)\(/.test(text) && !/\btimeout:/.test(text)
+    })
+  expect(unbounded.map((file) => path.basename(file))).toEqual([])
+})
 
 test('killed during a MongoDB outage: events survive, are stored once and in order', async () => {
   const crashed = child(`mongoose.connection.readyState = 0; ${logAll} die();`)
