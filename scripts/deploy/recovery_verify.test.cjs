@@ -120,6 +120,16 @@ test('crash timing cannot start before the crash is visible', () => {
   assert.match(source, /closedAt\(\) - injectedAt/)
 })
 
+test('recovery timers begin before the action they measure', () => {
+  const source = read('scripts/deploy/recovery_verify.cjs')
+  assert.match(source, /measure\('ai_engine', async \(\) => \{\s*must\(STACK, 'start', 'ai-engine'\)/)
+  assert.match(source, /measure\('mongo_outage', async \(\) => \{\s*must\(STACK, 'start', 'mongo'\)/)
+  assert.match(source, /measure\('daemon_restart', async \(\) => \{\s*const restarted = spawnSync\('sudo'/)
+  const disaster = source.slice(source.indexOf("measure('disaster_restore'"))
+  assert.doesNotMatch(disaster.slice(0, disaster.indexOf("check('stack is ready after disaster recovery'")), /wrongKey/, 'the wrong-key test is not part of recovery')
+  assert.match(disaster.slice(0, disaster.indexOf('backupTool')), /start\(STACK, 'mongo'\)/)
+})
+
 test('backup evidence shows oplog replay and a forced spool replay', () => {
   const source = read('scripts/deploy/recovery_verify.cjs')
   assert.match(source, /appliedOplogEntries/)

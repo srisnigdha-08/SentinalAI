@@ -445,8 +445,10 @@ async function main() {
       check('inference is marked unavailable and only ever MONITOR', results.every((r) => r && r.action === 'MONITOR' && ['UNAVAILABLE', 'DEGRADED'].includes(r.status)), JSON.stringify(results.map((r) => [r?.status, r?.action])))
       const pending = await waitFor(async () => ['pending', 'firing'].includes(await alertState('SentinelAIEngineDown')), 90000, 3000)
       check('the AI engine alert is raised', pending, await alertState('SentinelAIEngineDown'))
-      must(STACK, 'start', 'ai-engine')
-      const back = await measure('ai_engine', () => waitReady())
+      const back = await measure('ai_engine', async () => {
+        must(STACK, 'start', 'ai-engine')
+        return waitReady()
+      })
       check('AI engine recovers', back.ok, `${back.seconds} s`)
       const real = await waitFor(async () => {
         const r = (await api('POST', '/api/ai/analyze', { headers: bearer(token), body: { sourceIP: '198.51.100.20', flow_duration: 1000, total_fwd_packets: 3, total_bwd_packets: 1, flow_bytes_per_sec: 100 } })).json?.data?.result
@@ -514,8 +516,10 @@ async function main() {
       check('requests are refused rather than served from stale state', (await api('GET', '/api/auth/me', { headers: bearer(session.token) })).status === 503)
       const firing = await waitFor(async () => (await alertState('SentinelMongoDisconnected')) === 'firing', 120000, 3000)
       check('the MongoDB alert fires', firing, await alertState('SentinelMongoDisconnected'))
-      must(STACK, 'start', 'mongo')
-      const back = await measure('mongo_outage', () => waitReady())
+      const back = await measure('mongo_outage', async () => {
+        must(STACK, 'start', 'mongo')
+        return waitReady()
+      })
       check('service recovers with no backend restart', back.ok, `${back.seconds} s`)
     })
 
@@ -621,9 +625,11 @@ async function main() {
     })
 
     await scenario('Docker daemon restart (host reboot)', async () => {
-      const restarted = spawnSync('sudo', ['-n', 'systemctl', 'restart', 'docker'], { encoding: 'utf8' })
-      if (restarted.status !== 0) throw new Error(`could not restart Docker: ${restarted.stderr}`)
-      const back = await measure('daemon_restart', () => waitReady(280000))
+      const back = await measure('daemon_restart', async () => {
+        const restarted = spawnSync('sudo', ['-n', 'systemctl', 'restart', 'docker'], { encoding: 'utf8' })
+        if (restarted.status !== 0) throw new Error(`could not restart Docker: ${restarted.stderr}`)
+        return waitReady(280000)
+      })
       check('the stack returns with no manual step', back.ok, `${back.seconds} s`)
       const session = await signIn()
       check('existing data is intact', session.login.status === 200, session.login.status)
@@ -686,10 +692,12 @@ async function main() {
       must(STACK, 'stop', 'backend')
       const live = JSON.parse(mongo(SNAPSHOT).out)
       must(STACK, 'down', '-v')
+      start(STACK, 'mongo')
+      const refusedKey = await backupTool(...restoreArgs(summary.file, wrongKey))
+      check('the wrong key cannot restore, and writes nothing', refusedKey.code !== 0 && mongo('print(db.getSiblingDB(\'sentinel-db\').getCollectionNames().length)').out === '0', refusedKey.err.slice(-120))
+      must(STACK, 'down', '-v') // the recovery below is timed from an empty volume
       const recovered = await measure('disaster_restore', async () => {
         start(STACK, 'mongo')
-        const refusedKey = await backupTool(...restoreArgs(summary.file, wrongKey))
-        check('the wrong key cannot restore, and writes nothing', refusedKey.code !== 0 && mongo('print(db.getSiblingDB(\'sentinel-db\').getCollectionNames().length)').out === '0', refusedKey.err.slice(-120))
         const loaded = await backupTool(...restoreArgs(summary.file, identity))
         check('encrypted backup restored onto a brand-new volume', loaded.code === 0, loaded.err.slice(-300))
         if (loaded.code !== 0) return false
