@@ -1,5 +1,6 @@
 # SentinelAI - Controlled Native Backend Startup Launcher
-Set-Location "C:\Users\srisn\Desktop\Projects\sentinelai-complete\backend"
+# Relative to this script, so the repository can live anywhere
+Set-Location (Join-Path $PSScriptRoot "backend")
 
 # 1. Target database override (explicit loopback)
 $env:MONGO_URI = "mongodb://127.0.0.1:27017/sentinel-db"

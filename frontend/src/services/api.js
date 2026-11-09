@@ -19,7 +19,10 @@ export const threatAPI = {
   get:         (id)       => api.get(`/threats/${id}`),
   create:      (data)     => api.post('/threats', data),
   update:      (id, data) => api.put(`/threats/${id}`, data),
+  triage:      (id, data) => api.patch(`/threats/${id}/triage`, data),
+  explain:     (id)       => api.get(`/threats/${id}/explanation`),
   delete:      (id)       => api.delete(`/threats/${id}`),
+
   blockIP:     (id)       => api.post(`/threats/${id}/block`),
   analytics:   ()         => api.get('/threats/analytics/summary'),
   vectorTrend: (days = 7) => api.get('/threats/vector-trend', { params: { days } }),
@@ -47,6 +50,8 @@ export const honeypotAPI = {
   closeSession: (id)      => api.put(`/honeypot/sessions/${id}/close`),
   analytics:    ()        => api.get('/honeypot/analytics'),
   nodes:        ()        => api.get('/honeypot/nodes'),
+  deceptionProfile:        () => api.get('/honeypot/deception/profile'),
+  deceptionRecommendation: () => api.get('/honeypot/deception/recommendation'),
 }
 
 export const alertAPI = {
@@ -62,8 +67,14 @@ export const userAPI = {
   get:    (id)        => api.get(`/users/${id}`),
   update: (id, data)  => api.put(`/users/${id}`, data),
   delete: (id)        => api.delete(`/users/${id}`),
+  forceLogout: (id)   => api.post(`/users/${id}/force-logout`),
   stats:  ()          => api.get('/users/stats'),
 }
+
+export const auditAPI = {
+  list: (params) => api.get('/audit', { params }),
+}
+
 
 export const CANONICAL_CLASSES = [
   'BENIGN',
@@ -83,6 +94,11 @@ export const aiAPI = {
   health:     ()       => api.get('/ai/engine/health'),
   modelInfo:  ()       => api.get('/ai/engine/model-info'),
   engineStats:()       => api.get('/ai/engine/stats'),
+  scoreLines: ()       => api.get('/ai/score-lines'),
+  drift:      ()       => api.get('/ai/engine/drift'),
+  explainGlobal:()     => api.get('/ai/engine/explain-global'),
+  // Loading and verifying new models can take a while; the backend allows 120 s.
+  reloadModel:()       => api.post('/ai/engine/reload', null, { timeout: 130000 }),
   predictions:(params) => api.get('/ai/predictions', { params }),
   stats:      ()       => api.get('/ai/stats'),
   verify:     (id,cls) => api.put(`/ai/predictions/${id}/verify`, { actualClass: cls }),

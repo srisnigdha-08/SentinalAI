@@ -14,4 +14,5 @@ const schema = new mongoose.Schema(
   { timestamps: true, bufferCommands: false }
 )
 schema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
+schema.index({ revokedAt: 1 }, { expireAfterSeconds: 48 * 3600, sparse: true })
 module.exports = mongoose.model('AuthSession', schema)

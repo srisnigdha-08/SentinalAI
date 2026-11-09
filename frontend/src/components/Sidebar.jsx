@@ -128,8 +128,15 @@ export default function Sidebar() {
             fontWeight: 700,
           }}>{roleBadgeText}</span>
         </div>
-        <button onClick={() => handleLogout()} style={{
+        <button onClick={() => navigate('/change-password')} style={{
           marginTop: 12, width: '100%', background: 'transparent',
+          border: '1px solid #1a4a6e', color: '#7ab3cc',
+          fontFamily: 'Rajdhani,sans-serif', fontWeight: 600, fontSize: 10,
+          letterSpacing: 1, textTransform: 'uppercase', padding: '6px 12px',
+          borderRadius: 2, cursor: 'pointer',
+        }}>CHANGE PASSWORD</button>
+        <button onClick={() => handleLogout()} style={{
+          marginTop: 6, width: '100%', background: 'transparent',
           border: '1px solid #1a4a6e', color: '#7ab3cc',
           fontFamily: 'Rajdhani,sans-serif', fontWeight: 600, fontSize: 10,
           letterSpacing: 1, textTransform: 'uppercase', padding: '6px 12px',

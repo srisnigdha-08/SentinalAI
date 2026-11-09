@@ -4,11 +4,11 @@ const socketManager = require('../websocket/socketManager')
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse')
 const logger = require('../utils/logger')
 const { v4: uuidv4 } = require('uuid')
+const { redactHoneypotSession, redactIP } = require('../utils/redact')
 const sessionForRole = (session, role) => {
-  const value = session.toObject ? session.toObject() : { ...session }
-  if (['admin', 'analyst'].includes(role)) return value
-  return { ...value, credentials: (value.credentials || []).map((credential) => ({ success: credential.success })) }
+  return redactHoneypotSession(session, role || 'viewer')
 }
+
 const getSessions = async (req, res, next) => {
   try {
     const r = await honeypotService.findSessions(req.query)
@@ -94,7 +94,23 @@ const closeSession = async (req, res, next) => {
 }
 const getHoneypotAnalytics = async (req, res, next) => {
   try {
-    sendSuccess(res, await honeypotService.getFullAnalytics())
+    const role = req.user?.role || 'viewer'
+    const analytics = await honeypotService.getFullAnalytics()
+    if (role === 'viewer') {
+      if (Array.isArray(analytics?.intelligence?.topAttackers)) {
+        analytics.intelligence.topAttackers = analytics.intelligence.topAttackers.map((a) => ({
+          ...a,
+          _id: redactIP(a._id),
+        }))
+      }
+      if (Array.isArray(analytics?.charts?.topCommands)) {
+        analytics.charts.topCommands = analytics.charts.topCommands.map((c) => ({
+          ...c,
+          _id: '[REDACTED_COMMAND]',
+        }))
+      }
+    }
+    sendSuccess(res, analytics)
   } catch (err) {
     next(err)
   }
@@ -113,19 +129,25 @@ const getHoneypotStatus = async (req, res, next) => {
     const latest = await HoneypotSession.findOne().sort({ createdAt: -1 })
     const now = Date.now()
     const lastIngestTime = latest ? new Date(latest.createdAt).getTime() : null
-    const isLive = lastIngestTime ? now - lastIngestTime < 15 * 60 * 1000 : false
+    const recentTelemetry = lastIngestTime ? now - lastIngestTime < 15 * 60 * 1000 : false
+    // L4: the Cowrie blocker's deny-list polls show the daemon is up even when no attacker is connecting.
+    const daemon = require('../services/honeypotHeartbeat').status()
+    const isLive = recentTelemetry || daemon.liveness === 'online'
 
     sendSuccess(res, {
       collector: 'available',
       liveTelemetry: isLive,
       status: isLive ? 'active' : 'idle',
-      reason: isLive
+      daemon,
+      reason: recentTelemetry
         ? 'Live honeypot telemetry stream detected within last 15 minutes'
-        : 'No active Cowrie daemon connected on host',
+        : daemon.liveness === 'online'
+          ? 'Cowrie connected (blocker plugin polling); no sessions in the last 15 minutes'
+          : 'No active Cowrie daemon connected on host',
       lastIngestTimestamp: latest ? latest.createdAt : null,
       totalSessionsIngested: total,
       liveTelemetryBlocked: !isLive,
-      blockReason: isLive ? null : 'Cowrie honeypot daemon is not provisioned on Windows host environment',
+      blockReason: isLive ? null : 'No Cowrie heartbeat and no telemetry in the last 15 minutes',
     })
   } catch (err) {
     next(err)

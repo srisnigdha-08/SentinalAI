@@ -8,6 +8,8 @@ const {
   getThreat,
   createThreat,
   updateThreat,
+  triageThreat,
+  explainThreat,
   blockIP,
   deleteThreat,
   getSettings,
@@ -16,7 +18,8 @@ const {
   blockIPManual,
   unblockIPManual,
 } = require('../controllers/threatController')
-const { protect, restrictTo } = require('../middleware/auth')
+
+const { protect, restrictTo, requirePermission } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 
 router.use(protect)
@@ -104,8 +107,8 @@ router.get('/recent', getRecent)
  *       200:
  *         description: Settings updated successfully
  */
-router.get('/settings', getSettings)
-router.post('/settings', restrictTo('admin'), updateSettings)
+router.get('/settings', requirePermission('settings:read'), getSettings)
+router.post('/settings', requirePermission('settings:write'), updateSettings)
 
 /**
  * @openapi
@@ -324,5 +327,40 @@ router
  *         description: Threat IP blocked successfully
  */
 router.post('/:id/block', validateObjectId, restrictTo('admin', 'analyst'), blockIP)
+router.patch('/:id/triage', validateObjectId, requirePermission('threats:triage'), triageThreat)
+
+/**
+ * @openapi
+ * /threats/{id}/explanation:
+ *   get:
+ *     tags:
+ *       - Threats
+ *     summary: On-demand SHAP explanation of the stored prediction behind a threat (analyst/admin)
+ *     description: >
+ *       Re-scores the feature vector stored with the threat's prediction (never accepted from the client) and
+ *       returns per-feature contributions only when that reproduces the stored class and score with the same
+ *       model version. Refusals carry errors.reason (NO_LINKED_PREDICTION, NO_STORED_VECTOR, SCHEMA_MISMATCH,
+ *       MODEL_VERSION_MISMATCH, NOT_REPRODUCED, ENGINE_UNAVAILABLE, EXPLAINER_UNAVAILABLE).
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Explanation of the reproduced prediction
+ *       403:
+ *         description: Viewer role
+ *       404:
+ *         description: Threat not found
+ *       409:
+ *         description: No explainable, reproducible prediction for this threat
+ *       503:
+ *         description: AI engine or explainer unavailable
+ */
+router.get('/:id/explanation', validateObjectId, restrictTo('admin', 'analyst'), explainThreat)
 
 module.exports = router

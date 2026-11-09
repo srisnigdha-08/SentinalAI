@@ -24,11 +24,15 @@ def test_model_metadata_verification(evaluator):
     assert meta["expectedFeatureCount"] == 53
     assert meta["featureSchemaVersion"] == FEATURE_SCHEMA_VERSION
     assert meta["rfClassifier"]["exists"] is True
-    assert meta["rfClassifier"]["sha256"].startswith("CA0EFB1F")
+    # The registered (served) artifacts: models/registry.json pins their hashes
+    import json
+    reg = json.loads((Path(__file__).parent.parent / "models" / "registry.json").read_text())
+    assert meta["rfClassifier"]["file"] == reg["classifier"]["file"]
+    assert meta["rfClassifier"]["sha256"] == reg["classifier"]["sha256"].upper()
     assert meta["isolationForest"]["exists"] is True
-    assert meta["isolationForest"]["sha256"].startswith("17BD08FF")
+    assert meta["isolationForest"]["sha256"] == reg["anomaly"]["sha256"].upper()
     assert meta["thresholds"]["block"] == 0.92
-    assert meta["thresholds"]["monitor"] == 0.70
+    assert meta["thresholds"]["monitor"] == 0.90  # validated alert line (docs/CRITICAL_FIXES_REPORT.md §2.5)
     assert meta["thresholds"]["anomaly"] == -0.55
 
 
@@ -223,6 +227,11 @@ def test_evaluate_dataset_empty(evaluator):
 
 def test_evaluate_cicids_held_out(evaluator):
     res = evaluator.evaluate_cicids_held_out(max_samples_per_file=50)
+    if res.get("status") == "UNAVAILABLE":
+        # The CICIDS2017 CSVs are git-ignored (size/licence), so CI has no dataset. The evaluator must then degrade
+        # gracefully with a reason instead of raising; the metric checks below need the real flows.
+        assert "CICIDS directory not found" in res.get("error", "")
+        pytest.skip("CICIDS2017 dataset not present (git-ignored); graceful UNAVAILABLE path verified")
     assert res["status"] == "EVALUATED"
     assert res["sampleCount"] > 0
     # Confirms that on real PCAP flows the model detects attacks (non-zero recall)

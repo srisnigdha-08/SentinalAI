@@ -8,6 +8,7 @@ const {
   getActions,
   getAction,
   getStatus,
+  getRecovery,
 } = require('../controllers/containmentController')
 const { protect, restrictTo } = require('../middleware/auth')
 
@@ -28,6 +29,24 @@ router.use(protect)
  *         description: Subsystem status retrieved
  */
 router.get('/status', restrictTo('admin', 'analyst'), getStatus)
+
+/**
+ * @openapi
+ * /containment/recovery:
+ *   get:
+ *     tags:
+ *       - Containment & Response
+ *     summary: Containment requests stuck before ACTIVE/FAILED and unconfirmed late rules (read-only)
+ *     description: >
+ *       Recovery attempts, last outcome, time stuck and whether the rule state was verified. Nothing is released
+ *       from here; an action whose rule state is unknown keeps its lock until the adapter answers.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Recovery report
+ */
+router.get('/recovery', restrictTo('admin', 'analyst'), getRecovery)
 
 /**
  * @openapi

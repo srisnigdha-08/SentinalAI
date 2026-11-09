@@ -262,7 +262,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d1',
       sourceIP: '185.220.101.10',
-      aiScore: 0.85,
+      aiScore: 0.95,
       severity: 'HIGH',
       status: 'MONITORING',
     }
@@ -318,7 +318,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d2',
       sourceIP: '185.220.101.11',
-      aiScore: 0.75,
+      aiScore: 0.95,
       severity: 'HIGH',
       status: 'MONITORING',
     }
@@ -340,7 +340,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
       data: { data: { abuseConfidenceScore: 100 } }, // 100% abuse confidence
     })
 
-    const initialScore = 0.75
+    const initialScore = 0.95
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d3',
       sourceIP: '185.220.101.12',
@@ -374,7 +374,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d4',
       sourceIP: '185.220.101.13',
-      aiScore: 0.75,
+      aiScore: 0.95,
       severity: 'HIGH',
       status: initialStatus,
     }
@@ -401,7 +401,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d5',
       sourceIP: '185.220.101.14',
-      aiScore: 0.75,
+      aiScore: 0.95,
       severity: 'HIGH',
       status: 'MONITORING',
     }
@@ -425,7 +425,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d6',
       sourceIP: '185.220.101.15',
-      aiScore: 0.75,
+      aiScore: 0.95,
       severity: 'HIGH',
       status: 'MONITORING',
     }
@@ -449,7 +449,7 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     const mockThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d7',
       sourceIP: '185.220.101.16',
-      aiScore: 0.8,
+      aiScore: 0.95,
       severity: 'HIGH',
       status: 'MONITORING',
     }
@@ -480,8 +480,19 @@ describe('Phase 2.4B: AbuseIPDB Asynchronous Threat-Intelligence Enrichment', ()
     expect(mockSocketManager.emitIPBlocked).not.toHaveBeenCalled()
   })
 
-  // ── Trigger Policy Test: Low scores (< 0.70) are not enriched ──────────────
-  test('Trigger Policy: Threats with aiScore < 0.70 are not enriched', async () => {
+  // ── Trigger Policy: only threats at/above the shared alert line (default 0.90) are enriched (THR-002) ──
+  test.each([0.7, 0.85, 0.89])('Trigger Policy: aiScore %s, below the alert line, is not enriched', async (aiScore) => {
+    const result = await threatIntelService.enrichThreat({
+      _id: '64f1a2b3c4d5e6f7a8b9c0d9',
+      sourceIP: '185.220.101.18',
+      aiScore,
+      status: 'DETECTED',
+    })
+    expect(result).toBeNull()
+    expect(axios.get).not.toHaveBeenCalled()
+  })
+
+  test('Trigger Policy: Threats with low aiScore are not enriched', async () => {
     const lowThreat = {
       _id: '64f1a2b3c4d5e6f7a8b9c0d8',
       sourceIP: '185.220.101.17',

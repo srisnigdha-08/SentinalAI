@@ -1,0 +1,21 @@
+{
+ "cold_load_seconds_including_imports": [
+  12.383,
+  10.791,
+  12.082
+ ],
+ "rows_available": 29974,
+ "single_row_ms": {
+  "n": 1000,
+  "mean": 26.153,
+  "p50": 18.029,
+  "p95": 41.255,
+  "p99": 206.976,
+  "max": 1086.325
+ },
+ "batch": {
+  "rows": 20000,
+  "seconds": 0.728,
+  "rows_per_second": 27464.5
+ }
+}

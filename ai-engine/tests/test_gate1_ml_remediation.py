@@ -4,6 +4,7 @@ Author: Senior ML-Security Engineer & Platform Test Auditor
 Location: ai-engine/tests/test_gate1_ml_remediation.py
 """
 
+import json
 import pytest
 import numpy as np
 import pandas as pd
@@ -120,7 +121,14 @@ def test_model_artifact_separation_and_isolation():
     
     runtime_dir = Path(__file__).parent.parent / "runtime"
     runtime_q = runtime_dir / "q_table.json"
-    assert runtime_q.exists()
+    # The runtime Q-table is created by a running engine and is git-ignored, so a fresh checkout (CI) has none.
+    # Separation means: the tracked seed stays in models/, the learned copy lives apart in an untracked runtime/.
+    assert (models_dir / "q_table.json").exists(), "tracked Q-table seed missing from models/"
+    assert runtime_dir.resolve() != models_dir.resolve()
+    gitignore = (Path(__file__).parent.parent.parent / ".gitignore").read_text(encoding="utf-8").splitlines()
+    assert "runtime/" in [line.strip() for line in gitignore], "runtime/ must stay untracked"
+    if runtime_q.exists():
+        json.loads(runtime_q.read_text(encoding="utf-8"))  # a present runtime copy must be valid JSON
     
     exp_dir = Path(__file__).parent.parent / "experiments" / "gate1_evaluation"
     assert exp_dir.exists()

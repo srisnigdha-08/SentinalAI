@@ -6,27 +6,9 @@ const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse'
 const { protect, restrictTo } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 const { CANONICAL_CLASSES, isValidCanonicalClass } = require('../utils/canonicalClasses')
+const { redactAIPrediction } = require('../utils/redact')
 
-// Scoped internal API-key or JWT user authentication middleware
-const internalOrUserAuth = (req, res, next) => {
-  const apiKey = req.headers['x-api-key']
-  const isInternal = Boolean(
-    apiKey &&
-    ((process.env.SENTINEL_KEY && apiKey === process.env.SENTINEL_KEY) ||
-      (process.env.HONEYPOT_API_KEY && apiKey === process.env.HONEYPOT_API_KEY))
-  )
-
-  if (isInternal) {
-    // Valid internal service call. Do NOT assign administrative privileges.
-    return next()
-  }
-
-  // Otherwise, fallback to standard JWT protection and authorization checks
-  protect(req, res, (err) => {
-    if (err) return next(err)
-    restrictTo('admin', 'analyst')(req, res, next)
-  })
-}
+const { isHoneypotKey, isSentinelKey } = require('../utils/apiKeys')
 
 /**
  * @openapi
@@ -76,6 +58,30 @@ router.get('/engine/model-info', protect, async (req, res, next) => {
 
 /**
  * @openapi
+ * /ai/score-lines:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: Alert and block lines the backend currently scores with (engine values, defaults while unreachable)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: "{ alert, block }"
+ */
+// THR-003: the dashboard colours and filters scores with these, so it matches what the backend raises and blocks.
+router.get('/score-lines', protect, async (req, res, next) => {
+  try {
+    // THR-004: source says whether the engine confirmed these ('engine'), they are its last confirmed values kept
+    // through an outage ('engine-cached'), or the defaults ('default')
+    sendSuccess(res, await aiSvc.getScoreLines())
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
  * /ai/engine/stats:
  *   get:
  *     tags:
@@ -91,6 +97,97 @@ router.get('/engine/stats', protect, async (req, res, next) => {
   try {
     sendSuccess(res, (await aiSvc.getModelStats()) || {})
   } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /ai/engine/drift:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: Feature and class-mix drift of recent traffic versus the model's training data
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Drift report (status ok, drift or insufficient_data)
+ *       503:
+ *         description: AI engine unreachable
+ */
+/**
+ * @swagger
+ * /ai/engine/explain-global:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: Features that drive the model's recent verdicts (mean absolute SHAP, overall and per class)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Global explanation over the engine's recent scored flows
+ *       503:
+ *         description: AI engine unreachable or no explainer
+ */
+router.get('/engine/explain-global', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const summary = await aiSvc.getGlobalExplanation()
+    if (!summary) return sendError(res, 'Global explanation unavailable', 503)
+    sendSuccess(res, summary)
+  } catch (err) {
+    next(err)
+  }
+})
+
+router.get('/engine/drift', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const drift = await aiSvc.getDrift()
+    if (!drift) return sendError(res, 'AI engine unreachable', 503)
+    sendSuccess(res, drift)
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /ai/engine/reload:
+ *   post:
+ *     tags:
+ *       - AI Engine
+ *     summary: Load the models pinned in the AI engine's registry without a restart (admin)
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: New model serving
+ *       409:
+ *         description: New models failed to load or verify; previous model still serving
+ */
+router.post('/engine/reload', protect, restrictTo('admin'), async (req, res, next) => {
+  const { logAudit } = require('../utils/auditLogger')
+  try {
+    const result = await aiSvc.reloadModel()
+    await logAudit({
+      action: 'MODEL_RELOADED',
+      actor: req.user,
+      target: { identifier: result?.current?.registry?.classifier || 'unknown', type: 'Model' },
+      status: 'SUCCESS',
+      details: { previous: result?.previous?.registry || null, current: result?.current?.registry || null },
+      ip: req.ip,
+    })
+    sendSuccess(res, result, 'Model reloaded')
+  } catch (err) {
+    await logAudit({
+      action: 'MODEL_RELOADED',
+      actor: req.user,
+      target: { identifier: 'registry', type: 'Model' },
+      status: 'FAILED',
+      details: { error: err.message },
+      ip: req.ip,
+    }).catch(() => {})
     next(err)
   }
 })
@@ -154,9 +251,8 @@ router.post('/analyze', protect, restrictTo('admin', 'analyst'), async (req, res
  *   post:
  *     tags:
  *       - AI Engine
- *     summary: Ingest and store AI prediction record (Internal service or JWT)
+ *     summary: Store an AI prediction (AI engine callback only; SENTINEL_KEY)
  *     security:
- *       - BearerAuth: []
  *       - ApiKeyAuth: []
  *     requestBody:
  *       required: true
@@ -181,15 +277,53 @@ router.post('/analyze', protect, restrictTo('admin', 'analyst'), async (req, res
 router.get('/predictions', protect, async (req, res, next) => {
   try {
     const r = await aiDbSvc.findPredictions(req.query)
-    sendPaginated(res, r.data, r.total, r.page, r.limit)
+    const role = req.user?.role || 'viewer'
+    const safeData = r.data.map((p) => redactAIPrediction(p, role))
+    sendPaginated(res, safeData, r.total, r.page, r.limit)
   } catch (err) {
     next(err)
   }
 })
 
-router.post('/predictions', internalOrUserAuth, async (req, res, next) => {
+// Fields the AI engine callback (inference/main.py _notify) may set. Verification, threat links
+// and anything else on AIPrediction are server-owned and never accepted from the request.
+const PREDICTION_CALLBACK_FIELDS = [
+  'sourceIP',
+  'targetIP',
+  'predictedClass',
+  'classProbabilities',
+  'threatScore',
+  'modelVersion',
+  'modelType',
+  'isAnomaly',
+  'anomalyScore',
+  'inferenceTimeMs',
+  'featureVector',
+  'featureSchemaVersion',
+  'status',
+  'action',
+  'eventTime',
+  'timestamp',
+]
+
+// Only the AI engine (SENTINEL_KEY) may record model output. The honeypot key and user sessions
+// cannot fabricate predictions, because stored predictions can raise alerts and auto-block IPs.
+const aiEngineOnly = (req, res, next) => {
+  const key = req.headers['x-api-key']
+  if (!key) return sendError(res, 'Missing API key', 401)
+  if (isSentinelKey(key)) return next()
+  if (isHoneypotKey(key)) return sendError(res, 'This key is not authorised to record AI predictions', 403)
+  return sendError(res, 'Invalid API key', 401)
+}
+
+router.post('/predictions', aiEngineOnly, async (req, res, next) => {
   try {
-    sendSuccess(res, { prediction: await aiDbSvc.storePrediction(req.body) }, 'Stored', 201)
+    const body = req.body || {}
+    const data = { inputSource: 'network_traffic' }
+    for (const field of PREDICTION_CALLBACK_FIELDS) {
+      if (body[field] !== undefined) data[field] = body[field]
+    }
+    sendSuccess(res, { prediction: await aiDbSvc.storePrediction(data) }, 'Stored', 201)
   } catch (err) {
     next(err)
   }

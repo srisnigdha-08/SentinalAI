@@ -19,12 +19,116 @@
 const ThreatLog = require('../models/ThreatLog')
 const BlockedIP = require('../models/BlockedIP')
 const ContainmentAction = require('../models/ContainmentAction')
-const { evaluatePolicy, normalizeTarget } = require('./containmentPolicyService')
+const {
+  evaluatePolicy,
+  normalizeTarget,
+  checkTargetSafety,
+  MAX_CONTAINMENT_DURATION_SECONDS,
+} = require('./containmentPolicyService')
 const { getContainmentAdapter } = require('./containment/adapterFactory')
 const { logContainmentAudit } = require('../utils/containmentAudit')
 const logger = require('../utils/logger')
+const { restoreStatusFor } = require('../utils/severity')
 const { isValidIP } = require('../utils/querySecurity')
 const { v4: uuidv4 } = require('uuid')
+const mongoose = require('mongoose')
+
+// Requester recorded for AI auto-blocks. Analyst rights only: single IPs, default (expiring) duration.
+const AUTO_BLOCK_REQUESTER = Object.freeze({
+  id: 'system:auto-block',
+  name: 'AI Auto-Block',
+  role: 'analyst',
+  status: 'active',
+})
+const userRef = (requester) => {
+  const id = requester?._id || requester?.id
+  return id && mongoose.isValidObjectId(id) ? id : null
+}
+
+// CONT-003 fencing: recovery (containmentReconciliationService) claims an action it considers abandoned by bumping its
+// version. A request that was in fact still running then gets VersionError on its next save: it must stop, and if its
+// adapter call already created the rule, remove that rule (rules are per containmentId, so a newer action's rule for
+// the same target is untouched).
+const isFenced = (err) => err?.name === 'VersionError'
+
+const supersededError = (actionDoc) => {
+  const error = new Error('Containment request was superseded by recovery; no containment from this request is active')
+  error.statusCode = 409
+  error.code = 'CONTAINMENT_SUPERSEDED'
+  error.action = actionDoc
+  return error
+}
+
+/**
+ * CONT-006: an operator rollback lost the race to TTL expiry (or another rollback) for the same action. Reports what
+ * the action is now, so callers can tell "released by someone else" from a failed removal.
+ */
+const concurrentReleaseError = async (containmentId) => {
+  let current = null
+  try {
+    current = await ContainmentAction.findOne({ containmentId }).lean()
+  } catch {
+    // reported as unknown below
+  }
+  const status = current?.enforcementStatus || 'UNKNOWN'
+  const error = new Error(
+    `Containment action changed while it was being rolled back (now ${status}); it is being or has been released by another process`
+  )
+  error.statusCode = 409
+  error.code = 'CONTAINMENT_CONCURRENT_RELEASE'
+  error.currentStatus = status
+  error.action = current
+  return error
+}
+
+/** Saves a request-owned transition; a fenced save becomes CONTAINMENT_SUPERSEDED. */
+const fencedSave = async (actionDoc) => {
+  try {
+    await actionDoc.save()
+  } catch (err) {
+    if (isFenced(err)) throw supersededError(actionDoc)
+    throw err
+  }
+}
+
+/**
+ * The request was fenced out after its adapter call succeeded: remove the rule it created and confirm it is gone.
+ * The outcome is written to recovery.lateRule without a version check (it only adds information); a removal that
+ * cannot be confirmed stays PRESENT_UNREMOVED for the reconciliation pass (removeLateRules) and the operator view.
+ */
+const compensateLateRule = async (actionDoc, adapter, rule) => {
+  let state = null
+  let detail = null
+  try {
+    const removed = await adapter.removeRule(rule)
+    if (!removed?.success) detail = removed?.stderr || 'removeRule failed'
+    state = (await adapter.inspectRule(rule))?.state
+  } catch (err) {
+    detail = err.message
+  }
+  const lateRule = state === 'ABSENT' ? 'REMOVED' : 'PRESENT_UNREMOVED'
+  try {
+    await ContainmentAction.updateOne(
+      { _id: actionDoc._id },
+      { $set: { 'recovery.lateRule': lateRule, 'recovery.lateRuleAt': new Date() } }
+    )
+  } catch (err) {
+    logger.error(`[Containment] Could not record late rule for ${actionDoc.containmentId}: ${err.message}`)
+  }
+  logContainmentAudit({
+    action: lateRule === 'REMOVED' ? 'LATE_RULE_REMOVED' : 'LATE_RULE_UNREMOVED',
+    containmentId: actionDoc.containmentId,
+    target: actionDoc.normalizedTarget,
+    details: { inspectState: state, detail },
+  })
+  if (lateRule !== 'REMOVED') {
+    logger.error(
+      `[Containment] ${actionDoc.containmentId} (${actionDoc.normalizedTarget}): rule created after recovery released ` +
+        `the action could not be confirmed removed (${state || 'no answer'}); flagged for reconciliation`
+    )
+  }
+  return lateRule
+}
 
 /**
  * Executes a fully typed, policy-governed containment request (Phase 4).
@@ -51,6 +155,10 @@ const requestContainment = async ({
   idempotencyKey,
   threatRef,
   metadata = {},
+  emitEvents = true,
+  // Manual block paths already wrote BlockedIP/ThreatLog themselves; re-syncing here would re-point other
+  // threats' containmentId at this action and break the scoped manual unblock.
+  syncLegacyState = true,
 }) => {
   const correlationId = uuidv4()
   const cleanReason = (typeof reason === 'string' ? reason.trim().slice(0, 200) : '') || 'Containment policy action'
@@ -123,7 +231,7 @@ const requestContainment = async ({
       originalThreatId: threatRef || null,
       severity: metadata.severity || null,
     },
-    requestedBy: requester?._id || requester?.id || null,
+    requestedBy: userRef(requester),
     requestedByName: requester?.name || 'System',
     requestedByRole: requester?.role || 'system',
     expiresAt: policyResult.expiration?.expiresAt || null,
@@ -144,16 +252,32 @@ const requestContainment = async ({
     details: { reason: cleanReason, durationSeconds, isPermanent },
   })
 
-  // Step 5: Transition REQUESTED -> VALIDATING
+  // Step 5: Transition REQUESTED -> VALIDATING. The first save takes the per-target lock; a concurrent
+  // request for the same target that passed Step 3 loses here and gets the winner's action back.
   actionDoc.transitionTo('VALIDATING')
-  await actionDoc.save()
+  try {
+    await actionDoc.save()
+  } catch (saveErr) {
+    if (saveErr?.code !== 11000 || !saveErr?.keyPattern?.targetLock) throw saveErr
+    const inFlight = await ContainmentAction.findOne({ targetLock: normalized })
+    logContainmentAudit({
+      action: 'ALREADY_ACTIVE_HIT',
+      containmentId: inFlight?.containmentId,
+      correlationId,
+      target: normalized,
+      enforcementStatus: inFlight?.enforcementStatus,
+      operatorId: requester?._id || requester?.id,
+      details: { message: 'Concurrent containment request for the same target' },
+    })
+    return { success: true, action: inFlight, alreadyActive: true, concurrent: true }
+  }
 
   // Step 6: Handle Policy Denial / Safety Exclusions
   if (policyResult.decision !== 'ALLOWED') {
     actionDoc.transitionTo('REJECTED', {
       failureReason: policyResult.reason,
     })
-    await actionDoc.save()
+    await fencedSave(actionDoc)
 
     logContainmentAudit({
       action: 'CONTAINMENT_REJECTED',
@@ -176,13 +300,13 @@ const requestContainment = async ({
 
   // Step 7: Transition VALIDATING -> APPROVED
   actionDoc.transitionTo('APPROVED', {
-    approvedBy: requester?._id || requester?.id || null,
+    approvedBy: userRef(requester),
   })
-  await actionDoc.save()
+  await fencedSave(actionDoc)
 
-  // Step 8: Transition APPROVED -> APPLYING
+  // Step 8: Transition APPROVED -> APPLYING (fenced: a superseded request stops here, before any adapter call)
   actionDoc.transitionTo('APPLYING')
-  await actionDoc.save()
+  await fencedSave(actionDoc)
 
   // Step 9: Invoke Adapter
   let adapterResult
@@ -216,7 +340,7 @@ const requestContainment = async ({
         executionDurationMs: adapterResult.executionDurationMs,
       },
     })
-    await actionDoc.save()
+    await fencedSave(actionDoc)
 
     logContainmentAudit({
       action: 'ENFORCEMENT_FAILED',
@@ -237,6 +361,10 @@ const requestContainment = async ({
   // Step 11: Transition APPLYING -> ACTIVE
   actionDoc.transitionTo('ACTIVE', {
     appliedAt: new Date(),
+    // CONT-005: recorded in the same save as ACTIVE, cleared only after the deny-list/threat sync below succeeded
+    ...(syncLegacyState && {
+      legacySync: { pending: true, reason: cleanReason, threatRef: threatRef || null, attempts: 0 },
+    }),
     enforcementDetails: {
       adapterName: adapter.constructor.name,
       ruleName: adapterResult.ruleName,
@@ -247,7 +375,19 @@ const requestContainment = async ({
       executionDurationMs: adapterResult.executionDurationMs,
     },
   })
-  await actionDoc.save()
+  try {
+    await actionDoc.save()
+  } catch (err) {
+    if (!isFenced(err)) throw err // e.g. MongoDB down: the action stays APPLYING and recovery inspects the rule later
+    // Recovery released this action while the adapter call was in flight: the rule must not outlive it
+    await compensateLateRule(actionDoc, adapter, {
+      containmentId: actionDoc.containmentId,
+      ruleId: adapterResult.ruleId,
+      target: normalized,
+      ruleName: adapterResult.ruleName || `SentinelAI-Rule-${actionDoc.containmentId}`,
+    })
+    throw supersededError(actionDoc)
+  }
 
   logContainmentAudit({
     action: 'CONTAINMENT_ACTIVE',
@@ -266,6 +406,49 @@ const requestContainment = async ({
     },
   })
 
+  if (syncLegacyState) {
+    const synced = await syncLegacyBlockState({ normalized, cleanReason, requester, threatRef, actionDoc })
+    await markLegacySync(actionDoc._id, synced)
+  }
+
+  // Step 14: Emit WebSocket events (callers that emit their own, such as auto-block, opt out)
+  if (emitEvents) {
+    try {
+      const socketManager = require('../websocket/socketManager')
+      socketManager.emitIPBlocked(normalized, requester?.name || 'System', threatRef || null)
+    } catch (socketErr) {
+      logger.warn(`[Containment] Socket emission warning: ${socketErr.message}`)
+    }
+  }
+
+  return { success: true, action: actionDoc }
+}
+
+/**
+ * Records the outcome of a post-ACTIVE sync (CONT-005) without a version check: it only describes state written
+ * outside the action, so it must not fence or be fenced by a concurrent rollback.
+ */
+const markLegacySync = async (actionId, { ok, error }) => {
+  try {
+    await ContainmentAction.updateOne(
+      { _id: actionId },
+      ok
+        ? { $set: { 'legacySync.pending': false, 'legacySync.lastError': null } }
+        : { $set: { 'legacySync.lastError': String(error || 'sync failed').slice(0, 500) } }
+    )
+  } catch (err) {
+    // The flag stays pending: the reconciliation pass re-runs the sync
+    logger.error(`[Containment] Could not record deny-list sync for ${actionId}: ${err.message}`)
+  }
+}
+
+/**
+ * Writes the deny-list entry and marks the address's open threats BLOCKED for an ACTIVE action. Idempotent: the
+ * deny-list write is an upsert and threats already BLOCKED are not touched, so it can be re-run by the
+ * reconciliation pass. Returns { ok, error } instead of only logging a failure (CONT-005).
+ */
+const syncLegacyBlockState = async ({ normalized, cleanReason, requester, threatRef, actionDoc }) => {
+  const errors = []
   // Step 12: Maintain Backward Compatibility with BlockedIP
   try {
     await BlockedIP.findOneAndUpdate(
@@ -274,12 +457,13 @@ const requestContainment = async ({
         ip: normalized,
         reason: cleanReason,
         blockedAt: new Date(),
-        blockedBy: requester?._id || requester?.id || null,
+        blockedBy: userRef(requester),
         threatRef: threatRef || null,
       },
       { upsert: true, new: true }
     )
   } catch (blockedIpErr) {
+    errors.push(`deny-list: ${blockedIpErr.message}`)
     logger.warn(`[Containment] BlockedIP sync warning: ${blockedIpErr.message}`)
   }
 
@@ -293,7 +477,7 @@ const requestContainment = async ({
       t.preBlockStatus = t.status
       t.status = 'BLOCKED'
       t.containmentId = actionDoc._id
-      t.handledBy = requester?._id || requester?.id
+      t.handledBy = userRef(requester)
       t.autonomousAction = {
         taken: true,
         actionType: 'IP_BLOCKED',
@@ -302,18 +486,10 @@ const requestContainment = async ({
       await t.save()
     }
   } catch (threatErr) {
+    errors.push(`threats: ${threatErr.message}`)
     logger.warn(`[Containment] Candidate threat update warning: ${threatErr.message}`)
   }
-
-  // Step 14: Emit WebSocket events
-  try {
-    const socketManager = require('../websocket/socketManager')
-    socketManager.emitIPBlocked(normalized, requester?.name || 'System', threatRef || null)
-  } catch (socketErr) {
-    logger.warn(`[Containment] Socket emission warning: ${socketErr.message}`)
-  }
-
-  return { success: true, action: actionDoc }
+  return { ok: errors.length === 0, error: errors.join('; ') || null }
 }
 
 /**
@@ -325,7 +501,7 @@ const requestContainment = async ({
  * @param {string} [params.reason]
  * @returns {Promise<Object>}
  */
-const rollbackContainment = async ({ containmentId, operator, reason }) => {
+const rollbackContainment = async ({ containmentId, operator, reason, releaseLegacyState = true }) => {
   const actionDoc = await ContainmentAction.findOne({ containmentId })
   if (!actionDoc) {
     const err = new Error(`Containment action '${containmentId}' not found`)
@@ -344,9 +520,15 @@ const rollbackContainment = async ({ containmentId, operator, reason }) => {
   const correlationId = uuidv4()
   const cleanReason = reason || 'Manual operator rollback'
 
-  // Step 1: Transition to ROLLING_BACK
+  // Step 1: Transition to ROLLING_BACK. VersionError: another path (TTL expiry, a second operator) changed the action
+  // since it was loaded. The version check stays; the caller gets the current state as a 409 instead of a 500.
   actionDoc.transitionTo('ROLLING_BACK')
-  await actionDoc.save()
+  try {
+    await actionDoc.save()
+  } catch (err) {
+    if (!isFenced(err)) throw err
+    throw await concurrentReleaseError(containmentId)
+  }
 
   logContainmentAudit({
     action: 'ROLLBACK_INITIATED',
@@ -423,6 +605,24 @@ const rollbackContainment = async ({ containmentId, operator, reason }) => {
   })
   await actionDoc.save()
 
+  // Manual unblock has already removed BlockedIP and restored its own scoped threats; it only needs the rule gone.
+  if (releaseLegacyState) await releaseLegacyBlockState(actionDoc, operator)
+
+  logContainmentAudit({
+    action: 'CONTAINMENT_ROLLED_BACK',
+    containmentId: actionDoc.containmentId,
+    correlationId,
+    target: actionDoc.normalizedTarget,
+    enforcementStatus: 'ROLLED_BACK',
+    operatorId: operator?._id || operator?.id,
+    operatorEmail: operator?.email,
+    details: { reason: cleanReason },
+  })
+
+  return { success: true, action: actionDoc }
+}
+
+const releaseLegacyBlockState = async (actionDoc, operator) => {
   // Step 5: Clean up legacy BlockedIP
   try {
     await BlockedIP.deleteOne({ ip: actionDoc.normalizedTarget })
@@ -437,7 +637,7 @@ const rollbackContainment = async ({ containmentId, operator, reason }) => {
       status: 'BLOCKED',
     })
     for (const t of threatsToRestore) {
-      t.status = t.preBlockStatus || (t.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+      t.status = restoreStatusFor(t)
       t.preBlockStatus = null
       t.containmentId = null
       t.autonomousAction = { taken: false, actionType: null, actionTime: null }
@@ -454,19 +654,78 @@ const rollbackContainment = async ({ containmentId, operator, reason }) => {
   } catch (e) {
     logger.warn(`[Containment] Socket emission warning: ${e.message}`)
   }
+}
 
-  logContainmentAudit({
-    action: 'CONTAINMENT_ROLLED_BACK',
-    containmentId: actionDoc.containmentId,
-    correlationId,
-    target: actionDoc.normalizedTarget,
-    enforcementStatus: 'ROLLED_BACK',
-    operatorId: operator?._id || operator?.id,
-    operatorEmail: operator?.email,
-    details: { reason: cleanReason },
-  })
+// Manual blocks are indefinite deny-list entries; give their adapter rule the policy maximum rather than the
+// 1-hour default, so reconciliation does not silently lift an analyst's block after an hour.
+const MANUAL_BLOCK_DURATION_SECONDS = MAX_CONTAINMENT_DURATION_SECONDS
 
-  return { success: true, action: actionDoc }
+/**
+ * Enforces a manual block (Block button / block-ip) through the configured adapter, after the deny-list
+ * write and its audit record have succeeded. Never throws: an adapter failure leaves the deny-list entry
+ * and is reported to the caller as the enforcement status.
+ */
+const enforceManualBlock = async ({ ip, requester, reason, threatRef = null }) => {
+  try {
+    const res = await module.exports.requestContainment({
+      target: ip,
+      actionType: 'block_ip',
+      durationSeconds: MANUAL_BLOCK_DURATION_SECONDS,
+      reason,
+      requester,
+      threatRef,
+      emitEvents: false,
+      syncLegacyState: false,
+    })
+    return {
+      status: res.action?.enforcementStatus,
+      backend: res.action?.enforcementBackend,
+      containmentId: res.action?.containmentId,
+    }
+  } catch (err) {
+    logger.warn(`[Containment] Manual block adapter enforcement for ${ip} did not complete: ${err.message}`)
+    return { status: err.action?.enforcementStatus || 'FAILED', error: err.message }
+  }
+}
+
+/** Removes the adapter rules of every active containment action on an IP that was manually unblocked. */
+const releaseManualBlock = async ({ ip, operator }) => {
+  let actions
+  try {
+    actions = await ContainmentAction.find({
+      normalizedTarget: normalizeTarget(ip),
+      enforcementStatus: { $in: ['ACTIVE', 'ROLLBACK_FAILED'] },
+    })
+  } catch (err) {
+    logger.error(`[Containment] Could not look up adapter rules for unblocked ${ip}: ${err.message}`)
+    return [{ status: 'UNKNOWN', error: err.message }]
+  }
+  const results = []
+  for (const action of actions) {
+    try {
+      await module.exports.rollbackContainment({
+        containmentId: action.containmentId,
+        operator,
+        reason: 'Manual unblock',
+        releaseLegacyState: false,
+      })
+      results.push({ containmentId: action.containmentId, status: 'ROLLED_BACK' })
+    } catch (err) {
+      if (err.code === 'CONTAINMENT_CONCURRENT_RELEASE') {
+        // TTL expiry (or another operator) is releasing this rule: not a failed removal (CONT-006)
+        logger.info(`[Containment] ${action.containmentId} for ${ip} released concurrently (${err.currentStatus})`)
+        results.push({
+          containmentId: action.containmentId,
+          status: 'RELEASED_CONCURRENTLY',
+          current: err.currentStatus,
+        })
+        continue
+      }
+      logger.error(`[Containment] Adapter rule removal failed for ${ip} (${action.containmentId}): ${err.message}`)
+      results.push({ containmentId: action.containmentId, status: 'ROLLBACK_FAILED', error: err.message })
+    }
+  }
+  return results
 }
 
 /**
@@ -498,9 +757,18 @@ const getContainmentStatus = async () => {
  * Order: ThreatLog state transition -> BlockedIP upsert.
  * Compensation: If BlockedIP fails, ThreatLog is reverted to prior state (Scenario A).
  */
-const blockThreat = async (threatId, analystId, reason = 'Manual threat block') => {
-  const threat = await ThreatLog.findById(threatId)
+const blockThreat = async (threatId, analystId, reason = 'Manual threat block', session = null) => {
+  const threatQuery = ThreatLog.findById(threatId)
+  if (session) threatQuery.session(session)
+  const threat = await threatQuery
   if (!threat) return null
+
+  const safety = checkTargetSafety(threat.sourceIP)
+  if (!safety.isSafe) {
+    const err = new Error(`Containment policy rejected: ${safety.reason}`)
+    err.statusCode = 403
+    throw err
+  }
 
   // Protection of analyst terminal states
   if (threat.status === 'RESOLVED' || threat.status === 'FALSE_POSITIVE') {
@@ -519,7 +787,7 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
         blockedBy: analystId,
         threatRef: threat._id,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, ...(session ? { session } : {}) }
     )
     return threat
   }
@@ -546,7 +814,7 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
     actionType: 'IP_BLOCKED',
     actionTime: new Date(),
   }
-  await threat.save()
+  await threat.save(session ? { session } : undefined)
 
   // Step 2: Upsert BlockedIP (Scenario A compensation on failure)
   let blockedDoc
@@ -560,11 +828,14 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
         blockedBy: analystId,
         threatRef: threat._id,
       },
-      { upsert: true, new: true }
+      { upsert: true, new: true, ...(session ? { session } : {}) }
     )
     threat.containmentId = blockedDoc._id
-    await threat.save()
+    await threat.save(session ? { session } : undefined)
   } catch (blockedIpErr) {
+    if (session) {
+      throw blockedIpErr
+    }
     logger.error(
       `[Containment] BlockedIP operation failed for ${threat.sourceIP}: ${blockedIpErr.message}. Attempting compensating rollback on ThreatLog ${threat._id}...`
     )
@@ -597,12 +868,19 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block') 
  * Order: BlockedIP upsert -> candidate ThreatLogs update.
  * Compensation: If ThreatLog update fails, BlockedIP is restored or removed (Scenario B).
  */
-const blockIPManual = async ({ ip, reason, analystId, analystName, analystEmail }) => {
+const blockIPManual = async ({ ip, reason, analystId }) => {
   if (!ip || typeof ip !== 'string' || !isValidIP(ip.trim())) {
     throw new Error('Valid IP address is required')
   }
   const cleanIP = ip.trim()
   const cleanReason = (typeof reason === 'string' ? reason.trim().slice(0, 200) : '') || 'Manual analyst block'
+
+  const safety = checkTargetSafety(cleanIP)
+  if (!safety.isSafe) {
+    const err = new Error(`Containment policy rejected: ${safety.reason}`)
+    err.statusCode = 403
+    throw err
+  }
 
   // Snapshot existing BlockedIP state to support Scenario B compensation
   const foundBlocked = await BlockedIP.findOne({ ip: cleanIP })
@@ -693,7 +971,7 @@ const blockIPManual = async ({ ip, reason, analystId, analystName, analystEmail 
  * Order: BlockedIP deletion -> scoped ThreatLogs restoration.
  * Compensation: If ThreatLog restoration fails, BlockedIP is re-inserted and threats re-blocked.
  */
-const unblockIPManual = async ({ ip, analystId, analystName, analystEmail }) => {
+const unblockIPManual = async ({ ip }) => {
   if (!ip || typeof ip !== 'string' || !isValidIP(ip.trim())) {
     throw new Error('Valid IP address is required')
   }
@@ -706,11 +984,18 @@ const unblockIPManual = async ({ ip, analystId, analystName, analystEmail }) => 
 
   const savedBlockedDoc = blockedDoc.toObject ? blockedDoc.toObject() : { ...blockedDoc }
 
-  // Scoped query: identify ThreatLogs specifically tagged with this containment event
+  // Scoped query: ThreatLogs tagged with this containment event. A block tags them with the BlockedIP id, but an
+  // adapter-backed containment (auto-block, policy block) tags every open threat for the address with its
+  // ContainmentAction id; the actions still active here are the ones this unblock releases (CONT-001). Threats from
+  // older, finished containments keep their state (historical protection).
+  const activeActions = await ContainmentAction.find(
+    { normalizedTarget: normalizeTarget(cleanIP), enforcementStatus: { $in: ['ACTIVE', 'ROLLBACK_FAILED'] } },
+    { _id: 1 }
+  )
   let threatsToRestore = await ThreatLog.find({
     sourceIP: cleanIP,
     status: 'BLOCKED',
-    containmentId: blockedDoc._id,
+    containmentId: { $in: [blockedDoc._id, ...(activeActions || []).map((a) => a._id)] },
   })
 
   // Fallback for legacy single-threat containment if containmentId was null but threatRef matched
@@ -730,7 +1015,7 @@ const unblockIPManual = async ({ ip, analystId, analystName, analystEmail }) => 
   const restoredThreats = []
   try {
     for (const t of threatsToRestore) {
-      const targetStatus = t.preBlockStatus || (t.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+      const targetStatus = restoreStatusFor(t)
       t.status = targetStatus
       t.preBlockStatus = null
       t.containmentId = null
@@ -776,7 +1061,7 @@ const unblockIPManual = async ({ ip, analystId, analystName, analystEmail }) => 
  * Compensation: If BlockedIP fails, ThreatLog status is rolled back to priorStatus.
  */
 const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sourceRef = null }) => {
-  const priorStatus = threat.preBlockStatus || (threat.aiScore >= 0.7 ? 'MONITORING' : 'DETECTED')
+  const priorStatus = restoreStatusFor(threat)
   const priorAutonomousAction = threat.autonomousAction
     ? {
         taken: threat.autonomousAction.taken,
@@ -784,6 +1069,18 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
         actionTime: threat.autonomousAction.actionTime,
       }
     : { taken: false, actionType: null, actionTime: null }
+
+  // Callers mark the threat BLOCKED before calling; a protected target must be reverted, never recorded.
+  const safety = checkTargetSafety(threat.sourceIP)
+  if (!safety.isSafe) {
+    logger.warn(`[Containment] Auto-block refused for ${threat.sourceIP}: ${safety.reason}`)
+    threat.status = priorStatus
+    threat.preBlockStatus = null
+    threat.autonomousAction = { taken: false, actionType: null, actionTime: null }
+    threat.notes = [threat.notes, `[AUTO_BLOCK_REFUSED] ${safety.reason}`].filter(Boolean).join('\n')
+    await threat.save()
+    return { success: false, refused: true, reason: safety.reason, threat }
+  }
 
   let blockedDoc
   try {
@@ -824,6 +1121,39 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
     throw blockedErr
   }
 
+  // Enforce through the configured containment adapter too, so auto-blocks share the ContainmentAction
+  // lifecycle (policy, audit, expiry, rollback) with manual containment. Mock adapter by default; the
+  // real firewall still needs its own gates. A rejection or adapter failure keeps the deny-list entry.
+  let enforcement = null
+  try {
+    const res = await module.exports.requestContainment({
+      target: threat.sourceIP,
+      actionType: 'block_ip',
+      reason: `${source} auto-block (score = ${threatScore})`,
+      requester: AUTO_BLOCK_REQUESTER,
+      idempotencyKey: `auto-block:${threat._id}`,
+      threatRef: threat._id,
+      metadata: { threatCategory: threat.attackType, severity: threat.severity },
+      emitEvents: false,
+    })
+    enforcement = {
+      status: res.action?.enforcementStatus,
+      backend: res.action?.enforcementBackend,
+      containmentId: res.action?.containmentId,
+    }
+  } catch (enforceErr) {
+    enforcement = { status: enforceErr.action?.enforcementStatus || 'FAILED', error: enforceErr.message }
+    logger.warn(
+      `[Containment] Auto-block adapter enforcement for ${threat.sourceIP} did not complete: ${enforceErr.message}`
+    )
+  }
+  const enforcedBy =
+    enforcement?.status === 'ACTIVE'
+      ? enforcement.backend === 'windows-firewall'
+        ? 'Enforced by the honeypot blocker and a Windows Firewall rule.'
+        : `Enforced by the honeypot blocker; containment adapter "${enforcement.backend}" (no host firewall rule).`
+      : 'Enforced by the honeypot blocker only; containment adapter enforcement did not complete.'
+
   // Socket & Alert emission ONLY after containment succeeds
   try {
     const socketManager = require('../websocket/socketManager')
@@ -832,8 +1162,8 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
     socketManager.emitIPBlocked(threat.sourceIP, source, threat._id)
 
     const alert = await alertService.createAlert({
-      title: 'IP Address Blocked (Auto)',
-      message: `IP ${threat.sourceIP} blocked automatically by ${source} (Score: ${Math.round(threatScore * 100)}%)`,
+      title: 'IP Added to Deny-List (Auto)',
+      message: `IP ${threat.sourceIP} added to the SentinelAI deny-list by ${source} (Score: ${Math.round(threatScore * 100)}%). ${enforcedBy}`,
       severity: 'HIGH',
       type: 'IP_BLOCKED',
       sourceRef: sourceRef || { refModel: 'ThreatLog', refId: threat._id },
@@ -843,7 +1173,7 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
     logger.error(`[AI Auto-Block] Alert/Socket emission failed: ${e.message}`)
   }
 
-  return { success: true, blockedDoc, threat }
+  return { success: true, blockedDoc, threat, enforcement }
 }
 
 module.exports = {
@@ -854,4 +1184,11 @@ module.exports = {
   blockIPManual,
   unblockIPManual,
   executeAutoBlock,
+  enforceManualBlock,
+  releaseManualBlock,
+  syncLegacyBlockState,
+  markLegacySync,
+  releaseLegacyBlockState,
+  MANUAL_BLOCK_DURATION_SECONDS,
+  AUTO_BLOCK_REQUESTER,
 }

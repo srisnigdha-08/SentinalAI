@@ -24,11 +24,11 @@
 
 Modern enterprise networks face an onslaught of sophisticated, automated intrusions, Advanced Persistent Threats (APTs), and zero-day vulnerabilities. Conventional Intrusion Detection and Prevention Systems (IDS/IPS) remain predominantly static and signature-bound, leaving them vulnerable to polymorphic payloads and novel evasion tactics.
 
-**SentinelAI** is an autonomous, full-stack cyber defence platform designed to shift enterprise security from passive defense to proactive, adaptive deception and automated threat mitigation. SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
-1. **Multi-Model Anomaly & Intrusion Detection:** Scikit-learn Random Forest, XGBoost, and Isolation Forest models trained on verified **CICIDS2017** network traffic.
-2. **Explainable AI (XAI):** Real-time **SHAP** (SHapley Additive exPlanations) attribution that visualizes feature weights directly for SOC security analysts.
-3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** reinforcement agent that dynamically reconfigures Cowrie SSH deception environments based on attacker interaction depth, maximizing dwell time to extract critical Indicators of Compromise (IOCs).
-4. **Live SOC Operations Interface:** A high-throughput React dashboard with real-time Socket.IO telemetry, automated MITRE ATT&CK technique mapping, and analyst triage governance.
+**SentinelAI** is a full-stack cyber defence prototype, designed toward autonomous operation, that combines ML threat detection, adaptive honeypot deception and a policy-governed containment workflow (enforcement is simulated by default). SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
+1. **Multi-Model Anomaly & Intrusion Detection:** XGBoost (served) and Random Forest classifiers plus an Isolation Forest, trained on **CICIDS2017** flow records. Input is flow records sent on demand or replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`); there is no live packet capture.
+2. **Explainable AI (XAI):** **SHAP** (SHapley Additive exPlanations). Analysts and admins can open **Explain** on a threat from a scored flow: the backend re-scores the feature vector stored with that threat's prediction and shows per-feature contributions only if it reproduces the same class, score and model version (otherwise it says why not). The AI Analytics page shows the global view over recent decisions. SHAP covers the XGBoost classifier, not the Isolation Forest part of the threat score.
+3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` applies it to Cowrie. Persona switching was exercised against a live Cowrie instance in WSL by the integration harness (`run_integration.cjs --cowrie`); whether learned rotation keeps attackers engaged longer than a fixed persona has **not** been measured (`audit/RL001_DESIGN.md`).
+4. **Live SOC Operations Interface:** A React dashboard with Socket.IO telemetry, MITRE ATT&CK technique mapping of honeypot sessions, and analyst triage governance.
 
 > **Academic Attribution:**  
 > Developed at the **Department of Information Science and Engineering, RNS Institute of Technology (RNSIT), Bengaluru, India**.  
@@ -39,13 +39,13 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 
 ## 🌟 Key Features
 
-* **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised Random Forest/XGBoost classification with unsupervised Isolation Forest anomaly scoring across 53 engineered network-flow dimensions to compute a balanced `ThreatScore`.
-* **🧠 Explainable AI (SHAP):** Deploys tree-based SHAP explainers to demystify black-box predictions, presenting analysts with top positive and negative contributing flow features per incident.
-* **🎯 Reinforcement Learning Deception (Q-Learning):** Dynamically switches Cowrie honeypot decoy OS profiles (e.g., Ubuntu database server, legacy CentOS server, Windows controller) between attacker sessions to adaptively optimize entrapment rewards.
-* **🏷️ MITRE ATT&CK Matrix Tagging:** Classifies shell commands and packet behavior in real time against MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
-* **⚡ High-Throughput Real-Time Dispatcher:** Real-time event propagation via Socket.IO from backend ingestion pipelines to analyst dashboards with sub-second latency.
+* **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised classification (XGBoost `xgb_cicids_v1` is the served model, pinned in `ai-engine/models/registry.json`) with Isolation Forest anomaly scoring over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) to compute a `ThreatScore`.
+* **🧠 Explainable AI (SHAP):** On-demand per-threat explanations (Threat Logs → Explain): positive and negative contributions of all 53 features for the classifier's decision, computed from the stored vector and verified against the stored prediction; plus a global summary on AI Analytics.
+* **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (e.g. Ubuntu, CentOS, Windows); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona has not been measured.
+* **🏷️ MITRE ATT&CK Matrix Tagging:** Maps honeypot shell commands to MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
+* **⚡ Real-Time Dispatcher:** Event propagation via Socket.IO from backend ingestion to analyst dashboards (end-to-end latency not yet measured).
 * **🔒 Enterprise Security & Session Management:** Session-backed authentication architecture featuring 15-minute access JWTs, 30-day absolute refresh token rotation, strict CORS isolation, and Asia/Kolkata timezone normalization.
-* **🚨 Automated Containment Loop:** Configurable containment engine capable of automatically enforcing firewall IP isolation once a threat score exceeds designated safety thresholds.
+* **🚨 Policy-Governed Containment:** Auto-blocks (off by default) and analyst blocks go through a policy check and a pluggable containment adapter. The default adapter is a **mock** (no firewall change); the Windows Firewall adapter is gated behind two settings and has not been field-tested.
 
 ---
 
@@ -70,9 +70,9 @@ sequenceDiagram
     BE->>UI: Broadcasts live session telemetry via Socket.IO
     Note over Attacker, HP: Attacker executes recon & downloads payloads
     Parser->>BE: Streams closed session metrics & command history
-    BE->>AI: Dispatches session for evaluation (/predict/honeypot)
-    AI->>AI: Extracts 53-D features, runs RF & IF models, computes SHAP
-    AI-->>BE: Returns ThreatScore, classification, & anomaly vectors
+    BE->>AI: Dispatches session for evaluation (/predict/honeypot/internal)
+    AI->>AI: Rule-based session classifier (no ML: Cowrie sessions carry no flow data)
+    AI-->>BE: Returns ThreatScore and session classification
     BE->>AI: Evaluates deception reward (/deception/score)
     AI->>AI: Updates Q-table state and selects optimal next profile
     AI-->>BE: Emits recommended decoy OS profile
@@ -132,21 +132,46 @@ sentinelai/
 
 ## 📊 Model Evaluation & Scientific Rigor
 
-SentinelAI was rigorously evaluated against the standardized **CICIDS2017** benchmark intrusion dataset:
+SentinelAI is evaluated on the **CICIDS2017** benchmark. How the data is split changes the numbers a lot,
+so each figure says which split it comes from (full method and results:
+[docs/C1_EVALUATION_PLAN_AND_RESULTS.md](docs/C1_EVALUATION_PLAN_AND_RESULTS.md)).
 
-### Multi-Class Performance Metrics
-* **Production Model:** Random Forest Classifier (`rf_classifier_cicids_v2.pkl`)
-  * **Test Accuracy:** **98.43%**
-  * **Weighted F1-Score:** **98.62%**
-  * **Macro F1-Score:** **84.48%**
-* **Secondary Candidate Model:** XGBoost Classifier (`xgb_classifier_cicids_v2.pkl`)
-  * **Test Accuracy:** **99.13%**
-  * **Weighted F1-Score:** **99.24%**
+### Multi-Class Performance Metrics (Random Forest `rf_classifier_cicids_v2.pkl`, the model reported in the paper)
+| Split | Accuracy | Macro F1 | What it measures |
+|---|---|---|---|
+| Random 80/20 rows (as in the model metadata) | 98.43% (re-run: 98.69%) | 0.84 (re-run: 0.88) | Optimistic: flows from the same attack burst land in train and test |
+| **Chronological per class** (train on earlier flows, test on later ones) | **97.57%** | **0.74** | Honest in-distribution estimate; rare classes (bot/C2, XSS, SQLi) are weak |
+| Leave one capture day out | 59–94% | 0.19–0.29 | Attacks from a day never trained on are almost all missed |
+
+The **served** model is XGBoost `xgb_cicids_v1` (`ai-engine/models/registry.json`). Measured 2026-11-02 (`audit/ML_EVAL_PLAN.md` §5–5c):
+
+| Served XGBoost recipe | Attack recall (classifier decision) | Benign false-positive rate | What it measures |
+|---|---|---|---|
+| Random 80/20 split (P5, the served model, split reproduced exactly) | 99.8% (95.2% at the 0.90 alert line) | 0.36% (0.23% at the alert line) | In-distribution: same capture sessions in train and test; accuracy 98.97%, macro F1 0.874 |
+| Train Mon–Wed, test Thu+Fri (P3) | **50.6%** | 0.12% | Forward in time; 5 of the test attack classes were never trained on |
+| Leave one calendar day out (P4, 4 days with attacks) | **3.1–33.4%** | 0.24–4.1% | Unseen days and tools; even trained classes from a new tool are missed (DDoS LOIC → DoS tools: 0%) |
+
+**The model does not generalise to capture days or attack tools it has not seen.** Several classes have very little data (SQL Injection 21 flows in total, RCE 11, Lateral Movement 36, Data Exfiltration none), so per-class results for them are not meaningful.
+
+**Cross-dataset development (not deployed).** Pre-registered experiments on CICIDS2017 plus six CSE-CIC-IDS2018
+development days ([`audit/ML_DEV_RESULTS.md`](audit/ML_DEV_RESULTS.md)) found one candidate (two-stage XGBoost, both
+datasets, infiltration excluded from training) that meets the development false-positive limits, after a verified
+correction of 2017-Thursday port-scan labels that was decided after earlier results were seen. Held to a 0.1 % false-alarm line its
+recall on unseen 2018 days drops to about 7–13 % (served recipe: 4–6 %), it has no infiltration class, and its recall
+is unstable across retraining. It is **not** deployed; four 2018 days are kept untouched for a one-shot external test
+that has not been run.
+
+### Alerting (backend threat/alert creation)
+The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),
+the lowest line meeting a 0.1% benign-alert target on a chronological validation split of the de-duplicated
+data. On the later, held-out traffic it alerts on **78.6% of attacks** with **0.154% of benign flows** raising
+an alert (95% CI 0.136–0.174%). Attacks from a capture day never seen in training are essentially not
+detected. See `docs/CRITICAL_FIXES_REPORT.md`.
 
 ### 🔍 Scientific Transparency: Addressing Real-World Class Imbalance
 In alignment with academic honesty and scientific rigor, SentinelAI documents performance boundaries when deploying models into live networks:
 * **The Base-Rate Challenge:** In production environments where benign traffic vastly outnumbers malicious flows, precision on rare attack classes (such as SSH Brute Force or Infiltration) can degrade due to the class imbalance base-rate effect.
-* **SentinelAI Mitigation Strategy:** SentinelAI prevents automated false-positive overreactions by employing an **Analyst Verification Loop** and requiring multi-event correlation before executing irreversible containment actions.
+* **SentinelAI Mitigation Strategy:** automatic containment is **off by default**. When an admin enables it, a single flow at or above the 0.92 block line is contained (there is no multi-event correlation); protected targets (`CONTAINMENT_PROTECTED_TARGETS`, loopback, link-local) are refused, every containment expires (TTL) and can be rolled back, and enforcement is the mock adapter unless the Windows Firewall adapter is deliberately enabled. Flows the classifier calls benign but the anomaly tier flags go to an analyst review queue instead of becoming threats (`GET /api/ai/predictions?review=true`).
 
 ---
 
@@ -154,7 +179,7 @@ In alignment with academic honesty and scientific rigor, SentinelAI documents pe
 
 ### Prerequisites
 * **Node.js**: `v24.x` (or LTS `v20+`)
-* **Python**: `v3.11.x`
+* **Python**: `v3.11.x` (the only version tested)
 * **MongoDB Community Server**: `v7.0+`
 * **Git**: `v2.40+`
 
@@ -165,6 +190,11 @@ In alignment with academic honesty and scientific rigor, SentinelAI documents pe
 git clone https://github.com/srisnigdha-08/SentinalAI.git
 cd SentinalAI
 ```
+
+**Windows:** clone into a short folder (for example `C:\Projects\SentinalAI`). The longest tracked path is 114
+characters, and Windows' 260-character path limit then breaks the checkout ("Filename too long") and later the
+Python virtual environment's DLL loading when the clone sits more than about 140 characters deep. For Git alone,
+`git clone -c core.longpaths=true …` also works, but the Python environment still needs a short path.
 
 ---
 
@@ -181,12 +211,19 @@ mongosh --eval "db.adminCommand('ping')"
 ```bash
 cd backend
 
-# Install dependencies
-npm install
+# Install the exact locked dependencies
+npm ci
 
 # Configure environment variables
 cp .env.example .env
-# Edit .env to set secure JWT_SECRET and SENTINEL_KEY values
+# Replace EVERY CHANGE_ME value, or the backend refuses to start: JWT_SECRET, JWT_REFRESH_SECRET,
+# HONEYPOT_API_KEY, SENTINEL_KEY (32+ random characters each; e.g. `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`)
+# and ADMIN_INITIAL_PASSWORD (or delete that line to skip creating the first admin). Set MONGO_URI's database name.
+
+# First run on a new, empty database only: create the first admin (ADMIN_EMAIL / ADMIN_INITIAL_PASSWORD).
+# The seed deletes users, threats, sessions, alerts, predictions, blocked IPs and campaigns in the named database,
+# so it refuses to run unless you repeat that database's name:
+npm run seed -- --confirm=<database name from MONGO_URI>
 
 # Start the development server
 npm run dev
@@ -199,8 +236,8 @@ npm run dev
 ```bash
 cd ../ai-engine
 
-# Create and activate Python virtual environment
-python -m venv .venv
+# Create and activate a Python 3.11 virtual environment (CI and all measurements use 3.11; other versions are untested)
+python -m venv .venv          # Windows with several Pythons installed: py -3.11 -m venv .venv
 
 # Windows:
 .venv\Scripts\activate
@@ -210,11 +247,13 @@ source .venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
+# Configure environment variables (SENTINEL_KEY must match backend/.env)
 cp .env.example .env
 
-# Launch FastAPI inference server
-uvicorn inference.main:app --host 0.0.0.0 --port 8000 --reload
+# Launch FastAPI inference server. The engine loads ai-engine/.env itself (never overriding variables already set);
+# --env-file does the same through uvicorn.
+# Bind to loopback; only the backend needs to reach it.
+uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file .env --reload
 # API documentation available at http://localhost:8000/docs
 ```
 
@@ -224,8 +263,8 @@ uvicorn inference.main:app --host 0.0.0.0 --port 8000 --reload
 ```bash
 cd ../frontend
 
-# Install dependencies
-npm install
+# Install the exact locked dependencies
+npm ci
 
 # Start Vite development server
 npm run dev
@@ -254,7 +293,8 @@ npm run dev
 | `MODEL_DIR` | Directory containing serialized `.pkl` models | `./models` |
 | `SENTINEL_API` | Backend API URL for threat callbacks | `http://localhost:5000/api` |
 | `SENTINEL_KEY` | Shared internal key (matches backend) | Required |
-| `SCORE_THRESHOLD` | ThreatScore trigger threshold | `0.7` |
+| `ALERT_THRESHOLD` / `BLOCK_THRESHOLD` | Alert line (threat + alert) and block line (auto-block when enabled) | `0.90` / `0.92` |
+| `SCORE_THRESHOLD` | Only the engine's own threat counter and its `/predict` push to the backend; the backend still applies the alert line | defaults to the alert line |
 | `CORS_ORIGINS` | Permitted cross-origin endpoints | `http://localhost:3000,http://localhost:5000` |
 
 ---
@@ -272,12 +312,42 @@ npm test
 cd ../ai-engine
 pytest
 
-# Run Frontend routing & smoke tests
+# Run Frontend routing & smoke tests, and lint (correctness rules only)
 cd ../frontend
 npm test
+npm run lint
 ```
 
-Continuous integration is enforced on every pull request via **GitHub Actions** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)).
+Beyond the unit suites:
+
+| Check | Command (from the repository root) | Notes |
+| :--- | :--- | :--- |
+| Cross-service integration (Demos A–C + auth) | `node scripts/integration/run_integration.cjs` (`--cowrie` adds live WSL Cowrie) | real engine + backend + MongoDB on a throwaway DB; see [`scripts/integration/README.md`](scripts/integration/README.md) |
+| Browser E2E (Chromium, Firefox, WebKit) | `cd frontend && npx playwright test` | uses the `sentinelai_test` database |
+| Served-model evaluation (inference only) | `ai-engine/.venv/Scripts/python ai-engine/evaluation/p5_served_model_eval.py` | reconstructs the training split; [`audit/ML_EVAL_PLAN.md`](audit/ML_EVAL_PLAN.md) |
+| Load, concurrency and failure recovery | `node scripts/perf/load_resilience.cjs`; `ai-engine/.venv/Scripts/python scripts/perf/engine_latency.py --concurrency 1,5,10,20` | throwaway mongod/engine/backend; results and procedures in [`docs/PERFORMANCE_AND_RESILIENCE.md`](docs/PERFORMANCE_AND_RESILIENCE.md) |
+| Engine latency (single flow, with/without SHAP) | `ai-engine/.venv/Scripts/python scripts/perf/engine_latency.py` | starts its own engine on a free port with a throwaway key; idle-machine result 2026-11-02: p95 35 ms (47 ms with SHAP) |
+| Secret scan | `node scripts/security/secret_scan.cjs` (`--staged`, `--history`) | never prints values; opt-in hook: `git config core.hooksPath .githooks` |
+
+Continuous integration runs on every push and pull request via **GitHub Actions** ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, unit suites, secret scan.
+
+---
+
+## 🎬 Demonstrations
+
+The three demos keep the same letters in every document and script.
+Step-by-step procedure, verified 2026-11-02: [`docs/DEMO_ABC_RUNBOOK.md`](docs/DEMO_ABC_RUNBOOK.md). Presenter's script
+with the outputs of the 2026-11-03 rehearsal and recovery steps: [`docs/DEMO_REHEARSAL_SCRIPT.md`](docs/DEMO_REHEARSAL_SCRIPT.md).
+
+| Demo | What it shows | Runbook | Say in the viva |
+| :--- | :--- | :--- | :--- |
+| **Demo A — Honeypot Intelligence** | live Cowrie SSH sessions (WSL) → parser → attacker behaviour (rule classification), MITRE mapping, deception score; persona adaptation by the rotator; Q-learning persistence | [`docs/THREAT_DEMO_RUNBOOK.md`](docs/THREAT_DEMO_RUNBOOK.md) Part 3 §A, `scripts/demo/cowrie-demo-mode.sh` | sessions are classified by rules; the persona learner is a tabular Q-learning recommender applied by the rotator |
+| **Demo B — AI Threat Detection** | CICIDS2017 flow replay → XGBoost inference + Isolation Forest anomaly score → ThreatLog persistence → SOC dashboard updates | Part 3 §B, `ai-engine/demo/replay_cicids.py --target backend` | replayed flow records, not live capture; 0.99 accuracy is an in-distribution split |
+| **Demo C — Autonomous Incident Response** | policy-controlled containment (protected targets, thresholds) → mock adapter → deny-list → expiry / rollback → audit log; manual or auto-block | Part 3 §C | the firewall rule is simulated (mock adapter); the honeypot deny-list is the only real enforcement |
+
+Readiness and limitations: [`audit/READINESS_2026-11-01.md`](audit/READINESS_2026-11-01.md). Final handover: [`docs/FINAL_PROJECT_GUIDE.md`](docs/FINAL_PROJECT_GUIDE.md)
+(architecture, installation, readiness), [`docs/PROJECT_METRICS.md`](docs/PROJECT_METRICS.md), [`docs/PRESENTATION_CONTENT.md`](docs/PRESENTATION_CONTENT.md), [`docs/VIVA_GUIDE.md`](docs/VIVA_GUIDE.md),
+[`docs/DEPLOYMENT_AND_BACKUP_PLAN.md`](docs/DEPLOYMENT_AND_BACKUP_PLAN.md).
 
 ---
 

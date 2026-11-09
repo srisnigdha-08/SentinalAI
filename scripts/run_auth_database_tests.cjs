@@ -7,7 +7,7 @@ const { spawn, spawnSync } = require('node:child_process')
 const { MongoClient } = require('../backend/node_modules/mongodb')
 const root = path.resolve(__dirname, '..')
 const storage = path.join(root, '.test-runtime/auth-timezone-db-20261014-01')
-const binary = 'C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete.native-integration\\mongodb-acceptance-20261014\\binaries\\mongod.exe'
+const binary = path.join(`${path.resolve(__dirname, '..')}.native-integration`, 'mongodb-acceptance-20261014', 'binaries', 'mongod.exe')
 const database = 'sentinelai_auth_timezone_test_20261014'
 const resume = process.argv.includes('--resume')
 const tests = process.argv.filter(arg => /^tests\/[a-zA-Z]+.*\.test\.js$/.test(arg))

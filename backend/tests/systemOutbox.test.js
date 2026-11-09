@@ -15,7 +15,7 @@ describe('Stage 3 & 4 — System Outbox Administration & Authorization Boundary 
   let recordActivitySpy
 
   beforeAll(() => {
-    authorizeSpy = jest.spyOn(authSessionService, 'authorize').mockImplementation(async (token) => {
+    authorizeSpy = jest.spyOn(authSessionService, 'authorize').mockImplementation(async () => {
       if (!mockUser) {
         const err = new Error('Invalid token')
         err.statusCode = 401

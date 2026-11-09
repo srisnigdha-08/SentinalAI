@@ -31,7 +31,7 @@ An exhaustive filesystem and execution inspection reveals that these hashes belo
 
 | Attribute | Protected Baseline Asset | Mutable Runtime Artifact |
 | :--- | :--- | :--- |
-| **Absolute Path** | `C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\models\q_table.json` | `C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json` |
+| **Absolute Path** | `<repo>\ai-engine\models\q_table.json` | `<repo>\ai-engine\runtime\q_table.json` |
 | **File Size** | 2,338 bytes | 1,224 bytes |
 | **Last Modified** | 2026-10-05 20:59:06 UTC | 2026-10-15 17:25:55 UTC (Dynamic) |
 | **SHA-256 Hash** | `BF9B46A1D1CF1B283797A544E7E597900B4A042E6C87AC199A3CC709498990FF` | `05791820B7C49BD9C07C5B6CE71B8671DFE27FCC1EE2A1D37C8484B1417000CC` |
@@ -42,7 +42,7 @@ An exhaustive filesystem and execution inspection reveals that these hashes belo
 ### 1.2 Separation Mechanism
 In Phase 5 Remediation Finding #1, the static model artifacts in `ai-engine/models/` were permanently decoupled from dynamic runtime state by configuring the AI process environment:
 ```powershell
-$env:Q_TABLE_PATH = 'C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json'
+$env:Q_TABLE_PATH = '<repo>\ai-engine\runtime\q_table.json'
 ```
 When live inference requests occur, the Q-learning agent (`inference/defense_agent.py`) updates state-action values in the runtime file specified by `Q_TABLE_PATH`. An earlier reporting script hashed the file residing in `ai-engine/runtime/` instead of `ai-engine/models/`, creating the appearance of an unexpected hash mutation. 
 

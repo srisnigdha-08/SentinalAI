@@ -1,13 +1,13 @@
 import Navbar from '../components/Navbar.jsx'
 
 const FEATURES = [
-  { icon:'🧠', title:'AI Anomaly Detection', accent:'#00d4ff', text:'Isolation Forest and Random Forest models trained on CICIDS2017 detect zero-day anomalies in real time with sub-second inference latency via FastAPI microservice.' },
-  { icon:'🍯', title:'Adaptive Honeypot', accent:'#ff2d55', text:'Cowrie SSH honeypot with a reinforcement-learning lure engine that dynamically morphs its OS fingerprint and service banner to maximize attacker engagement.' },
-  { icon:'⚡', title:'Autonomous Response', accent:'#00ff88', text:'Automatic IP blocking, session termination, and SOAR playbook execution — all gated by confidence thresholding to minimize false-positive-driven disruptions.' },
-  { icon:'📡', title:'Real-Time Monitoring', accent:'#ffaa00', text:'Socket.IO-powered live threat feed, WebSocket dashboard updates, and instant alert notifications with sub-100ms latency from detection to analyst display.' },
+  { icon:'🧠', title:'AI Anomaly Detection', accent:'#00d4ff', text:'XGBoost and Isolation Forest models trained on CICIDS2017 classify flow records served by a FastAPI microservice. Attacks of types never seen in training are largely missed (see the evaluation in the docs).' },
+  { icon:'🍯', title:'Adaptive Honeypot', accent:'#ff2d55', text:'Cowrie SSH honeypot with a Q-learning agent that recommends the next decoy persona; a rotator script can switch the Cowrie persona between sessions.' },
+  { icon:'⚡', title:'Policy-Governed Response', accent:'#00ff88', text:'Optional auto-blocking above a confidence threshold, plus analyst blocks, all checked against a containment policy. Enforcement runs through a pluggable adapter that is simulated (mock) by default.' },
+  { icon:'📡', title:'Real-Time Monitoring', accent:'#ffaa00', text:'Socket.IO-powered live threat feed, dashboard updates and alert notifications pushed to analysts as events are processed.' },
   { icon:'🔐', title:'JWT Role-Based Auth', accent:'#8b5cf6', text:'Full RBAC system with Admin, Analyst, and Viewer roles. bcrypt-hashed credentials, refresh token rotation, and session management via MongoDB.' },
-  { icon:'📊', title:'Threat Intelligence', accent:'#00d4ff', text:'IOC extraction, attack correlation, MITRE ATT&CK mapping, and historical trend analytics surfaced through a live SOC dashboard.' },
-  { icon:'🛡️', title:'Dual-Engine Ensemble', accent:'#ff2d55', text:'Deterministic ensemble combining supervised Random Forest signature classification with unsupervised Isolation Forest anomaly scoring.' },
+  { icon:'📊', title:'Threat Intelligence', accent:'#00d4ff', text:'IOC extraction from honeypot sessions, campaign correlation, MITRE ATT&CK mapping of attacker commands, and historical trend analytics.' },
+  { icon:'🛡️', title:'Dual-Engine Ensemble', accent:'#ff2d55', text:'Fixed-weight combination of a supervised XGBoost classifier and an unsupervised Isolation Forest anomaly score.' },
 ]
 
 export default function Features() {

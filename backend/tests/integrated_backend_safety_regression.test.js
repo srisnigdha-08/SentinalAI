@@ -59,7 +59,7 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
       threatScore: 0.02,
       predictedClass: 'BENIGN',
     })
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
       result: {
         predictedClass: 'BENIGN',
         threatScore: 0.02,
@@ -85,12 +85,12 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 2: Valid MONITOR Inference (Unit / Component)
   // --------------------------------------------------------------------------
   test('2. Valid attack inference with score 0.85 returns action MONITOR', async () => {
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockResolvedValue({
+    jest.spyOn(aiService, 'storePrediction').mockResolvedValue({
       _id: 'pred-monitor-1',
       threatScore: 0.85,
       predictedClass: 'Port Scan',
     })
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
       result: {
         predictedClass: 'Port Scan',
         threatScore: 0.85,
@@ -108,12 +108,12 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 3: Simulated BLOCK while real enforcement disabled (Component)
   // --------------------------------------------------------------------------
   test('3. Simulated BLOCK is distinct from actual firewall enforcement when autoBlockEnabled=false', async () => {
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockResolvedValue({
+    jest.spyOn(aiService, 'storePrediction').mockResolvedValue({
       _id: 'pred-block-1',
       threatScore: 0.95,
       predictedClass: 'DDoS',
     })
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
       result: {
         predictedClass: 'DDoS',
         threatScore: 0.95,
@@ -137,7 +137,7 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
       _id: 'pred-degraded-1',
       ...payload,
     }))
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
       result: {
         predictedClass: 'UNINSPECTED_TRAFFIC',
         threatScore: 0.5,
@@ -163,8 +163,8 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 5: Axios Timeout (Integration / Failure Recovery)
   // --------------------------------------------------------------------------
   test('5. Axios timeout does not return null; safely falls back to UNAVAILABLE and MONITOR', async () => {
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue(null)
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockImplementation(async (payload) => ({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue(null)
+    jest.spyOn(aiService, 'storePrediction').mockImplementation(async (payload) => ({
       _id: 'pred-timeout-1',
       ...payload,
     }))
@@ -181,8 +181,8 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 6: ECONNREFUSED Connection Failure (Integration / Failure Recovery)
   // --------------------------------------------------------------------------
   test('6. ECONNREFUSED produces observable failure result with action MONITOR', async () => {
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue(null)
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockImplementation(async (payload) => ({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue(null)
+    jest.spyOn(aiService, 'storePrediction').mockImplementation(async (payload) => ({
       _id: 'pred-econnrefused-1',
       ...payload,
     }))
@@ -198,8 +198,8 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 7: AI Service HTTP 500 (Integration / Failure Recovery)
   // --------------------------------------------------------------------------
   test('7. AI engine HTTP 500 internal server error falls back to UNAVAILABLE and MONITOR', async () => {
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue(null)
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockImplementation(async (payload) => ({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue(null)
+    jest.spyOn(aiService, 'storePrediction').mockImplementation(async (payload) => ({
       _id: 'pred-500-1',
       ...payload,
     }))
@@ -214,8 +214,8 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 8: Null and Malformed Responses (Unit / Validation)
   // --------------------------------------------------------------------------
   test('8. Null and malformed inference responses safely fall back to UNAVAILABLE', async () => {
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({})
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockImplementation(async (p) => ({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({})
+    jest.spyOn(aiService, 'storePrediction').mockImplementation(async (p) => ({
       _id: 'pred-malformed-1',
       ...p,
     }))
@@ -393,22 +393,20 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
   // Scenario 12: Database Unavailable & Persistence Failure (Emergency Fallback)
   // --------------------------------------------------------------------------
   test('12. Database persistence failure logs emergency audit to disk and propagates error', async () => {
-    const mockPredictRecord = jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
+    jest.spyOn(aiEngineService, 'predictRecord').mockResolvedValue({
       result: {
         predictedClass: 'DDoS',
         threatScore: 0.88,
         action: 'MONITOR',
       },
     })
-    const mockStorePrediction = jest.spyOn(aiService, 'storePrediction').mockRejectedValue(
-      new Error('MongoNetworkError: failed to connect to server [127.0.0.1:27017]')
-    )
+    jest
+      .spyOn(aiService, 'storePrediction')
+      .mockRejectedValue(new Error('MongoNetworkError: failed to connect to server [127.0.0.1:27017]'))
 
     const emergencyAuditSpy = jest.spyOn(emergencyAudit, 'writeEmergencyAudit')
 
-    await expect(aiEngineService.runFullPipeline({ sourceIP: '192.168.1.120' })).rejects.toThrow(
-      'MongoNetworkError'
-    )
+    await expect(aiEngineService.runFullPipeline({ sourceIP: '192.168.1.120' })).rejects.toThrow('MongoNetworkError')
 
     expect(emergencyAuditSpy).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -528,9 +526,9 @@ describe('SentinelAI GATE-1 Phase 3D: Integrated Backend Safety Regression Tests
       skip: jest.fn().mockReturnThis(),
       limit: jest.fn().mockReturnThis(),
       populate: jest.fn().mockReturnThis(),
-      lean: jest.fn().mockResolvedValue([
-        { _id: 't-1', status: 'DEGRADED', attackType: 'UNINSPECTED_TRAFFIC', aiScore: 0.5 },
-      ]),
+      lean: jest
+        .fn()
+        .mockResolvedValue([{ _id: 't-1', status: 'DEGRADED', attackType: 'UNINSPECTED_TRAFFIC', aiScore: 0.5 }]),
     })
 
     const result = await threatService.findThreats({ status: 'DEGRADED', page: 1, limit: 10 })

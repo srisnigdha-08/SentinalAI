@@ -52,12 +52,13 @@ jest.mock('../services/alertService', () => mockAlertService)
 
 const mockAiEngineService = {
   getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.9),
 }
 jest.mock('../services/aiEngineService', () => mockAiEngineService)
 
 let mockAiPredictionCount = 0
 let mockThreatLogCount = 0
-let mockAlertCount = 0
+let _mockAlertCount = 0
 let mockBlockedIPCount = 0
 
 const mockThreatLogFindByIdAndUpdate = jest.fn()
@@ -97,7 +98,7 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
     process.env.ABUSEIPDB_API_KEY = 'test-runtime-key'
     mockAiPredictionCount = 0
     mockThreatLogCount = 0
-    mockAlertCount = 0
+    _mockAlertCount = 0
     mockBlockedIPCount = 0
   })
 
@@ -126,7 +127,7 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
       sourceIP: '185.220.101.5',
       targetIP: '10.0.0.1',
       predictedClass: 'Port Scan',
-      threatScore: 0.8,
+      threatScore: 0.95,
       confidence: 0.8,
       modelVersion: 'v2.1',
       action: 'MONITOR',
@@ -136,7 +137,7 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
       _id: 'threat-integration-001',
       severity: 'HIGH',
       sourceIP: '185.220.101.5',
-      aiScore: 0.8,
+      aiScore: 0.95,
       status: 'MONITORING',
       threatIntel: {
         provider: 'AbuseIPDB',
@@ -160,8 +161,10 @@ describe('Phase 2.4B: Controlled Runtime Verification of Threat Intel Enrichment
 
     // Verify enrichment updated ThreatLog.threatIntel
     expect(mockThreatLogFindByIdAndUpdate).toHaveBeenCalledTimes(1)
+    // storePrediction assigns the threat id before writing (prediction pre-linked), so use the created id.
+    const createdThreatId = require('../models/ThreatLog').create.mock.calls[0][0]._id
     expect(mockThreatLogFindByIdAndUpdate).toHaveBeenCalledWith(
-      'threat-integration-001',
+      createdThreatId,
       {
         $set: {
           threatIntel: expect.objectContaining({

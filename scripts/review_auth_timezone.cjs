@@ -50,7 +50,7 @@ async function review() {
   const results = { date: '2026-10-14', scope: 'Offline characterization; current behavior, not security acceptance',
     controls: [], reproducedFindings: [], sourceFindings: [], dataAccess: 'No database, acceptance storage or original environment files accessed' }
   const user = new User({ name: 'Offline Review User', email: 'offline-review@example.invalid',
-    password: 'not-a-persisted-account', role: 'analyst', status: 'active' })
+    password: 'not-a-persisted-account', role: 'analyst', status: 'active' }) // secret-scan: allow (in-memory mock user, never saved)
   user.save = async () => user
   user.comparePassword = async () => true
   User.findOne = () => ({ select: async () => user })

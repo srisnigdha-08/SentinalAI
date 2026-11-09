@@ -3,8 +3,8 @@
 **Version:** 2.0 (Phase 6 Release)  
 **Date:** 2026-10-15  
 **Platform:** Windows 11 Pro Native Development & Windows Server Production  
-**Project Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration Path:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
+**Project Path:** `<repo>`  
+**Native Integration Path:** `<repo>.native-integration`  
 
 ---
 
@@ -27,7 +27,7 @@
 
 | Variable Name | Configured Path | Purpose & Rules |
 |---|---|---|
-| `Q_TABLE_PATH` | `C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json` | **MUST POINT TO RUNTIME DIRECTORY.** `ai-engine/models/q_table.json` is the immutable shipped baseline model artifact. |
+| `Q_TABLE_PATH` | `<repo>\ai-engine\runtime\q_table.json` | **MUST POINT TO RUNTIME DIRECTORY.** `ai-engine/models/q_table.json` is the immutable shipped baseline model artifact. |
 
 ---
 
@@ -39,29 +39,29 @@ Execute each step in a dedicated PowerShell console:
 
 #### Step 1: MongoDB
 ```powershell
-& "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
-    --dbpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\data" `
+& "<repo>.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe" `
+    --dbpath "<repo>.native-integration\mongodb-dev\data" `
     --port 27017 `
     --bind_ip 127.0.0.1 `
-    --logpath "C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-dev\mongod.log"
+    --logpath "<repo>.native-integration\mongodb-dev\mongod.log"
 ```
 
 #### Step 2: AI Engine (FastAPI)
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine
-$env:Q_TABLE_PATH = "C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\runtime\q_table.json"
+cd <repo>\ai-engine
+$env:Q_TABLE_PATH = "<repo>\ai-engine\runtime\q_table.json"
 .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env
 ```
 
 #### Step 3: Backend API (Express & WebSockets)
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete
+cd <repo>
 powershell -ExecutionPolicy Bypass -File .\start-backend.ps1
 ```
 
 #### Step 4: Frontend (Vite)
 ```powershell
-cd C:\Users\srisn\Desktop\Projects\sentinelai-complete\frontend
+cd <repo>\frontend
 npm run dev -- --host 127.0.0.1
 ```
 

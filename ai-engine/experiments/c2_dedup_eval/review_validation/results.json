@@ -1,0 +1,496 @@
+{
+  "generated_at": "2026-10-21T12:48:15.736979+00:00",
+  "data_dir": "C:\\Users\\srisn\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\datasets\\cicids2017",
+  "rows_after_cleaning": 2198999,
+  "deduplicated": true,
+  "duplicates_removed": 628877,
+  "class_counts_after_cleaning": {
+    "BENIGN": 1862522,
+    "DDoS": 321744,
+    "Credential Stuffing": 7401,
+    "SSH Brute Force": 3219,
+    "Port Scan": 1956,
+    "Malware Beacon": 1437,
+    "XSS Attempt": 652,
+    "Lateral Movement": 36,
+    "SQL Injection": 21,
+    "RCE Attempt": 11
+  },
+  "recipe": {
+    "rf_params": {
+      "n_estimators": 200,
+      "max_depth": 20,
+      "min_samples_split": 5,
+      "min_samples_leaf": 1,
+      "class_weight": "balanced",
+      "n_jobs": -1,
+      "random_state": 42
+    },
+    "if_params": {
+      "n_estimators": 200,
+      "contamination": 0.1,
+      "max_samples": "auto",
+      "random_state": 42,
+      "n_jobs": -1
+    },
+    "train_caps_per_file": {
+      "BENIGN": 15000,
+      "Port Scan": 10000,
+      "DDoS": 10000
+    },
+    "test_caps_per_file": {
+      "BENIGN": 20000,
+      "Port Scan": 10000,
+      "DDoS": 10000
+    },
+    "chronological": {
+      "train_fraction": 0.7,
+      "purge_fraction": 0.01
+    },
+    "threat_raised_threshold": 0.9,
+    "block_threshold": 0.92,
+    "score_rule": "current = max(rf_s, 0.7*rf_s + 0.3*if_sig) for attack classes"
+  },
+  "smoke": false,
+  "protocols": {
+    "review": {
+      "target_benign_review_rate": 0.005,
+      "validation_sweep": [
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.0,
+          "review_rate_benign": 0.038907,
+          "review_queue_size": 5573,
+          "review_queue_attack_share": 0.000538,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 3
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.05,
+          "review_rate_benign": 0.03605,
+          "review_queue_size": 5164,
+          "review_queue_attack_share": 0.000581,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 3
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.1,
+          "review_rate_benign": 0.032739,
+          "review_queue_size": 4690,
+          "review_queue_attack_share": 0.00064,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 3
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.15,
+          "review_rate_benign": 0.029652,
+          "review_queue_size": 4248,
+          "review_queue_attack_share": 0.000706,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 3
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.2,
+          "review_rate_benign": 0.025719,
+          "review_queue_size": 3682,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.25,
+          "review_rate_benign": 0.023652,
+          "review_queue_size": 3386,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.3,
+          "review_rate_benign": 0.020599,
+          "review_queue_size": 2949,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.35,
+          "review_rate_benign": 0.017121,
+          "review_queue_size": 2451,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.4,
+          "review_rate_benign": 0.012392,
+          "review_queue_size": 1774,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.45,
+          "review_rate_benign": 0.008424,
+          "review_queue_size": 1206,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.5,
+          "review_rate_benign": 0.005085,
+          "review_queue_size": 728,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.55,
+          "review_rate_benign": 0.002298,
+          "review_queue_size": 329,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.6,
+          "review_rate_benign": 0.000985,
+          "review_queue_size": 141,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.65,
+          "review_rate_benign": 0.000503,
+          "review_queue_size": 72,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.7,
+          "review_rate_benign": 0.000189,
+          "review_queue_size": 27,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.75,
+          "review_rate_benign": 7e-06,
+          "review_queue_size": 1,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.8,
+          "review_rate_benign": 7e-06,
+          "review_queue_size": 1,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.85,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.9,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 0.95,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.038907,
+          "flag_rate_attack": 0.518279,
+          "review_level": 1.0,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 126,
+          "missed_attacks_sent_to_review": 0
+        }
+      ],
+      "chosen_level": 0.55,
+      "test_at_chosen_level": {
+        "flag_rate_benign": 0.021106,
+        "flag_rate_attack": 0.299053,
+        "review_level": 0.55,
+        "review_rate_benign": 0.000331,
+        "review_queue_size": 55,
+        "review_queue_attack_share": 0.036364,
+        "attacks_missed_by_classifier": 2254,
+        "missed_attacks_sent_to_review": 2
+      },
+      "test_sweep_not_used_for_selection": [
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.0,
+          "review_rate_benign": 0.021106,
+          "review_queue_size": 3623,
+          "review_queue_attack_share": 0.0679,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 246
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.05,
+          "review_rate_benign": 0.018906,
+          "review_queue_size": 3255,
+          "review_queue_attack_share": 0.070661,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 230
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.1,
+          "review_rate_benign": 0.016313,
+          "review_queue_size": 2829,
+          "review_queue_attack_share": 0.077413,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 219
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.15,
+          "review_rate_benign": 0.013625,
+          "review_queue_size": 2388,
+          "review_queue_attack_share": 0.087102,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 208
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.2,
+          "review_rate_benign": 0.009825,
+          "review_queue_size": 1757,
+          "review_queue_attack_share": 0.105293,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 185
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.25,
+          "review_rate_benign": 0.008244,
+          "review_queue_size": 1408,
+          "review_queue_attack_share": 0.06321,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 89
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.3,
+          "review_rate_benign": 0.006775,
+          "review_queue_size": 1094,
+          "review_queue_attack_share": 0.009141,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 10
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.35,
+          "review_rate_benign": 0.004881,
+          "review_queue_size": 789,
+          "review_queue_attack_share": 0.010139,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 8
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.4,
+          "review_rate_benign": 0.003619,
+          "review_queue_size": 586,
+          "review_queue_attack_share": 0.011945,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 7
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.45,
+          "review_rate_benign": 0.002444,
+          "review_queue_size": 397,
+          "review_queue_attack_share": 0.015113,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 6
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.5,
+          "review_rate_benign": 0.001206,
+          "review_queue_size": 195,
+          "review_queue_attack_share": 0.010256,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 2
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.55,
+          "review_rate_benign": 0.000331,
+          "review_queue_size": 55,
+          "review_queue_attack_share": 0.036364,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 2
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.6,
+          "review_rate_benign": 0.000162,
+          "review_queue_size": 27,
+          "review_queue_attack_share": 0.037037,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 1
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.65,
+          "review_rate_benign": 3.1e-05,
+          "review_queue_size": 5,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.7,
+          "review_rate_benign": 1.3e-05,
+          "review_queue_size": 2,
+          "review_queue_attack_share": 0.0,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.75,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.8,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.85,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.9,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 0.95,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        },
+        {
+          "flag_rate_benign": 0.021106,
+          "flag_rate_attack": 0.299053,
+          "review_level": 1.0,
+          "review_rate_benign": 0.0,
+          "review_queue_size": 0,
+          "review_queue_attack_share": null,
+          "attacks_missed_by_classifier": 2254,
+          "missed_attacks_sent_to_review": 0
+        }
+      ]
+    }
+  },
+  "runtime_seconds": 332.9
+}

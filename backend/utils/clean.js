@@ -1,6 +1,15 @@
 require('dotenv').config()
 const mongoose = require('mongoose')
 const MONGO_URI = process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db'
+const { requireDatabaseConfirmation } = require('./destructiveGuard')
+requireDatabaseConfirmation(MONGO_URI, 'clean', [
+  'threatlogs',
+  'honeypotsessions',
+  'alerts',
+  'aipredictions',
+  'blockedips',
+  'campaigns',
+])
 
 async function clean() {
   await mongoose.connect(MONGO_URI)

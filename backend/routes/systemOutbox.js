@@ -29,7 +29,10 @@ router.get('/status', restrictTo('admin', 'analyst'), async (req, res) => {
  */
 router.get('/failed', restrictTo('admin'), async (req, res) => {
   try {
-    if (!defaultSecurityEventBus.outboxStore || typeof defaultSecurityEventBus.outboxStore.getFailedEvents !== 'function') {
+    if (
+      !defaultSecurityEventBus.outboxStore ||
+      typeof defaultSecurityEventBus.outboxStore.getFailedEvents !== 'function'
+    ) {
       return sendSuccess(res, { failed: [] }, 'No failed events store configured')
     }
     const failed = await defaultSecurityEventBus.outboxStore.getFailedEvents()

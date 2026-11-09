@@ -1,0 +1,133 @@
+# SentinelAI local stack: MongoDB, AI engine, backend and dashboard (+ optional Prometheus).
+#
+#   cp deployment/.env.compose.example .env      # fill in real secrets (openssl rand -hex 32)
+#   docker compose up --build                    # dashboard on http://localhost:8080
+#   docker compose --profile monitoring up       # also Prometheus on http://localhost:9090
+#
+# The honeypot (Cowrie, parser, sniffer, rotator) runs on a separate host by design and is not part of
+# this stack. NODE_ENV=development here because the stack serves plain HTTP on localhost; production needs
+# TLS in front of the backend (NODE_ENV=production + TRUST_PROXY), see backend/config/securityTopology.js.
+name: sentinelai
+
+services:
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    # Authentication on (OPS-003). On the first start with an empty volume the image creates the root user and runs
+    # deployment/mongo-init.js, which creates the least-privilege sentinel_app user the backend connects as
+    # (append-only auditlogs). An existing volume created before this change has no users: run mongo-init.js once
+    # by hand (see its header) or start from a fresh volume. Use hex passwords (they are embedded in a URI).
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
+      SENTINEL_APP_PASSWORD: ${MONGO_APP_PASSWORD:?set MONGO_APP_PASSWORD in .env}
+      SENTINEL_AUDIT_PASSWORD: ${MONGO_AUDIT_PASSWORD:?set MONGO_AUDIT_PASSWORD in .env}
+    volumes:
+      - mongo-data:/data/db
+      - ./deployment/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 })"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  ai-engine:
+    build: ./ai-engine
+    restart: unless-stopped
+    environment:
+      SENTINEL_KEY: ${SENTINEL_KEY:?set SENTINEL_KEY in .env}
+      SENTINEL_API: http://backend:5000/api
+      CORS_ORIGINS: http://backend:5000
+      Q_TABLE_PATH: /data/q_table.json
+      ALERT_THRESHOLD: ${ALERT_THRESHOLD:-0.90}
+      SENTINEL_ADMIN_KEY: ${SENTINEL_ADMIN_KEY:-}
+      MODEL_REGISTRY_SHA256: ${MODEL_REGISTRY_SHA256:-}
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    volumes:
+      - ai-data:/data # Q-learning state survives container restarts
+    # P1: the image (code + models) is read-only at runtime; the only writable places are the Q-table volume
+    # and a tmpfs for scratch files, so a compromised process cannot swap a model or plant code.
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      mongo:
+        condition: service_healthy
+      ai-engine:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      HOST: 0.0.0.0
+      PORT: 5000
+      MONGO_URI: mongodb://sentinel_app:${MONGO_APP_PASSWORD}@mongo:27017/sentinel-db?authSource=sentinel-db
+      AI_ENGINE_URL: http://ai-engine:8000
+      AI_ENGINE_ADMIN_KEY: ${SENTINEL_ADMIN_KEY:-}
+      CLIENT_URL: http://localhost:8080
+      SENTINEL_KEY: ${SENTINEL_KEY:?set SENTINEL_KEY in .env}
+      HONEYPOT_API_KEY: ${HONEYPOT_API_KEY:?set HONEYPOT_API_KEY in .env}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@sentinel.io}
+      ADMIN_INITIAL_PASSWORD: ${ADMIN_INITIAL_PASSWORD:-}
+      OUTBOX_STORE: mongo
+      LOG_FORMAT: json
+      METRICS_TOKEN: ${METRICS_TOKEN:-}
+    # Plain HTTP in development mode, so loopback only by default. A honeypot on another host needs to reach
+    # /api/honeypot/ingest: set BACKEND_BIND_ADDRESS to this host's lab-network IP (or 0.0.0.0) for that run.
+    ports:
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:5000:5000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${DASHBOARD_BIND_ADDRESS:-127.0.0.1}:8080:8080"
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    profiles: ["monitoring"]
+    depends_on:
+      - backend
+      - ai-engine
+    volumes:
+      - ./deployment/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./deployment/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - ./deployment/metrics_token:/etc/prometheus/metrics_token:ro
+    # Prometheus has no authentication: published on this host's loopback only.
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    profiles: ["monitoring"]
+    depends_on:
+      - prometheus
+    environment:
+      # Admin password read from a git-ignored file (see deployment/.env.compose.example); no default login.
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+    volumes:
+      - ./deployment/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./deployment/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - ./deployment/grafana_admin_password:/run/secrets/grafana_admin_password:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3001:3000"
+
+volumes:
+  mongo-data:
+  ai-data:
+  grafana-data:

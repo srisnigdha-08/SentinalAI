@@ -1,0 +1,1342 @@
+{
+ "generated_at": "2026-10-22T18:31:55.374Z",
+ "databases": {
+  "sentinel-cowrie-verify-20261022": {
+   "collections": {
+    "trainingsamples": 0,
+    "users": 0,
+    "systemsettings": 0,
+    "threatlogs": 2,
+    "authsessions": 0,
+    "honeypotsessions": 19,
+    "alerts": 4,
+    "aipredictions": 19,
+    "auditlogs": 0,
+    "blockedips": 0,
+    "containmentactions": 0,
+    "campaigns": 1
+   },
+   "honeypot": {
+    "sessions": 19,
+    "unique_source_ips": 1,
+    "source_ips": {
+     "127.0.0.1": 19
+    },
+    "client_versions": {
+     "SSH-2.0-paramiko_5.1.0": 19
+    },
+    "login_attempts": 19,
+    "login_success": 6,
+    "login_failed": 13,
+    "commands_total": 24,
+    "commands_per_session": {
+     "n": 19,
+     "mean": 1.26,
+     "p50": 0,
+     "p95": 5,
+     "max": 9,
+     "min": 0
+    },
+    "duration_seconds": {
+     "n": 19,
+     "mean": 7.16,
+     "p50": 4,
+     "p95": 18,
+     "max": 20,
+     "min": 0
+    },
+    "duration_seconds_nonzero": {
+     "n": 18,
+     "mean": 7.56,
+     "p50": 6,
+     "p95": 18,
+     "max": 20,
+     "min": 1
+    },
+    "iocs": {
+     "ips": 2,
+     "urls": 2,
+     "hashes": 1
+    },
+    "downloads": 0,
+    "classification": {
+     "SSH Brute Force": 9,
+     "RCE Attempt": 2,
+     "BENIGN": 3,
+     "SSH Intrusion Attempt": 5
+    },
+    "classification_method": {
+     "honeypot_rules": 19
+    },
+    "status": {
+     "closed": 19
+    },
+    "closure_state": {
+     "complete": 19
+    },
+    "ai_pending": 0,
+    "deception_pending": 0,
+    "served_profile": {
+     "centos_7": 9,
+     "ubuntu_22": 10
+    },
+    "recommended_profile": {
+     "ubuntu_22": 9,
+     "centos_7": 9,
+     "raspberry_pi": 1
+    },
+    "engagement_level": {
+     "minimal": 14,
+     "medium": 2,
+     "low": 3
+    },
+    "mitre_techniques": {
+     "T1003": 2,
+     "T1003.008": 1,
+     "T1033": 3,
+     "T1057": 1,
+     "T1082": 2,
+     "T1105": 2,
+     "T1595": 3,
+     "T1552.001": 1
+    },
+    "sessions_with_mitre": 5,
+    "closure_analysis_ms": {
+     "n": 19,
+     "mean": 181.68,
+     "p50": 87,
+     "p95": 519,
+     "max": 911,
+     "min": 44
+    },
+    "q_deception_score": {
+     "n": 19,
+     "mean": 8.77,
+     "p50": 2.2,
+     "p95": 34.5,
+     "max": 50.2,
+     "min": 0.2
+    },
+    "duration_by_served_profile": {
+     "centos_7": {
+      "n": 9,
+      "mean": 12.89,
+      "p50": 14,
+      "p95": 20,
+      "max": 20,
+      "min": 4
+     },
+     "ubuntu_22": {
+      "n": 10,
+      "mean": 2,
+      "p50": 1,
+      "p95": 7,
+      "max": 7,
+      "min": 0
+     }
+    },
+    "first": "2026-10-22T06:31:12.611Z",
+    "last": "2026-10-22T07:44:50.940Z"
+   },
+   "threats": {
+    "threat_logs": 2,
+    "severity": {
+     "CRITICAL": 1,
+     "HIGH": 1
+    },
+    "attack_type": {
+     "RCE Attempt": 2
+    },
+    "status": {
+     "MONITORING": 2
+    },
+    "autonomous_actions": 0,
+    "threat_to_autoblock_ms": null,
+    "mitre": {
+     "T1190": 2
+    },
+    "unique_sources": 1
+   },
+   "predictions": {
+    "n": 19,
+    "sample_keys": [
+     "_id",
+     "inputSource",
+     "sourceIP",
+     "targetIP",
+     "predictedClass",
+     "threatScore",
+     "modelVersion",
+     "modelType",
+     "isAnomaly",
+     "needsReview",
+     "incompleteInput",
+     "honeypotCorroborated",
+     "anomalyScore",
+     "inferenceTimeMs",
+     "verified",
+     "generatedThreat",
+     "rawFeatures",
+     "featureVector",
+     "verificationHistory",
+     "createdAt",
+     "updatedAt",
+     "__v"
+    ],
+    "by_class": {
+     "RCE Attempt": 2,
+     "SSH Brute Force": 9,
+     "BENIGN": 3,
+     "SSH Intrusion Attempt": 5
+    },
+    "model_type": {
+     "rules": 19
+    },
+    "processing_ms": {
+     "n": 19,
+     "mean": 1.39,
+     "p50": 0.04,
+     "p95": 8.19,
+     "max": 9.15,
+     "min": 0.02
+    }
+   },
+   "alerts": {
+    "n": 4,
+    "severity": {
+     "CRITICAL": 3,
+     "HIGH": 1
+    },
+    "type": {
+     "HONEYPOT_SESSION": 4
+    }
+   }
+  },
+  "sentinel-db": {
+   "collections": {
+    "blockedips": 0,
+    "campaigns": 1,
+    "trainingsamples": 0,
+    "auditlogs": 273,
+    "containmentactions": 0,
+    "systemsettings": 1,
+    "authsessions": 116,
+    "users": 6,
+    "aipredictions": 9,
+    "threatlogs": 10,
+    "alerts": 5,
+    "honeypotsessions": 8
+   },
+   "honeypot": {
+    "sessions": 8,
+    "unique_source_ips": 4,
+    "source_ips": {
+     "172.18.0.1": 1,
+     "45.95.147.22": 2,
+     "185.220.101.47": 2,
+     "194.165.16.78": 3
+    },
+    "client_versions": {
+     "undefined": 8
+    },
+    "login_attempts": 3397,
+    "login_success": 7,
+    "login_failed": 3390,
+    "commands_total": 29,
+    "commands_per_session": {
+     "n": 8,
+     "mean": 3.63,
+     "p50": 4,
+     "p95": 8,
+     "max": 8,
+     "min": 0
+    },
+    "duration_seconds": {
+     "n": 8,
+     "mean": 144252.25,
+     "p50": 1,
+     "p95": 1154015,
+     "max": 1154015,
+     "min": 0
+    },
+    "duration_seconds_nonzero": {
+     "n": 4,
+     "mean": 288504.5,
+     "p50": 1,
+     "p95": 1154015,
+     "max": 1154015,
+     "min": 1
+    },
+    "iocs": {
+     "ips": 3,
+     "urls": 2,
+     "hashes": 0
+    },
+    "downloads": 0,
+    "classification": {
+     "BENIGN": 8
+    },
+    "classification_method": {
+     "undefined": 8
+    },
+    "status": {
+     "closed": 8
+    },
+    "closure_state": {
+     "undefined": 8
+    },
+    "ai_pending": 0,
+    "deception_pending": 0,
+    "served_profile": {
+     "undefined": 8
+    },
+    "recommended_profile": {
+     "ubuntu_22": 1,
+     "centos_7": 7
+    },
+    "engagement_level": {
+     "minimal": 1,
+     "low": 5,
+     "medium": 2
+    },
+    "mitre_techniques": {
+     "T1548": 4,
+     "T1003": 4,
+     "T1543": 3,
+     "T1053": 3,
+     "T1595": 2,
+     "T1059": 2,
+     "T1071": 2,
+     "T1105": 2
+    },
+    "sessions_with_mitre": 7,
+    "closure_analysis_ms": null,
+    "q_deception_score": {
+     "n": 8,
+     "mean": 48.46,
+     "p50": 47,
+     "p95": 98.6,
+     "max": 98.6,
+     "min": 20.5
+    },
+    "duration_by_served_profile": {
+     "undefined": {
+      "n": 8,
+      "mean": 144252.25,
+      "p50": 1,
+      "p95": 1154015,
+      "max": 1154015,
+      "min": 0
+     }
+    },
+    "first": "2026-09-11T06:41:15.598Z",
+    "last": "2026-09-23T13:17:08.132Z"
+   },
+   "threats": {
+    "threat_logs": 10,
+    "severity": {
+     "LOW": 1,
+     "CRITICAL": 1,
+     "MEDIUM": 8
+    },
+    "attack_type": {
+     "SSH Brute Force": 8,
+     "DDoS": 1,
+     "Port Scan": 1
+    },
+    "status": {
+     "DETECTED": 8,
+     "BLOCKED": 1,
+     "MONITORING": 1
+    },
+    "autonomous_actions": 0,
+    "threat_to_autoblock_ms": null,
+    "mitre": {
+     "T1110": 8,
+     "T1498": 1,
+     "T1046": 1
+    },
+    "unique_sources": 6
+   },
+   "predictions": {
+    "n": 9,
+    "sample_keys": [
+     "_id",
+     "inputSource",
+     "sourceIP",
+     "predictedClass",
+     "threatScore",
+     "modelVersion",
+     "modelType",
+     "isAnomaly",
+     "verified",
+     "createdAt",
+     "updatedAt",
+     "__v",
+     "generatedThreat"
+    ],
+    "by_class": {
+     "DDoS": 1,
+     "BENIGN": 7,
+     "Port Scan": 1
+    },
+    "model_type": {
+     "random_forest": 9
+    },
+    "processing_ms": {
+     "n": 8,
+     "mean": 286.08,
+     "p50": 215.94,
+     "p95": 552.04,
+     "max": 552.04,
+     "min": 175.39
+    }
+   },
+   "alerts": {
+    "n": 5,
+    "severity": {
+     "HIGH": 3,
+     "INFO": 2
+    },
+    "type": {
+     "IP_BLOCKED": 2,
+     "IP_UNBLOCKED": 2,
+     "THREAT_DETECTED": 1
+    }
+   },
+   "audit_actions": {
+    "LOGIN_FAILED": 18,
+    "IP_UNBLOCKED_MANUAL": 3,
+    "PERMISSION_DENIED": 2,
+    "THREAT_BLOCKED": 2,
+    "USER_STATUS_CHANGED": 17,
+    "SETTINGS_CHANGED": 2,
+    "USER_CREATED": 2,
+    "THREAT_DELETED": 2,
+    "USER_FORCE_LOGOUT": 2,
+    "THREAT_TRIAGED": 2,
+    "USER_ROLE_CHANGED": 28,
+    "LOGIN_SUCCESS": 189,
+    "IP_BLOCKED_MANUAL": 2,
+    "USER_DELETED": 2
+   }
+  },
+  "sentinel-demo": {
+   "collections": {
+    "honeypotsessions": 4,
+    "alerts": 1,
+    "threatlogs": 2,
+    "blockedips": 0,
+    "systemsettings": 2,
+    "auditlogs": 9,
+    "trainingsamples": 0,
+    "containmentactions": 0,
+    "users": 6,
+    "campaigns": 1,
+    "aipredictions": 4,
+    "authsessions": 3
+   },
+   "honeypot": {
+    "sessions": 4,
+    "unique_source_ips": 2,
+    "source_ips": {
+     "172.29.32.1": 1,
+     "127.0.0.1": 3
+    },
+    "client_versions": {
+     "SSH-2.0-OpenSSH_for_Windows_9.5": 4
+    },
+    "login_attempts": 3,
+    "login_success": 1,
+    "login_failed": 2,
+    "commands_total": 7,
+    "commands_per_session": {
+     "n": 4,
+     "mean": 1.75,
+     "p50": 0,
+     "p95": 7,
+     "max": 7,
+     "min": 0
+    },
+    "duration_seconds": {
+     "n": 4,
+     "mean": 44.25,
+     "p50": 57,
+     "p95": 120,
+     "max": 120,
+     "min": 0
+    },
+    "duration_seconds_nonzero": {
+     "n": 2,
+     "mean": 88.5,
+     "p50": 120,
+     "p95": 120,
+     "max": 120,
+     "min": 57
+    },
+    "iocs": {
+     "ips": 1,
+     "urls": 1,
+     "hashes": 0
+    },
+    "downloads": 0,
+    "classification": {
+     "SSH Intrusion Attempt": 3,
+     "RCE Attempt": 1
+    },
+    "classification_method": {
+     "honeypot_rules": 4
+    },
+    "status": {
+     "closed": 4
+    },
+    "closure_state": {
+     "complete": 4
+    },
+    "ai_pending": 0,
+    "deception_pending": 0,
+    "served_profile": {
+     "ubuntu_22": 4
+    },
+    "recommended_profile": {
+     "centos_7": 4
+    },
+    "engagement_level": {
+     "minimal": 3,
+     "medium": 1
+    },
+    "mitre_techniques": {
+     "T1003": 1,
+     "T1003.008": 1,
+     "T1033": 1,
+     "T1082": 1,
+     "T1105": 1,
+     "T1222.002": 1,
+     "T1548": 1,
+     "T1595": 1
+    },
+    "sessions_with_mitre": 1,
+    "closure_analysis_ms": {
+     "n": 4,
+     "mean": 394.5,
+     "p50": 320,
+     "p95": 880,
+     "max": 880,
+     "min": 171
+    },
+    "q_deception_score": {
+     "n": 4,
+     "mean": 17.68,
+     "p50": 11,
+     "p95": 59.7,
+     "max": 59.7,
+     "min": 0
+    },
+    "duration_by_served_profile": {
+     "ubuntu_22": {
+      "n": 4,
+      "mean": 44.25,
+      "p50": 57,
+      "p95": 120,
+      "max": 120,
+      "min": 0
+     }
+    },
+    "first": "2026-10-22T09:40:18.723Z",
+    "last": "2026-10-22T11:09:59.045Z"
+   },
+   "threats": {
+    "threat_logs": 2,
+    "severity": {
+     "MEDIUM": 1,
+     "CRITICAL": 1
+    },
+    "attack_type": {
+     "SSH Intrusion Attempt": 1,
+     "RCE Attempt": 1
+    },
+    "status": {
+     "DETECTED": 1,
+     "MONITORING": 1
+    },
+    "autonomous_actions": 0,
+    "threat_to_autoblock_ms": null,
+    "mitre": {
+     "T1110": 1,
+     "T1021": 1,
+     "T1190": 1
+    },
+    "unique_sources": 2
+   },
+   "predictions": {
+    "n": 4,
+    "sample_keys": [
+     "_id",
+     "inputSource",
+     "sourceIP",
+     "targetIP",
+     "predictedClass",
+     "threatScore",
+     "modelVersion",
+     "modelType",
+     "isAnomaly",
+     "needsReview",
+     "incompleteInput",
+     "honeypotCorroborated",
+     "anomalyScore",
+     "inferenceTimeMs",
+     "verified",
+     "generatedThreat",
+     "rawFeatures",
+     "featureVector",
+     "verificationHistory",
+     "createdAt",
+     "updatedAt",
+     "__v"
+    ],
+    "by_class": {
+     "SSH Intrusion Attempt": 3,
+     "RCE Attempt": 1
+    },
+    "model_type": {
+     "rules": 4
+    },
+    "processing_ms": {
+     "n": 4,
+     "mean": 6.95,
+     "p50": 5.05,
+     "p95": 21.06,
+     "max": 21.06,
+     "min": 0.03
+    }
+   },
+   "alerts": {
+    "n": 1,
+    "severity": {
+     "HIGH": 1
+    },
+    "type": {
+     "HONEYPOT_SESSION": 1
+    }
+   },
+   "audit_actions": {
+    "LOGIN_SUCCESS": 3,
+    "SETTINGS_CHANGED": 3,
+    "MODEL_RELOADED": 1,
+    "LOGIN_FAILED": 2
+   }
+  },
+  "sentinel-honeypot-verify": {
+   "collections": {
+    "systemsettings": 1,
+    "campaigns": 1,
+    "trainingsamples": 0,
+    "blockedips": 0,
+    "honeypotsessions": 22,
+    "containmentactions": 0,
+    "alerts": 4,
+    "authsessions": 1,
+    "users": 1,
+    "aipredictions": 21,
+    "auditlogs": 2,
+    "threatlogs": 22
+   },
+   "honeypot": {
+    "sessions": 22,
+    "unique_source_ips": 7,
+    "source_ips": {
+     "203.0.113.50": 1,
+     "203.0.113.60": 5,
+     "203.0.113.70": 1,
+     "203.0.113.80": 1,
+     "203.0.113.90": 1,
+     "185.220.101.47": 1,
+     "127.0.0.1": 12
+    },
+    "client_versions": {
+     "undefined": 22
+    },
+    "login_attempts": 33,
+    "login_success": 11,
+    "login_failed": 22,
+    "commands_total": 44,
+    "commands_per_session": {
+     "n": 22,
+     "mean": 2,
+     "p50": 0,
+     "p95": 7,
+     "max": 8,
+     "min": 0
+    },
+    "duration_seconds": {
+     "n": 22,
+     "mean": 17.05,
+     "p50": 3,
+     "p95": 42,
+     "max": 284,
+     "min": 0
+    },
+    "duration_seconds_nonzero": {
+     "n": 13,
+     "mean": 28.85,
+     "p50": 3,
+     "p95": 42,
+     "max": 284,
+     "min": 3
+    },
+    "iocs": {
+     "ips": 2,
+     "urls": 2,
+     "hashes": 1
+    },
+    "downloads": 1,
+    "classification": {
+     "RCE Attempt": 3,
+     "SSH Brute Force": 10,
+     "BENIGN": 6,
+     "null": 1,
+     "Port Scan": 2
+    },
+    "classification_method": {
+     "honeypot_rules": 21,
+     "null": 1
+    },
+    "status": {
+     "closed": 21,
+     "active": 1
+    },
+    "closure_state": {
+     "complete": 21,
+     "idle": 1
+    },
+    "ai_pending": 0,
+    "deception_pending": 0,
+    "served_profile": {
+     "centos_7": 20,
+     "null": 1,
+     "ubuntu_22": 1
+    },
+    "recommended_profile": {
+     "ubuntu_22": 20,
+     "raspberry_pi": 1,
+     "centos_7": 1
+    },
+    "engagement_level": {
+     "medium": 5,
+     "minimal": 12,
+     "low": 5
+    },
+    "mitre_techniques": {
+     "T1003": 3,
+     "T1105": 2,
+     "T1595": 9,
+     "T1053": 1,
+     "T1543": 1,
+     "T1548": 1
+    },
+    "sessions_with_mitre": 9,
+    "closure_analysis_ms": {
+     "n": 21,
+     "mean": 140.05,
+     "p50": 67,
+     "p95": 425,
+     "max": 427,
+     "min": 38
+    },
+    "q_deception_score": {
+     "n": 22,
+     "mean": 9.88,
+     "p50": 0.5,
+     "p95": 47,
+     "max": 47.8,
+     "min": 0
+    },
+    "duration_by_served_profile": {
+     "centos_7": {
+      "n": 20,
+      "mean": 18.45,
+      "p50": 3,
+      "p95": 42,
+      "max": 284,
+      "min": 0
+     },
+     "null": {
+      "n": 1,
+      "mean": 0,
+      "p50": 0,
+      "p95": 0,
+      "max": 0,
+      "min": 0
+     },
+     "ubuntu_22": {
+      "n": 1,
+      "mean": 6,
+      "p50": 6,
+      "p95": 6,
+      "max": 6,
+      "min": 6
+     }
+    },
+    "first": "2026-10-21T18:30:26.375Z",
+    "last": "2026-10-21T18:04:15.020Z"
+   },
+   "threats": {
+    "threat_logs": 22,
+    "severity": {
+     "CRITICAL": 3,
+     "HIGH": 11,
+     "LOW": 6,
+     "MEDIUM": 2
+    },
+    "attack_type": {
+     "RCE Attempt": 3,
+     "SSH Brute Force": 17,
+     "Port Scan": 2
+    },
+    "status": {
+     "MONITORING": 14,
+     "DETECTED": 8
+    },
+    "autonomous_actions": 0,
+    "threat_to_autoblock_ms": null,
+    "mitre": {
+     "T1190": 3,
+     "T1110": 17,
+     "T1046": 2
+    },
+    "unique_sources": 7
+   },
+   "predictions": {
+    "n": 21,
+    "sample_keys": [
+     "_id",
+     "inputSource",
+     "sourceIP",
+     "targetIP",
+     "predictedClass",
+     "threatScore",
+     "modelVersion",
+     "modelType",
+     "isAnomaly",
+     "needsReview",
+     "incompleteInput",
+     "honeypotCorroborated",
+     "anomalyScore",
+     "inferenceTimeMs",
+     "verified",
+     "generatedThreat",
+     "rawFeatures",
+     "featureVector",
+     "verificationHistory",
+     "createdAt",
+     "updatedAt",
+     "__v"
+    ],
+    "by_class": {
+     "RCE Attempt": 3,
+     "SSH Brute Force": 10,
+     "BENIGN": 6,
+     "Port Scan": 2
+    },
+    "model_type": {
+     "rules": 21
+    },
+    "processing_ms": {
+     "n": 21,
+     "mean": 1.16,
+     "p50": 0.03,
+     "p95": 4.75,
+     "max": 6.78,
+     "min": 0.01
+    }
+   },
+   "alerts": {
+    "n": 4,
+    "severity": {
+     "CRITICAL": 4
+    },
+    "type": {
+     "HONEYPOT_SESSION": 4
+    }
+   },
+   "audit_actions": {
+    "SETTINGS_CHANGED": 1,
+    "LOGIN_SUCCESS": 1
+   }
+  },
+  "sentinel-runbook-verify-20261022": {
+   "collections": {
+    "alerts": 18,
+    "trainingsamples": 0,
+    "containmentactions": 6,
+    "auditlogs": 5,
+    "honeypotsessions": 9,
+    "blockedips": 6,
+    "aipredictions": 29,
+    "authsessions": 4,
+    "users": 1,
+    "campaigns": 1,
+    "systemsettings": 1,
+    "threatlogs": 11
+   },
+   "honeypot": {
+    "sessions": 9,
+    "unique_source_ips": 1,
+    "source_ips": {
+     "172.29.32.1": 9
+    },
+    "client_versions": {
+     "SSH-2.0-paramiko_5.0.0": 9
+    },
+    "login_attempts": 9,
+    "login_success": 3,
+    "login_failed": 6,
+    "commands_total": 11,
+    "commands_per_session": {
+     "n": 9,
+     "mean": 1.22,
+     "p50": 0,
+     "p95": 7,
+     "max": 7,
+     "min": 0
+    },
+    "duration_seconds": {
+     "n": 9,
+     "mean": 2.78,
+     "p50": 1,
+     "p95": 12,
+     "max": 12,
+     "min": 0
+    },
+    "duration_seconds_nonzero": {
+     "n": 8,
+     "mean": 3.13,
+     "p50": 1,
+     "p95": 12,
+     "max": 12,
+     "min": 1
+    },
+    "iocs": {
+     "ips": 2,
+     "urls": 2,
+     "hashes": 0
+    },
+    "downloads": 0,
+    "classification": {
+     "SSH Intrusion Attempt": 5,
+     "SSH Brute Force": 2,
+     "RCE Attempt": 2
+    },
+    "classification_method": {
+     "honeypot_rules": 9
+    },
+    "status": {
+     "closed": 9
+    },
+    "closure_state": {
+     "complete": 9
+    },
+    "ai_pending": 0,
+    "deception_pending": 0,
+    "served_profile": {
+     "ubuntu_22": 9
+    },
+    "recommended_profile": {
+     "centos_7": 9
+    },
+    "engagement_level": {
+     "minimal": 7,
+     "low": 1,
+     "medium": 1
+    },
+    "mitre_techniques": {
+     "T1033": 2,
+     "T1082": 2,
+     "T1105": 2,
+     "T1595": 2,
+     "T1003": 1,
+     "T1003.008": 1,
+     "T1222.002": 1,
+     "T1548": 1
+    },
+    "sessions_with_mitre": 2,
+    "closure_analysis_ms": {
+     "n": 9,
+     "mean": 92.56,
+     "p50": 73,
+     "p95": 195,
+     "max": 195,
+     "min": 58
+    },
+    "q_deception_score": {
+     "n": 9,
+     "mean": 11.18,
+     "p50": 0.2,
+     "p95": 54.8,
+     "max": 54.8,
+     "min": 0.2
+    },
+    "duration_by_served_profile": {
+     "ubuntu_22": {
+      "n": 9,
+      "mean": 2.78,
+      "p50": 1,
+      "p95": 12,
+      "max": 12,
+      "min": 0
+     }
+    },
+    "first": "2026-10-22T08:49:04.442Z",
+    "last": "2026-10-22T08:49:55.323Z"
+   },
+   "containment": {
+    "actions": 6,
+    "policy_decision": {
+     "ALLOWED": 6
+    },
+    "enforcement_backend": {
+     "mock": 6
+    },
+    "enforcement_status": {
+     "ACTIVE": 6
+    },
+    "requested_by": {
+     "AI Auto-Block": 6
+    },
+    "rolled_back": 0,
+    "failure_reasons": {},
+    "request_to_applied_ms": {
+     "n": 6,
+     "mean": 12.17,
+     "p50": 12,
+     "p95": 17,
+     "max": 17,
+     "min": 10
+    },
+    "adapter_exec_ms": {
+     "n": 6,
+     "mean": 0,
+     "p50": 0,
+     "p95": 0,
+     "max": 0,
+     "min": 0
+    },
+    "targets": [
+     "198.51.100.3",
+     "198.51.100.5",
+     "198.51.100.7",
+     "198.51.100.9",
+     "198.51.100.11",
+     "172.29.32.1"
+    ]
+   },
+   "threats": {
+    "threat_logs": 11,
+    "severity": {
+     "CRITICAL": 11
+    },
+    "attack_type": {
+     "DDoS": 10,
+     "RCE Attempt": 1
+    },
+    "status": {
+     "BLOCKED": 11
+    },
+    "autonomous_actions": 11,
+    "threat_to_autoblock_ms": {
+     "n": 11,
+     "mean": 21298.09,
+     "p50": 34241,
+     "p95": 62821,
+     "max": 62821,
+     "min": -1
+    },
+    "mitre": {
+     "T1498": 10,
+     "T1190": 1
+    },
+    "unique_sources": 6
+   },
+   "predictions": {
+    "n": 29,
+    "sample_keys": [
+     "_id",
+     "inputSource",
+     "sourceIP",
+     "targetIP",
+     "predictedClass",
+     "classProbabilities",
+     "threatScore",
+     "modelVersion",
+     "modelType",
+     "isAnomaly",
+     "needsReview",
+     "incompleteInput",
+     "honeypotCorroborated",
+     "anomalyScore",
+     "inferenceTimeMs",
+     "verified",
+     "rawFeatures",
+     "featureVector",
+     "featureSchemaVersion",
+     "verificationHistory",
+     "createdAt",
+     "updatedAt",
+     "__v"
+    ],
+    "by_class": {
+     "BENIGN": 10,
+     "DDoS": 10,
+     "SSH Intrusion Attempt": 5,
+     "SSH Brute Force": 2,
+     "RCE Attempt": 2
+    },
+    "model_type": {
+     "ensemble": 20,
+     "rules": 9
+    },
+    "processing_ms": {
+     "n": 29,
+     "mean": 7.17,
+     "p50": 7.56,
+     "p95": 10.06,
+     "max": 53.74,
+     "min": 0.02
+    }
+   },
+   "blocked_ips": 6,
+   "alerts": {
+    "n": 18,
+    "severity": {
+     "CRITICAL": 10,
+     "HIGH": 8
+    },
+    "type": {
+     "THREAT_DETECTED": 10,
+     "IP_BLOCKED": 6,
+     "HONEYPOT_SESSION": 2
+    }
+   },
+   "audit_actions": {
+    "LOGIN_SUCCESS": 4,
+    "SETTINGS_CHANGED": 1
+   }
+  },
+  "sentinelai_dev_20261018": {
+   "collections": {
+    "aipredictions": 0,
+    "campaigns": 0,
+    "honeypotsessions": 0,
+    "alerts": 0,
+    "authsessions": 1,
+    "containmentactions": 0,
+    "trainingsamples": 0,
+    "threatlogs": 0,
+    "users": 1,
+    "blockedips": 0,
+    "systemsettings": 1
+   }
+  },
+  "sentinelai_test": {
+   "collections": {
+    "alerts": 4,
+    "blockedips": 3,
+    "auditlogs": 1098,
+    "authsessions": 42,
+    "systemsettings": 1,
+    "containmentactions": 2,
+    "aipredictions": 0,
+    "trainingsamples": 0,
+    "campaigns": 1,
+    "honeypotsessions": 2,
+    "threatlogs": 5,
+    "users": 4
+   },
+   "honeypot": {
+    "sessions": 2,
+    "unique_source_ips": 2,
+    "source_ips": {
+     "185.220.101.47": 1,
+     "45.95.147.22": 1
+    },
+    "client_versions": {
+     "undefined": 2
+    },
+    "login_attempts": 0,
+    "login_success": 0,
+    "login_failed": 0,
+    "commands_total": 4,
+    "commands_per_session": {
+     "n": 2,
+     "mean": 2,
+     "p50": 3,
+     "p95": 3,
+     "max": 3,
+     "min": 1
+    },
+    "duration_seconds": {
+     "n": 2,
+     "mean": 105,
+     "p50": 145,
+     "p95": 145,
+     "max": 145,
+     "min": 65
+    },
+    "duration_seconds_nonzero": {
+     "n": 2,
+     "mean": 105,
+     "p50": 145,
+     "p95": 145,
+     "max": 145,
+     "min": 65
+    },
+    "iocs": {
+     "ips": 0,
+     "urls": 0,
+     "hashes": 0
+    },
+    "downloads": 0,
+    "classification": {
+     "null": 2
+    },
+    "classification_method": {
+     "undefined": 2
+    },
+    "status": {
+     "active": 2
+    },
+    "closure_state": {
+     "idle": 2
+    },
+    "ai_pending": 0,
+    "deception_pending": 0,
+    "served_profile": {
+     "undefined": 2
+    },
+    "recommended_profile": {
+     "ubuntu_22": 2
+    },
+    "engagement_level": {
+     "minimal": 2
+    },
+    "mitre_techniques": {},
+    "sessions_with_mitre": 0,
+    "closure_analysis_ms": null,
+    "q_deception_score": {
+     "n": 2,
+     "mean": 0,
+     "p50": 0,
+     "p95": 0,
+     "max": 0,
+     "min": 0
+    },
+    "duration_by_served_profile": {
+     "undefined": {
+      "n": 2,
+      "mean": 105,
+      "p50": 145,
+      "p95": 145,
+      "max": 145,
+      "min": 65
+     }
+    },
+    "first": "2026-10-20T17:29:07.404Z",
+    "last": "2026-10-20T17:29:07.405Z"
+   },
+   "containment": {
+    "actions": 2,
+    "policy_decision": {
+     "ALLOWED": 2
+    },
+    "enforcement_backend": {
+     "mock": 2
+    },
+    "enforcement_status": {
+     "ACTIVE": 2
+    },
+    "requested_by": {
+     "Admin Test": 2
+    },
+    "rolled_back": 0,
+    "failure_reasons": {},
+    "request_to_applied_ms": {
+     "n": 2,
+     "mean": 13,
+     "p50": 15,
+     "p95": 15,
+     "max": 15,
+     "min": 11
+    },
+    "adapter_exec_ms": {
+     "n": 2,
+     "mean": 0,
+     "p50": 0,
+     "p95": 0,
+     "max": 0,
+     "min": 0
+    },
+    "targets": [
+     "203.0.113.199",
+     "198.51.100.42"
+    ]
+   },
+   "threats": {
+    "threat_logs": 5,
+    "severity": {
+     "CRITICAL": 2,
+     "HIGH": 2,
+     "MEDIUM": 1
+    },
+    "attack_type": {
+     "SSH Brute Force": 1,
+     "SQL Injection": 1,
+     "DDoS": 1,
+     "Port Scan": 1,
+     "RCE Attempt": 1
+    },
+    "status": {
+     "BLOCKED": 2,
+     "INVESTIGATING": 1,
+     "DETECTED": 2
+    },
+    "autonomous_actions": 1,
+    "threat_to_autoblock_ms": {
+     "n": 1,
+     "mean": 929665,
+     "p50": 929665,
+     "p95": 929665,
+     "max": 929665,
+     "min": 929665
+    },
+    "mitre": {
+     "T1110": 1
+    },
+    "unique_sources": 5
+   },
+   "blocked_ips": 3,
+   "alerts": {
+    "n": 4,
+    "severity": {
+     "CRITICAL": 1,
+     "HIGH": 2,
+     "INFO": 1
+    },
+    "type": {
+     "THREAT_DETECTED": 2,
+     "IP_BLOCKED": 1,
+     "IP_UNBLOCKED": 1
+    }
+   },
+   "audit_actions": {
+    "PERMISSION_DENIED": 104,
+    "IP_UNBLOCKED_MANUAL": 11,
+    "THREAT_BLOCKED": 16,
+    "SETTINGS_CHANGED": 32,
+    "USER_CREATED": 16,
+    "LOGIN_FAILED": 35,
+    "LOGIN_SUCCESS": 869,
+    "USER_DELETED": 15
+   }
+  }
+ }
+}

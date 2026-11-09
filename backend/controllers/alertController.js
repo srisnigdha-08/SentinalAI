@@ -1,13 +1,18 @@
 const alertService = require('../services/alertService')
 const { sendSuccess, sendError, sendPaginated } = require('../utils/apiResponse')
+const { redactAlert } = require('../utils/redact')
+
 const getAlerts = async (req, res, next) => {
   try {
-    const r = await alertService.findAlerts({ ...req.query, role: req.user.role })
-    sendPaginated(res, r.data, r.total, r.page, r.limit)
+    const role = req.user?.role || 'viewer'
+    const r = await alertService.findAlerts({ ...req.query, role })
+    const safeData = r.data.map((a) => redactAlert(a, role))
+    sendPaginated(res, safeData, r.total, r.page, r.limit)
   } catch (err) {
     next(err)
   }
 }
+
 const getUnreadCount = async (req, res, next) => {
   try {
     sendSuccess(res, { count: await alertService.getUnreadCount(req.user.role) })

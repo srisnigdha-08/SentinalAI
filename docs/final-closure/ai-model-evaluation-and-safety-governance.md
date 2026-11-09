@@ -73,7 +73,7 @@ Historical audit records noted a discrepancy between reports citing 200 samples 
 
 ## 4. Rigorous Statistical Evaluation Results
 
-Evaluation was executed across 14,000 network flows using [`ai-engine/experiments/gate1_evaluation/reproducible_evaluation.py`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/ai-engine/experiments/gate1_evaluation/reproducible_evaluation.py):
+Evaluation was executed across 14,000 network flows using [`ai-engine/experiments/gate1_evaluation/reproducible_evaluation.py`](<repo>/ai-engine/experiments/gate1_evaluation/reproducible_evaluation.py):
 
 ### 4.1 Independent Monday Benign Capture (10,000 Samples)
 *Pure benign baseline — Zero training overlap*

@@ -1,4 +1,5 @@
-require('dotenv').config({ path: require('path').join(__dirname, '.env') })
+require('dotenv').config({ path: process.env.DOTENV_CONFIG_PATH || require('path').join(__dirname, '.env') })
+
 const { validateEnv } = require('./config/validateEnv')
 validateEnv()
 const express = require('express')
@@ -46,7 +47,42 @@ const revocationDelivery = require('./services/revocationDelivery').createRevoca
 authSessions.setAvailability(revocationDelivery.available)
 app.set('io', io)
 socketManager.init(io)
-app.use(helmet({ crossOriginEmbedderPolicy: false, contentSecurityPolicy: false }))
+// Correlation id first, so every later log line and the AI engine call carry it.
+app.use(require('./utils/requestContext').middleware)
+const metrics = require('./utils/metrics')
+app.use(metrics.httpMiddleware)
+metrics.gauge('sentinel_socket_clients', 'Connected Socket.IO clients', () => io.engine.clientsCount)
+metrics.gauge('sentinel_mongo_connected', '1 when MongoDB is connected', () =>
+  require('mongoose').connection.readyState === 1 ? 1 : 0
+)
+// Seconds since the Cowrie blocker plugin last polled the deny-list (the honeypot heartbeat); NaN until it has.
+metrics.gauge('sentinel_honeypot_heartbeat_age_seconds', 'Seconds since the honeypot last polled check-block', () => {
+  const { lastSeen } = require('./services/honeypotHeartbeat').status()
+  return lastSeen ? (Date.now() - new Date(lastSeen).getTime()) / 1000 : NaN
+})
+metrics.gauge('sentinel_ai_circuit_open', '1 while the AI engine circuit breaker is open', () =>
+  require('./services/aiEngineService').circuitState() === 'open' ? 1 : 0
+)
+metrics.gauge('sentinel_ai_drift_status', 'Last drift check: 1 drift, 0 ok, -1 not assessed', () =>
+  require('./services/driftMonitorService').defaultDriftMonitorService.statusValue()
+)
+// CONT-003: containment requests whose recovery needs a person (stuck after an attempt, or a late rule not confirmed
+// removed), from the last reconciliation pass; details at GET /api/containment/recovery
+metrics.gauge(
+  'sentinel_containment_recovery_unresolved',
+  'Containment actions whose recovery needs investigation (last reconciliation pass)',
+  () =>
+    require('./services/containmentReconciliationService').defaultReconciliationService.lastCounts.needsInvestigation
+)
+// Helmet's default CSP (self-only scripts, no framing, no plugins) suits a JSON API and the dev Swagger UI, whose
+// scripts are same-origin files. upgrade-insecure-requests is dropped: the dev stack is plain HTTP, and upgrading
+// Swagger's own asset requests to https would break /api/docs there (SEC-005).
+app.use(
+  helmet({
+    crossOriginEmbedderPolicy: false,
+    contentSecurityPolicy: { useDefaults: true, directives: { upgradeInsecureRequests: null } },
+  })
+)
 app.use(
   cors({
     origin: require('./middleware/authCookies').allowedOrigins(),
@@ -56,23 +92,42 @@ app.use(
   })
 )
 app.use('/api', securityTopology.requireSecureApi)
+const { isHoneypotKey, isSentinelKey } = require('./utils/apiKeys')
+// Which internal service a request authenticates as, or null for browser/unauthenticated traffic.
+const machineIdentity = (req) => {
+  const key = req.headers['x-api-key']
+  if (!key) return null
+  if (isHoneypotKey(key)) return 'honeypot'
+  if (isSentinelKey(key)) return 'sentinel'
+  return null
+}
+const rateWindowMs = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000
+// Per-IP limit for user/browser traffic. Dashboards poll about every 30 s, so 1000 per 15 min leaves headroom.
 const lim = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 900000,
-  max: parseInt(process.env.RATE_LIMIT_MAX) || 10000,
+  windowMs: rateWindowMs,
+  max: parseInt(process.env.RATE_LIMIT_MAX) || 1000,
   message: { success: false, error: 'Too many requests' },
-  skip: (req) => {
-    const key = req.headers['x-api-key']
-    return Boolean(
-      key &&
-      ((process.env.HONEYPOT_API_KEY && key === process.env.HONEYPOT_API_KEY) ||
-        (process.env.SENTINEL_KEY && key === process.env.SENTINEL_KEY))
-    )
-  },
+  skip: (req) => machineIdentity(req) !== null,
+})
+// Service keys get their own, larger budget per key instead of an unlimited bypass, so a leaked honeypot
+// key cannot drive unthrottled writes (M13).
+const machineLim = rateLimit({
+  windowMs: rateWindowMs,
+  max: parseInt(process.env.RATE_LIMIT_MACHINE_MAX) || 20000,
+  message: { success: false, error: 'Too many requests' },
+  keyGenerator: (req) => 'service:' + machineIdentity(req),
+  skip: (req) => machineIdentity(req) === null,
 })
 const { defaultShutdownManager } = require('./utils/gracefulShutdown')
 app.use(defaultShutdownManager.middleware())
-const authLim = rateLimit({ windowMs: 900000, max: 100, message: { success: false, error: 'Too many auth attempts' } })
+const authLim = rateLimit({
+  windowMs: 900000,
+  max: process.env.NODE_ENV === 'test' ? 100000 : 100,
+  message: { success: false, error: 'Too many auth attempts' },
+  skip: () => process.env.NODE_ENV === 'test',
+})
 app.use('/api', lim)
+app.use('/api', machineLim)
 app.use('/api/auth/login', authLim)
 app.use('/api/auth/register', authLim)
 app.use('/api/auth/provision', authLim)
@@ -109,10 +164,11 @@ app.get('/', (_, res) =>
     timestamp: new Date().toISOString(),
   })
 )
+// Prometheus scrape endpoint: bearer METRICS_TOKEN when set, otherwise loopback only.
+app.get('/metrics', metrics.handler)
 app.get('/health', async (_, res) => {
   const mongoose = require('mongoose')
   const aiSvc = require('./services/aiEngineService')
-  const mem = process.memoryUsage()
 
   let aiHealth = { status: 'unknown' }
   try {
@@ -124,33 +180,11 @@ app.get('/health', async (_, res) => {
   const ready = mongoose.connection.readyState === 1 && aiHealth?.status === 'ok' && revocationDelivery.available()
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'unavailable',
-    service: 'SentinelAI API',
-    version: '1.0.0',
-    mode: 'REAL_MODE',
-    environment: process.env.NODE_ENV,
-    uptime: Math.floor(process.uptime()),
-    memory: {
-      heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
-      heapTotalMB: Math.round(mem.heapTotal / 1024 / 1024),
-      rssMB: Math.round(mem.rss / 1024 / 1024),
-      heapPercent: Math.round((mem.heapUsed / mem.heapTotal) * 100),
-    },
-    database: {
-      status: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected',
-      name: mongoose.connection.name || 'sentinel-db',
-    },
-    aiEngine: {
-      status: aiHealth?.status === 'ok' ? 'connected' : 'unreachable',
-      details: aiHealth,
-    },
-    websocket: {
-      connectedClients: io.engine.clientsCount,
-      revocation: revocationDelivery.status(),
-    },
-    timestamp: new Date().toISOString(),
   })
 })
-app.get('/api/system/health', async (_, res) => {
+const { protect: authProtect, requirePermission: authRequirePermission } = require('./middleware/auth')
+
+app.get('/api/system/health', authProtect, authRequirePermission('system:telemetry_full'), async (_, res) => {
   const mongoose = require('mongoose')
   const aiSvc = require('./services/aiEngineService')
   const honeypotSvc = require('./services/honeypotService')
@@ -174,6 +208,7 @@ app.get('/api/system/health', async (_, res) => {
     success: true,
     data: {
       mode: 'REAL_MODE',
+      environment: process.env.NODE_ENV || 'development',
       uptime: Math.floor(process.uptime()),
       memory: {
         heapUsedMB: Math.round(mem.heapUsed / 1024 / 1024),
@@ -200,21 +235,32 @@ app.get('/api/system/health', async (_, res) => {
     },
   })
 })
-app.get('/api/ws/stats', (_, res) => res.json({ success: true, data: socketManager.getStats() }))
+app.get('/api/ws/stats', authProtect, authRequirePermission('system:telemetry_full'), (_, res) =>
+  res.json({ success: true, data: socketManager.getStats() })
+)
 
-try {
-  const { swaggerUi, swaggerSpec } = require('./config/swagger')
-  app.get('/api/docs.json', (_, res) => res.status(200).json(swaggerSpec))
-  app.use(
-    '/api/docs',
-    swaggerUi.serve,
-    swaggerUi.setup(swaggerSpec, {
-      customCss: '.swagger-ui .topbar { display: none }',
-      customSiteTitle: 'SentinelAI API Documentation',
-    })
+if (process.env.NODE_ENV !== 'production') {
+  try {
+    const { swaggerUi, swaggerSpec } = require('./config/swagger')
+    app.get('/api/docs.json', (_, res) => res.status(200).json(swaggerSpec))
+    app.use(
+      '/api/docs',
+      swaggerUi.serve,
+      swaggerUi.setup(swaggerSpec, {
+        customCss: '.swagger-ui .topbar { display: none }',
+        customSiteTitle: 'SentinelAI API Documentation',
+      })
+    )
+  } catch (e) {
+    logger.debug('[Swagger] Swagger docs not initialized: ' + e.message)
+  }
+} else {
+  app.use('/api/docs', (req, res) =>
+    res.status(404).json({ success: false, error: 'Documentation disabled in production' })
   )
-} catch (e) {
-  logger.debug('[Swagger] Swagger docs not initialized: ' + e.message)
+  app.get('/api/docs.json', (req, res) =>
+    res.status(404).json({ success: false, error: 'Documentation disabled in production' })
+  )
 }
 
 app.use('/api/auth', require('./routes/auth'))
@@ -228,19 +274,55 @@ app.use('/api/users', require('./routes/users'))
 app.use('/api/ai', require('./routes/aiEngine'))
 app.use('/api/training-samples', require('./routes/trainingSamples'))
 app.use('/api/system/outbox', require('./routes/systemOutbox'))
+app.use('/api/audit', require('./routes/audit'))
+
+// Unauthenticated E2E hook: requires both flags so a stray ALLOW_TEST_ROUTES can't expose it outside tests
+if (process.env.NODE_ENV === 'test' && process.env.ALLOW_TEST_ROUTES === 'true') {
+  app.post('/api/test/emit-socket', (req, res) => {
+    const { event, data, payload, room } = req.body || {}
+    const eventData = data !== undefined ? data : payload
+    if (!event) return res.status(400).json({ error: 'event is required' })
+    if (room) {
+      io.to(room).emit(event, eventData)
+    } else {
+      io.emit(event, eventData)
+    }
+    res.json({ success: true, emitted: event, data: eventData, clientCount: io.engine.clientsCount })
+  })
+}
 app.use(notFound)
+
 app.use(errorHandler)
 const PORT = process.env.PORT || 5000
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
   connectDB()
     .then(async () => {
       await revocationDelivery.start()
       logger.info('Authentication revocation mode: ' + authTopology.mode)
+      // THR-005: load the engine's alert/block lines before anything restores a threat status (not awaited: an
+      // unreachable engine must not delay startup; it is retried on first use)
+      require('./services/aiEngineService').warmScoreLines()
       try {
         const { defaultReconciliationService } = require('./services/containmentReconciliationService')
         defaultReconciliationService.start()
       } catch (recErr) {
         logger.warn('[ContainmentReconciliation] Failed to start reconciliation service: ' + recErr.message)
+      }
+      try {
+        require('./services/honeypotSweepService').defaultHoneypotSweepService.start()
+      } catch (sweepErr) {
+        logger.warn('[HoneypotSweep] Failed to start stale-session sweep: ' + sweepErr.message)
+      }
+      try {
+        // Opt-in only (RETENTION_ENABLED=true and RETENTION_INTERVAL_HOURS); never runs at startup.
+        require('./services/retentionScheduler').defaultRetentionScheduler.start()
+      } catch (retErr) {
+        logger.warn('[RetentionScheduler] Failed to start: ' + retErr.message)
+      }
+      try {
+        require('./services/driftMonitorService').defaultDriftMonitorService.start()
+      } catch (driftErr) {
+        logger.warn('[Drift] Failed to start drift monitor: ' + driftErr.message)
       }
       server.listen(PORT, process.env.HOST || '127.0.0.1', () => {
         logger.info('SentinelAI Backend ready on port ' + PORT)
@@ -260,6 +342,18 @@ defaultShutdownManager.registerService({
   stop: () => revocationDelivery.stop().catch(() => {}),
 })
 defaultShutdownManager.registerService({
+  name: 'driftMonitor',
+  stop: () => require('./services/driftMonitorService').defaultDriftMonitorService.stop(),
+})
+defaultShutdownManager.registerService({
+  name: 'retentionScheduler',
+  stop: () => require('./services/retentionScheduler').defaultRetentionScheduler.stop(),
+})
+defaultShutdownManager.registerService({
+  name: 'honeypotSweep',
+  stop: () => require('./services/honeypotSweepService').defaultHoneypotSweepService.stop(),
+})
+defaultShutdownManager.registerService({
   name: 'containmentReconciliation',
   stop: () => {
     try {
@@ -269,7 +363,7 @@ defaultShutdownManager.registerService({
   },
 })
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
   defaultShutdownManager.attachSignalHandlers()
 }
 

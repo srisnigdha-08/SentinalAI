@@ -3,7 +3,11 @@ jest.mock('../models/ThreatLog', () => ({ create: jest.fn() }))
 jest.mock('../models/Alert', () => ({ create: jest.fn() }))
 jest.mock('../utils/logger', () => ({ info: jest.fn(), error: jest.fn() }))
 jest.mock('../websocket/socketManager', () => ({ emitHoneypotEvent: jest.fn(), emitNewThreat: jest.fn() }))
-jest.mock('../services/honeypotService', () => ({ closeSession: jest.fn() }))
+jest.mock('../services/honeypotService', () => ({
+  closeSession: jest.fn(),
+  recordSessionActivity: jest.fn(),
+  sensitiveFilesIn: (text) => ['/etc/passwd', '/etc/shadow', '/.ssh/', '/root/'].filter((f) => text.includes(f)),
+}))
 const sessions = require('../models/HoneypotSession')
 const closure = require('../services/honeypotService')
 const logger = require('../utils/logger')
@@ -24,6 +28,7 @@ beforeEach(() => {
   sessions.findOne.mockResolvedValue(session)
   sessions.findById.mockResolvedValue(session)
   closure.closeSession.mockResolvedValue(session)
+  closure.recordSessionActivity.mockResolvedValue(session)
 })
 test('a completed closure is not processed or broadcast twice', async () => {
   session.closureAnalysisState = 'complete'
@@ -43,7 +48,7 @@ test('session-open signal is explicitly heuristic while preserving HIGH/0.75/MON
       severity: 'HIGH',
       aiScore: 0.75,
       status: 'MONITORING',
-      attackType: 'SSH Brute Force',
+      attackType: 'SSH Intrusion Attempt',
       notes: '[SESSION_OPEN_HEURISTIC] Fixed SSH session-open signal; no RF/IF inference has run for this signal.',
     })
   )
@@ -66,14 +71,48 @@ test('download returns its persisted session and a missing session returns null'
       url: 'https://example.invalid/file',
     })
   ).toBe(session)
-  expect(session.save).toHaveBeenCalledTimes(1)
-  sessions.findOne.mockResolvedValue(null)
+  // One atomic update instead of read-modify-save (M2)
+  expect(closure.recordSessionActivity).toHaveBeenCalledWith(
+    { sessionId: 'offline' },
+    { urls: ['https://example.invalid/file'], hashes: [], malware: ['https://example.invalid/file'], downloads: 1 }
+  )
+  expect(session.save).not.toHaveBeenCalled()
+  closure.recordSessionActivity.mockResolvedValue(null)
   expect(await collector.onFileDownload({ sessionId: 'missing', sourceIP: '192.0.2.10' })).toBeNull()
 })
+test('command activity is recorded atomically, opening the session first when it is unknown', async () => {
+  closure.recordSessionActivity.mockResolvedValueOnce(null).mockResolvedValueOnce(session)
+  sessions.findOne.mockResolvedValue(session) // onSessionOpened finds the session created by the opener
+  const s = await collector.onCommandReceived({
+    sessionId: 'offline',
+    sourceIP: '192.0.2.10',
+    command: 'cat /etc/passwd',
+    intent: 'CREDENTIAL_HARVEST',
+  })
+  expect(s).toBe(session)
+  expect(closure.recordSessionActivity).toHaveBeenCalledTimes(2)
+  const [, activity] = closure.recordSessionActivity.mock.calls[1]
+  expect(activity.files).toEqual(['/etc/passwd'])
+  expect(activity.commands[0]).toMatchObject({ command: 'cat /etc/passwd', intent: 'CREDENTIAL_HARVEST' })
+})
 test('download failure propagates and logs only error type, without captured payload', async () => {
-  session.save.mockRejectedValue(new TypeError('offline-private-captured-value'))
+  closure.recordSessionActivity.mockRejectedValue(new TypeError('offline-private-captured-value'))
   await expect(
     collector.onFileDownload({ sessionId: 'offline', sourceIP: '192.0.2.10', url: 'https://example.invalid/file' })
   ).rejects.toBeInstanceOf(TypeError)
   expect(logger.error).toHaveBeenCalledWith('[Collector] onFileDownload: TypeError')
+})
+test('the sessionId cache stays bounded when sessions are never closed (OPS-004)', async () => {
+  sessions.findOne.mockImplementation(async ({ sessionId }) => ({ _id: 'doc-' + sessionId, sessionId }))
+  const map = collector._sessionMap
+  map.clear()
+  for (let i = 0; i < collector.SESSION_MAP_MAX + 5; i++) {
+    await collector.onSessionOpened({ sessionId: 'never-closed-' + i, sourceIP: '192.0.2.10' })
+  }
+  expect(map.size).toBe(collector.SESSION_MAP_MAX)
+  expect(map.has('never-closed-0')).toBe(false)
+  expect(map.get('never-closed-' + (collector.SESSION_MAP_MAX + 4))).toBe(
+    'doc-never-closed-' + (collector.SESSION_MAP_MAX + 4)
+  )
+  map.clear()
 })

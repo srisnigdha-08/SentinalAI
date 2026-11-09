@@ -45,6 +45,17 @@ suite('Real isolated authentication persistence and concurrency', () => {
     if (io) await new Promise((resolve) => io.close(resolve))
     await mongoose.disconnect()
   })
+  // Administrators may not demote or deactivate their own account (efd76a4), so role/status changes to the
+  // fixture user are made by a second administrator; the assertions about the fixture's sessions are unchanged.
+  async function otherAdminToken() {
+    const admin = await User.create({
+      email: 'auth-regression-admin-' + crypto.randomUUID() + '@example.invalid',
+      password: 'Regression-Password-123',
+      name: 'AUTH REGRESSION SECOND ADMIN',
+      role: 'admin',
+    })
+    return (await auth.issue(admin)).token
+  }
   async function mutate(agent, endpoint, body = {}, token, method = 'post') {
     const csrf = await agent.get('/api/auth/csrf').set('Origin', process.env.CLIENT_URL)
     let call = agent[method]('/api/auth/' + endpoint)
@@ -134,7 +145,7 @@ suite('Real isolated authentication persistence and concurrency', () => {
     const latest = await auth.issue(current)
     const result = await request(app)
       .put('/api/users/' + user._id)
-      .set('Authorization', 'Bearer ' + latest.token)
+      .set('Authorization', 'Bearer ' + (await otherAdminToken()))
       .send({ status: 'inactive' })
     expect(result.status).toBe(200)
     await User.findByIdAndUpdate(user._id, { $set: { status: 'active' } }) // Test-only reactivation fixture.
@@ -195,7 +206,7 @@ suite('Real isolated authentication persistence and concurrency', () => {
     const disconnected = new Promise((resolve) => socket.once('disconnect', resolve))
     const changed = await request(app)
       .put('/api/users/' + user._id)
-      .set('Authorization', 'Bearer ' + issued.token)
+      .set('Authorization', 'Bearer ' + (await otherAdminToken()))
       .send({ role: 'viewer' })
     expect(changed.status).toBe(200)
     await disconnected

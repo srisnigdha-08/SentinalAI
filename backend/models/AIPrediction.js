@@ -19,8 +19,19 @@ const AIPredictionSchema = new mongoose.Schema(
     classProbabilities: { type: Map, of: Number },
     threatScore: { type: Number, required: true, min: 0, max: 1 },
     modelVersion: { type: String, default: 'rf_classifier_v2.1' },
-    modelType: { type: String, enum: ['isolation_forest', 'random_forest', 'ensemble'], default: 'random_forest' },
+    modelType: {
+      type: String,
+      enum: ['isolation_forest', 'random_forest', 'ensemble', 'rules'],
+      default: 'random_forest',
+    },
     isAnomaly: { type: Boolean, default: false },
+    // Classifier said BENIGN but the anomaly tier flagged it strongly (engine action REVIEW): analyst queue,
+    // never a threat or a block. Cleared by verification.
+    needsReview: { type: Boolean, default: false },
+    // More than the engine's allowed number of features were filled with defaults (M2): never auto-blocked
+    incompleteInput: { type: Boolean, default: false },
+    // Source IP attacked the honeypot within HONEYPOT_CORROBORATION_DAYS (U4); BENIGN/Unknown ones are queued
+    honeypotCorroborated: { type: Boolean, default: false },
     anomalyScore: { type: Number, min: -1, max: 1 },
     featureImportance: { type: Map, of: Number, select: false },
     inferenceTimeMs: Number,
@@ -55,4 +66,6 @@ const AIPredictionSchema = new mongoose.Schema(
 AIPredictionSchema.index({ createdAt: -1 })
 AIPredictionSchema.index({ threatScore: -1 })
 AIPredictionSchema.index({ sourceIP: 1 })
+// Verified-accuracy aggregate (all-time) reads only analyst-verified predictions
+AIPredictionSchema.index({ verified: 1 })
 module.exports = mongoose.model('AIPrediction', AIPredictionSchema)

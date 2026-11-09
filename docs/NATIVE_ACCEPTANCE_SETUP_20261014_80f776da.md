@@ -9,7 +9,7 @@ change or real IP blocking. No new software installation is needed.
 ## Exact new storage and database
 
 New dedicated root, currently absent:
-`C:\Users\srisn\Desktop\Projects\sentinelai-complete\.test-runtime\native-readiness-20261014-01`.
+`<repo>\.test-runtime\native-readiness-20261014-01`.
 The runner must refuse pre-existing/redirected paths on initial creation.
 
 Database: `sentinelai_native_readiness_20261014`.
@@ -105,7 +105,7 @@ Arguments below contain no secret values; the replica-set keyfile contains new
 test-only material and is restricted to this owned root.
 
 ```powershell
-& 'C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe' --auth --replSet sentinel_native_test --keyFile 'C:\Users\srisn\Desktop\Projects\sentinelai-complete\.test-runtime\native-readiness-20261014-01\runtime\replica-keyfile' --bind_ip 127.0.0.1 --port 27030 --dbpath 'C:\Users\srisn\Desktop\Projects\sentinelai-complete\.test-runtime\native-readiness-20261014-01\data' --logpath 'C:\Users\srisn\Desktop\Projects\sentinelai-complete\.test-runtime\native-readiness-20261014-01\logs\mongod.log' --logappend
+& '<repo>.native-integration\mongodb-acceptance-20261014\binaries\mongod.exe' --auth --replSet sentinel_native_test --keyFile '<repo>\.test-runtime\native-readiness-20261014-01\runtime\replica-keyfile' --bind_ip 127.0.0.1 --port 27030 --dbpath '<repo>\.test-runtime\native-readiness-20261014-01\data' --logpath '<repo>\.test-runtime\native-readiness-20261014-01\logs\mongod.log' --logappend
 # AI cwd ai-engine, with new internal key/model location passed in process env:
 .venv/Scripts/python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 18000
 # Separate backend processes, with distinct HOST/PORT and shared approved URI/keys in env:

@@ -46,5 +46,7 @@ const CampaignSchema = new mongoose.Schema(
 )
 
 CampaignSchema.index({ lastSeen: -1 })
+// Campaign lookup by member session (clusterSession candidate matching)
+CampaignSchema.index({ sessions: 1 })
 
 module.exports = mongoose.model('Campaign', CampaignSchema)

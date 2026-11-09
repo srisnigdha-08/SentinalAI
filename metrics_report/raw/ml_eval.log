@@ -1,0 +1,288 @@
+artifacts: {
+ "classifier_file": "xgb_classifier_xgb_cicids_v1.pkl",
+ "classifier_mb": 3.332,
+ "anomaly_file": "isolation_forest_xgb_cicids_v1.pkl",
+ "anomaly_mb": 1.334,
+ "load_seconds_runs": [
+  2.5338,
+  0.8483,
+  0.486
+ ],
+ "load_seconds_mean": 1.2894,
+ "all_pkl_sizes_mb": {
+  "isolation_forest_cicids.pkl": 1.364,
+  "isolation_forest_cicids_v3.pkl": 1.334,
+  "isolation_forest_v1.4.pkl": 2.581,
+  "isolation_forest_xgb_cicids_v1.pkl": 1.334,
+  "rf_classifier_cicids.pkl": 37.155,
+  "rf_classifier_cicids_v2.pkl": 44.092,
+  "rf_classifier_cicids_v3.pkl": 36.631,
+  "rf_classifier_v2.1.pkl": 34.644,
+  "stacking_classifier_cicids.pkl": 41.997,
+  "xgb_classifier.pkl": 3.075,
+  "xgb_classifier_cicids.pkl": 3.456,
+  "xgb_classifier_cicids_v2.pkl": 3.456,
+  "xgb_classifier_xgb_cicids_v1.pkl": 3.332
+ }
+}
+
+[A] recovering train.py de-duplicated split ...
+=======================================================
+  SentinelAI Model Training
+=======================================================
+Loading 8 CSV files from directory: C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\datasets\cicids2017
+Scanning raw labels to print distribution...
+
+Raw Class Distribution (Before Mapping/Subsampling):
+  BENIGN: 2,273,097
+  DoS Hulk: 231,073
+  PortScan: 158,930
+  DDoS: 128,027
+  DoS GoldenEye: 10,293
+  FTP-Patator: 7,938
+  SSH-Patator: 5,897
+  DoS slowloris: 5,796
+  DoS Slowhttptest: 5,499
+  Bot: 1,966
+  Web Attack \ufffd Brute Force: 1,507
+  Web Attack \ufffd XSS: 652
+  Infiltration: 36
+  Web Attack \ufffd Sql Injection: 21
+  Heartbleed: 11
+
+Loading and cleaning CSV files memory-efficiently...
+  Reading and cleaning: Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv
+  Reading and cleaning: Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv
+  Reading and cleaning: Friday-WorkingHours-Morning.pcap_ISCX.csv
+  Reading and cleaning: Monday-WorkingHours.pcap_ISCX.csv
+  Reading and cleaning: Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv
+  Reading and cleaning: Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv
+  Reading and cleaning: Tuesday-WorkingHours.pcap_ISCX.csv
+  Reading and cleaning: Wednesday-workingHours.pcap_ISCX.csv
+
+Class Distribution after Cleaning:
+  BENIGN: 120,000
+  DDoS: 20,000
+  Port Scan: 10,000
+  Credential Stuffing: 9,442
+  SSH Brute Force: 5,897
+  Malware Beacon: 1,956
+  XSS Attempt: 652
+  Lateral Movement: 36
+  SQL Injection: 21
+  RCE Attempt: 11
+
+Applying Capped Subsampling Strategy:
+  Subsampled BENIGN: 120,000 -> 100,000
+  Kept all Credential Stuffing: 9,442
+  Subsampled DDoS: 20,000 -> 20,000
+  Kept all Lateral Movement: 36
+  Kept all Malware Beacon: 1,956
+  Subsampled Port Scan: 10,000 -> 10,000
+  Kept all RCE Attempt: 11
+  Kept all SQL Injection: 21
+  Kept all SSH Brute Force: 5,897
+  Kept all XSS Attempt: 652
+
+Final Dataset Class Distribution for Training:
+  BENIGN: 100,000
+  DDoS: 20,000
+  Port Scan: 10,000
+  Credential Stuffing: 9,442
+  SSH Brute Force: 5,897
+  Malware Beacon: 1,956
+  XSS Attempt: 652
+  Lateral Movement: 36
+  SQL Injection: 21
+  RCE Attempt: 11
+Total Rows: 148,015
+Removed 23,481 exact duplicate rows (15.9%); 33 feature vectors carry more than one label and are kept
+{
+ "classifier_alone": {
+  "tp": 6224,
+  "fn": 12,
+  "fp": 67,
+  "tn": 18604,
+  "accuracy": 0.996828,
+  "precision": 0.98935,
+  "recall": 0.998076,
+  "f1": 0.993694,
+  "fpr": 0.003588,
+  "fpr_ci95": [
+   0.002827,
+   0.004554
+  ],
+  "fnr": 0.001924,
+  "roc_auc": 0.999796,
+  "pr_auc": 0.999457
+ },
+ "isolation_forest_alone": {
+  "tp": 1549,
+  "fn": 4687,
+  "fp": 945,
+  "tn": 17726,
+  "accuracy": 0.773879,
+  "precision": 0.621091,
+  "recall": 0.248396,
+  "f1": 0.354868,
+  "fpr": 0.050613,
+  "fpr_ci95": [
+   0.04756,
+   0.053851
+  ],
+  "fnr": 0.751604,
+  "roc_auc": 0.785986,
+  "pr_auc": 0.46456
+ },
+ "classifier_or_isolation_forest": {
+  "tp": 6225,
+  "fn": 11,
+  "fp": 1008,
+  "tn": 17663,
+  "accuracy": 0.959088,
+  "precision": 0.860639,
+  "recall": 0.998236,
+  "f1": 0.924345,
+  "fpr": 0.053987,
+  "fpr_ci95": [
+   0.050837,
+   0.057322
+  ],
+  "fnr": 0.001764
+ },
+ "combined_alert_line_0.9": {
+  "tp": 5938,
+  "fn": 298,
+  "fp": 43,
+  "tn": 18628,
+  "accuracy": 0.986309,
+  "precision": 0.992811,
+  "recall": 0.952213,
+  "f1": 0.972088,
+  "fpr": 0.002303,
+  "fpr_ci95": [
+   0.00171,
+   0.003101
+  ],
+  "fnr": 0.047787,
+  "roc_auc": 0.999279,
+  "pr_auc": 0.998047
+ },
+ "combined_block_line_0.92": {
+  "tp": 5909,
+  "fn": 327,
+  "fp": 42,
+  "tn": 18629,
+  "accuracy": 0.985185,
+  "precision": 0.992942,
+  "recall": 0.947563,
+  "f1": 0.969722,
+  "fpr": 0.002249,
+  "fpr_ci95": [
+   0.001665,
+   0.003039
+  ],
+  "fnr": 0.052437
+ }
+}
+
+[B] chronological protocol (retrain XGBoost recipe) ...
+  loaded Monday-WorkingHours.pcap_ISCX.csv: 529,481 rows (32.0s)
+  loaded Tuesday-WorkingHours.pcap_ISCX.csv: 445,645 rows (26.0s)
+  loaded Wednesday-workingHours.pcap_ISCX.csv: 691,406 rows (46.5s)
+  loaded Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv: 288,395 rows (15.5s)
+  loaded Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv: 170,231 rows (8.3s)
+  loaded Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv: 225,711 rows (12.2s)
+  loaded Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv: 286,096 rows (15.0s)
+  loaded Friday-WorkingHours-Morning.pcap_ISCX.csv: 190,911 rows (9.1s)
+  removed 628,877 exact duplicate rows (22.2%)
+{
+ "classifier_alone": {
+  "tp": 23543,
+  "fn": 737,
+  "fp": 564,
+  "tn": 159436,
+  "accuracy": 0.99294,
+  "precision": 0.976604,
+  "recall": 0.969646,
+  "f1": 0.973113,
+  "fpr": 0.003525,
+  "fpr_ci95": [
+   0.003246,
+   0.003828
+  ],
+  "fnr": 0.030354,
+  "roc_auc": 0.998528,
+  "pr_auc": 0.993713
+ },
+ "isolation_forest_alone": {
+  "tp": 7184,
+  "fn": 17096,
+  "fp": 3167,
+  "tn": 156833,
+  "accuracy": 0.890042,
+  "precision": 0.694039,
+  "recall": 0.295881,
+  "f1": 0.414888,
+  "fpr": 0.019794,
+  "fpr_ci95": [
+   0.019123,
+   0.020488
+  ],
+  "fnr": 0.704119,
+  "roc_auc": 0.846352,
+  "pr_auc": 0.454332
+ },
+ "classifier_or_isolation_forest": {
+  "tp": 23705,
+  "fn": 575,
+  "fp": 3728,
+  "tn": 156272,
+  "accuracy": 0.97665,
+  "precision": 0.864105,
+  "recall": 0.976318,
+  "f1": 0.916791,
+  "fpr": 0.0233,
+  "fpr_ci95": [
+   0.022572,
+   0.024051
+  ],
+  "fnr": 0.023682
+ },
+ "combined_alert_line_0.9": {
+  "tp": 22127,
+  "fn": 2153,
+  "fp": 254,
+  "tn": 159746,
+  "accuracy": 0.986938,
+  "precision": 0.988651,
+  "recall": 0.911326,
+  "f1": 0.948415,
+  "fpr": 0.001587,
+  "fpr_ci95": [
+   0.001404,
+   0.001795
+  ],
+  "fnr": 0.088674,
+  "roc_auc": 0.997881,
+  "pr_auc": 0.990089
+ },
+ "combined_block_line_0.92": {
+  "tp": 21989,
+  "fn": 2291,
+  "fp": 231,
+  "tn": 159769,
+  "accuracy": 0.986314,
+  "precision": 0.989604,
+  "recall": 0.905643,
+  "f1": 0.945763,
+  "fpr": 0.001444,
+  "fpr_ci95": [
+   0.001269,
+   0.001642
+  ],
+  "fnr": 0.094357
+ }
+}
+
+wrote C:\Users\srisn\Desktop\Projects\sentinelai-complete\metrics_report\raw\ml_eval.json in 557.8s

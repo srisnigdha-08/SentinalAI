@@ -1,9 +1,13 @@
 const mongoose = require('mongoose')
+const alertRetentionDays = () => {
+  const days = parseInt(process.env.ALERT_RETENTION_DAYS, 10)
+  return Number.isInteger(days) && days >= 1 && days <= 365 ? days : 7
+}
 const AlertSchema = new mongoose.Schema(
   {
     title: { type: String, required: true, maxlength: 200 },
     message: { type: String, required: true },
-    severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'], default: 'INFO', index: true },
+    severity: { type: String, enum: ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO'], default: 'INFO' },
     type: {
       type: String,
       enum: [
@@ -32,11 +36,14 @@ const AlertSchema = new mongoose.Schema(
     ],
     isRead: { type: Boolean, default: false },
     autonomousAction: { taken: { type: Boolean, default: false }, actionType: String, result: String },
-    expiresAt: { type: Date, default: () => new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) },
+    // MongoDB's TTL index deletes alerts at expiresAt; ALERT_RETENTION_DAYS (default 7, 1-365) sets the default.
+    expiresAt: { type: Date, default: () => new Date(Date.now() + alertRetentionDays() * 24 * 60 * 60 * 1000) },
   },
   { timestamps: true }
 )
 AlertSchema.index({ createdAt: -1 })
 AlertSchema.index({ severity: 1, isRead: 1 })
+AlertSchema.index({ targetRoles: 1, isRead: 1, createdAt: -1 })
+AlertSchema.index({ 'sourceRef.refId': 1 })
 AlertSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 })
 module.exports = mongoose.model('Alert', AlertSchema)

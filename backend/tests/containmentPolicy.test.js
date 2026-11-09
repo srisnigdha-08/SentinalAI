@@ -103,9 +103,19 @@ jest.mock('../models/AIPrediction', () => ({
   create: (...args) => mockAIPredictionCreate(...args),
 }))
 
+jest.mock('../models/AuditLog', () => ({
+  create: jest.fn().mockResolvedValue({}),
+  find: jest.fn().mockReturnValue({
+    sort: jest.fn().mockReturnThis(),
+    limit: jest.fn().mockReturnThis(),
+    lean: jest.fn().mockResolvedValue([]),
+  }),
+}))
+
 const mockGetBlockThreshold = jest.fn().mockResolvedValue(0.92)
 jest.mock('../services/aiEngineService', () => ({
   getBlockThreshold: () => mockGetBlockThreshold(),
+  getAlertThreshold: () => Promise.resolve(0.7),
   predictRecord: jest.fn(),
   runFullPipeline: jest.fn(),
 }))
@@ -114,10 +124,20 @@ const aiService = require('../services/aiService')
 const threatService = require('../services/threatService')
 const threatController = require('../controllers/threatController')
 const containmentService = require('../services/containmentService')
+const ContainmentAction = require('../models/ContainmentAction')
 
 describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
   beforeEach(() => {
     jest.clearAllMocks()
+    // Auto-block also files a ContainmentAction (M7); this suite has no database, so stub that step.
+    jest
+      .spyOn(containmentService, 'requestContainment')
+      .mockResolvedValue({ success: true, action: { enforcementStatus: 'ACTIVE', enforcementBackend: 'mock' } })
+    // Manual unblock also removes adapter rules (CORE-001b); covered in manualBlockEnforcement.test.js
+    jest.spyOn(containmentService, 'releaseManualBlock').mockResolvedValue([])
+    // ...and looks up the target's still-active ContainmentActions (CONT-001; real-database cases are in
+    // unblockRepeatDetections.test.js). No database here: none are active.
+    jest.spyOn(ContainmentAction, 'find').mockResolvedValue([])
     mockGetBlockThreshold.mockResolvedValue(0.92)
     mockBlockedIPFind.mockReturnValue({
       populate: jest.fn().mockReturnThis(),
@@ -308,6 +328,39 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
         { upsert: true, new: true }
       )
       expect(mockSocketManager.emitIPBlocked).toHaveBeenCalledWith('185.220.101.47', 'AI Engine', 'threat-5')
+    })
+
+    // Demo C gap (readiness 2026-11-01): with auto-block on, a flow between the alert line (0.90) and the block line
+    // (0.92) must become a threat but must not be contained. The integration replay may not produce such a score.
+    test('TEST 5b: score = 0.91 and autoBlockEnabled = true -> threat stored, NOT BLOCKED, no BlockedIP', async () => {
+      mockSystemSettingFindOne.mockResolvedValue({ key: 'autoBlockEnabled', value: true })
+      mockAIPredictionCreate.mockResolvedValue({
+        _id: 'pred-5b',
+        threatScore: 0.91,
+        predictedClass: 'SSH Brute Force',
+        sourceIP: '185.220.101.48',
+        save: jest.fn().mockResolvedValue(true),
+      })
+      mockThreatLogCreate.mockResolvedValue({
+        _id: 'threat-5b',
+        status: 'MONITORING',
+        sourceIP: '185.220.101.48',
+        severity: 'HIGH',
+        save: jest.fn().mockResolvedValue(true),
+      })
+
+      await aiService.storePrediction({
+        threatScore: 0.91,
+        predictedClass: 'SSH Brute Force',
+        sourceIP: '185.220.101.48',
+      })
+
+      expect(mockThreatLogCreate).toHaveBeenCalledTimes(1)
+      const created = mockThreatLogCreate.mock.calls[0][0]
+      expect(created.status).not.toBe('BLOCKED')
+      expect(created.autonomousAction).toEqual({ taken: false, actionType: null, actionTime: null })
+      expect(mockBlockedIPFindOneAndUpdate).not.toHaveBeenCalled()
+      expect(mockSocketManager.emitIPBlocked).not.toHaveBeenCalled()
     })
 
     test('TEST 6: score = 0.96 and autoBlockEnabled = true -> BLOCKED, BlockedIP created', async () => {
@@ -637,7 +690,8 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
 
       // Mock find to return ONLY threats matching new-containment-id
       mockThreatLogFind.mockImplementation((query) => {
-        if (query.containmentId === 'new-containment-id') {
+        const ids = query.containmentId?.$in || [query.containmentId]
+        if (ids.includes('new-containment-id')) {
           return Promise.resolve([activeThreat])
         }
         return Promise.resolve([])

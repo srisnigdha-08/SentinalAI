@@ -1,0 +1,873 @@
+{
+ "environment": {
+  "generated_at": "2026-10-22T18:31:08.868424+00:00",
+  "python": "3.11.9",
+  "platform": "Windows-10-10.0.26200-SP0",
+  "processor": "Intel64 Family 6 Model 154 Stepping 3, GenuineIntel",
+  "cpu_count": 16
+ },
+ "thresholds": {
+  "alert": 0.9,
+  "block": 0.92,
+  "if_anomaly": -0.55
+ },
+ "artifacts": {
+  "registry": {
+   "registered_at": "2026-10-21T16:12:28.102427+00:00",
+   "sklearn_version": "1.4.0",
+   "classifier": {
+    "file": "xgb_classifier_xgb_cicids_v1.pkl",
+    "type": "xgboost",
+    "sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+    "meta": "xgb_classifier_xgb_cicids_v1_meta.json",
+    "version": "xgb_cicids_v1"
+   },
+   "anomaly": {
+    "file": "isolation_forest_xgb_cicids_v1.pkl",
+    "sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
+    "meta": "isolation_forest_xgb_cicids_v1_meta.json",
+    "version": "xgb_cicids_v1"
+   },
+   "golden": {
+    "file": "golden_set.json",
+    "rows": 20,
+    "sha256": "c8d72dd96dc35287e7dd15c1af1e9c4c3b6a4a2f79507e04cc34359bd0420af6"
+   }
+  },
+  "classifier_file": "xgb_classifier_xgb_cicids_v1.pkl",
+  "classifier_mb": 3.332,
+  "anomaly_file": "isolation_forest_xgb_cicids_v1.pkl",
+  "anomaly_mb": 1.334,
+  "load_seconds_runs": [
+   2.5338,
+   0.8483,
+   0.486
+  ],
+  "load_seconds_mean": 1.2894,
+  "all_pkl_sizes_mb": {
+   "isolation_forest_cicids.pkl": 1.364,
+   "isolation_forest_cicids_v3.pkl": 1.334,
+   "isolation_forest_v1.4.pkl": 2.581,
+   "isolation_forest_xgb_cicids_v1.pkl": 1.334,
+   "rf_classifier_cicids.pkl": 37.155,
+   "rf_classifier_cicids_v2.pkl": 44.092,
+   "rf_classifier_cicids_v3.pkl": 36.631,
+   "rf_classifier_v2.1.pkl": 34.644,
+   "stacking_classifier_cicids.pkl": 41.997,
+   "xgb_classifier.pkl": 3.075,
+   "xgb_classifier_cicids.pkl": 3.456,
+   "xgb_classifier_cicids_v2.pkl": 3.456,
+   "xgb_classifier_xgb_cicids_v1.pkl": 3.332
+  }
+ },
+ "A_served_random_split": {
+  "name": "served_artifact_on_trainpy_random_dedup_test",
+  "n_test": 24907,
+  "n_benign": 18671,
+  "n_attack": 6236,
+  "multiclass": {
+   "accuracy": 0.989682,
+   "f1_macro": 0.87384,
+   "f1_weighted": 0.990713,
+   "labels": [
+    "BENIGN",
+    "SSH Brute Force",
+    "SQL Injection",
+    "Port Scan",
+    "DDoS",
+    "RCE Attempt",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "confusion_matrix": [
+    [
+     18604,
+     1,
+     0,
+     11,
+     12,
+     0,
+     2,
+     38,
+     2,
+     1
+    ],
+    [
+     0,
+     644,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     2,
+     0
+    ],
+    [
+     2,
+     0,
+     0,
+     68,
+     0,
+     0,
+     0,
+     0,
+     1,
+     0
+    ],
+    [
+     1,
+     0,
+     0,
+     1,
+     3608,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     2,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     1,
+     0,
+     0,
+     0,
+     0,
+     0,
+     103,
+     0,
+     26,
+     0
+    ],
+    [
+     3,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     285,
+     0,
+     0
+    ],
+    [
+     3,
+     0,
+     0,
+     0,
+     0,
+     0,
+     148,
+     0,
+     1329,
+     0
+    ],
+    [
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     5
+    ]
+   ],
+   "per_class": {
+    "BENIGN": {
+     "precision": 0.9994,
+     "recall": 0.9964,
+     "f1": 0.9979,
+     "support": 18671
+    },
+    "SSH Brute Force": {
+     "precision": 0.9984,
+     "recall": 1.0,
+     "f1": 0.9992,
+     "support": 644
+    },
+    "SQL Injection": {
+     "precision": 1.0,
+     "recall": 0.5,
+     "f1": 0.6667,
+     "support": 4
+    },
+    "Port Scan": {
+     "precision": 0.85,
+     "recall": 0.9577,
+     "f1": 0.9007,
+     "support": 71
+    },
+    "DDoS": {
+     "precision": 0.9967,
+     "recall": 0.9994,
+     "f1": 0.9981,
+     "support": 3610
+    },
+    "RCE Attempt": {
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0,
+     "support": 2
+    },
+    "XSS Attempt": {
+     "precision": 0.4071,
+     "recall": 0.7923,
+     "f1": 0.5379,
+     "support": 130
+    },
+    "Malware Beacon": {
+     "precision": 0.8824,
+     "recall": 0.9896,
+     "f1": 0.9329,
+     "support": 288
+    },
+    "Credential Stuffing": {
+     "precision": 0.9772,
+     "recall": 0.898,
+     "f1": 0.9359,
+     "support": 1480
+    },
+    "Lateral Movement": {
+     "precision": 0.8333,
+     "recall": 0.7143,
+     "f1": 0.7692,
+     "support": 7
+    }
+   },
+   "roc_auc_ovr_per_class": {
+    "BENIGN": 0.999796,
+    "SSH Brute Force": 1.0,
+    "SQL Injection": 0.999157,
+    "Port Scan": 0.999539,
+    "DDoS": 0.999996,
+    "RCE Attempt": 1.0,
+    "XSS Attempt": 0.996552,
+    "Malware Beacon": 0.999717,
+    "Credential Stuffing": 0.999621,
+    "Lateral Movement": 0.954512
+   },
+   "roc_auc_ovr_macro": 0.994889
+  },
+  "binary": {
+   "classifier_alone": {
+    "tp": 6224,
+    "fn": 12,
+    "fp": 67,
+    "tn": 18604,
+    "accuracy": 0.996828,
+    "precision": 0.98935,
+    "recall": 0.998076,
+    "f1": 0.993694,
+    "fpr": 0.003588,
+    "fpr_ci95": [
+     0.002827,
+     0.004554
+    ],
+    "fnr": 0.001924,
+    "roc_auc": 0.999796,
+    "pr_auc": 0.999457
+   },
+   "isolation_forest_alone": {
+    "tp": 1549,
+    "fn": 4687,
+    "fp": 945,
+    "tn": 17726,
+    "accuracy": 0.773879,
+    "precision": 0.621091,
+    "recall": 0.248396,
+    "f1": 0.354868,
+    "fpr": 0.050613,
+    "fpr_ci95": [
+     0.04756,
+     0.053851
+    ],
+    "fnr": 0.751604,
+    "roc_auc": 0.785986,
+    "pr_auc": 0.46456
+   },
+   "classifier_or_isolation_forest": {
+    "tp": 6225,
+    "fn": 11,
+    "fp": 1008,
+    "tn": 17663,
+    "accuracy": 0.959088,
+    "precision": 0.860639,
+    "recall": 0.998236,
+    "f1": 0.924345,
+    "fpr": 0.053987,
+    "fpr_ci95": [
+     0.050837,
+     0.057322
+    ],
+    "fnr": 0.001764
+   },
+   "combined_alert_line_0.9": {
+    "tp": 5938,
+    "fn": 298,
+    "fp": 43,
+    "tn": 18628,
+    "accuracy": 0.986309,
+    "precision": 0.992811,
+    "recall": 0.952213,
+    "f1": 0.972088,
+    "fpr": 0.002303,
+    "fpr_ci95": [
+     0.00171,
+     0.003101
+    ],
+    "fnr": 0.047787,
+    "roc_auc": 0.999279,
+    "pr_auc": 0.998047
+   },
+   "combined_block_line_0.92": {
+    "tp": 5909,
+    "fn": 327,
+    "fp": 42,
+    "tn": 18629,
+    "accuracy": 0.985185,
+    "precision": 0.992942,
+    "recall": 0.947563,
+    "f1": 0.969722,
+    "fpr": 0.002249,
+    "fpr_ci95": [
+     0.001665,
+     0.003039
+    ],
+    "fnr": 0.052437
+   }
+  },
+  "per_attack_class_detection": {
+   "SSH Brute Force": {
+    "n": 644,
+    "classifier_says_attack": 1.0,
+    "correct_class": 1.0,
+    "alert_raised": 0.9969,
+    "isolation_forest_flags": 0.0
+   },
+   "SQL Injection": {
+    "n": 4,
+    "classifier_says_attack": 1.0,
+    "correct_class": 0.5,
+    "alert_raised": 0.75,
+    "isolation_forest_flags": 0.0
+   },
+   "Port Scan": {
+    "n": 71,
+    "classifier_says_attack": 0.9718,
+    "correct_class": 0.9577,
+    "alert_raised": 0.9577,
+    "isolation_forest_flags": 0.0423
+   },
+   "DDoS": {
+    "n": 3610,
+    "classifier_says_attack": 0.9997,
+    "correct_class": 0.9994,
+    "alert_raised": 0.9972,
+    "isolation_forest_flags": 0.4238
+   },
+   "RCE Attempt": {
+    "n": 2,
+    "classifier_says_attack": 1.0,
+    "correct_class": 1.0,
+    "alert_raised": 1.0,
+    "isolation_forest_flags": 1.0
+   },
+   "XSS Attempt": {
+    "n": 130,
+    "classifier_says_attack": 0.9923,
+    "correct_class": 0.7923,
+    "alert_raised": 0.3692,
+    "isolation_forest_flags": 0.0385
+   },
+   "Malware Beacon": {
+    "n": 288,
+    "classifier_says_attack": 0.9896,
+    "correct_class": 0.9896,
+    "alert_raised": 0.9896,
+    "isolation_forest_flags": 0.0139
+   },
+   "Credential Stuffing": {
+    "n": 1480,
+    "classifier_says_attack": 0.998,
+    "correct_class": 0.898,
+    "alert_raised": 0.8682,
+    "isolation_forest_flags": 0.0
+   },
+   "Lateral Movement": {
+    "n": 7,
+    "classifier_says_attack": 0.7143,
+    "correct_class": 0.7143,
+    "alert_raised": 0.7143,
+    "isolation_forest_flags": 0.7143
+   }
+  },
+  "alert_severity_distribution": {
+   "CRITICAL": 5951,
+   "HIGH": 30
+  },
+  "split": {
+   "protocol": "stratified random 80/20 after exact de-duplication (training/train.py, random_state=42)",
+   "train_rows": 99627,
+   "test_rows": 24907,
+   "test_rows_with_identical_vector_in_train": 15,
+   "independent": false
+  },
+  "latency": {
+   "single_row_ms": {
+    "n": 1000,
+    "mean": 32.199,
+    "p50": 22.415,
+    "p95": 76.029,
+    "p99": 234.016,
+    "max": 338.512
+   },
+   "batch": {
+    "rows": 20000,
+    "seconds": 1.387,
+    "rows_per_second": 14418.9
+   }
+  }
+ },
+ "B_chronological": {
+  "name": "xgb_recipe_chronological",
+  "n_test": 184280,
+  "n_benign": 160000,
+  "n_attack": 24280,
+  "multiclass": {
+   "accuracy": 0.989066,
+   "f1_macro": 0.77179,
+   "f1_weighted": 0.989759,
+   "labels": [
+    "BENIGN",
+    "SSH Brute Force",
+    "SQL Injection",
+    "Port Scan",
+    "DDoS",
+    "RCE Attempt",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "confusion_matrix": [
+    [
+     159436,
+     2,
+     2,
+     6,
+     160,
+     0,
+     11,
+     329,
+     51,
+     3
+    ],
+    [
+     3,
+     931,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     3,
+     0,
+     4,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     40,
+     0,
+     0,
+     499,
+     2,
+     0,
+     5,
+     0,
+     22,
+     0
+    ],
+    [
+     651,
+     0,
+     29,
+     351,
+     18923,
+     0,
+     1,
+     0,
+     45,
+     0
+    ],
+    [
+     0,
+     0,
+     0,
+     0,
+     0,
+     4,
+     0,
+     0,
+     0,
+     0
+    ],
+    [
+     7,
+     0,
+     0,
+     1,
+     0,
+     0,
+     130,
+     0,
+     52,
+     0
+    ],
+    [
+     16,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     402,
+     0,
+     0
+    ],
+    [
+     15,
+     0,
+     1,
+     0,
+     0,
+     0,
+     205,
+     0,
+     1927,
+     0
+    ],
+    [
+     2,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     0,
+     9
+    ]
+   ],
+   "per_class": {
+    "BENIGN": {
+     "precision": 0.9954,
+     "recall": 0.9965,
+     "f1": 0.9959,
+     "support": 160000
+    },
+    "SSH Brute Force": {
+     "precision": 0.9979,
+     "recall": 0.9968,
+     "f1": 0.9973,
+     "support": 934
+    },
+    "SQL Injection": {
+     "precision": 0.1111,
+     "recall": 0.5714,
+     "f1": 0.186,
+     "support": 7
+    },
+    "Port Scan": {
+     "precision": 0.5823,
+     "recall": 0.8785,
+     "f1": 0.7004,
+     "support": 568
+    },
+    "DDoS": {
+     "precision": 0.9915,
+     "recall": 0.9462,
+     "f1": 0.9683,
+     "support": 20000
+    },
+    "RCE Attempt": {
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0,
+     "support": 4
+    },
+    "XSS Attempt": {
+     "precision": 0.3693,
+     "recall": 0.6842,
+     "f1": 0.4797,
+     "support": 190
+    },
+    "Malware Beacon": {
+     "precision": 0.5499,
+     "recall": 0.9617,
+     "f1": 0.6997,
+     "support": 418
+    },
+    "Credential Stuffing": {
+     "precision": 0.9189,
+     "recall": 0.8971,
+     "f1": 0.9079,
+     "support": 2148
+    },
+    "Lateral Movement": {
+     "precision": 0.75,
+     "recall": 0.8182,
+     "f1": 0.7826,
+     "support": 11
+    }
+   },
+   "roc_auc_ovr_per_class": {
+    "BENIGN": 0.998528,
+    "SSH Brute Force": 1.0,
+    "SQL Injection": 0.996483,
+    "Port Scan": 0.99765,
+    "DDoS": 0.999162,
+    "RCE Attempt": 1.0,
+    "XSS Attempt": 0.997971,
+    "Malware Beacon": 0.999232,
+    "Credential Stuffing": 0.999352,
+    "Lateral Movement": 0.999897
+   },
+   "roc_auc_ovr_macro": 0.998828
+  },
+  "binary": {
+   "classifier_alone": {
+    "tp": 23543,
+    "fn": 737,
+    "fp": 564,
+    "tn": 159436,
+    "accuracy": 0.99294,
+    "precision": 0.976604,
+    "recall": 0.969646,
+    "f1": 0.973113,
+    "fpr": 0.003525,
+    "fpr_ci95": [
+     0.003246,
+     0.003828
+    ],
+    "fnr": 0.030354,
+    "roc_auc": 0.998528,
+    "pr_auc": 0.993713
+   },
+   "isolation_forest_alone": {
+    "tp": 7184,
+    "fn": 17096,
+    "fp": 3167,
+    "tn": 156833,
+    "accuracy": 0.890042,
+    "precision": 0.694039,
+    "recall": 0.295881,
+    "f1": 0.414888,
+    "fpr": 0.019794,
+    "fpr_ci95": [
+     0.019123,
+     0.020488
+    ],
+    "fnr": 0.704119,
+    "roc_auc": 0.846352,
+    "pr_auc": 0.454332
+   },
+   "classifier_or_isolation_forest": {
+    "tp": 23705,
+    "fn": 575,
+    "fp": 3728,
+    "tn": 156272,
+    "accuracy": 0.97665,
+    "precision": 0.864105,
+    "recall": 0.976318,
+    "f1": 0.916791,
+    "fpr": 0.0233,
+    "fpr_ci95": [
+     0.022572,
+     0.024051
+    ],
+    "fnr": 0.023682
+   },
+   "combined_alert_line_0.9": {
+    "tp": 22127,
+    "fn": 2153,
+    "fp": 254,
+    "tn": 159746,
+    "accuracy": 0.986938,
+    "precision": 0.988651,
+    "recall": 0.911326,
+    "f1": 0.948415,
+    "fpr": 0.001587,
+    "fpr_ci95": [
+     0.001404,
+     0.001795
+    ],
+    "fnr": 0.088674,
+    "roc_auc": 0.997881,
+    "pr_auc": 0.990089
+   },
+   "combined_block_line_0.92": {
+    "tp": 21989,
+    "fn": 2291,
+    "fp": 231,
+    "tn": 159769,
+    "accuracy": 0.986314,
+    "precision": 0.989604,
+    "recall": 0.905643,
+    "f1": 0.945763,
+    "fpr": 0.001444,
+    "fpr_ci95": [
+     0.001269,
+     0.001642
+    ],
+    "fnr": 0.094357
+   }
+  },
+  "per_attack_class_detection": {
+   "SSH Brute Force": {
+    "n": 934,
+    "classifier_says_attack": 0.9968,
+    "correct_class": 0.9968,
+    "alert_raised": 0.9872,
+    "isolation_forest_flags": 0.0
+   },
+   "SQL Injection": {
+    "n": 7,
+    "classifier_says_attack": 0.5714,
+    "correct_class": 0.5714,
+    "alert_raised": 0.5714,
+    "isolation_forest_flags": 0.0
+   },
+   "Port Scan": {
+    "n": 568,
+    "classifier_says_attack": 0.9296,
+    "correct_class": 0.8785,
+    "alert_raised": 0.9014,
+    "isolation_forest_flags": 0.0
+   },
+   "DDoS": {
+    "n": 20000,
+    "classifier_says_attack": 0.9675,
+    "correct_class": 0.9462,
+    "alert_raised": 0.9183,
+    "isolation_forest_flags": 0.3584
+   },
+   "RCE Attempt": {
+    "n": 4,
+    "classifier_says_attack": 1.0,
+    "correct_class": 1.0,
+    "alert_raised": 1.0,
+    "isolation_forest_flags": 1.0
+   },
+   "XSS Attempt": {
+    "n": 190,
+    "classifier_says_attack": 0.9632,
+    "correct_class": 0.6842,
+    "alert_raised": 0.3579,
+    "isolation_forest_flags": 0.0105
+   },
+   "Malware Beacon": {
+    "n": 418,
+    "classifier_says_attack": 0.9617,
+    "correct_class": 0.9617,
+    "alert_raised": 0.799,
+    "isolation_forest_flags": 0.0
+   },
+   "Credential Stuffing": {
+    "n": 2148,
+    "classifier_says_attack": 0.993,
+    "correct_class": 0.8971,
+    "alert_raised": 0.8887,
+    "isolation_forest_flags": 0.0
+   },
+   "Lateral Movement": {
+    "n": 11,
+    "classifier_says_attack": 0.8182,
+    "correct_class": 0.8182,
+    "alert_raised": 0.7273,
+    "isolation_forest_flags": 0.8182
+   }
+  },
+  "alert_severity_distribution": {
+   "CRITICAL": 22220,
+   "HIGH": 161
+  },
+  "split": {
+   "protocol": "chronological within each (file,class): first 70% train, 1% purge, last 29% test; per-file caps train BENIGN 15k/PortScan 10k/DDoS 10k, test BENIGN 20k/PortScan 10k/DDoS 10k",
+   "train_rows": 150309,
+   "test_rows": 184280,
+   "independent": true,
+   "rows_after_cleaning_and_dedup": 2198999,
+   "duplicates_removed": 628877,
+   "train_classes": {
+    "BENIGN": 120000,
+    "DDoS": 20000,
+    "Credential Stuffing": 5180,
+    "SSH Brute Force": 2253,
+    "Port Scan": 1369,
+    "Malware Beacon": 1005,
+    "XSS Attempt": 456,
+    "Lateral Movement": 25,
+    "SQL Injection": 14,
+    "RCE Attempt": 7
+   },
+   "test_classes": {
+    "BENIGN": 160000,
+    "DDoS": 20000,
+    "Credential Stuffing": 2148,
+    "SSH Brute Force": 934,
+    "Port Scan": 568,
+    "Malware Beacon": 418,
+    "XSS Attempt": 190,
+    "Lateral Movement": 11,
+    "SQL Injection": 7,
+    "RCE Attempt": 4
+   }
+  },
+  "training_seconds_xgb_plus_if": 97.34
+ },
+ "runtime_seconds": 557.8
+}

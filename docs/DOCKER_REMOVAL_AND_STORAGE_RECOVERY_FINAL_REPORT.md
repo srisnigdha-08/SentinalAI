@@ -2,10 +2,10 @@
 
 **Date:** 15 October 2026  
 **Author / Auditor:** Antigravity (Senior Windows Systems Engineer, MongoDB Recovery Specialist, and Data-Integrity Auditor)  
-**Project Root:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete`  
-**Native Integration Directory:** `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration`  
-**Cleanup Manifest:** [`docs/DOCKER_CLEANUP_MANIFEST_20261015.json`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/docs/DOCKER_CLEANUP_MANIFEST_20261015.json)  
-**Recovery Scripts Archive:** [`docs/recovery_scripts/`](file:///C:/Users/srisn/Desktop/Projects/sentinelai-complete/docs/recovery_scripts)  
+**Project Root:** `<repo>`  
+**Native Integration Directory:** `<repo>.native-integration`  
+**Cleanup Manifest:** [`docs/DOCKER_CLEANUP_MANIFEST_20261015.json`](<repo>/docs/DOCKER_CLEANUP_MANIFEST_20261015.json)  
+**Recovery Scripts Archive:** [`docs/recovery_scripts/`](<repo>/docs/recovery_scripts)  
 
 ---
 
@@ -66,10 +66,10 @@ All deletions were performed strictly via explicit, individual paths after crypt
 | `D:\DockerDesktopData\DockerDesktopWSL\disk\docker_data.vhdx` | File | 35,566,649,344 | 33.12 GiB | Historical VHDX | Original Docker WSL engine virtual disk; Docker Desktop permanently uninstalled. |
 | `D:\DockerBackup\docker_data_restore.vhdx` | File | 34,801,188,864 | 32.41 GiB | Duplicate VHDX | Verified 100% identical by SHA-256 to `docker_data_fresh.vhdx`. |
 | `D:\DockerBackup\docker_data_new_install.vhdx` | File | 1,645,215,744 | 1.53 GiB | Empty Base VHDX | 1.53 GiB baseline disk from 2026-10-12 clean install. Contained zero application data. |
-| `C:\Users\srisn\AppData\Local\Programs\DockerDesktop` | Dir | 3,439,038,955 | 3,279.72 MiB | Docker Application | Verified Electron & CLI binaries. Processes terminated before removal. |
-| `C:\Users\srisn\AppData\Local\Docker` | Dir | 34,703,939 | 33.10 MiB | Docker Local Data | Install logs, CLI logs, and runtime lockfiles. No user code. |
-| `C:\Users\srisn\AppData\Roaming\Docker` | Dir | 674,828 | 0.64 MiB | Docker Config | JSON configuration files pointing to obsolete/protected paths. |
-| `C:\Users\srisn\.docker` | Dir | 43,305 | 0.04 MiB | Docker CLI Config | Obsolete CLI contexts referencing dead named pipes. |
+| `%USERPROFILE%\AppData\Local\Programs\DockerDesktop` | Dir | 3,439,038,955 | 3,279.72 MiB | Docker Application | Verified Electron & CLI binaries. Processes terminated before removal. |
+| `%USERPROFILE%\AppData\Local\Docker` | Dir | 34,703,939 | 33.10 MiB | Docker Local Data | Install logs, CLI logs, and runtime lockfiles. No user code. |
+| `%USERPROFILE%\AppData\Roaming\Docker` | Dir | 674,828 | 0.64 MiB | Docker Config | JSON configuration files pointing to obsolete/protected paths. |
+| `%USERPROFILE%\.docker` | Dir | 43,305 | 0.04 MiB | Docker CLI Config | Obsolete CLI contexts referencing dead named pipes. |
 | `C:\RecoveryTools\systemrescue-13.02-amd64.iso` | File | 1,381,629,952 | 1,317.62 MiB | Disposable Tool | SystemRescue Live ISO. Recovery completed. |
 | `C:\RecoveryTools\qemu\` | Dir | 1,255,998,954 | 1,197.81 MiB | Disposable Tool | Extracted QEMU 11.1.0 emulator binaries. |
 | `C:\RecoveryTools\sysrescue_boot\` | Dir | 216,017,016 | 206.01 MiB | Disposable Tool | Extracted Linux kernel & initrd. |
@@ -105,13 +105,13 @@ Measurements captured via Windows PowerShell `Get-PSDrive`:
 In accordance with strict preservation requirements, the following assets remain preserved and verified:
 
 1. **Native SentinelAI Codebase & Environment:**
-   - Root: `C:\Users\srisn\Desktop\Projects\sentinelai-complete`
+   - Root: `<repo>`
    - All source code, frontend React/Vite components, backend Express/Node services.
    - All 6 `.env` files (`backend\.env`, `deployment\.env*`, etc.).
    - All 21 production and baseline machine learning models (`ai-engine\models\*.pkl`), including `rf_classifier_cicids_v2.pkl`, `isolation_forest_v1.4.pkl`, and `xgb_classifier_cicids_v2.pkl`.
    - Python virtualenv (`ai-engine\.venv`) with `scikit-learn 1.4.0`, `xgboost`, `joblib`, and `pandas`.
 2. **Native Development Database:**
-   - Path: `C:\Users\srisn\Desktop\Projects\sentinelai-complete.native-integration\mongodb-acceptance-20261014\data`
+   - Path: `<repo>.native-integration\mongodb-acceptance-20261014\data`
    - Total files: 75
    - Verification: Zero files modified on 2026-10-15. Completely intact.
 3. **Recovered Historical Production Databases:**

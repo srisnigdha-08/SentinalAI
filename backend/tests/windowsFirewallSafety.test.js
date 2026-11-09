@@ -35,9 +35,7 @@ describe('Phase 6F — Isolated Windows Firewall Adapter Safety Tests', () => {
       expect(adapter.enabled).toBe(false)
       expect(adapter.getBackendType()).toBe('windows-firewall')
 
-      await expect(
-        adapter.applyRule({ containmentId: 'test-1', target: '192.0.2.1' })
-      ).rejects.toMatchObject({
+      await expect(adapter.applyRule({ containmentId: 'test-1', target: '192.0.2.1' })).rejects.toMatchObject({
         code: 'FIREWALL_ENFORCEMENT_DISABLED',
       })
 

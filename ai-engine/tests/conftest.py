@@ -12,3 +12,22 @@ def isolate_q_table_runtime_globally(tmp_path, monkeypatch):
     temp_runtime = tmp_path / "runtime" / "q_table.json"
     temp_runtime.parent.mkdir(parents=True, exist_ok=True)
     monkeypatch.setenv("DEFAULT_RUNTIME_Q_TABLE_PATH", str(temp_runtime))
+
+
+@pytest.fixture(autouse=True)
+def isolate_cowrie_parser_state(tmp_path, monkeypatch):
+    """
+    honeypot/parsers/log_parser.py reads PARSER_STATE_DIR when it is imported and otherwise persists its
+    offset and delivery spool under the user's home directory. Every test gets its own directory instead.
+    """
+    monkeypatch.setenv("PARSER_STATE_DIR", str(tmp_path / "cowrie-parser-state"))
+
+
+@pytest.fixture(autouse=True)
+def allow_unregistered_test_models(monkeypatch):
+    """
+    Many tests build throwaway model directories without models/registry.json. Production refuses to load
+    unregistered models (M4); tests opt in to the legacy first-match order explicitly. Tests of the refusal
+    itself delete this variable.
+    """
+    monkeypatch.setenv("ALLOW_UNREGISTERED_MODELS", "1")

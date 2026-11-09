@@ -1,0 +1,221 @@
+{
+  "feature_coverage": {
+    "mapped_from_2018_csv": 50,
+    "derived": [
+      "payload_entropy"
+    ],
+    "known_absent_zero": [
+      "time_of_day_sin",
+      "time_of_day_cos"
+    ],
+    "unaccounted": []
+  },
+  "time_of_day_all_zero": {
+    "2017": true,
+    "2018": true
+  },
+  "constant_features_variant_B": {
+    "bwd_psh_flags": {
+      "2017": true,
+      "2018": true,
+      "union": true
+    },
+    "bwd_urg_flags": {
+      "2017": true,
+      "2018": true,
+      "union": true
+    },
+    "fwd_avg_bytes_per_bulk": {
+      "2017": true,
+      "2018": true,
+      "union": true
+    },
+    "bwd_avg_bytes_per_bulk": {
+      "2017": true,
+      "2018": true,
+      "union": true
+    },
+    "time_of_day_sin": {
+      "2017": true,
+      "2018": true,
+      "union": true
+    },
+    "time_of_day_cos": {
+      "2017": true,
+      "2018": true,
+      "union": true
+    }
+  },
+  "cross_corpus_shared_vectors": {
+    "2018_rows_with_a_2017_vector": 23
+  },
+  "c4_fold_shared_vectors": {
+    "A 2017-Monday": {
+      "test_rows": 12022,
+      "same_label": 0,
+      "other_label": 0
+    },
+    "A 2017-Tuesday": {
+      "test_rows": 21038,
+      "same_label": 18,
+      "other_label": 1
+    },
+    "A 2017-Wednesday": {
+      "test_rows": 19856,
+      "same_label": 0,
+      "other_label": 3
+    },
+    "A 2017-Thursday": {
+      "test_rows": 24104,
+      "same_label": 0,
+      "other_label": 29
+    },
+    "A 2017-Friday": {
+      "test_rows": 47514,
+      "same_label": 0,
+      "other_label": 28
+    },
+    "A 2018-01-03-2018": {
+      "test_rows": 20550,
+      "same_label": 2,
+      "other_label": 488
+    },
+    "A 2018-02-03-2018": {
+      "test_rows": 19853,
+      "same_label": 7,
+      "other_label": 228
+    },
+    "A 2018-14-02-2018": {
+      "test_rows": 17919,
+      "same_label": 3,
+      "other_label": 63
+    },
+    "A 2018-15-02-2018": {
+      "test_rows": 31936,
+      "same_label": 1,
+      "other_label": 115
+    },
+    "A 2018-21-02-2018": {
+      "test_rows": 24922,
+      "same_label": 0,
+      "other_label": 0
+    },
+    "A 2018-23-02-2018": {
+      "test_rows": 14194,
+      "same_label": 5,
+      "other_label": 134
+    },
+    "C 2017-Monday": {
+      "test_rows": 12022,
+      "same_label": 178,
+      "other_label": 1
+    },
+    "C 2017-Tuesday": {
+      "test_rows": 21038,
+      "same_label": 762,
+      "other_label": 195
+    },
+    "C 2017-Wednesday": {
+      "test_rows": 19856,
+      "same_label": 1335,
+      "other_label": 142
+    },
+    "C 2017-Thursday": {
+      "test_rows": 24104,
+      "same_label": 2476,
+      "other_label": 180
+    },
+    "C 2017-Friday": {
+      "test_rows": 47514,
+      "same_label": 3431,
+      "other_label": 285
+    },
+    "C 2018-01-03-2018": {
+      "test_rows": 20550,
+      "same_label": 822,
+      "other_label": 1056
+    },
+    "C 2018-02-03-2018": {
+      "test_rows": 19853,
+      "same_label": 1218,
+      "other_label": 579
+    },
+    "C 2018-14-02-2018": {
+      "test_rows": 17919,
+      "same_label": 743,
+      "other_label": 99
+    },
+    "C 2018-15-02-2018": {
+      "test_rows": 31936,
+      "same_label": 923,
+      "other_label": 173
+    },
+    "C 2018-21-02-2018": {
+      "test_rows": 24922,
+      "same_label": 0,
+      "other_label": 370
+    },
+    "C 2018-23-02-2018": {
+      "test_rows": 14194,
+      "same_label": 962,
+      "other_label": 249
+    }
+  },
+  "benign_diversity": {
+    "2017 Friday": {
+      "benign_rows": 35723,
+      "top_pattern_share": 0.0504,
+      "distinct_patterns": 9791
+    },
+    "2017 Monday": {
+      "benign_rows": 12022,
+      "top_pattern_share": 0.0169,
+      "distinct_patterns": 4627
+    },
+    "2017 Thursday": {
+      "benign_rows": 21925,
+      "top_pattern_share": 0.0367,
+      "distinct_patterns": 7200
+    },
+    "2017 Tuesday": {
+      "benign_rows": 11888,
+      "top_pattern_share": 0.0191,
+      "distinct_patterns": 4320
+    },
+    "2017 Wednesday": {
+      "benign_rows": 11795,
+      "top_pattern_share": 0.0209,
+      "distinct_patterns": 4293
+    },
+    "2018 01-03-2018": {
+      "benign_rows": 13002,
+      "top_pattern_share": 0.0348,
+      "distinct_patterns": 2293
+    },
+    "2018 02-03-2018": {
+      "benign_rows": 14243,
+      "top_pattern_share": 0.04,
+      "distinct_patterns": 2494
+    },
+    "2018 14-02-2018": {
+      "benign_rows": 12835,
+      "top_pattern_share": 0.0396,
+      "distinct_patterns": 2333
+    },
+    "2018 15-02-2018": {
+      "benign_rows": 13089,
+      "top_pattern_share": 0.0358,
+      "distinct_patterns": 2609
+    },
+    "2018 21-02-2018": {
+      "benign_rows": 14999,
+      "top_pattern_share": 0.9929,
+      "distinct_patterns": 28
+    },
+    "2018 23-02-2018": {
+      "benign_rows": 13653,
+      "top_pattern_share": 0.0308,
+      "distinct_patterns": 2460
+    }
+  }
+}

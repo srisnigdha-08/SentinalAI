@@ -1,0 +1,46 @@
+........................................................................ [ 12%]
+........................................................................ [ 24%]
+........................................................................ [ 36%]
+........................................................................ [ 48%]
+........................................................................ [ 60%]
+........................................................................ [ 72%]
+........................................................................ [ 84%]
+........................................................................ [ 96%]
+..................                                                       [100%]
+============================== warnings summary ===============================
+utils\features.py:6
+  C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\utils\features.py:6: DeprecationWarning: 
+  Pyarrow will become a required dependency of pandas in the next major release of pandas (pandas 3.0),
+  (to allow more performant data types, such as the Arrow string type, and better interoperability with other libraries)
+  but was not found to be installed on your system.
+  If this would cause problems for you,
+  please provide us feedback at https://github.com/pandas-dev/pandas/issues/54466
+          
+    import pandas as pd
+
+tests/test_data_pipeline_integrity.py::TestDataPipelineIntegrity::test_omitted_traffic_file_wednesday_2018_schema_and_mapping
+  C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\experiments\gate1_phase8_multicorpus_candidates\build_multicorpus_pipeline.py:197: UserWarning: Parsing dates in %d/%m/%Y %H:%M:%S format when dayfirst=False (the default) was specified. Pass `dayfirst=True` or specify a format to silence this warning.
+    dt = pd.to_datetime(raw_df[ts_col], errors="coerce")
+
+tests/test_gate1_ml_remediation.py::test_candidate_rf_multicorpus_v1_missing_classes_audit
+  C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\.venv\Lib\site-packages\sklearn\base.py:376: InconsistentVersionWarning: Trying to unpickle estimator StandardScaler from version 1.7.2 when using version 1.4.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+  https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+    warnings.warn(
+
+tests/test_gate1_ml_remediation.py::test_candidate_rf_multicorpus_v1_missing_classes_audit
+  C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\.venv\Lib\site-packages\sklearn\base.py:376: InconsistentVersionWarning: Trying to unpickle estimator DecisionTreeClassifier from version 1.7.2 when using version 1.4.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+  https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+    warnings.warn(
+
+tests/test_gate1_ml_remediation.py::test_candidate_rf_multicorpus_v1_missing_classes_audit
+  C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\.venv\Lib\site-packages\sklearn\base.py:376: InconsistentVersionWarning: Trying to unpickle estimator RandomForestClassifier from version 1.7.2 when using version 1.4.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+  https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+    warnings.warn(
+
+tests/test_gate1_ml_remediation.py::test_candidate_rf_multicorpus_v1_missing_classes_audit
+  C:\Users\srisn\Desktop\Projects\sentinelai-complete\ai-engine\.venv\Lib\site-packages\sklearn\base.py:376: InconsistentVersionWarning: Trying to unpickle estimator Pipeline from version 1.7.2 when using version 1.4.0. This might lead to breaking code or invalid results. Use at your own risk. For more info please refer to:
+  https://scikit-learn.org/stable/model_persistence.html#security-maintainability-limitations
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+594 passed, 6 warnings in 259.21s (0:04:19)

@@ -9,6 +9,7 @@
 // Configure environment with low rate limit threshold before importing app
 process.env.RATE_LIMIT_WINDOW_MS = '60000'
 process.env.RATE_LIMIT_MAX = '5'
+process.env.RATE_LIMIT_MACHINE_MAX = '10'
 process.env.JWT_SECRET = 'test-jwt-secret'
 process.env.JWT_REFRESH_SECRET = 'test-refresh-secret'
 process.env.JWT_EXPIRES_IN = '1d'
@@ -56,11 +57,24 @@ describe('Global Rate Limiter (Phase 1.1)', () => {
     expect(blockedRes.body.error).toMatch(/too many requests/i)
   })
 
-  test('allows internal services with valid X-API-Key to skip rate limiting', async () => {
-    // Send 7 requests with valid internal API key - none should be blocked by rate limit
+  test('internal services with a valid X-API-Key are not bound by the per-IP user limit', async () => {
+    // Send 7 requests with valid internal API key - beyond RATE_LIMIT_MAX (5) but within the service budget
     for (let i = 0; i < 7; i++) {
       const res = await request(app).get('/api/ws/stats').set('X-API-Key', 'test-honeypot-key-xyz')
       expect(res.status).not.toBe(429)
     }
+  })
+
+  test('a valid service key has its own budget and is throttled when it is exhausted (M13)', async () => {
+    // The honeypot key already used 7 of its 10 in the previous test.
+    for (let i = 0; i < 3; i++) {
+      const res = await request(app).get('/api/ws/stats').set('X-API-Key', 'test-honeypot-key-xyz')
+      expect(res.status).not.toBe(429)
+    }
+    const blocked = await request(app).get('/api/ws/stats').set('X-API-Key', 'test-honeypot-key-xyz')
+    expect(blocked.status).toBe(429)
+    // The sentinel key is counted separately
+    const other = await request(app).get('/api/ws/stats').set('X-API-Key', 'test-sentinel-key-xyz')
+    expect(other.status).not.toBe(429)
   })
 })

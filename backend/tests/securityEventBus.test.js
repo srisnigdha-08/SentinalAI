@@ -1,6 +1,6 @@
 'use strict'
 
-const { SecurityEventBus, sanitizePayload, ALLOWED_EVENT_TYPES } = require('../utils/securityEventBus')
+const { SecurityEventBus, sanitizePayload } = require('../utils/securityEventBus')
 
 describe('Phase 6D — Security Event Distribution & Reliability Tests', () => {
   let bus

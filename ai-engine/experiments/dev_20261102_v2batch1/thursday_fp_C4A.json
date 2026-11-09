@@ -1,0 +1,520 @@
+{
+ "candidate": "C4A",
+ "thursday_rows": 24104,
+ "benign": 21925,
+ "fp": 920,
+ "fp_pred_class": {
+  "Port Scan": 823,
+  "DDoS": 45,
+  "Lateral Movement": 40,
+  "SSH Brute Force": 6,
+  "Malware Beacon": 5,
+  "FTP Brute Force": 1
+ },
+ "fp_by_file": {
+  "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": 890,
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": 30
+ },
+ "benign_by_file": {
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": 11829,
+  "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": 10096
+ },
+ "attack_by_file_raw": {
+  "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv | infiltration": 36,
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv | web attack brute force": 1470,
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv | web attack sql injection": 21,
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv | web attack xss": 652
+ },
+ "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": {
+  "file_rows": 288602,
+  "fp_port_scan": {
+   "rows": 823,
+   "distinct_dst_ports": 568,
+   "top_dst_ports": {
+    "8090": 5,
+    "6789": 4,
+    "7201": 4,
+    "54328": 4,
+    "80": 4,
+    "53": 4
+   },
+   "share_dst_port_ge_1024": 0.857,
+   "row_position_first_last": [
+    0.174,
+    0.771
+   ],
+   "row_position_histogram_20_bins": [
+    0,
+    0,
+    0,
+    27,
+    0,
+    0,
+    0,
+    1,
+    54,
+    143,
+    67,
+    137,
+    105,
+    114,
+    141,
+    34,
+    0,
+    0,
+    0,
+    0
+   ]
+  },
+  "fp_other": {
+   "rows": 67,
+   "distinct_dst_ports": 31,
+   "top_dst_ports": {
+    "80": 11,
+    "443": 9,
+    "139": 9,
+    "445": 5,
+    "135": 4,
+    "21": 3
+   },
+   "share_dst_port_ge_1024": 0.343,
+   "row_position_first_last": [
+    0.08,
+    0.999
+   ],
+   "row_position_histogram_20_bins": [
+    0,
+    1,
+    3,
+    3,
+    3,
+    2,
+    0,
+    0,
+    5,
+    4,
+    10,
+    4,
+    6,
+    8,
+    8,
+    1,
+    1,
+    2,
+    1,
+    5
+   ]
+  },
+  "benign_correct": {
+   "rows": 9206,
+   "distinct_dst_ports": 1432,
+   "top_dst_ports": {
+    "53": 4285,
+    "443": 2100,
+    "80": 1051,
+    "22": 55,
+    "123": 42,
+    "389": 27
+   },
+   "share_dst_port_ge_1024": 0.164,
+   "row_position_first_last": [
+    0.0,
+    1.0
+   ],
+   "row_position_histogram_20_bins": [
+    574,
+    617,
+    610,
+    545,
+    605,
+    504,
+    603,
+    528,
+    273,
+    216,
+    308,
+    256,
+    212,
+    288,
+    209,
+    505,
+    585,
+    598,
+    589,
+    581
+   ]
+  },
+  "attack": {
+   "rows": 36,
+   "distinct_dst_ports": 1,
+   "top_dst_ports": {
+    "444": 36
+   },
+   "share_dst_port_ge_1024": 0.0,
+   "row_position_first_last": [
+    0.23,
+    0.779
+   ],
+   "row_position_histogram_20_bins": [
+    0,
+    0,
+    0,
+    0,
+    2,
+    13,
+    3,
+    1,
+    2,
+    2,
+    2,
+    3,
+    2,
+    2,
+    2,
+    2,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": {
+  "file_rows": 170366,
+  "fp_other": {
+   "rows": 30,
+   "distinct_dst_ports": 14,
+   "top_dst_ports": {
+    "443": 10,
+    "80": 7,
+    "22": 2,
+    "21": 1,
+    "46512": 1,
+    "59417": 1
+   },
+   "share_dst_port_ge_1024": 0.333,
+   "row_position_first_last": [
+    0.022,
+    0.969
+   ],
+   "row_position_histogram_20_bins": [
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    1,
+    0,
+    1,
+    5,
+    0,
+    0,
+    0,
+    3,
+    3,
+    1,
+    2,
+    2,
+    4,
+    2
+   ]
+  },
+  "benign_correct": {
+   "rows": 11799,
+   "distinct_dst_ports": 1680,
+   "top_dst_ports": {
+    "53": 5567,
+    "443": 2606,
+    "80": 1350,
+    "123": 263,
+    "22": 64,
+    "389": 50
+   },
+   "share_dst_port_ge_1024": 0.148,
+   "row_position_first_last": [
+    0.0,
+    1.0
+   ],
+   "row_position_histogram_20_bins": [
+    627,
+    591,
+    560,
+    582,
+    590,
+    587,
+    545,
+    612,
+    580,
+    597,
+    590,
+    571,
+    583,
+    576,
+    598,
+    594,
+    636,
+    601,
+    595,
+    584
+   ]
+  },
+  "attack": {
+   "rows": 2143,
+   "distinct_dst_ports": 1,
+   "top_dst_ports": {
+    "80": 2143
+   },
+   "share_dst_port_ge_1024": 0.0,
+   "row_position_first_last": [
+    0.074,
+    0.548
+   ],
+   "row_position_histogram_20_bins": [
+    0,
+    13,
+    288,
+    270,
+    207,
+    317,
+    260,
+    115,
+    215,
+    379,
+    79,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0,
+    0
+   ]
+  }
+ },
+ "shape_fp_port_scan": {
+  "total_fwd_packets": {
+   "median": 2.0,
+   "p90": 2.0
+  },
+  "total_bwd_packets": {
+   "median": 2.0,
+   "p90": 2.0
+  },
+  "flow_duration": {
+   "median": 69.0,
+   "p90": 106.0
+  },
+  "init_win_bytes_forward": {
+   "median": 1024.0,
+   "p90": 1024.0
+  },
+  "init_win_bytes_backward": {
+   "median": 0.0,
+   "p90": 0.0
+  },
+  "total_len_fwd_packets": {
+   "median": 4.0,
+   "p90": 4.0
+  },
+  "total_len_bwd_packets": {
+   "median": 12.0,
+   "p90": 12.0
+  }
+ },
+ "shape_thursday_benign_correct": {
+  "total_fwd_packets": {
+   "median": 2.0,
+   "p90": 16.0
+  },
+  "total_bwd_packets": {
+   "median": 2.0,
+   "p90": 14.0
+  },
+  "flow_duration": {
+   "median": 37658.0,
+   "p90": 61294035.20000001
+  },
+  "init_win_bytes_forward": {
+   "median": 0.0,
+   "p90": 29200.0
+  },
+  "init_win_bytes_backward": {
+   "median": -1.0,
+   "p90": 1024.0
+  },
+  "total_len_fwd_packets": {
+   "median": 70.0,
+   "p90": 1081.6000000000022
+  },
+  "total_len_bwd_packets": {
+   "median": 151.0,
+   "p90": 4902.200000000004
+  }
+ },
+ "shape_portscan_training": {
+  "total_fwd_packets": {
+   "median": 1.0,
+   "p90": 3.0
+  },
+  "total_bwd_packets": {
+   "median": 1.0,
+   "p90": 1.0
+  },
+  "flow_duration": {
+   "median": 88.5,
+   "p90": 977.5
+  },
+  "init_win_bytes_forward": {
+   "median": 29200.0,
+   "p90": 29200.0
+  },
+  "init_win_bytes_backward": {
+   "median": 0.0,
+   "p90": 28960.0
+  },
+  "total_len_fwd_packets": {
+   "median": 0.0,
+   "p90": 2.0
+  },
+  "total_len_bwd_packets": {
+   "median": 6.0,
+   "p90": 6.0
+  }
+ },
+ "ks_fp_port_scan_vs_portscan_training": {
+  "total_fwd_packets": 0.723,
+  "total_bwd_packets": 0.887,
+  "flow_duration": 0.314,
+  "init_win_bytes_forward": 0.558,
+  "init_win_bytes_backward": 0.186,
+  "total_len_fwd_packets": 0.881,
+  "total_len_bwd_packets": 0.901
+ },
+ "ks_fp_port_scan_vs_thursday_benign_correct": {
+  "total_fwd_packets": 0.351,
+  "total_bwd_packets": 0.363,
+  "flow_duration": 0.85,
+  "init_win_bytes_forward": 0.693,
+  "init_win_bytes_backward": 0.586,
+  "total_len_fwd_packets": 0.905,
+  "total_len_bwd_packets": 0.736
+ },
+ "fp_port_scan_p_attack_q": {
+  "0.1": 0.516,
+  "0.5": 0.555,
+  "0.9": 0.656
+ },
+ "fp_port_scan_distinct_vectors": 823,
+ "fp_port_scan_distinct_shapes": 3,
+ "fp_port_scan_top_shapes": {
+  "(2, 2, 1024, 0)": 795,
+  "(1, 1, 1024, 0)": 27,
+  "(1, 1, 65535, 0)": 1
+ },
+ "raw_probe_signature_by_file": {
+  "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": {
+   "rows": 225745,
+   "signature_rows": 2,
+   "by_label": {
+    "BENIGN": 2
+   },
+   "distinct_dst_ports": 1,
+   "position_p05_p95": [
+    0.886,
+    0.955
+   ]
+  },
+  "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": {
+   "rows": 286467,
+   "signature_rows": 77987,
+   "by_label": {
+    "PortScan": 77984,
+    "BENIGN": 3
+   },
+   "distinct_dst_ports": 995,
+   "position_p05_p95": [
+    0.32,
+    0.957
+   ]
+  },
+  "Friday-WorkingHours-Morning.pcap_ISCX.csv": {
+   "rows": 191033,
+   "signature_rows": 5,
+   "by_label": {
+    "BENIGN": 5
+   },
+   "distinct_dst_ports": 4,
+   "position_p05_p95": [
+    0.137,
+    0.961
+   ]
+  },
+  "Monday-WorkingHours.pcap_ISCX.csv": {
+   "rows": 529918,
+   "signature_rows": 14,
+   "by_label": {
+    "BENIGN": 14
+   },
+   "distinct_dst_ports": 4,
+   "position_p05_p95": [
+    0.225,
+    0.607
+   ]
+  },
+  "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": {
+   "rows": 288602,
+   "signature_rows": 63022,
+   "by_label": {
+    "BENIGN": 63022
+   },
+   "distinct_dst_ports": 1001,
+   "position_p05_p95": [
+    0.403,
+    0.749
+   ],
+   "infiltration_label_position_range": [
+    0.23,
+    0.779
+   ]
+  },
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": {
+   "rows": 170366,
+   "signature_rows": 15,
+   "by_label": {
+    "BENIGN": 15
+   },
+   "distinct_dst_ports": 2,
+   "position_p05_p95": [
+    0.04,
+    0.972
+   ]
+  },
+  "Tuesday-WorkingHours.pcap_ISCX.csv": {
+   "rows": 445909,
+   "signature_rows": 13,
+   "by_label": {
+    "BENIGN": 13
+   },
+   "distinct_dst_ports": 4,
+   "position_p05_p95": [
+    0.107,
+    0.449
+   ]
+  },
+  "Wednesday-workingHours.pcap_ISCX.csv": {
+   "rows": 692703,
+   "signature_rows": 21,
+   "by_label": {
+    "BENIGN": 21
+   },
+   "distinct_dst_ports": 7,
+   "position_p05_p95": [
+    0.325,
+    0.908
+   ]
+  }
+ }
+}

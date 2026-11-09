@@ -1,0 +1,531 @@
+{
+ "top_benign_pattern_by_day": {
+  "01-03-2018": [
+   8192,
+   62868,
+   8,
+   661
+  ],
+  "02-03-2018": [
+   8192,
+   62872,
+   8,
+   661
+  ],
+  "14-02-2018": [
+   279,
+   -1,
+   2,
+   0
+  ],
+  "15-02-2018": [
+   8192,
+   149,
+   3,
+   161
+  ],
+  "21-02-2018": [
+   65535,
+   32768,
+   5,
+   935
+  ],
+  "23-02-2018": [
+   279,
+   -1,
+   2,
+   0
+  ]
+ },
+ "C4": {
+  "2018-01-03-2018": {
+   "benign": 13002,
+   "fp": 218,
+   "fp_distinct_vectors": 218,
+   "fp_distinct_patterns": 59,
+   "fp_top5_patterns_share": 0.55,
+   "fp_pred_class": {
+    "Web Brute Force": 104,
+    "DDoS": 43,
+    "SSH Brute Force": 29,
+    "Malware Beacon": 25,
+    "FTP Brute Force": 11
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.572,
+    "0.5": 0.71,
+    "0.9": 0.964
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.0001,
+    "0.9": 0.0091,
+    "0.99": 0.5724
+   },
+   "fpr_in_day_top_pattern": 0.0,
+   "fpr_outside_top_pattern": 0.0174,
+   "benign_in_top_pattern": 453,
+   "fp_top_winpairs": {
+    "(-1, -1)": 88,
+    "(29200, 230)": 41,
+    "(253, -1)": 8
+   },
+   "attack_recall_by_raw": {
+    "infilteration": [
+     0.023,
+     7548
+    ]
+   }
+  },
+  "2018-02-03-2018": {
+   "benign": 14243,
+   "fp": 500,
+   "fp_distinct_vectors": 500,
+   "fp_distinct_patterns": 154,
+   "fp_top5_patterns_share": 0.378,
+   "fp_pred_class": {
+    "Lateral Movement": 359,
+    "DDoS": 92,
+    "SQL Injection": 23,
+    "XSS Attempt": 18,
+    "Web Brute Force": 8
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.507,
+    "0.5": 0.553,
+    "0.9": 0.958
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.1574,
+    "0.9": 0.3752,
+    "0.99": 0.6417
+   },
+   "fpr_in_day_top_pattern": 0.1211,
+   "fpr_outside_top_pattern": 0.0315,
+   "benign_in_top_pattern": 570,
+   "fp_top_winpairs": {
+    "(-1, -1)": 84,
+    "(8192, 62872)": 75,
+    "(256, -1)": 28
+   },
+   "attack_recall_by_raw": {
+    "bot": [
+     0.608,
+     5610
+    ]
+   }
+  },
+  "2018-14-02-2018": {
+   "benign": 12835,
+   "fp": 138,
+   "fp_distinct_vectors": 138,
+   "fp_distinct_patterns": 54,
+   "fp_top5_patterns_share": 0.457,
+   "fp_pred_class": {
+    "DDoS": 80,
+    "Lateral Movement": 32,
+    "Malware Beacon": 18,
+    "XSS Attempt": 5,
+    "SQL Injection": 2
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.543,
+    "0.5": 0.948,
+    "0.9": 0.965
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.1239,
+    "0.9": 0.2851,
+    "0.99": 0.5083
+   },
+   "fpr_in_day_top_pattern": 0.0197,
+   "fpr_outside_top_pattern": 0.0104,
+   "benign_in_top_pattern": 508,
+   "fp_top_winpairs": {
+    "(253, -1)": 18,
+    "(278, -1)": 16,
+    "(256, -1)": 11
+   },
+   "attack_recall_by_raw": {
+    "ftp bruteforce": [
+     0.949,
+     39
+    ],
+    "ssh bruteforce": [
+     0.012,
+     5045
+    ]
+   }
+  },
+  "2018-15-02-2018": {
+   "benign": 13089,
+   "fp": 913,
+   "fp_distinct_vectors": 913,
+   "fp_distinct_patterns": 380,
+   "fp_top5_patterns_share": 0.34,
+   "fp_pred_class": {
+    "Lateral Movement": 715,
+    "DDoS": 112,
+    "Malware Beacon": 44,
+    "XSS Attempt": 25,
+    "Web Brute Force": 10
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.506,
+    "0.5": 0.588,
+    "0.9": 0.968
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.2072,
+    "0.9": 0.4216,
+    "0.99": 0.9487
+   },
+   "fpr_in_day_top_pattern": 0.1709,
+   "fpr_outside_top_pattern": 0.066,
+   "benign_in_top_pattern": 468,
+   "fp_top_winpairs": {
+    "(14600, -1)": 157,
+    "(8192, 149)": 101,
+    "(-1, -1)": 65
+   },
+   "attack_recall_by_raw": {
+    "dos attacks goldeneye": [
+     0.182,
+     9993
+    ],
+    "dos attacks slowloris": [
+     0.982,
+     8854
+    ]
+   }
+  },
+  "2018-21-02-2018": {
+   "benign": 14999,
+   "fp": 3647,
+   "fp_distinct_vectors": 3647,
+   "fp_distinct_patterns": 3,
+   "fp_top5_patterns_share": 1.0,
+   "fp_pred_class": {
+    "Malware Beacon": 2957,
+    "Lateral Movement": 689,
+    "Web Brute Force": 1
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.684,
+    "0.5": 0.807,
+    "0.9": 0.887
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.2424,
+    "0.9": 0.8262,
+    "0.99": 0.9134
+   },
+   "fpr_in_day_top_pattern": 0.2448,
+   "fpr_outside_top_pattern": 0.0187,
+   "benign_in_top_pattern": 14892,
+   "fp_top_winpairs": {
+    "(65535, 32768)": 3645,
+    "(-1, -1)": 2
+   },
+   "attack_recall_by_raw": {
+    "ddos attack hoic": [
+     0.304,
+     8193
+    ],
+    "ddos attack loic udp": [
+     0.0,
+     1730
+    ]
+   }
+  },
+  "2018-23-02-2018": {
+   "benign": 13653,
+   "fp": 157,
+   "fp_distinct_vectors": 157,
+   "fp_distinct_patterns": 53,
+   "fp_top5_patterns_share": 0.446,
+   "fp_pred_class": {
+    "DDoS": 91,
+    "Lateral Movement": 51,
+    "Malware Beacon": 10,
+    "FTP Brute Force": 3,
+    "Web Brute Force": 1
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.516,
+    "0.5": 0.944,
+    "0.9": 0.964
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.0925,
+    "0.9": 0.2831,
+    "0.99": 0.5295
+   },
+   "fpr_in_day_top_pattern": 0.031,
+   "fpr_outside_top_pattern": 0.0109,
+   "benign_in_top_pattern": 420,
+   "fp_top_winpairs": {
+    "(-1, -1)": 21,
+    "(278, -1)": 15,
+    "(279, -1)": 13
+   },
+   "attack_recall_by_raw": {
+    "brute force web": [
+     0.4,
+     340
+    ],
+    "brute force xss": [
+     0.613,
+     150
+    ],
+    "sql injection": [
+     0.608,
+     51
+    ]
+   }
+  }
+ },
+ "C4A": {
+  "2018-01-03-2018": {
+   "benign": 13002,
+   "fp": 105,
+   "fp_distinct_vectors": 105,
+   "fp_distinct_patterns": 42,
+   "fp_top5_patterns_share": 0.419,
+   "fp_pred_class": {
+    "SSH Brute Force": 36,
+    "Web Brute Force": 23,
+    "DDoS": 17,
+    "Malware Beacon": 11,
+    "XSS Attempt": 9
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.632,
+    "0.5": 0.946,
+    "0.9": 0.994
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.0,
+    "0.9": 0.0075,
+    "0.99": 0.4283
+   },
+   "fpr_in_day_top_pattern": 0.0,
+   "fpr_outside_top_pattern": 0.0084,
+   "benign_in_top_pattern": 453,
+   "fp_top_winpairs": {
+    "(29200, 230)": 42,
+    "(29200, 233)": 7,
+    "(-1, -1)": 7
+   },
+   "attack_recall_by_raw": {
+    "infilteration": [
+     0.015,
+     7548
+    ]
+   }
+  },
+  "2018-02-03-2018": {
+   "benign": 14243,
+   "fp": 376,
+   "fp_distinct_vectors": 376,
+   "fp_distinct_patterns": 106,
+   "fp_top5_patterns_share": 0.497,
+   "fp_pred_class": {
+    "Lateral Movement": 362,
+    "DDoS": 13,
+    "SQL Injection": 1
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.511,
+    "0.5": 0.539,
+    "0.9": 0.641
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.1551,
+    "0.9": 0.3636,
+    "0.99": 0.5594
+   },
+   "fpr_in_day_top_pattern": 0.1579,
+   "fpr_outside_top_pattern": 0.0209,
+   "benign_in_top_pattern": 570,
+   "fp_top_winpairs": {
+    "(8192, 62872)": 90,
+    "(-1, -1)": 84,
+    "(8192, 62852)": 21
+   },
+   "attack_recall_by_raw": {
+    "bot": [
+     0.947,
+     5610
+    ]
+   }
+  },
+  "2018-14-02-2018": {
+   "benign": 12835,
+   "fp": 53,
+   "fp_distinct_vectors": 53,
+   "fp_distinct_patterns": 41,
+   "fp_top5_patterns_share": 0.302,
+   "fp_pred_class": {
+    "Lateral Movement": 40,
+    "DDoS": 7,
+    "Malware Beacon": 4,
+    "XSS Attempt": 2
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.514,
+    "0.5": 0.592,
+    "0.9": 0.814
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.1208,
+    "0.9": 0.2778,
+    "0.99": 0.4274
+   },
+   "fpr_in_day_top_pattern": 0.0,
+   "fpr_outside_top_pattern": 0.0043,
+   "benign_in_top_pattern": 508,
+   "fp_top_winpairs": {
+    "(0, -1)": 9,
+    "(256, -1)": 4,
+    "(253, -1)": 4
+   },
+   "attack_recall_by_raw": {
+    "ftp bruteforce": [
+     0.923,
+     39
+    ],
+    "ssh bruteforce": [
+     0.736,
+     5045
+    ]
+   }
+  },
+  "2018-15-02-2018": {
+   "benign": 13089,
+   "fp": 671,
+   "fp_distinct_vectors": 671,
+   "fp_distinct_patterns": 338,
+   "fp_top5_patterns_share": 0.262,
+   "fp_pred_class": {
+    "Lateral Movement": 617,
+    "Malware Beacon": 18,
+    "SQL Injection": 14,
+    "DDoS": 13,
+    "XSS Attempt": 7
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.514,
+    "0.5": 0.588,
+    "0.9": 0.823
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.2112,
+    "0.9": 0.3916,
+    "0.99": 0.7276
+   },
+   "fpr_in_day_top_pattern": 0.1282,
+   "fpr_outside_top_pattern": 0.0484,
+   "benign_in_top_pattern": 468,
+   "fp_top_winpairs": {
+    "(8192, 149)": 80,
+    "(-1, -1)": 80,
+    "(256, -1)": 44
+   },
+   "attack_recall_by_raw": {
+    "dos attacks goldeneye": [
+     0.774,
+     9993
+    ],
+    "dos attacks slowloris": [
+     0.985,
+     8854
+    ]
+   }
+  },
+  "2018-21-02-2018": {
+   "benign": 14999,
+   "fp": 8,
+   "fp_distinct_vectors": 8,
+   "fp_distinct_patterns": 5,
+   "fp_top5_patterns_share": 1.0,
+   "fp_pred_class": {
+    "DDoS": 4,
+    "Web Brute Force": 2,
+    "Lateral Movement": 2
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.522,
+    "0.5": 0.566,
+    "0.9": 0.691
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.0429,
+    "0.9": 0.0608,
+    "0.99": 0.0699
+   },
+   "fpr_in_day_top_pattern": 0.0,
+   "fpr_outside_top_pattern": 0.0748,
+   "benign_in_top_pattern": 14892,
+   "fp_top_winpairs": {
+    "(27200, 210)": 4,
+    "(-1, -1)": 2,
+    "(14600, 230)": 1
+   },
+   "attack_recall_by_raw": {
+    "ddos attack hoic": [
+     0.059,
+     8193
+    ],
+    "ddos attack loic udp": [
+     0.0,
+     1730
+    ]
+   }
+  },
+  "2018-23-02-2018": {
+   "benign": 13653,
+   "fp": 56,
+   "fp_distinct_vectors": 56,
+   "fp_distinct_patterns": 38,
+   "fp_top5_patterns_share": 0.357,
+   "fp_pred_class": {
+    "Lateral Movement": 46,
+    "DDoS": 6,
+    "Malware Beacon": 3,
+    "FTP Brute Force": 1
+   },
+   "fp_p_attack_q": {
+    "0.1": 0.513,
+    "0.5": 0.628,
+    "0.9": 0.835
+   },
+   "benign_p_attack_q": {
+    "0.5": 0.0897,
+    "0.9": 0.2778,
+    "0.99": 0.4436
+   },
+   "fpr_in_day_top_pattern": 0.0,
+   "fpr_outside_top_pattern": 0.0042,
+   "benign_in_top_pattern": 420,
+   "fp_top_winpairs": {
+    "(0, -1)": 9,
+    "(29200, -1)": 6,
+    "(8192, 0)": 4
+   },
+   "attack_recall_by_raw": {
+    "brute force web": [
+     0.438,
+     340
+    ],
+    "brute force xss": [
+     0.773,
+     150
+    ],
+    "sql injection": [
+     0.843,
+     51
+    ]
+   }
+  }
+ }
+}

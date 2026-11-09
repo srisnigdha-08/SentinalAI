@@ -5,6 +5,7 @@ const { protect } = require('../middleware/auth')
 const { validateObjectId } = require('../middleware/validate')
 const { sendSuccess } = require('../utils/apiResponse')
 const { parsePagination } = require('../utils/querySecurity')
+const { redactCampaign } = require('../utils/redact')
 
 router.use(protect)
 
@@ -42,7 +43,9 @@ router.get('/', async (req, res, next) => {
       maxLimit: 100,
     })
     const campaigns = await Campaign.find().populate('sessions').sort({ lastSeen: -1 }).skip(skip).limit(safeLimit)
-    sendSuccess(res, campaigns)
+    const role = req.user?.role || 'viewer'
+    const safeData = campaigns.map((c) => redactCampaign(c, role))
+    sendSuccess(res, safeData)
   } catch (err) {
     next(err)
   }
@@ -84,7 +87,8 @@ router.get('/:id', validateObjectId, async (req, res, next) => {
     if (!campaign) {
       return res.status(404).json({ success: false, error: 'Campaign not found' })
     }
-    sendSuccess(res, campaign)
+    const role = req.user?.role || 'viewer'
+    sendSuccess(res, redactCampaign(campaign, role))
   } catch (err) {
     next(err)
   }
