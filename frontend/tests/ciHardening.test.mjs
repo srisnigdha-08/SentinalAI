@@ -31,7 +31,7 @@ test('every action is pinned to a full commit SHA', () => {
 
 test('every workflow defaults to a read-only token', () => {
   for (const { name, text } of workflows) {
-    assert.match(text, /^permissions:\r?\n  contents: read\r?$/m, `${name} has no read-only top-level permissions`)
+    assert.match(text, /^permissions:\r?\n {2}contents: read\r?$/m, `${name} has no read-only top-level permissions`)
     assert.doesNotMatch(text, /write-all|pull_request_target/, name)
   }
 })
