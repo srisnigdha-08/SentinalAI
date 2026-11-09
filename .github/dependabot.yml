@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      compatible:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      # Jest 30.5 breaks loading puppeteer-core in the browser suite (CI-003)
+      - dependency-name: jest
+        versions:
+          - '>=30.5.0'
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      compatible:
+        update-types:
+          - minor
+          - patch
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
