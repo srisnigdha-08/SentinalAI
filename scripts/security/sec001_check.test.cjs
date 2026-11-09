@@ -6,7 +6,7 @@ const assert = require('node:assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { spawnSync } = require('child_process')
+const { runChild } = require('../test-support/run_child.cjs')
 
 const ROOT = path.resolve(__dirname, '..', '..')
 const req = (m) => require(require.resolve(m, { paths: [path.join(ROOT, 'backend')] }))
@@ -55,9 +55,9 @@ test('checker: flags valid leaked passwords and pre-change sessions, prints no s
     const before = JSON.stringify(await db.collection('users').find().toArray()) + (await db.collection('authsessions').countDocuments())
 
     const run = (dbName) =>
-      spawnSync(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', dbName, '--candidates-file', candidatesFile,
+      runChild(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', dbName, '--candidates-file', candidatesFile,
         ...['still-leaked', 'rotated', 'rotated-old-session'].flatMap((u) => ['--affected', 'sec001_synthetic/' + u + '@x.test'])], { encoding: 'utf8' })
-    const r = run('sec001_synthetic')
+    const r = await run('sec001_synthetic')
     const out = r.stdout + r.stderr
     assert.strictEqual(r.status, 1, out)
     assert.match(out, /OPEN\s+still-leaked@x\.test.*leaked password valid: YES/)
@@ -72,7 +72,7 @@ test('checker: flags valid leaked passwords and pre-change sessions, prints no s
 
     // all clear -> exit 0
     await client.db('sec001_clean').collection('users').insertOne({ email: 'ok@x.test', role: 'viewer', status: 'active', password: hashOther })
-    const clean = run('sec001_clean')
+    const clean = await run('sec001_clean')
     assert.strictEqual(clean.status, 0, clean.stdout + clean.stderr)
     await client.close()
   } finally {
@@ -106,23 +106,23 @@ test('only affected records decide: unaffected accounts with sessions are "not a
       { user: ids[1], revokedAt: null, expiresAt: future, createdAt: new Date() },
     ])
     const run = (affected) =>
-      spawnSync(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', 'scope_db',
+      runChild(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', 'scope_db',
         '--candidates-file', cand, ...affected.flatMap((a) => ['--affected', a])], { encoding: 'utf8' })
 
-    const ok = run(['scope_db/affected@x.test'])
+    const ok = await run(['scope_db/affected@x.test'])
     assert.strictEqual(ok.status, 0, ok.stdout + ok.stderr)
     assert.match(ok.stdout, /ok\s+affected@x\.test/)
     assert.match(ok.stdout, /n\/a\s+unaffected@x\.test/)
     assert.match(ok.stdout, /affected records: 1 checked, 0 open/)
 
     // an affected record listed but absent from the database is never silently "resolved"
-    const missing = run(['scope_db/affected@x.test', 'scope_db/gone@x.test'])
+    const missing = await run(['scope_db/affected@x.test', 'scope_db/gone@x.test'])
     assert.strictEqual(missing.status, 1, missing.stdout)
     assert.match(missing.stdout, /MISSING\s+gone@x\.test/)
 
     // a leaked password that still works counts even when the record is not on the affected list
     await db.collection('users').insertOne({ email: 'surprise@x.test', role: 'viewer', status: 'active', password: await bcrypt.hash(leaked, 4) })
-    const surprise = run(['scope_db/affected@x.test'])
+    const surprise = await run(['scope_db/affected@x.test'])
     assert.strictEqual(surprise.status, 1)
     assert.match(surprise.stdout, /OPEN\s+surprise@x\.test.*leaked password valid: YES/)
     await client.close()
@@ -132,11 +132,11 @@ test('only affected records decide: unaffected accounts with sessions are "not a
   }
 })
 
-test('no candidates -> error exit, never "resolved"', () => {
+test('no candidates -> error exit, never "resolved"', async () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sec001-empty-'))
   const f = path.join(tmp, 'c.txt')
   fs.writeFileSync(f, '')
-  const r = spawnSync(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', 'mongodb://127.0.0.1:1', '--candidates-file', f], { encoding: 'utf8' })
+  const r = await runChild(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', 'mongodb://127.0.0.1:1', '--candidates-file', f], { encoding: 'utf8' })
   fs.rmSync(tmp, { recursive: true, force: true })
   assert.strictEqual(r.status, 2)
   assert.match(r.stderr, /refusing to report "resolved"/)

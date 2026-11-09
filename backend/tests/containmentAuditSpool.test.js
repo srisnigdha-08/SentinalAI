@@ -5,7 +5,7 @@
  * MongoDB is disposable. Guarantee under test: once logContainmentAudit has returned, the event survives a process
  * crash, is stored once, and keeps its order. A torn final line (crash during the write) loses only that line.
  */
-const { spawnSync } = require('child_process')
+const { runChild } = require('../../scripts/test-support/run_child.cjs')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
@@ -44,12 +44,11 @@ const PRELUDE = `
   const log = (action, id) => audit.logContainmentAudit({ action, containmentId: id, target: '198.51.100.9' });
   const die = () => process.kill(process.pid, 'SIGKILL');
 `
-function child(body, { db = dbName, env = {}, timeoutMs = 30000 } = {}) {
+async function child(body, { db = dbName, env = {}, timeoutMs = 30000 } = {}) {
   const script = `${PRELUDE}(async () => { await mongoose.connect(process.env.MONGO_URI); ${body} })()
     .catch((e) => { console.error(e); process.exit(3) })`
-  const result = spawnSync(process.execPath, ['-e', script], {
+  const result = await runChild(process.execPath, ['-e', script], {
     cwd: BACKEND,
-    encoding: 'utf8',
     env: {
       ...process.env,
       NODE_ENV: 'test',
@@ -58,9 +57,7 @@ function child(body, { db = dbName, env = {}, timeoutMs = 30000 } = {}) {
       CONTAINMENT_AUDIT_SPOOL_DIR: dir,
       ...env,
     },
-    // spawnSync blocks the event loop, so Jest's own timeout cannot fire while a child is stuck (CI run 42611611697).
-    timeout: timeoutMs,
-    killSignal: 'SIGKILL',
+    timeoutMs,
   })
   if (result.error) {
     throw new Error(
@@ -74,9 +71,9 @@ const RECOVER =
 const ACTIONS = ['CONTAINMENT_REQUESTED', 'CONTAINMENT_ACTIVE', 'ROLLBACK_INITIATED']
 const logAll = ACTIONS.map((a) => `log('${a}', 'CTN-1');`).join(' ')
 
-test('a child that never finishes fails fast and by name instead of freezing Jest', () => {
+test('a child that never finishes fails fast and by name instead of freezing Jest', async () => {
   const started = Date.now()
-  expect(() => child('await new Promise(() => setInterval(() => {}, 1000));', { timeoutMs: 2000 })).toThrow(
+  await expect(child('await new Promise(() => setInterval(() => {}, 1000));', { timeoutMs: 2000 })).rejects.toThrow(
     /did not finish within 2000 ms/
   )
   expect(Date.now() - started).toBeLessThan(15000)
@@ -94,13 +91,33 @@ test('no test can block Jest indefinitely on a synchronous child process', () =>
   expect(unbounded.map((file) => path.basename(file))).toEqual([])
 })
 
+test('a child that makes MongoDB log more than a pipe holds still finishes (CI run 42645350654)', async () => {
+  const r = await child(
+    `for (let i = 0; i < 300; i++) await mongoose.connection.db.createCollection('c' + i); await mongoose.disconnect(); process.exit(0);`
+  )
+  expect(r.status).toBe(0)
+})
+
+test('no test blocks this process on a child while holding an in-process MongoDB', () => {
+  const dirs = [__dirname, path.join(__dirname, 'helpers'), path.join(__dirname, '..', '..', 'scripts', 'security')]
+  const blocking = dirs
+    .flatMap((d) => fs.readdirSync(d).map((name) => path.join(d, name)))
+    .filter((file) => /\.test\.(js|cjs)$/.test(file) && file !== __filename)
+    .filter((file) => {
+      const text = fs.readFileSync(file, 'utf8')
+      return /MongoMemory/.test(text) && /\b(spawnSync|execSync)\(|\bexecFileSync\((?!'icacls')/.test(text)
+    })
+  expect(blocking.map((file) => path.basename(file))).toEqual([])
+  expect(fs.readFileSync(__filename, 'utf8')).not.toMatch(/require\('child_process'\)/)
+})
+
 test('killed during a MongoDB outage: events survive, are stored once and in order', async () => {
-  const crashed = child(`mongoose.connection.readyState = 0; ${logAll} die();`)
+  const crashed = await child(`mongoose.connection.readyState = 0; ${logAll} die();`)
   expect(crashed.status === 0).toBe(false)
   expect(fs.readFileSync(spool(), 'utf8').trim().split('\n')).toHaveLength(3)
   expect(await events()).toHaveLength(0)
 
-  const recovered = child(RECOVER)
+  const recovered = await child(RECOVER)
   expect(recovered.status).toBe(0)
   const stored = await events()
   expect(stored.map((e) => e.action)).toEqual(ACTIONS)
@@ -109,45 +126,46 @@ test('killed during a MongoDB outage: events survive, are stored once and in ord
 })
 
 test('killed immediately after logging with MongoDB up: nothing is lost and nothing is duplicated', async () => {
-  child(`${logAll} die();`)
-  expect(child(RECOVER).status).toBe(0)
+  await child(`${logAll} die();`)
+  expect((await child(RECOVER)).status).toBe(0)
   expect((await events()).map((e) => e.action)).toEqual(ACTIONS)
 })
 
 test('replaying a spool whose events are already stored adds nothing', async () => {
-  expect(child(`${logAll} await audit.settleContainmentAudit(); die();`).status === 0).toBe(false)
+  expect((await child(`${logAll} await audit.settleContainmentAudit(); die();`)).status === 0).toBe(false)
   const before = await events()
   expect(before).toHaveLength(3)
-  expect(child(RECOVER).status).toBe(0)
-  expect(child(RECOVER).status).toBe(0)
+  expect((await child(RECOVER)).status).toBe(0)
+  expect((await child(RECOVER)).status).toBe(0)
   expect((await events()).map((e) => e.eventId)).toEqual(before.map((e) => e.eventId))
 })
 
 test('a torn final line from a crash mid-write loses only that line', async () => {
-  child(`mongoose.connection.readyState = 0; ${logAll} die();`)
+  await child(`mongoose.connection.readyState = 0; ${logAll} die();`)
   fs.appendFileSync(spool(), '{"action":"CONTAINMENT_ROLLED_BA')
-  expect(child(RECOVER).status).toBe(0)
+  expect((await child(RECOVER)).status).toBe(0)
   expect((await events()).map((e) => e.action)).toEqual(ACTIONS)
 })
 
 test('normal operation leaves the spool empty', async () => {
   expect(
-    child(`${logAll} await audit.settleContainmentAudit(); await mongoose.disconnect(); process.exit(0);`).status
+    (await child(`${logAll} await audit.settleContainmentAudit(); await mongoose.disconnect(); process.exit(0);`))
+      .status
   ).toBe(0)
   expect(fs.statSync(spool()).size).toBe(0)
   expect(await events()).toHaveLength(3)
 })
 
 test('a spool is bound to its database: another database never replays it', async () => {
-  child(`mongoose.connection.readyState = 0; ${logAll} die();`)
+  await child(`mongoose.connection.readyState = 0; ${logAll} die();`)
   const other = dbName + '_other'
-  expect(child(RECOVER, { db: other }).status).toBe(0)
+  expect((await child(RECOVER, { db: other })).status).toBe(0)
   expect(await events(other)).toHaveLength(0)
   expect(fs.readFileSync(spool(), 'utf8').trim().split('\n')).toHaveLength(3) // untouched
 })
 
 test('the size cap is enforced and counted; the event still goes to MongoDB', async () => {
-  const r = child(
+  const r = await child(
     `${logAll} await audit.settleContainmentAudit(); console.log('STATE ' + JSON.stringify(audit.containmentAuditBacklog())); await mongoose.disconnect(); process.exit(0);`,
     { env: { CONTAINMENT_AUDIT_SPOOL_MAX_BYTES: '10' } }
   )
@@ -159,7 +177,7 @@ test('the size cap is enforced and counted; the event still goes to MongoDB', as
 test('an unusable spool location never blocks the audit path', async () => {
   const file = path.join(dir, 'not-a-directory')
   fs.writeFileSync(file, 'x')
-  const r = child(
+  const r = await child(
     `${logAll} await audit.settleContainmentAudit(); console.log('STATE ' + JSON.stringify(audit.containmentAuditBacklog())); await mongoose.disconnect(); process.exit(0);`,
     { env: { CONTAINMENT_AUDIT_SPOOL_DIR: file } }
   )
