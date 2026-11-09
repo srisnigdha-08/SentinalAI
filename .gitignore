@@ -77,6 +77,8 @@ deployment/metrics_token
 deployment/grafana_admin_password
 # TLS certificates and private keys for docker-compose.tls.yml
 deployment/tls/
+# MongoDB internal authentication keyfile for docker-compose.replicaset.yml
+deployment/replicaset/
 
 # Candidate model copies written by training/pipeline.py and retrain_from_samples.py; reports stay tracked.
 # The served copies live in ai-engine/models/ (registered).

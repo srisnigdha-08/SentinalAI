@@ -1,0 +1,37 @@
+# Single-node MongoDB replica set, added on top of the TLS overlay. Enables transactions and change-stream revocation:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml -f docker-compose.replicaset.yml up --build
+#
+# Needs in .env: MONGO_KEYFILE, the path to a git-ignored file made with
+#
+#   openssl rand -base64 756 > deployment/replicaset/mongo-keyfile
+#
+# Applying this to a volume created without it converts that database in place. Take a backup first.
+# One node gives transactions and change streams. It does not give failover.
+services:
+  mongo:
+    entrypoint: ["sh", "/usr/local/bin/mongo-replicaset-entrypoint.sh"]
+    command: ["mongod", "--replSet", "rs0", "--keyFile", "/data/mongo-keyfile", "--bind_ip_all"]
+    volumes:
+      - ./deployment/mongo-replicaset-entrypoint.sh:/usr/local/bin/mongo-replicaset-entrypoint.sh:ro
+      - ./deployment/mongo-replicaset-init.js:/usr/local/bin/mongo-replicaset-init.js:ro
+    secrets:
+      - mongo_keyfile
+    # Healthy only once configuration has finished and this node is the writable primary of rs0. MongoDB's temporary
+    # first-boot server has no set name, so nothing that depends on this can start against it.
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/sentinel-mongo-configured && mongosh --quiet --eval \"const h = db.hello(); quit(h.setName === 'rs0' && h.isWritablePrimary ? 0 : 1)\""]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+      start_period: 20s
+
+  backend:
+    environment:
+      MONGO_URI: mongodb://sentinel_app:${MONGO_APP_PASSWORD}@mongo:27017/sentinel-db?authSource=sentinel-db&replicaSet=rs0
+      MONGO_USE_TRANSACTIONS: "true"
+      AUTH_REVOCATION_MODE: mongo-stream
+
+secrets:
+  mongo_keyfile:
+    file: ${MONGO_KEYFILE:?set MONGO_KEYFILE in .env to a file made with openssl rand -base64 756}
