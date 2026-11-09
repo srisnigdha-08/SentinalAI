@@ -15,6 +15,9 @@ services:
     volumes:
       - ./deployment/mongo-replicaset-entrypoint.sh:/usr/local/bin/mongo-replicaset-entrypoint.sh:ro
       - ./deployment/mongo-replicaset-init.js:/usr/local/bin/mongo-replicaset-init.js:ro
+    environment:
+      # Optional. When set, mongo-init.js creates the backup user that scripts/deploy/db_backup.cjs signs in as.
+      SENTINEL_BACKUP_PASSWORD: ${MONGO_BACKUP_PASSWORD:-}
     secrets:
       - mongo_keyfile
     # Healthy only once configuration has finished and this node is the writable primary of rs0. MongoDB's temporary

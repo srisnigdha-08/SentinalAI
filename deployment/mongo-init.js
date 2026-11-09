@@ -201,3 +201,20 @@ try {
 }
 
 print(`[mongo-init] Least-privilege database authentication configuration complete.`);
+
+// Backup user, only when a password is supplied. The built-in backup role can read everything but change nothing.
+const BACKUP_USER_PASSWORD = (typeof process !== 'undefined' && process.env && process.env.SENTINEL_BACKUP_PASSWORD) || '';
+if (BACKUP_USER_PASSWORD) {
+  const adminDb = db.getSiblingDB('admin');
+  try {
+    adminDb.createUser({ user: 'sentinel_backup', pwd: BACKUP_USER_PASSWORD, roles: [{ role: 'backup', db: 'admin' }] });
+    print(`[mongo-init] Created user 'sentinel_backup'.`);
+  } catch (e) {
+    if (e.code === 51003 || (e.message && e.message.includes('already exists'))) {
+      adminDb.updateUser('sentinel_backup', { pwd: BACKUP_USER_PASSWORD, roles: [{ role: 'backup', db: 'admin' }] });
+      print(`[mongo-init] Updated user 'sentinel_backup'.`);
+    } else {
+      throw e;
+    }
+  }
+}
