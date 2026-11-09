@@ -55,3 +55,23 @@ test('Dependabot watches npm and actions, and leaves the ML dependencies and Jes
   assert.doesNotMatch(config, /package-ecosystem: pip/, 'model artifacts depend on the pinned ML libraries')
   assert.match(config, /dependency-name: jest/)
 })
+
+test('every base and service image is pinned to a digest', () => {
+  for (const file of ['backend/Dockerfile', 'frontend/Dockerfile', 'ai-engine/Dockerfile']) {
+    const text = readFileSync(new URL(`../../${file}`, import.meta.url), 'utf8')
+    for (const match of text.matchAll(/^FROM\s+(\S+)/gm)) {
+      assert.match(match[1], /@sha256:[0-9a-f]{64}$/, `${file}: ${match[1]} is not pinned`)
+    }
+  }
+  const compose = readFileSync(new URL('../../docker-compose.yml', import.meta.url), 'utf8')
+  for (const match of compose.matchAll(/^\s+image:\s+(\S+)/gm)) {
+    assert.match(match[1], /@sha256:[0-9a-f]{64}$/, `compose: ${match[1]} is not pinned`)
+  }
+})
+
+test('the image scanner is pinned by digest and does not get the Docker socket', () => {
+  const scan = readFileSync(new URL('../../scripts/deploy/scan_images.sh', import.meta.url), 'utf8')
+  assert.match(scan, /aquasec\/trivy@sha256:[0-9a-f]{64}/)
+  assert.doesNotMatch(scan, /docker\.sock/)
+  assert.doesNotMatch(workflows.find((w) => w.name === 'deployment.yml').text, /trivy-action|setup-trivy/)
+})
