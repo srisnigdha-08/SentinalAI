@@ -868,6 +868,15 @@ const blockThreat = async (threatId, analystId, reason = 'Manual threat block', 
  * Order: BlockedIP upsert -> candidate ThreatLogs update.
  * Compensation: If ThreatLog update fails, BlockedIP is restored or removed (Scenario B).
  */
+const snapshotThreat = (t) => ({
+  _id: t._id,
+  status: t.status,
+  preBlockStatus: t.preBlockStatus ?? null,
+  containmentId: t.containmentId ?? null,
+  handledBy: t.handledBy ?? null,
+  autonomousAction: t.toObject ? t.toObject().autonomousAction : t.autonomousAction,
+})
+
 const blockIPManual = async ({ ip, reason, analystId }) => {
   if (!ip || typeof ip !== 'string' || !isValidIP(ip.trim())) {
     throw new Error('Valid IP address is required')
@@ -914,8 +923,10 @@ const blockIPManual = async ({ ip, reason, analystId }) => {
 
   // Step 2: Transition candidate ThreatLogs with containmentId
   const updatedThreats = []
+  const threatSnapshots = []
   try {
     for (const t of candidateThreats) {
+      threatSnapshots.push(snapshotThreat(t))
       t.preBlockStatus = t.status // preserve DETECTED / MONITORING / ESCALATED
       t.status = 'BLOCKED'
       t.containmentId = blockedRecord._id
@@ -963,7 +974,11 @@ const blockIPManual = async ({ ip, reason, analystId }) => {
     throw threatErr
   }
 
-  return { blockedIP: blockedRecord, updatedThreats }
+  return {
+    blockedIP: blockedRecord,
+    updatedThreats,
+    undo: { threats: threatSnapshots, restoreBlocked: existingBlockedDoc, removeBlockedId: blockedRecord._id },
+  }
 }
 
 /**
@@ -1013,8 +1028,10 @@ const unblockIPManual = async ({ ip }) => {
 
   // Step 2: Restore ThreatLogs to exact preBlockStatus
   const restoredThreats = []
+  const threatSnapshots = []
   try {
     for (const t of threatsToRestore) {
+      threatSnapshots.push(snapshotThreat(t))
       const targetStatus = restoreStatusFor(t)
       t.status = targetStatus
       t.preBlockStatus = null
@@ -1052,7 +1069,34 @@ const unblockIPManual = async ({ ip }) => {
     throw restoreErr
   }
 
-  return { success: true, unblockedIP: cleanIP, restoredThreats }
+  return {
+    success: true,
+    unblockedIP: cleanIP,
+    restoredThreats,
+    undo: { threats: threatSnapshots, restoreBlocked: savedBlockedDoc, removeBlockedId: null },
+  }
+}
+
+/**
+ * Reverses a manual block or unblock exactly, from the snapshots those operations returned, when their audit record
+ * could not be written. Unblocking instead would remove a block that existed before the request; blocking again would
+ * lose the original entry's id, reason and analyst. An entry created concurrently for the same IP is left in place.
+ */
+const undoManualContainment = async (undo) => {
+  if (!undo) return
+  for (const { _id, ...fields } of undo.threats) {
+    await ThreatLog.updateOne({ _id }, { $set: fields })
+  }
+  if (undo.restoreBlocked) {
+    try {
+      await BlockedIP.replaceOne({ _id: undo.restoreBlocked._id }, undo.restoreBlocked, { upsert: true })
+    } catch (err) {
+      if (err.code !== 11000) throw err
+      logger.warn(`[Containment] ${undo.restoreBlocked.ip} was blocked again concurrently; keeping that entry`)
+    }
+  } else if (undo.removeBlockedId) {
+    await BlockedIP.deleteOne({ _id: undo.removeBlockedId })
+  }
 }
 
 /**
@@ -1183,6 +1227,7 @@ module.exports = {
   blockThreat,
   blockIPManual,
   unblockIPManual,
+  undoManualContainment,
   executeAutoBlock,
   enforceManualBlock,
   releaseManualBlock,

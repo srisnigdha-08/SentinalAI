@@ -154,6 +154,8 @@ jobs:
       - name: Run MongoDB-backed suites
         working-directory: backend
         run: npx jest --runInBand --ci tests/authPersistence.test.js tests/credentialLifecycleIntegration.test.js tests/timezonePersistence.test.js tests/authBrowser.test.js
+      - name: SEC-001 tooling (synthetic accounts, disposable MongoDB)
+        run: node --test --test-concurrency=1 scripts/security/sec001_check.test.cjs scripts/security/sec001_rotate.test.cjs
 
   model-integrity:
     name: Model registry integrity

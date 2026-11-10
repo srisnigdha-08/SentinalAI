@@ -134,6 +134,7 @@ app.use('/api/auth/provision', authLim)
 app.use('/api/auth/refresh-token', authLim)
 app.use('/api/auth/logout', authLim)
 app.use('/api/auth/logout-all', authLim)
+app.use('/api/auth/update-password', authLim)
 require('./middleware/authCookies').policy()
 logger.info(
   'Session-auth cutover: sign-in required; access tokens expire in 15 minutes. Legacy JWT_EXPIRES_IN does not control session tokens.'
@@ -381,7 +382,9 @@ defaultShutdownManager.registerFinalizer({
     await audit.flushContainmentAuditBacklog()
     const { queued } = audit.containmentAuditBacklog()
     if (queued)
-      logger.error(`[Shutdown] ${queued} containment audit event(s) not stored durably (application log only)`)
+      logger.error(
+        `[Shutdown] ${queued} containment audit event(s) still queued (kept in the crash spool, replayed on next start)`
+      )
   },
 })
 defaultShutdownManager.registerService({

@@ -1404,3 +1404,33 @@ ID: CI-003 | P2 | FIXED (local commit, not pushed) — "Backend (MongoDB-backed 
             puppeteer-core ^25.16.0. Guard: tests/jestEsmInterop.test.js (default job) fails under Jest 30.5.2.
             After: CI MongoDB job locally 4/4 suites, 13/13; full backend 1439 passed / 13 skipped; npm audit 0 high.
 ```
+
+## SEC-001 resolution (2026-11-08)
+
+```
+ID: SEC-001 (resolution) | P0 | RESOLVED 2026-11-08 (owner-approved rotation; verified) — all nine affected records
+            rotated by scripts/security/sec001_rotate.cjs (9/9, 115 sessions revoked, 0 conflicts) after archive backups
+            were verified. Read-only checker across 8 local databases: 9 checked, 0 open, exit 0; no leaked password
+            valid on any record. Residual (not blocking): the leaked values remain readable in public Git history but
+            unlock nothing (purge optional, needs approval); reuse of those passwords on other services can only be
+            checked by the owner; temporary passwords must be moved to a password manager and the file deleted.
+```
+
+## Status trace against source (2026-11-09, branch backend-completion)
+
+```
+ID: SEC-001 (correction) | P0 | PARTIAL — the 2026-11-08 entry overstated closure. Rotation and revocation are verified;
+            real first sign-in, temporary-file handling and public Git history are outstanding owner items.
+ID: CONT-003 (trace) | P3 | CLOSED — item 1 by version fencing (CONT-004), item 2 by the operator recovery endpoints and
+            SentinelContainmentRecoveryUnresolved; item 3 applies only to multi-process deployments, which are unsupported.
+ID: CORE-001 (trace) | P2 | FIXED — manual and automatic blocks run through the adapter (FIXES.md, CONT-001).
+ID: SEC-004 (trace) | P2 | FIXED (d80ff3c) — real enforcement refused at startup without protected targets and approval mode.
+ID: F-06 (update) | P1 | FIXED (453cb73) — manual block-ip/unblock-ip compensation exact; transactions and primary failover
+            validated on a disposable 3-node replica set. Migrating real databases is a separate owner decision.
+ID: REV-007 | P1 | FIXED (453cb73) — block-ip audit failure removed an existing block; unblock-ip rebuilt a different entry.
+ID: REV-008 | P1 | FIXED (2a40995) — containment audit events now survive a process crash (write-ahead spool).
+ID: REV-009 | P1 | FIXED (d80ff3c) — uncaught exceptions take the graceful shutdown path.
+ID: REV-010 | P2 | FIXED (d80ff3c) — password change is under the auth rate limiter.
+ID: TEST-013 | P2 | FIXED (2a40995) — transactionSupport Part A.3 passed without asserting when no replica set was running.
+ID: CI-003 (update) | P2 | FIXED — pushed as 03ee497; GitHub checks passed (owner report).
+```

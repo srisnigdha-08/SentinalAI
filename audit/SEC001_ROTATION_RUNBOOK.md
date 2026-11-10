@@ -1,6 +1,6 @@
 # SEC-001 — credential rotation and session revocation runbook (owner-executed)
 
-Status: **OPEN — REQUIRES OWNER ACTION.** Nothing in this runbook has been executed. No leaked value appears here
+Status: **Credentials rotated and sessions revoked 2026-11-08** (verified by the checker). Real first sign-in, removal of the temporary file and public Git history remain with the owner. Kept as a record of the procedure. No leaked value appears here
 or in any output of the tools it uses. Background and history: `SEC001_REMEDIATION.md`.
 
 ## What must change

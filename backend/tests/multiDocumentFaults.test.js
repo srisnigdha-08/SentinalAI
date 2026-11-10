@@ -233,6 +233,64 @@ describe('standalone MongoDB (compensating fallback)', () => {
   })
   sharedCases('standalone')
 
+  describe('manual block-ip / unblock-ip: an audit failure restores exactly the prior state', () => {
+    const IP = '198.51.100.201'
+    const blockedNow = () => BlockedIP.findOne({ ip: IP }).lean()
+    const threatNow = async (t) => strip(await ThreatLog.findById(t._id).lean())
+    afterEach(async () => {
+      jest.restoreAllMocks()
+      await Promise.all([ThreatLog, BlockedIP, AuditLog].map((m) => m.collection.deleteMany({})))
+    })
+    const stripBlocked = (d) => {
+      const { updatedAt: _updatedAt, ...rest } = d
+      return rest
+    }
+
+    test('re-blocking an already blocked IP keeps the existing block', async () => {
+      const earlier = new mongoose.Types.ObjectId()
+      const held = await seedThreat({ sourceIP: IP, status: 'BLOCKED', preBlockStatus: 'DETECTED', handledBy: earlier })
+      await BlockedIP.create({ ip: IP, reason: 'Earlier block', blockedBy: earlier, threatRef: held._id })
+      const fresh = await seedThreat({ sourceIP: IP })
+      const [blockedBefore, heldBefore, freshBefore] = [
+        await blockedNow(),
+        await threatNow(held),
+        await threatNow(fresh),
+      ]
+      failAuditOnce()
+      const r = await call(threatController.blockIPManual, { body: { ip: IP, reason: 'again' } })
+      expect(r.status).toBe(500)
+      expect(stripBlocked(await blockedNow())).toEqual(stripBlocked(blockedBefore))
+      expect(await threatNow(held)).toEqual(heldBefore)
+      expect(await threatNow(fresh)).toEqual(freshBefore)
+    })
+
+    test('a new block leaves no deny-list entry and restores the threat', async () => {
+      const t = await seedThreat({ sourceIP: IP })
+      const before = await threatNow(t)
+      failAuditOnce()
+      expect((await call(threatController.blockIPManual, { body: { ip: IP } })).status).toBe(500)
+      expect(await blockedNow()).toBeNull()
+      expect(await threatNow(t)).toEqual(before)
+    })
+
+    test('unblock restores the entry itself (id, reason, analyst) and the threat', async () => {
+      const analyst = new mongoose.Types.ObjectId()
+      const entry = await BlockedIP.create({ ip: IP, reason: 'Original reason', blockedBy: analyst })
+      const t = await seedThreat({
+        sourceIP: IP,
+        status: 'BLOCKED',
+        preBlockStatus: 'MONITORING',
+        handledBy: analyst,
+        containmentId: entry._id,
+      })
+      const [blockedBefore, threatBefore] = [await blockedNow(), await threatNow(t)]
+      failAuditOnce()
+      expect((await call(threatController.unblockIPManual, { body: { ip: IP } })).status).toBe(500)
+      expect(stripBlocked(await blockedNow())).toEqual(stripBlocked(blockedBefore))
+      expect(await threatNow(t)).toEqual(threatBefore)
+    })
+  })
+
   test('retention: delete fails after archiving -> nothing lost, and the retry neither fails nor duplicates', async () => {
     const { applyRetention } = require('../services/retentionService')
     const db = mongoose.connection.db

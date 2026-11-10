@@ -86,6 +86,21 @@ const validateEnv = (env = process.env) => {
     errors.push('ADMIN_INITIAL_PASSWORD contains an insecure default/placeholder value.')
   }
 
+  // SEC-004: with real host enforcement a honeypot key holder could otherwise have a rule created against any address.
+  const realEnforcement =
+    !isTest &&
+    env.CONTAINMENT_DRY_RUN !== 'true' &&
+    env.CONTAINMENT_BACKEND === 'windows-firewall' &&
+    env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true'
+  if (realEnforcement) {
+    if (!env.CONTAINMENT_PROTECTED_TARGETS || !env.CONTAINMENT_PROTECTED_TARGETS.trim()) {
+      errors.push('CONTAINMENT_PROTECTED_TARGETS is required with real firewall enforcement (own hosts, gateway, LAN).')
+    }
+    if (String(env.HONEYPOT_AUTOBLOCK_MODE || '').toLowerCase() !== 'approve') {
+      errors.push('HONEYPOT_AUTOBLOCK_MODE must be "approve" with real firewall enforcement.')
+    }
+  }
+
   if (errors.length > 0) {
     const errorMsg = `CRITICAL CONFIGURATION ERROR: Invalid environment configuration:\n  - ${errors.join('\n  - ')}`
     if (logger && typeof logger.error === 'function') {

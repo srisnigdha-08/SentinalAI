@@ -55,14 +55,15 @@ test('checker: flags valid leaked passwords and pre-change sessions, prints no s
     const before = JSON.stringify(await db.collection('users').find().toArray()) + (await db.collection('authsessions').countDocuments())
 
     const run = (dbName) =>
-      spawnSync(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', dbName, '--candidates-file', candidatesFile], { encoding: 'utf8' })
+      spawnSync(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', dbName, '--candidates-file', candidatesFile,
+        ...['still-leaked', 'rotated', 'rotated-old-session'].flatMap((u) => ['--affected', 'sec001_synthetic/' + u + '@x.test'])], { encoding: 'utf8' })
     const r = run('sec001_synthetic')
     const out = r.stdout + r.stderr
     assert.strictEqual(r.status, 1, out)
     assert.match(out, /OPEN\s+still-leaked@x\.test.*leaked password valid: YES/)
     assert.match(out, /ok\s+rotated@x\.test.*leaked password valid: no .*pre-change: 0/)
     assert.match(out, /OPEN\s+rotated-old-session@x\.test.*leaked password valid: no .*pre-change: 1/)
-    assert.match(out, /NOT resolved: 2 account/)
+    assert.match(out, /NOT resolved: 2 record/)
     assert.ok(!out.includes(leaked), 'candidate value printed')
     assert.ok(!out.includes(hashLeaked.slice(7, 20)), 'hash printed')
 
@@ -73,6 +74,57 @@ test('checker: flags valid leaked passwords and pre-change sessions, prints no s
     await client.db('sec001_clean').collection('users').insertOne({ email: 'ok@x.test', role: 'viewer', status: 'active', password: hashOther })
     const clean = run('sec001_clean')
     assert.strictEqual(clean.status, 0, clean.stdout + clean.stderr)
+    await client.close()
+  } finally {
+    await mongo.stop()
+    fs.rmSync(tmp, { recursive: true, force: true })
+  }
+})
+
+test('only affected records decide: unaffected accounts with sessions are "not affected"; a missed affected record fails', async () => {
+  const { MongoMemoryServer } = req('mongodb-memory-server')
+  const { MongoClient, ObjectId } = req('mongodb')
+  const bcrypt = req('bcryptjs')
+  const mongo = await MongoMemoryServer.create()
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sec001-scope-'))
+  try {
+    const leaked = 'Synthetic-Leaked-Value-7!'
+    const cand = path.join(tmp, 'c.txt')
+    fs.writeFileSync(cand, leaked + '\n')
+    const client = await MongoClient.connect(mongo.getUri())
+    const db = client.db('scope_db')
+    const changedAt = new Date(Date.now() - 3600e3)
+    const rotated = await bcrypt.hash('Synthetic-New-Value-1!', 4)
+    const ids = [new ObjectId(), new ObjectId()]
+    await db.collection('users').insertMany([
+      { _id: ids[0], email: 'affected@x.test', role: 'admin', status: 'active', password: rotated, passwordChangedAt: changedAt },
+      { _id: ids[1], email: 'unaffected@x.test', role: 'admin', status: 'active', password: rotated }, // never leaked
+    ])
+    const future = new Date(Date.now() + 86400e3)
+    await db.collection('authsessions').insertMany([
+      { user: ids[1], revokedAt: null, expiresAt: future, createdAt: new Date() },
+      { user: ids[1], revokedAt: null, expiresAt: future, createdAt: new Date() },
+    ])
+    const run = (affected) =>
+      spawnSync(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', 'scope_db',
+        '--candidates-file', cand, ...affected.flatMap((a) => ['--affected', a])], { encoding: 'utf8' })
+
+    const ok = run(['scope_db/affected@x.test'])
+    assert.strictEqual(ok.status, 0, ok.stdout + ok.stderr)
+    assert.match(ok.stdout, /ok\s+affected@x\.test/)
+    assert.match(ok.stdout, /n\/a\s+unaffected@x\.test/)
+    assert.match(ok.stdout, /affected records: 1 checked, 0 open/)
+
+    // an affected record listed but absent from the database is never silently "resolved"
+    const missing = run(['scope_db/affected@x.test', 'scope_db/gone@x.test'])
+    assert.strictEqual(missing.status, 1, missing.stdout)
+    assert.match(missing.stdout, /MISSING\s+gone@x\.test/)
+
+    // a leaked password that still works counts even when the record is not on the affected list
+    await db.collection('users').insertOne({ email: 'surprise@x.test', role: 'viewer', status: 'active', password: await bcrypt.hash(leaked, 4) })
+    const surprise = run(['scope_db/affected@x.test'])
+    assert.strictEqual(surprise.status, 1)
+    assert.match(surprise.stdout, /OPEN\s+surprise@x\.test.*leaked password valid: YES/)
     await client.close()
   } finally {
     await mongo.stop()
