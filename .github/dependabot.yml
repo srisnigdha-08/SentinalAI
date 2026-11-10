@@ -37,3 +37,24 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 3
+  # Base images stay pinned by digest. The AI engine image is left out: its Python base is tied to the registered models.
+  - package-ecosystem: docker
+    directories:
+      - /backend
+      - /frontend
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
+  - package-ecosystem: docker-compose
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 3
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-major
