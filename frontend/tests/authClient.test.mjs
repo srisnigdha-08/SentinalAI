@@ -142,3 +142,76 @@ test('a queued refresh in another tab completes the same logout-all intent inste
   assert.equal(a.getState().token, null)
   assert.equal(b.getState().token, null)
 })
+
+// Tabs whose broadcasts wait until a test delivers them, so a slow tab's ordering is exact rather than timing-dependent.
+function slowChannels() {
+  const endpoints = []
+  const queue = []
+  const open = () => {
+    const handlers = []
+    const endpoint = { handlers, addEventListener(_event, handler) { handlers.push(handler) },
+      postMessage(data) { assert.deepEqual(Object.keys(data), ['type']); for (const other of endpoints) if (other !== endpoint) queue.push({ other, data }) } }
+    endpoints.push(endpoint)
+    return endpoint
+  }
+  const deliverOne = () => { const { other, data } = queue.shift(); other.handlers.forEach(handler => handler({ data })) }
+  return { open, deliverOne, deliver() { while (queue.length) deliverOne() }, discard() { queue.length = 0 } }
+}
+function twoTabs(f) {
+  const channels = slowChannels()
+  return { channels, a: createAuthClient({ ...f, channel: channels.open() }), b: createAuthClient({ ...f, channel: channels.open() }) }
+}
+const MARKER = 'sentinel_logout_pending'
+
+for (const all of [false, true]) {
+  test(`a ${all ? 'logout-all' : 'logout'} broadcast handled after the server confirmed leaves no pending marker`, async () => {
+    const f = fixture(); const { channels, a, b } = twoTabs(f)
+    await a.login({}); channels.discard()
+    assert.equal((await a.logout(all)).confirmed, true)
+    assert.equal(f.values.get(MARKER), undefined)
+    channels.deliver() // the slow tab only now handles the logout broadcast
+    assert.equal(f.values.get(MARKER), undefined)
+    const revocations = f.counters.logout + f.counters.logoutAll
+    await b.refresh()
+    assert.equal(f.counters.logout + f.counters.logoutAll, revocations, 'a finished logout is not sent again')
+  })
+}
+test('a broadcast handled while the logout is in flight keeps that one intent, which then clears', async () => {
+  const f = fixture(); const { channels, a } = twoTabs(f)
+  await a.login({}); channels.discard()
+  const logout = a.logout()
+  const marker = f.values.get(MARKER)
+  assert.ok(marker)
+  channels.deliverOne()
+  assert.equal(f.values.get(MARKER), marker)
+  assert.equal((await logout).confirmed, true)
+  assert.equal(f.values.get(MARKER), undefined)
+})
+test('an unconfirmed logout keeps its marker after the broadcast, and another tab retries instead of restoring', async () => {
+  const f = fixture(); const { channels, a, b } = twoTabs(f)
+  await a.login({}); channels.discard(); f.failLogout()
+  assert.equal((await a.logout()).confirmed, false)
+  const marker = f.values.get(MARKER)
+  assert.ok(marker)
+  channels.deliver()
+  assert.equal(f.values.get(MARKER), marker)
+  await assert.rejects(b.refresh())
+  assert.equal(f.counters.logout, 2)
+  assert.equal(f.counters.refresh, 0)
+  assert.equal(b.getState().token, null)
+})
+for (const [name, storage] of [
+  ['blocked', { getItem() { throw new Error('Blocked') }, setItem() { throw new Error('Blocked') }, removeItem() { throw new Error('Blocked') } }],
+  ['absent', null],
+]) {
+  test(`with ${name} storage a logout broadcast still stops the other tab restoring a session`, async () => {
+    const f = fixture(); f.storage = storage
+    const { channels, a, b } = twoTabs(f)
+    await a.login({}); channels.discard()
+    await a.logout()
+    channels.deliverOne() // the logout broadcast only; this tab cannot see a shared marker
+    assert.equal(await b.refresh(), null)
+    assert.equal(f.counters.refresh, 0)
+    assert.equal(b.getState().token, null)
+  })
+}

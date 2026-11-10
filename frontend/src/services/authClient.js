@@ -39,6 +39,8 @@ export function createAuthClient({ fetch: request, locks, channel, storage, base
       return intent && typeof intent.id === 'string' && ['session', 'all'].includes(intent.mode) ? intent : null
     } catch { return localPending }
   }
+  // A sender stores its intent before broadcasting, so readable storage with no marker means that logout already finished.
+  const pendingIsShared = () => { try { storage.getItem('sentinel_logout_pending'); return true } catch { return false } }
   const intent = mode => ({ id: crypto.randomUUID(), mode })
   const confirmed = id => {
     try { return lastConfirmed === id || storage?.getItem('sentinel_logout_confirmed') === id } catch { return lastConfirmed === id }
@@ -53,7 +55,7 @@ export function createAuthClient({ fetch: request, locks, channel, storage, base
   const clear = () => { epoch++; publish({ user: null, token: null }); cleanLegacy() }
   channel?.addEventListener('message', event => {
     if (['logout', 'logout-all'].includes(event.data?.type)) {
-      if (!readPending()) pending(intent(event.data.type === 'logout-all' ? 'all' : 'session'))
+      if (!readPending() && !pendingIsShared()) pending(intent(event.data.type === 'logout-all' ? 'all' : 'session'))
       clear()
     }
     if (event.data?.type === 'logout-confirmed') {
