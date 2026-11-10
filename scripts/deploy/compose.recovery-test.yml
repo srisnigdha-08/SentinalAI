@@ -1,0 +1,9 @@
+# Test settings for recovery_verify.cjs only. Never use this in a deployment.
+services:
+  backend:
+    environment:
+      # Keeps automatic reconciliation out of the way so the operator recovery path is what gets tested.
+      CONTAINMENT_STUCK_GRACE_MS: "86400000"
+      CONTAINMENT_OPERATOR_RECOVERY_MIN_AGE_MS: "1000"
+      # All test traffic shares one client address.
+      RATE_LIMIT_MAX: "20000"

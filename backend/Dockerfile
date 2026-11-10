@@ -8,6 +8,11 @@ WORKDIR /app/backend
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --omit=dev --ignore-scripts
 
+# The server runs with node alone. Removing the package managers from the final image also removes the vulnerable
+# undici and brace-expansion copies that exist only inside npm.
+RUN rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack /opt/yarn-* \
+  /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack /usr/local/bin/yarn /usr/local/bin/yarnpkg
+
 COPY backend/ ./
 COPY honeypot/collectors /app/honeypot/collectors
 

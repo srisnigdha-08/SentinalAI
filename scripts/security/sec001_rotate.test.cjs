@@ -6,7 +6,8 @@ const assert = require('node:assert')
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const { spawnSync, execFileSync } = require('child_process')
+const { execFileSync } = require('child_process')
+const { runChild } = require('../test-support/run_child.cjs')
 
 const ROOT = path.resolve(__dirname, '..', '..')
 const req = (m) => require(require.resolve(m, { paths: [path.join(ROOT, 'backend')] }))
@@ -73,7 +74,7 @@ async function setup() {
 }
 
 const run = (argv, env = {}) =>
-  spawnSync(process.execPath, [TOOL, ...argv], { encoding: 'utf8', env: { ...process.env, ...env } })
+  runChild(process.execPath, [TOOL, ...argv], { env: { ...process.env, ...env } })
 const snapshot = async () => {
   const out = {}
   for (const db of ['rot_a', 'rot_b'])
@@ -91,7 +92,7 @@ const journalFile = (s) => path.join(s.creds, fs.readdirSync(s.creds).find((f) =
 test('preflight is read-only, reports the plan and a fingerprint, writes no file', async () => {
   const s = await setup()
   const before = await snapshot()
-  const r = run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])
+  const r = await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])
   assert.strictEqual(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /rot_a\s+admin@sentinel\.io\s+found.*authVersion 2 -> 3\s+sessions to revoke: 5/)
   assert.match(r.stdout, /rot_b\s+pallavi@sentinel\.io\s+found/)
@@ -103,23 +104,23 @@ test('preflight is read-only, reports the plan and a fingerprint, writes no file
 test('apply refuses before any write: wrong fingerprint, missing phrase, no backup, missing target, remote host', async () => {
   const s = await setup()
   const before = await snapshot()
-  const f = fp(run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets]).stdout)
-  assert.strictEqual(run(applyArgs(s, '0000000000000000')).status, 1)
+  const f = fp((await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])).stdout)
+  assert.strictEqual((await run(applyArgs(s, '0000000000000000'))).status, 1)
   const noPhrase = applyArgs(s, f).filter((x, i, a) => x !== '--authorize' && a[i - 1] !== '--authorize')
-  assert.strictEqual(run(noPhrase).status, 1)
+  assert.strictEqual((await run(noPhrase)).status, 1)
   const noBackup = applyArgs(s, f).map((x) => (x === s.backup ? path.join(tmp, 'nope') : x))
-  assert.strictEqual(run(noBackup).status, 2)
+  assert.strictEqual((await run(noBackup)).status, 2)
   fs.rmSync(path.join(s.backup, 'dump', 'rot_b'), { recursive: true })
-  const partialBackup = run(applyArgs(s, f))
+  const partialBackup = await run(applyArgs(s, f))
   assert.strictEqual(partialBackup.status, 2)
   assert.match(partialBackup.stderr, /no verified backup \(users \+ authsessions\) found for: rot_b/)
-  const remote = run(['preflight', '--mongo', 'mongodb://10.0.0.5:27017', '--targets-file', s.targets])
+  const remote = await run(['preflight', '--mongo', 'mongodb://10.0.0.5:27017', '--targets-file', s.targets])
   assert.strictEqual(remote.status, 2)
   assert.match(remote.stderr, /non-loopback/)
   const t = JSON.parse(fs.readFileSync(s.targets, 'utf8'))
   t.push({ db: 'rot_b', email: 'ghost@sentinel.io' })
   fs.writeFileSync(s.targets, JSON.stringify(t))
-  const missing = run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])
+  const missing = await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])
   assert.strictEqual(missing.status, 1)
   assert.match(missing.stdout, /ghost@sentinel\.io\s+NOT FOUND/)
   assert.deepStrictEqual(await snapshot(), before)
@@ -129,8 +130,8 @@ test('apply refuses before any write: wrong fingerprint, missing phrase, no back
 test('apply: rotates exactly the targets, revokes their sessions, preserves everything else', async () => {
   const s = await setup()
   const before = await snapshot()
-  const f = fp(run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets]).stdout)
-  const r = run(applyArgs(s, f))
+  const f = fp((await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])).stdout)
+  const r = await run(applyArgs(s, f))
   assert.strictEqual(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /3\/3 record\(s\) rotated and sessions revoked; problems: 0/)
 
@@ -186,26 +187,26 @@ test('apply: rotates exactly the targets, revokes their sessions, preserves ever
   // the existing read-only checker agrees
   const cand = path.join(tmp, 'cand.txt')
   fs.writeFileSync(cand, LEAKED + '\n')
-  const chk = spawnSync(process.execPath, [CHECK, '--mongo', mongo.getUri(), '--db', 'rot_a', '--db', 'rot_b', '--candidates-file', cand,
+  const chk = await runChild(process.execPath, [CHECK, '--mongo', mongo.getUri(), '--db', 'rot_a', '--db', 'rot_b', '--candidates-file', cand,
     '--affected', 'rot_a/admin@sentinel.io', '--affected', 'rot_a/sara@sentinel.io', '--affected', 'rot_b/pallavi@sentinel.io'], { encoding: 'utf8' })
   assert.strictEqual(chk.status, 0, chk.stdout)
   assert.match(chk.stdout, /affected records: 3 checked, 0 open/)
 
   // a second apply with the old fingerprint is refused (state changed): no double rotation
-  assert.strictEqual(run(applyArgs(s, f)).status, 1)
+  assert.strictEqual((await run(applyArgs(s, f))).status, 1)
 })
 
 test('partial failure: resume finishes with the same passwords; a further resume changes nothing', async () => {
   const s = await setup()
-  const f = fp(run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets]).stdout)
-  const r1 = run(applyArgs(s, f), { SEC001_TEST_FAIL_AFTER: '1' })
+  const f = fp((await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])).stdout)
+  const r1 = await run(applyArgs(s, f), { SEC001_TEST_FAIL_AFTER: '1' })
   assert.strictEqual(r1.status, 2)
   assert.match(r1.stderr, /simulated failure/)
   const j = JSON.parse(fs.readFileSync(journalFile(s), 'utf8'))
   assert.deepStrictEqual(j.entries.map((e) => e.state), ['done', 'pending', 'pending'])
   const creds = JSON.parse(fs.readFileSync(credsFile(s), 'utf8')).byRecord
 
-  const r2 = run(['resume', '--mongo', mongo.getUri(), '--journal', journalFile(s)])
+  const r2 = await run(['resume', '--mongo', mongo.getUri(), '--journal', journalFile(s)])
   assert.strictEqual(r2.status, 0, r2.stdout + r2.stderr)
   assert.match(r2.stdout, /3\/3 record\(s\) rotated/)
   for (const [key, pw] of Object.entries(creds)) {
@@ -217,15 +218,15 @@ test('partial failure: resume finishes with the same passwords; a further resume
   assert.strictEqual(fs.readdirSync(s.creds).filter((x) => x.startsWith('sec001-credentials-')).length, 1)
 
   const snap = await snapshot()
-  const r3 = run(['resume', '--mongo', mongo.getUri(), '--journal', journalFile(s)])
+  const r3 = await run(['resume', '--mongo', mongo.getUri(), '--journal', journalFile(s)])
   assert.strictEqual(r3.status, 0)
   assert.deepStrictEqual(await snapshot(), snap, 'idempotent: nothing changes on a further resume')
 })
 
 test('crash between the password write and the session revocation: resume revokes only pre-rotation sessions', async () => {
   const s = await setup()
-  const f = fp(run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets]).stdout)
-  run(applyArgs(s, f), { SEC001_TEST_FAIL_AFTER: '0' }) // journal + credentials written, nothing applied
+  const f = fp((await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])).stdout)
+  await run(applyArgs(s, f), { SEC001_TEST_FAIL_AFTER: '0' }) // journal + credentials written, nothing applied
   const jf = journalFile(s)
   const j = JSON.parse(fs.readFileSync(jf, 'utf8'))
   const e = j.entries[0]
@@ -236,7 +237,7 @@ test('crash between the password write and the session revocation: resume revoke
   // the owner already signed in with the temporary password: that session is legitimate
   await client.db(e.db).collection('authsessions').insertOne({ _id: 'fresh', user: new ObjectId(e.id), authVersion: 3, generation: 0, refreshHash: 'h',
     expiresAt: new Date(Date.now() + 86400e3), lastUsedAt: new Date(), revokedAt: null, revocationReason: null, createdAt: new Date(), updatedAt: new Date() })
-  const r = run(['resume', '--mongo', mongo.getUri(), '--journal', jf])
+  const r = await run(['resume', '--mongo', mongo.getUri(), '--journal', jf])
   assert.strictEqual(r.status, 0, r.stdout + r.stderr)
   assert.match(r.stdout, /admin@sentinel\.io\s+ALREADY_ROTATED\s+sessions revoked: 5/)
   const u = await client.db(e.db).collection('users').findOne({ _id: new ObjectId(e.id) })
@@ -246,11 +247,11 @@ test('crash between the password write and the session revocation: resume revoke
 
 test('a record changed by someone else during an interrupted run is reported CONFLICT and never overwritten', async () => {
   const s = await setup()
-  const f = fp(run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets]).stdout)
-  run(applyArgs(s, f), { SEC001_TEST_FAIL_AFTER: '1' })
+  const f = fp((await run(['preflight', '--mongo', mongo.getUri(), '--targets-file', s.targets])).stdout)
+  await run(applyArgs(s, f), { SEC001_TEST_FAIL_AFTER: '1' })
   const theirHash = await bcrypt.hash('Synthetic-Changed-By-Owner-3!', 4)
   await client.db('rot_a').collection('users').updateOne({ email: 'sara@sentinel.io' }, { $set: { password: theirHash } })
-  const r = run(['resume', '--mongo', mongo.getUri(), '--journal', journalFile(s)])
+  const r = await run(['resume', '--mongo', mongo.getUri(), '--journal', journalFile(s)])
   assert.strictEqual(r.status, 1)
   assert.match(r.stdout, /sara@sentinel\.io\s+CONFLICT/)
   const sara = await client.db('rot_a').collection('users').findOne({ email: 'sara@sentinel.io' })
@@ -276,9 +277,9 @@ test('archive backups count only when mongorestore --dryRun shows users and auth
   const { checkBackup } = require(TOOL)
   const dir = path.join(tmp, 'archives')
   fs.mkdirSync(dir)
-  const archive = (db, file) => execFileSync(dump, ['--uri=' + mongo.getUri(), '--db=' + db, '--archive=' + path.join(dir, file), '--gzip'], { stdio: 'ignore' })
-  archive('rot_a', 'rot_a-20261107.archive.gz')
-  archive('rot_a', 'rot_b-20261107.archive.gz') // mislabelled: holds rot_a, named rot_b
+  const archive = async (db, file) => assert.strictEqual((await runChild(dump, ['--uri=' + mongo.getUri(), '--db=' + db, '--archive=' + path.join(dir, file), '--gzip'])).status, 0)
+  await archive('rot_a', 'rot_a-20261107.archive.gz')
+  await archive('rot_a', 'rot_b-20261107.archive.gz') // mislabelled: holds rot_a, named rot_b
   assert.doesNotThrow(() => checkBackup(dir, ['rot_a'], { uri: mongo.getUri() }))
   assert.throws(() => checkBackup(dir, ['rot_a', 'rot_b'], { uri: mongo.getUri() }), /no verified backup .* rot_b/)
   const before = await snapshot()

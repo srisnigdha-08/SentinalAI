@@ -79,6 +79,9 @@ deployment/grafana_admin_password
 deployment/tls/
 # MongoDB internal authentication keyfile for docker-compose.replicaset.yml
 deployment/replicaset/
+# Encrypted database backups and the separate age recovery key
+deployment/backups/
+deployment/backup-keys/
 
 # Candidate model copies written by training/pipeline.py and retrain_from_samples.py; reports stay tracked.
 # The served copies live in ai-engine/models/ (registered).

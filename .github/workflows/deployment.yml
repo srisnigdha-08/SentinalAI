@@ -104,3 +104,40 @@ jobs:
         if: always()
         working-directory: ${{ runner.temp }}
         run: docker compose -p sentinelai-verify down -v --remove-orphans
+
+  recovery:
+    name: Recovery and reliability verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Verification safety checks
+        run: node --test scripts/deploy/db_backup.test.cjs scripts/deploy/recovery_verify.test.cjs
+      - name: Install age from its pinned release
+        run: |
+          bash scripts/deploy/install_age.sh "$RUNNER_TEMP/age"
+          echo "AGE_BIN=$RUNNER_TEMP/age/age" >> "$GITHUB_ENV"
+      - name: Prove cleanup after a failed run
+        run: |
+          status=0
+          node scripts/deploy/recovery_verify.cjs --inject-failure > "$RUNNER_TEMP/failure-path.log" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/failure-path.log"
+          test "$status" -eq 1
+          grep -q 'injected failure' "$RUNNER_TEMP/failure-path.log"
+          label='label=com.docker.compose.project=sentinelai-verify'
+          test -z "$(docker ps -aq --filter "$label")"
+          test -z "$(docker network ls -q --filter "$label")"
+          test -z "$(docker volume ls -q --filter "$label")"
+      - name: Failure injection, backup and recovery on disposable infrastructure
+        run: node scripts/deploy/recovery_verify.cjs
+      - name: Scan the built images
+        run: bash scripts/deploy/scan_images.sh
+      - name: Remove any remaining disposable resources
+        if: always()
+        working-directory: ${{ runner.temp }}
+        run: docker compose -p sentinelai-verify --profile monitoring down -v --remove-orphans

@@ -1,0 +1,57 @@
+name: SentinelAI Reliability
+
+# Bounded soak of the hardened stack, plus repeated runs of the suite behind the one-off CI stall in run 42611611697.
+#
+# Not scheduled. To enable nightly runs, approve it first and add under "on":
+#   schedule:
+#     - cron: '23 2 * * *'
+#
+# GitHub offers "Run workflow" only once a file is on the default branch. Until then, pushing a branch named
+# reliability-check runs it manually without touching any other branch.
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - reliability-check
+
+permissions:
+  contents: read
+
+jobs:
+  soak:
+    name: Bounded soak
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+      - name: Soak the stack on disposable infrastructure
+        run: node scripts/deploy/recovery_verify.cjs --soak-minutes=15
+      - name: Remove any remaining disposable resources
+        if: always()
+        working-directory: ${{ runner.temp }}
+        run: docker compose -p sentinelai-verify --profile monitoring down -v --remove-orphans
+
+  spool-repeat:
+    name: Repeat the audit spool suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: backend/package-lock.json
+      - run: npm ci
+        working-directory: backend
+      - name: Repeat 25 times, each limited to 3 minutes
+        working-directory: backend
+        run: |
+          for i in $(seq 1 25); do
+            echo "::group::run $i"
+            timeout -k 10 180 npx jest --runInBand tests/containmentAuditSpool.test.js
+            echo "::endgroup::"
+          done

@@ -1,0 +1,7 @@
+# Test only: puts the audit spool on a 16 KiB memory-backed mount, so filling it cannot touch the runner's disk.
+services:
+  backend:
+    environment:
+      CONTAINMENT_AUDIT_SPOOL_DIR: /spool-limit
+    tmpfs:
+      - /spool-limit:size=16k,uid=1000,gid=1000,mode=0700

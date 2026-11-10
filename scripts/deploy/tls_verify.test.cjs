@@ -222,10 +222,13 @@ test('the HTTPS client verifies certificates and tells a server refusal from a c
 
   const ws = await v.wsConnect(target, { origin: 'https://sentinel.test:8443' })
   assert.equal(ws.upgraded, true)
+  assert.equal(ws.closedAt(), null, 'an open socket has no close time')
+  const opened = Date.now()
   assert.match(await ws.next(), /^0\{/)
   ws.send('40{"token":"t"}')
   assert.equal(await ws.next(), '40')
   await ws.closed(3000)
+  assert.ok(ws.closedAt() >= opened, 'the close time is when the socket really closed, not when it was checked')
 
   assert.equal(await v.portOpen('127.0.0.1', target.port), true)
   const unused = await new Promise((resolve) => {
