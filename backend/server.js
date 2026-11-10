@@ -182,6 +182,44 @@ app.get('/health', async (_, res) => {
     status: ready ? 'ok' : 'unavailable',
   })
 })
+// F-03. /health above stays strict (every dependency healthy) for existing consumers. These two separate the
+// questions an orchestrator asks: is the process alive (never restart it for a dependency outage), and can it
+// serve requests. MongoDB and revocation delivery are required to serve; the AI engine is reported but optional,
+// because without it the backend holds threats as MONITOR and never blocks (degraded, still safe).
+app.get('/health/live', (_, res) =>
+  res.status(200).json({ status: 'alive', uptimeSeconds: Math.round(process.uptime()) })
+)
+// The AI engine answer is cached briefly and shared by concurrent probes: /health/ready is unauthenticated, and
+// one engine call (two HTTP requests) per probe would let anyone multiply load on the engine.
+let readyAiProbe = { at: 0, promise: null }
+const readyAiOk = () => {
+  const ttl = Number(process.env.HEALTH_READY_AI_CACHE_MS ?? 5000)
+  if (readyAiProbe.promise && Date.now() - readyAiProbe.at < ttl) return readyAiProbe.promise
+  const aiSvc = require('./services/aiEngineService')
+  const promise = Promise.resolve()
+    .then(() => aiSvc.getHealth())
+    .then(
+      (h) => h?.status === 'ok',
+      () => false
+    )
+  readyAiProbe = { at: Date.now(), promise }
+  return promise
+}
+app.get('/health/ready', async (_, res) => {
+  const mongoose = require('mongoose')
+  const aiOk = await readyAiOk()
+  const dbOk = mongoose.connection.readyState === 1
+  const revocationOk = revocationDelivery.available()
+  const ready = dbOk && revocationOk
+  res.status(ready ? 200 : 503).json({
+    status: ready ? (aiOk ? 'ready' : 'degraded') : 'unavailable',
+    dependencies: {
+      database: dbOk ? 'connected' : 'disconnected',
+      aiEngine: aiOk ? 'available' : 'unavailable',
+      revocation: revocationOk ? 'available' : 'unavailable',
+    },
+  })
+})
 const { protect: authProtect, requirePermission: authRequirePermission } = require('./middleware/auth')
 
 app.get('/api/system/health', authProtect, authRequirePermission('system:telemetry_full'), async (_, res) => {
@@ -333,6 +371,19 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
 defaultShutdownManager.setServer(server)
 defaultShutdownManager.setIO(io)
 defaultShutdownManager.setMongoose(require('mongoose'))
+// F-07: let in-flight containment audit writes finish and try one last flush of events queued during an outage
+// while MongoDB is still open. Whatever is still queued afterwards is lost with the process (it is in the log).
+defaultShutdownManager.registerFinalizer({
+  name: 'containmentAudit',
+  run: async () => {
+    const audit = require('./utils/containmentAudit')
+    await audit.settleContainmentAudit()
+    await audit.flushContainmentAuditBacklog()
+    const { queued } = audit.containmentAuditBacklog()
+    if (queued)
+      logger.error(`[Shutdown] ${queued} containment audit event(s) not stored durably (application log only)`)
+  },
+})
 defaultShutdownManager.registerService({
   name: 'healthBroadcast',
   stop: () => socketManager.stopHealthBroadcast(),

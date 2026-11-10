@@ -170,6 +170,12 @@ const ContainmentActionSchema = new mongoose.Schema(
       // BACKEND_MISMATCH
       lastOutcome: { type: String, default: null },
       lastDetail: { type: String, default: null, maxlength: 500 },
+      // CONT-R2: the administrator who ran the last operator-initiated recovery (null for the reconciliation pass)
+      lastOperator: {
+        id: { type: String, default: null },
+        email: { type: String, default: null },
+        reason: { type: String, default: null, maxlength: 500 },
+      },
       // A request fenced out by recovery after its adapter call created a rule: REMOVED once removal was confirmed,
       // PRESENT_UNREMOVED while the rule may still exist (retried by the reconciliation pass, never silently dropped)
       lateRule: { type: String, enum: [null, 'REMOVED', 'PRESENT_UNREMOVED'], default: null },
