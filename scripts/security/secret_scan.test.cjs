@@ -66,6 +66,8 @@ test('backup copies are scanned as the file type they copy', () => {
   assert.deepEqual(rules('deployment/.env.bak', 'JWT_SECRET=4b1d9e0c7a2f58e3b6d4c1a09f8e7d6c'), ['secret-assignment'])
 })
 
+// Commit ids appear in the scanner's output, so every 4-character piece of this value holds a non-hex character.
+const RANGE_LEAK = 'ZQ7XK2WV'.repeat(8)
 // A throwaway repository: commit a secret, delete it in the next commit, scan the range.
 function tempRepo() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'secret-scan-test-'))
@@ -82,10 +84,14 @@ function tempRepo() {
 }
 const run = (dir, args) => spawnSync(process.execPath, [SCANNER, ...args], { cwd: dir, encoding: 'utf8' })
 
+test('the range fixture cannot match a commit id by chance', () => {
+  for (let i = 0; i + 4 <= RANGE_LEAK.length; i++) assert.match(RANGE_LEAK.slice(i, i + 4), /[^0-9a-f]/)
+})
+
 test('a secret added and then deleted inside the pushed range is reported, without any part of its value', () => {
   const { dir, g } = tempRepo()
   const base = g('rev-parse', 'HEAD').trim()
-  fs.writeFileSync(path.join(dir, 'deploy.sh'), `export HONEYPOT_API_KEY="${LEAK}"\n`)
+  fs.writeFileSync(path.join(dir, 'deploy.sh'), `export HONEYPOT_API_KEY="${RANGE_LEAK}"\n`)
   g('add', '.')
   g('commit', '-qm', 'add key')
   fs.unlinkSync(path.join(dir, 'deploy.sh'))
@@ -95,7 +101,7 @@ test('a secret added and then deleted inside the pushed range is reported, witho
   const r = run(dir, ['--range', `${base}..HEAD`])
   assert.equal(r.status, 1)
   assert.match(r.stdout, /deploy\.sh:1 +\[secret-assignment\] +HONEYPOT_API_KEY = \(64 chars\)/)
-  for (let i = 0; i + 4 <= LEAK.length; i++) assert.ok(!r.stdout.includes(LEAK.slice(i, i + 4)), 'output contains part of the value')
+  for (let i = 0; i + 4 <= RANGE_LEAK.length; i++) assert.ok(!r.stdout.includes(RANGE_LEAK.slice(i, i + 4)), 'output contains part of the value')
   fs.rmSync(dir, { recursive: true, force: true })
 })
 
