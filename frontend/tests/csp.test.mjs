@@ -11,6 +11,12 @@ test('nginx sends exactly the CSP defined in csp.js', () => {
   assert.equal(m[1], CONTENT_SECURITY_POLICY)
 })
 
+test('nginx sends the same CSP over TLS', () => {
+  const m = read('../nginx.tls.conf').match(/add_header Content-Security-Policy "([^"]+)" always;/)
+  assert.ok(m, 'nginx.tls.conf has no Content-Security-Policy header')
+  assert.equal(m[1], CONTENT_SECURITY_POLICY)
+})
+
 test('the CSP allows no inline or eval script and no framing', () => {
   const script = CONTENT_SECURITY_POLICY.split('; ').find((d) => d.startsWith('script-src'))
   assert.equal(script, "script-src 'self'")
