@@ -1,6 +1,9 @@
 {
   "name": "sentinelai-backend",
   "version": "1.0.0",
+  "engines": {
+    "node": ">=24"
+  },
   "main": "server.js",
   "type": "commonjs",
   "scripts": {

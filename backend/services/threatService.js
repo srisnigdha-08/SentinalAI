@@ -20,6 +20,12 @@ const ALLOWED_THREAT_SORT_FIELDS = [
 const ALLOWED_SEVERITIES = ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW', 'INFO']
 const ALLOWED_STATUSES = ['DETECTED', 'MONITORING', 'BLOCKED', 'ESCALATED', 'RESOLVED', 'FALSE_POSITIVE', 'DEGRADED']
 
+const MONGO_MAX_TIME_EXPIRED = 50
+const positiveInt = (value, fallback) => {
+  const n = Number(value)
+  return Number.isInteger(n) && n > 0 ? n : fallback
+}
+
 const findThreats = async ({
   page = 1,
   limit = 20,
@@ -72,14 +78,25 @@ const findThreats = async ({
   }
 
   const sort = parseSort(sortBy, sortOrder, ALLOWED_THREAT_SORT_FIELDS, 'createdAt')
-  const total = await ThreatLog.countDocuments(filter)
-  const data = await ThreatLog.find(filter)
-    .sort(sort)
-    .skip(skip)
-    .limit(safeLimit)
-    .populate('handledBy', 'name email')
-    .lean()
-  return { data, total, page: safePage, limit: safeLimit }
+  // Search is an unanchored match over three fields, so few matches means scanning the collection; bound it.
+  const limited = safeSearch ? { maxTimeMS: positiveInt(process.env.THREAT_SEARCH_MAX_MS, 5000) } : null
+  try {
+    const total = await ThreatLog.countDocuments(filter, ...(limited ? [limited] : []))
+    const data = await ThreatLog.find(filter, ...(limited ? [null, limited] : []))
+      .sort(sort)
+      .skip(skip)
+      .limit(safeLimit)
+      .populate('handledBy', 'name email')
+      .lean()
+    return { data, total, page: safePage, limit: safeLimit }
+  } catch (err) {
+    if (limited && err?.code === MONGO_MAX_TIME_EXPIRED) {
+      const tooSlow = new Error('Search took too long; add a filter or use a more specific term')
+      tooSlow.statusCode = 422
+      throw tooSlow
+    }
+    throw err
+  }
 }
 
 const findThreatById = (id) => ThreatLog.findById(id).populate('handledBy', 'name email role').select('+rawPayload')
