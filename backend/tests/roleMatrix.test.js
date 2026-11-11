@@ -29,6 +29,10 @@ jest.mock('../models/Alert')
 jest.mock('../models/Campaign')
 jest.mock('../models/BlockedIP')
 jest.mock('../models/ContainmentAction')
+// Attack Time Machine evidence (its queries are covered against a real database in attackTimeline.test.js)
+jest.mock('../services/attackTimelineService', () => ({
+  getSessionEvidence: jest.fn().mockResolvedValue({ session: {}, alerts: [], containment: [], blockedIPs: [] }),
+}))
 jest.mock('../websocket/socketManager', () => ({
   init: jest.fn(),
   emitNewThreat: jest.fn(),
@@ -727,6 +731,12 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     {
       method: 'get',
       path: '/api/honeypot/sessions/:id',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      // Attack Time Machine: read-only; viewers get the redacted bundle without containment records
+      method: 'get',
+      path: '/api/honeypot/sessions/:id/timeline',
       expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
     },
     {
