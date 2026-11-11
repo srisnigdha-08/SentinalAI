@@ -109,6 +109,16 @@ export const aiAPI = {
   trustGet:   (id)     => api.get(`/ai/trust/predictions/${encodeURIComponent(id)}`),
 }
 
+// Deception Arena: experiments are created here and run by the local runner (ai-engine/demo/deception_arena.py)
+export const arenaAPI = {
+  scenarios:     ()       => api.get('/deception-arena/scenarios'),
+  observational: ()       => api.get('/deception-arena/observational'),
+  list:          (params) => api.get('/deception-arena/experiments', { params }),
+  get:           (id)     => api.get(`/deception-arena/experiments/${encodeURIComponent(id)}`),
+  create:        (data)   => api.post('/deception-arena/experiments', data),
+  cancel:        (id)     => api.post(`/deception-arena/experiments/${encodeURIComponent(id)}/cancel`),
+}
+
 export const campaignAPI = {
   list: () => api.get('/campaigns'),
   get: (id) => api.get(`/campaigns/${id}`),

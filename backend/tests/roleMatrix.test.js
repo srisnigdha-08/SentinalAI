@@ -29,6 +29,19 @@ jest.mock('../models/Alert')
 jest.mock('../models/Campaign')
 jest.mock('../models/BlockedIP')
 jest.mock('../models/ContainmentAction')
+// Deception Arena (covered against a real database in deceptionArena.test.js)
+jest.mock('../services/deceptionArenaService', () => {
+  const actual = jest.requireActual('../services/deceptionArenaService')
+  return {
+    ...actual,
+    createExperiment: jest
+      .fn()
+      .mockResolvedValue({ experimentId: 'e', scenario: 'scripted_recon', trialsPerStrategy: 1 }),
+    listExperiments: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20 }),
+    getExperiment: jest.fn().mockResolvedValue(null),
+    observational: jest.fn().mockResolvedValue({ byPersona: [], recent: [], unattributed: 0 }),
+  }
+})
 // AI Trust Meter reads (covered against a real database in trustMeter.test.js)
 jest.mock('../services/trustMeterService', () => ({
   listPredictions: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20, summary: {}, facets: {} }),
@@ -424,6 +437,7 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     [require('../routes/alerts'), '/api/alerts'],
     [require('../routes/users'), '/api/users'],
     [require('../routes/aiEngine'), '/api/ai'],
+    [require('../routes/deceptionArena'), '/api/deception-arena'],
     [require('../routes/trainingSamples'), '/api/training-samples'],
     [require('../routes/systemOutbox'), '/api/system/outbox'],
     [require('../routes/audit'), '/api/audit'],
@@ -854,6 +868,59 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       method: 'get',
       path: '/api/ai/trust/predictions/:id',
       expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    // Deception Arena. Experiment IDs are UUIDs, so the matrix's ObjectId placeholder is rejected (400) after auth.
+    {
+      method: 'get',
+      path: '/api/deception-arena/scenarios',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/deception-arena/observational',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/deception-arena/experiments',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'post',
+      path: '/api/deception-arena/experiments',
+      body: { name: 'Matrix', scenario: 'scripted_recon', baselinePersona: 'centos_7', trialsPerStrategy: 1 },
+      expected: { 'no-token': 401, viewer: 403, analyst: 201, admin: 201 },
+    },
+    {
+      method: 'get',
+      path: '/api/deception-arena/experiments/:id',
+      expected: { 'no-token': 401, viewer: 400, analyst: 400, admin: 400 },
+    },
+    {
+      method: 'post',
+      path: '/api/deception-arena/experiments/:id/cancel',
+      expected: { 'no-token': 401, viewer: 403, analyst: 400, admin: 400 },
+    },
+    // Local runner protocol: SENTINEL_KEY only; a user session is never enough
+    {
+      method: 'post',
+      path: '/api/deception-arena/runner/:id/claim',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/deception-arena/runner/:id/trials',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/deception-arena/runner/:id/complete',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
+    {
+      method: 'post',
+      path: '/api/deception-arena/runner/:id/fail',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
     },
     // AI engine callback only: user sessions cannot record model output
     {

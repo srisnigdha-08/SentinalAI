@@ -43,6 +43,7 @@ test.describe('End-to-End Smoke & Navigation Stability', () => {
       { path: '/dashboard/honeypot', heading: /Honeypot Analytics/i },
       { path: '/dashboard/campaigns', heading: /Attack Campaigns/i },
       { path: '/dashboard/attack-time-machine', heading: /Attack Time Machine/i },
+      { path: '/dashboard/deception-arena', heading: /Deception Arena/i },
       { path: '/dashboard/ai', heading: /AI Analytics Engine/i },
       { path: '/dashboard/ai-trust-meter', heading: /AI Trust Meter/i },
     ];

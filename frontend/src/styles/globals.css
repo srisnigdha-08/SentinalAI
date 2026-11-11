@@ -68,6 +68,15 @@ form[role="search"] :is(input, select, button):focus-visible { outline: 2px soli
 @media (max-width: 1100px) { .trust-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .trust-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 700px) { .trust-summary, .trust-metrics { grid-template-columns: minmax(0, 1fr); } }
 
+/* Deception Arena */
+.arena-layout { display: grid; gap: 1rem; grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); align-items: start; }
+.arena-strategies { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.arena-form-grid { display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+[data-testid="arena-details"] button:focus-visible, [data-testid="arena-list"] button:focus-visible,
+[data-testid="arena-form"] :is(input, select, button):focus-visible, [data-testid="arena-new"]:focus-visible { outline: 2px solid #00d4ff; outline-offset: 2px; }
+@media (max-width: 1100px) { .arena-layout, .arena-strategies { grid-template-columns: minmax(0, 1fr); } .arena-form-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .arena-form-grid { grid-template-columns: minmax(0, 1fr); } }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
