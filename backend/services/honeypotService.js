@@ -77,7 +77,7 @@ const recentFailedLoginsFrom = async (sourceIP, excludeId, before = new Date()) 
 // M8: sessions invented by log_parser.py --demo or the seed script (demo- prefix) stay out of the KPIs.
 const REAL_SESSIONS = { sessionId: { $not: /^demo-/i } }
 
-const findSessions = async ({ page = 1, limit = 20, node, status, ip } = {}) => {
+const findSessions = async ({ page = 1, limit = 20, node, status, ip, q, sort, from, to } = {}) => {
   const {
     page: safePage,
     limit: safeLimit,
@@ -101,10 +101,22 @@ const findSessions = async ({ page = 1, limit = 20, node, status, ip } = {}) => 
   if (safeIp) {
     filter.sourceIP = { $regex: safeIp, $options: 'i' }
   }
+  // Attack Time Machine: search by session id or source IP, a startTime range, and oldest/newest order.
+  const safeQ = escapeRegex(q, 64)
+  if (safeQ) {
+    filter.$or = [{ sessionId: { $regex: safeQ, $options: 'i' } }, { sourceIP: { $regex: safeQ, $options: 'i' } }]
+  }
+  const range = {}
+  const fromDate = typeof from === 'string' && from ? new Date(from) : null
+  const toDate = typeof to === 'string' && to ? new Date(to) : null
+  if (fromDate && !Number.isNaN(fromDate.getTime())) range.$gte = fromDate
+  if (toDate && !Number.isNaN(toDate.getTime())) range.$lte = toDate
+  if (Object.keys(range).length) filter.startTime = range
+  const direction = sort === 'oldest' ? 1 : -1
 
   const total = await HoneypotSession.countDocuments(filter)
   const data = await HoneypotSession.find(filter)
-    .sort({ createdAt: -1 })
+    .sort({ createdAt: direction, _id: direction })
     .skip(skip)
     .limit(safeLimit)
     .populate('linkedThreatLog', 'severity status aiScore')

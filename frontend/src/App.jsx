@@ -22,6 +22,7 @@ const Dashboard = lazy(() => import("./pages/Dashboard.jsx"));
 const ThreatLogs = lazy(() => import("./pages/ThreatLogs.jsx"));
 const HoneypotAnalytics = lazy(() => import("./pages/HoneypotAnalytics.jsx"));
 const Campaigns = lazy(() => import("./pages/Campaigns.jsx"));
+const AttackTimeMachine = lazy(() => import("./pages/AttackTimeMachine.jsx"));
 const AIAnalytics = lazy(() => import("./pages/AIAnalytics.jsx"));
 const UserManagement = lazy(() => import("./pages/UserManagement.jsx"));
 const Settings = lazy(() => import("./pages/Settings.jsx"));
@@ -174,6 +175,7 @@ function AppRoutes() {
               <Route path="/dashboard/threats" element={<ThreatLogs />} />
               <Route path="/dashboard/honeypot" element={<HoneypotAnalytics />} />
               <Route path="/dashboard/campaigns" element={<Campaigns />} />
+              <Route path="/dashboard/attack-time-machine" element={<AttackTimeMachine />} />
               <Route path="/dashboard/ai" element={<AIAnalytics />} />
 
               {/* Admin-only Protected Pages */}

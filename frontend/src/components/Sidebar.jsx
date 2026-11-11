@@ -15,6 +15,7 @@ export default function Sidebar() {
       { to: '/dashboard',          icon: '⬛', label: 'Dashboard',    badge: unreadCount > 0 ? unreadCount : null },
       { to: '/dashboard/threats',  icon: '⚠',  label: 'Threat Logs'           },
       { to: '/dashboard/honeypot', icon: '🍯', label: 'Honeypot'              },
+      { to: '/dashboard/attack-time-machine', icon: '⏪', label: 'Attack Time Machine' },
       { to: '/dashboard/campaigns',icon: '🕸', label: 'Campaigns'             },
       { to: '/dashboard/ai',       icon: '🧠', label: 'AI Analytics'          },
     ]},
