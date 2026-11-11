@@ -7,6 +7,7 @@ through unchanged; check them against the training data (CICFlowMeter Java: dura
 microseconds) before relying on live scores — see honeypot/README.md.
 """
 import math
+import re
 from datetime import datetime, timezone
 
 # cicflowmeter column -> SentinelAI Record field
@@ -64,16 +65,32 @@ CICFLOWMETER_TO_RECORD = {
 }
 
 
+# Same rule as ai-engine/utils/numeric.py and backend/utils/flowFields.js (ai-engine/tests/fixtures/strict_numeric_cases.json)
+_DECIMAL = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?")
+
+
 def _number(value):
+    """A finite float from a number or a plain decimal/exponent string, otherwise None."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, str):
+        if not _DECIMAL.fullmatch(value):
+            return None
+    elif not isinstance(value, (int, float)):
+        return None
     try:
         n = float(value)
-    except (TypeError, ValueError):
+    except (ValueError, OverflowError):
         return None
     return n if math.isfinite(n) else None
 
 
-def to_detection_payload(row: dict):
-    """CSV row -> payload dict, or None when the row has no source IP."""
+def to_detection_payload(row: dict, rejected=None):
+    """
+    CSV row -> payload dict, or None when the row has no source IP or a mapped column holds an invalid or non-finite
+    value. Such a flow is skipped, as training dropped those rows, rather than scored on default values.
+    `rejected`, a collections.Counter, receives the schema names of the invalid fields (never their values).
+    """
     src = (row.get("src_ip") or "").strip()
     if not src:
         return None
@@ -87,8 +104,17 @@ def to_detection_payload(row: dict):
             payload["timestamp"] = datetime.strptime(ts, "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc).isoformat()
         except ValueError:
             pass
+    invalid = []
     for column, field in CICFLOWMETER_TO_RECORD.items():
-        n = _number(row.get(column))
-        if n is not None:
+        if column not in row:
+            continue
+        n = _number(row[column])
+        if n is None:
+            invalid.append(field)
+        else:
             payload[field] = n
+    if invalid:
+        if rejected is not None:
+            rejected.update(invalid)
+        return None
     return payload

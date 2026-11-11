@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { isValidIP, parseDate } = require('../utils/querySecurity')
+const logger = require('../utils/logger')
 const { redactCapturedCredentials } = require('../utils/redact')
 const { DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
 
@@ -371,7 +372,7 @@ router.post('/', internalAuth, async (req, res, next) => {
  */
 router.post('/flow', internalAuth, async (req, res, next) => {
   try {
-    const { FLOW_FIELDS, MIN_FLOW_FIELDS } = require('../utils/flowFields')
+    const { FLOW_FIELDS, MIN_FLOW_FIELDS, parseFlowFields } = require('../utils/flowFields')
     const body = req.body || {}
     if (typeof body.sourceIP !== 'string' || !isValidIP(body.sourceIP.trim()))
       return sendError(res, 'Valid sourceIP is required', 400)
@@ -379,11 +380,16 @@ router.post('/flow', internalAuth, async (req, res, next) => {
     if (typeof body.destinationIP === 'string' && isValidIP(body.destinationIP.trim()))
       record.destinationIP = body.destinationIP.trim()
     if (body.timestamp && parseDate(body.timestamp)) record.timestamp = parseDate(body.timestamp).toISOString()
-    for (const field of FLOW_FIELDS) {
-      const value = Number(body[field])
-      if (body[field] !== undefined && body[field] !== null && body[field] !== '' && Number.isFinite(value))
-        record[field] = value
+    const { fields, invalid } = parseFlowFields(body)
+    if (invalid.length > 0) {
+      // An invalid value must not reach the engine as a missing field, where it would be replaced by a default.
+      const metrics = require('../utils/metrics')
+      for (const field of invalid)
+        metrics.inc('sentinel_flow_ingest_rejected_total', 'Flow fields rejected as invalid numbers', { field })
+      logger.warn(`[Honeypot Ingest] Flow rejected, invalid numeric field(s): ${invalid.join(', ')}`)
+      return sendError(res, `Invalid numeric value for: ${invalid.join(', ')}`, 400)
     }
+    Object.assign(record, fields)
     if (Object.keys(record).filter((k) => FLOW_FIELDS.includes(k)).length < MIN_FLOW_FIELDS)
       return sendError(res, `At least ${MIN_FLOW_FIELDS} numeric flow fields are required`, 400)
 

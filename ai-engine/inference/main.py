@@ -1,5 +1,5 @@
 """SentinelAI FastAPI Inference Server"""
-import os, sys, time, logging, math, secrets, threading, hashlib
+import os, sys, time, logging, secrets, threading, hashlib
 import numpy as np
 from pathlib import Path
 from datetime import datetime, timezone
@@ -24,6 +24,7 @@ from inference.deception import get_scorer, save_scorer
 from inference.errors import ModelUnavailableError
 from monitoring.drift import DriftMonitor
 from utils.features import FEATURE_NAMES, CANDIDATES, LABEL_NAMES, FEATURE_SCHEMA_VERSION
+from utils.numeric import parse_strict_number
 
 def pred_label(cls: int) -> str:
     return LABEL_NAMES.get(cls, f"c{cls}")
@@ -133,6 +134,12 @@ async def verify_admin_key(x_api_key: str = Header(None), x_admin_key: str = Hea
     if ADMIN_KEY is not None and not (x_admin_key and secrets.compare_digest(x_admin_key, ADMIN_KEY)):
         raise HTTPException(status_code=403, detail="Forbidden: model reload requires the admin key")
 
+def _norm_key(k) -> str:
+    return str(k).strip().lower().replace("_", "").replace(" ", "").replace("/", "")
+
+# Every spelling extract_features_from_record would accept for a feature, so a bad value cannot fall back to a default.
+_NUMERIC_KEYS = frozenset(_norm_key(c) for name in FEATURE_NAMES for c in (name, *CANDIDATES.get(name, [])))
+
 class Record(BaseModel):
     sourceIP: str = "0.0.0.0"
     flow_duration: float = 1000.0
@@ -164,17 +171,10 @@ class Record(BaseModel):
     @classmethod
     def finite_features(cls, values):
         if isinstance(values, dict):
-            for name in FEATURE_NAMES:
+            for key, value in values.items():
                 # Aliases too: a CSV-named NaN/Infinity must be rejected, not silently replaced by a default.
-                for key in dict.fromkeys([name, *CANDIDATES.get(name, [])]):
-                    if key not in values:
-                        continue
-                    try:
-                        finite = math.isfinite(float(values[key]))
-                    except (TypeError, ValueError, OverflowError):
-                        finite = False
-                    if not finite:
-                        raise ValueError(f"{key} must be a finite number")
+                if _norm_key(key) in _NUMERIC_KEYS and parse_strict_number(value) is None:
+                    raise ValueError(f"{key} must be a finite number")
         return values
 
 class SessionData(BaseModel):
@@ -186,9 +186,6 @@ class SessionData(BaseModel):
     startTime: Optional[Union[str, float, int]] = None
     timestamp: Optional[Union[str, float, int]] = None
     model_config = ConfigDict(extra="allow")
-
-def _norm_key(k) -> str:
-    return str(k).strip().lower().replace("_", "").replace(" ", "").replace("/", "")
 
 def _alias_fields(record: "Record") -> set:
     """Schema fields the caller sent under another recognised name (e.g. CICFlowMeter's "Flow Duration")."""
@@ -212,6 +209,14 @@ _NOT_SENT_BY_CALLERS = ("payload_entropy", "time_of_day_sin", "time_of_day_cos")
 # More defaulted raw features than this marks the input incomplete (M2). Training rows never had a missing
 # feature, so a defaulted feature is fabricated; such a score may still alert, but it never auto-blocks.
 MAX_DEFAULTED_FEATURES = int(os.getenv("MAX_DEFAULTED_FEATURES", "5"))
+# Missing fields whose serving default is an invented non-zero measurement: any one makes the input incomplete.
+# Known limit: up to MAX_DEFAULTED_FEATURES missing fields that default to 0 still count as complete and stay eligible
+# for BLOCK, even though training never had a missing value. A value of 0 that the caller sent is not missing.
+FABRICATED_DEFAULT_FEATURES = frozenset({
+    "flow_duration", "total_fwd_packets", "total_len_fwd_packets", "fwd_packet_len_max", "fwd_packet_len_min",
+    "fwd_packet_len_mean", "flow_bytes_per_sec", "flow_packets_per_sec", "flow_iat_mean", "flow_iat_max",
+    "flow_iat_min", "syn_flag_count", "fwd_header_len",
+})
 
 def _defaulted_features(record: "Record") -> list:
     """Raw schema features the caller did not send under any recognised name (filled with defaults or 0)."""
@@ -225,7 +230,8 @@ def _score(record: "Record", explain: bool = False) -> dict:
 
 def _input_policy(r: dict, record: "Record") -> dict:
     r["defaultedFeatures"] = _defaulted_features(record)
-    r["incompleteInput"] = len(r["defaultedFeatures"]) > MAX_DEFAULTED_FEATURES
+    r["incompleteInput"] = (len(r["defaultedFeatures"]) > MAX_DEFAULTED_FEATURES
+                            or not FABRICATED_DEFAULT_FEATURES.isdisjoint(r["defaultedFeatures"]))
     if r["incompleteInput"] and r.get("action") == "BLOCK":
         r["action"] = "MONITOR"
         r["actionCappedReason"] = "incomplete_input"

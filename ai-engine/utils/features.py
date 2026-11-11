@@ -324,7 +324,9 @@ def extract_features_from_record(record: dict) -> np.ndarray:
     bwd_len = g("total_len_bwd_packets", 0.0)
 
     entropy = compute_payload_entropy(fwd_len, bwd_len)
-    ts_val = record.get("timestamp") or record.get("Timestamp")
+    ts_val = record.get("timestamp")
+    if ts_val is None:  # 0 is a valid epoch timestamp, so only a missing value falls through
+        ts_val = record.get("Timestamp")
     t_sin, t_cos = compute_time_of_day(ts_val)
 
     return np.array([

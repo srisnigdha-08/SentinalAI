@@ -1,0 +1,542 @@
+{
+ "comment": "Hand-computed expected vectors. Never derive these from utils.features or any serving code.",
+ "fields": [
+  {
+   "position": 0,
+   "schema": "flow_duration",
+   "csv_header": " Flow Duration",
+   "cicflowmeter": "flow_duration"
+  },
+  {
+   "position": 1,
+   "schema": "total_fwd_packets",
+   "csv_header": " Total Fwd Packets",
+   "cicflowmeter": "tot_fwd_pkts"
+  },
+  {
+   "position": 2,
+   "schema": "total_bwd_packets",
+   "csv_header": " Total Backward Packets",
+   "cicflowmeter": "tot_bwd_pkts"
+  },
+  {
+   "position": 3,
+   "schema": "total_len_fwd_packets",
+   "csv_header": "Total Length of Fwd Packets",
+   "cicflowmeter": "totlen_fwd_pkts"
+  },
+  {
+   "position": 4,
+   "schema": "total_len_bwd_packets",
+   "csv_header": " Total Length of Bwd Packets",
+   "cicflowmeter": "totlen_bwd_pkts"
+  },
+  {
+   "position": 5,
+   "schema": "fwd_packet_len_max",
+   "csv_header": " Fwd Packet Length Max",
+   "cicflowmeter": "fwd_pkt_len_max"
+  },
+  {
+   "position": 6,
+   "schema": "fwd_packet_len_min",
+   "csv_header": " Fwd Packet Length Min",
+   "cicflowmeter": "fwd_pkt_len_min"
+  },
+  {
+   "position": 7,
+   "schema": "fwd_packet_len_mean",
+   "csv_header": " Fwd Packet Length Mean",
+   "cicflowmeter": "fwd_pkt_len_mean"
+  },
+  {
+   "position": 8,
+   "schema": "fwd_packet_len_std",
+   "csv_header": " Fwd Packet Length Std",
+   "cicflowmeter": "fwd_pkt_len_std"
+  },
+  {
+   "position": 9,
+   "schema": "bwd_packet_len_max",
+   "csv_header": "Bwd Packet Length Max",
+   "cicflowmeter": "bwd_pkt_len_max"
+  },
+  {
+   "position": 10,
+   "schema": "bwd_packet_len_min",
+   "csv_header": " Bwd Packet Length Min",
+   "cicflowmeter": "bwd_pkt_len_min"
+  },
+  {
+   "position": 11,
+   "schema": "bwd_packet_len_mean",
+   "csv_header": " Bwd Packet Length Mean",
+   "cicflowmeter": "bwd_pkt_len_mean"
+  },
+  {
+   "position": 12,
+   "schema": "bwd_packet_len_std",
+   "csv_header": " Bwd Packet Length Std",
+   "cicflowmeter": "bwd_pkt_len_std"
+  },
+  {
+   "position": 13,
+   "schema": "flow_bytes_per_sec",
+   "csv_header": "Flow Bytes/s",
+   "cicflowmeter": "flow_byts_s"
+  },
+  {
+   "position": 14,
+   "schema": "flow_packets_per_sec",
+   "csv_header": " Flow Packets/s",
+   "cicflowmeter": "flow_pkts_s"
+  },
+  {
+   "position": 15,
+   "schema": "flow_iat_mean",
+   "csv_header": " Flow IAT Mean",
+   "cicflowmeter": "flow_iat_mean"
+  },
+  {
+   "position": 16,
+   "schema": "flow_iat_std",
+   "csv_header": " Flow IAT Std",
+   "cicflowmeter": "flow_iat_std"
+  },
+  {
+   "position": 17,
+   "schema": "flow_iat_max",
+   "csv_header": " Flow IAT Max",
+   "cicflowmeter": "flow_iat_max"
+  },
+  {
+   "position": 18,
+   "schema": "flow_iat_min",
+   "csv_header": " Flow IAT Min",
+   "cicflowmeter": "flow_iat_min"
+  },
+  {
+   "position": 19,
+   "schema": "fwd_iat_total",
+   "csv_header": "Fwd IAT Total",
+   "cicflowmeter": "fwd_iat_tot"
+  },
+  {
+   "position": 20,
+   "schema": "fwd_iat_mean",
+   "csv_header": " Fwd IAT Mean",
+   "cicflowmeter": "fwd_iat_mean"
+  },
+  {
+   "position": 21,
+   "schema": "fwd_iat_std",
+   "csv_header": " Fwd IAT Std",
+   "cicflowmeter": "fwd_iat_std"
+  },
+  {
+   "position": 22,
+   "schema": "fwd_iat_max",
+   "csv_header": " Fwd IAT Max",
+   "cicflowmeter": "fwd_iat_max"
+  },
+  {
+   "position": 23,
+   "schema": "fwd_iat_min",
+   "csv_header": " Fwd IAT Min",
+   "cicflowmeter": "fwd_iat_min"
+  },
+  {
+   "position": 24,
+   "schema": "bwd_iat_total",
+   "csv_header": "Bwd IAT Total",
+   "cicflowmeter": "bwd_iat_tot"
+  },
+  {
+   "position": 25,
+   "schema": "bwd_iat_mean",
+   "csv_header": " Bwd IAT Mean",
+   "cicflowmeter": "bwd_iat_mean"
+  },
+  {
+   "position": 26,
+   "schema": "bwd_iat_std",
+   "csv_header": " Bwd IAT Std",
+   "cicflowmeter": "bwd_iat_std"
+  },
+  {
+   "position": 27,
+   "schema": "bwd_iat_max",
+   "csv_header": " Bwd IAT Max",
+   "cicflowmeter": "bwd_iat_max"
+  },
+  {
+   "position": 28,
+   "schema": "bwd_iat_min",
+   "csv_header": " Bwd IAT Min",
+   "cicflowmeter": "bwd_iat_min"
+  },
+  {
+   "position": 29,
+   "schema": "fwd_psh_flags",
+   "csv_header": "Fwd PSH Flags",
+   "cicflowmeter": "fwd_psh_flags"
+  },
+  {
+   "position": 30,
+   "schema": "bwd_psh_flags",
+   "csv_header": " Bwd PSH Flags",
+   "cicflowmeter": "bwd_psh_flags"
+  },
+  {
+   "position": 31,
+   "schema": "fwd_urg_flags",
+   "csv_header": " Fwd URG Flags",
+   "cicflowmeter": "fwd_urg_flags"
+  },
+  {
+   "position": 32,
+   "schema": "bwd_urg_flags",
+   "csv_header": " Bwd URG Flags",
+   "cicflowmeter": "bwd_urg_flags"
+  },
+  {
+   "position": 33,
+   "schema": "fin_flag_count",
+   "csv_header": "FIN Flag Count",
+   "cicflowmeter": "fin_flag_cnt"
+  },
+  {
+   "position": 34,
+   "schema": "syn_flag_count",
+   "csv_header": " SYN Flag Count",
+   "cicflowmeter": "syn_flag_cnt"
+  },
+  {
+   "position": 35,
+   "schema": "rst_flag_count",
+   "csv_header": " RST Flag Count",
+   "cicflowmeter": "rst_flag_cnt"
+  },
+  {
+   "position": 36,
+   "schema": "psh_flag_count",
+   "csv_header": " PSH Flag Count",
+   "cicflowmeter": "psh_flag_cnt"
+  },
+  {
+   "position": 37,
+   "schema": "ack_flag_count",
+   "csv_header": " ACK Flag Count",
+   "cicflowmeter": "ack_flag_cnt"
+  },
+  {
+   "position": 38,
+   "schema": "urg_flag_count",
+   "csv_header": " URG Flag Count",
+   "cicflowmeter": "urg_flag_cnt"
+  },
+  {
+   "position": 39,
+   "schema": "fwd_header_len",
+   "csv_header": " Fwd Header Length",
+   "cicflowmeter": "fwd_header_len"
+  },
+  {
+   "position": 40,
+   "schema": "bwd_header_len",
+   "csv_header": " Bwd Header Length",
+   "cicflowmeter": "bwd_header_len"
+  },
+  {
+   "position": 41,
+   "schema": "fwd_avg_bytes_per_bulk",
+   "csv_header": "Fwd Avg Bytes/Bulk",
+   "cicflowmeter": "fwd_byts_b_avg"
+  },
+  {
+   "position": 42,
+   "schema": "bwd_avg_bytes_per_bulk",
+   "csv_header": " Bwd Avg Bytes/Bulk",
+   "cicflowmeter": "bwd_byts_b_avg"
+  },
+  {
+   "position": 43,
+   "schema": "init_win_bytes_forward",
+   "csv_header": "Init_Win_bytes_forward",
+   "cicflowmeter": "init_fwd_win_byts"
+  },
+  {
+   "position": 44,
+   "schema": "init_win_bytes_backward",
+   "csv_header": " Init_Win_bytes_backward",
+   "cicflowmeter": "init_bwd_win_byts"
+  },
+  {
+   "position": 45,
+   "schema": "active_mean",
+   "csv_header": "Active Mean",
+   "cicflowmeter": "active_mean"
+  },
+  {
+   "position": 46,
+   "schema": "active_std",
+   "csv_header": " Active Std",
+   "cicflowmeter": "active_std"
+  },
+  {
+   "position": 47,
+   "schema": "idle_mean",
+   "csv_header": "Idle Mean",
+   "cicflowmeter": "idle_mean"
+  },
+  {
+   "position": 48,
+   "schema": "idle_std",
+   "csv_header": " Idle Std",
+   "cicflowmeter": "idle_std"
+  },
+  {
+   "position": 49,
+   "schema": "down_up_ratio",
+   "csv_header": " Down/Up Ratio",
+   "cicflowmeter": "down_up_ratio"
+  }
+ ],
+ "derived": [
+  "payload_entropy",
+  "time_of_day_sin",
+  "time_of_day_cos"
+ ],
+ "timestamp": {
+  "value": "2017-07-07T15:30:00Z",
+  "sin": -0.7933533402912349,
+  "cos": -0.6087614290087209,
+  "hour_utc": 15.5
+ },
+ "cases": [
+  {
+   "name": "three_to_one_bytes",
+   "values": [
+    1.25,
+    2.25,
+    3.25,
+    300.0,
+    100.0,
+    6.25,
+    7.25,
+    8.25,
+    9.25,
+    10.25,
+    11.25,
+    12.25,
+    13.25,
+    14.25,
+    15.25,
+    16.25,
+    17.25,
+    18.25,
+    19.25,
+    20.25,
+    21.25,
+    22.25,
+    23.25,
+    24.25,
+    25.25,
+    26.25,
+    27.25,
+    28.25,
+    29.25,
+    30.25,
+    31.25,
+    32.25,
+    33.25,
+    34.25,
+    35.25,
+    36.25,
+    37.25,
+    38.25,
+    39.25,
+    40.25,
+    41.25,
+    42.25,
+    43.25,
+    44.25,
+    45.25,
+    46.25,
+    47.25,
+    48.25,
+    49.25,
+    50.25
+   ],
+   "entropy": 0.8112781244591328
+  },
+  {
+   "name": "equal_bytes",
+   "values": [
+    1.25,
+    2.25,
+    3.25,
+    500.0,
+    500.0,
+    6.25,
+    7.25,
+    8.25,
+    9.25,
+    10.25,
+    11.25,
+    12.25,
+    13.25,
+    14.25,
+    15.25,
+    16.25,
+    17.25,
+    18.25,
+    19.25,
+    20.25,
+    21.25,
+    22.25,
+    23.25,
+    24.25,
+    25.25,
+    26.25,
+    27.25,
+    28.25,
+    29.25,
+    30.25,
+    31.25,
+    32.25,
+    33.25,
+    34.25,
+    35.25,
+    36.25,
+    37.25,
+    38.25,
+    39.25,
+    40.25,
+    41.25,
+    42.25,
+    43.25,
+    44.25,
+    45.25,
+    46.25,
+    47.25,
+    48.25,
+    49.25,
+    50.25
+   ],
+   "entropy": 1.0
+  },
+  {
+   "name": "legitimate_zero_measurements",
+   "values": [
+    0.0,
+    1.0,
+    0.0,
+    60.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0
+   ],
+   "entropy": 0.0
+  },
+  {
+   "name": "window_unavailable_and_large_rate",
+   "values": [
+    1.25,
+    2.25,
+    3.25,
+    0.0,
+    0.0,
+    6.25,
+    7.25,
+    8.25,
+    9.25,
+    10.25,
+    11.25,
+    12.25,
+    13.25,
+    1234567890.5,
+    15.25,
+    16.25,
+    17.25,
+    18.25,
+    19.25,
+    20.25,
+    21.25,
+    22.25,
+    23.25,
+    24.25,
+    25.25,
+    26.25,
+    27.25,
+    28.25,
+    29.25,
+    30.25,
+    31.25,
+    32.25,
+    33.25,
+    34.25,
+    35.25,
+    36.25,
+    37.25,
+    38.25,
+    39.25,
+    40.25,
+    41.25,
+    42.25,
+    43.25,
+    -1.0,
+    -1.0,
+    46.25,
+    47.25,
+    48.25,
+    49.25,
+    50.25
+   ],
+   "entropy": 0.0
+  }
+ ]
+}

@@ -209,10 +209,11 @@ def test_cicflowmeter_row_maps_to_detection_payload():
     spec.loader.exec_module(fm)
     row = {"src_ip": "198.51.100.4", "dst_ip": "10.0.0.5", "timestamp": "2026-10-21 10:00:00",
            "flow_duration": "1200", "tot_fwd_pkts": "3", "syn_flag_cnt": "1", "init_fwd_win_byts": "29200",
-           "flow_byts_s": "inf", "unrelated": "x"}
+           "unrelated": "x"}
     payload = fm.to_detection_payload(row)
     assert payload["sourceIP"] == "198.51.100.4" and payload["destinationIP"] == "10.0.0.5"
     assert payload["timestamp"].startswith("2026-10-21T10:00:00")
     assert payload["total_fwd_packets"] == 3.0 and payload["init_win_bytes_forward"] == 29200.0
-    assert "flow_bytes_per_sec" not in payload and "unrelated" not in payload  # non-finite / unknown dropped
+    assert "flow_bytes_per_sec" not in payload and "unrelated" not in payload  # absent / unknown columns
+    assert fm.to_detection_payload({**row, "flow_byts_s": "inf"}) is None  # a non-finite value skips the flow
     assert fm.to_detection_payload({"flow_duration": "1"}) is None

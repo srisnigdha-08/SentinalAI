@@ -549,7 +549,10 @@ class SentinelPredictor:
 
     def _assemble(self, record, x, cls, proba, cls_pos, if_score, ms, explain, rep_score):
         cname = LABEL_NAMES.get(int(cls), "BENIGN")
-        probs = {LABEL_NAMES.get(i, f"c{i}"): round(float(p),4) for i,p in enumerate(proba)}
+        # A column is the class in classes_, which is not its position when a model was trained without some class.
+        classes = getattr(self.rf, "classes_", None)
+        ids = classes if isinstance(classes, np.ndarray) and len(classes) == len(proba) else range(len(proba))
+        probs = {LABEL_NAMES.get(int(c), f"c{int(c)}"): round(float(p),4) for c,p in zip(ids, proba)}
         max_p = float(max(proba))
         is_anomaly = if_score < ANOMALY_THRESHOLD
         rf_s   = max_p if cname != "BENIGN" else (1 - max_p)

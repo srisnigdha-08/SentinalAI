@@ -1,0 +1,168 @@
+{
+ "comment": "One table for the sniffer, backend and AI engine: finite JSON numbers and plain decimal or exponent strings only.",
+ "valid": [
+  {
+   "name": "zero",
+   "value": 0,
+   "number": 0
+  },
+  {
+   "name": "negative",
+   "value": -1,
+   "number": -1
+  },
+  {
+   "name": "fraction",
+   "value": 12.5,
+   "number": 12.5
+  },
+  {
+   "name": "large",
+   "value": 1e+308,
+   "number": 1e+308
+  },
+  {
+   "name": "subnormal",
+   "value": 5e-324,
+   "number": 5e-324
+  },
+  {
+   "name": "string_decimal",
+   "value": "12.5",
+   "number": 12.5
+  },
+  {
+   "name": "string_zero",
+   "value": "0",
+   "number": 0
+  },
+  {
+   "name": "string_negative",
+   "value": "-3",
+   "number": -3
+  },
+  {
+   "name": "string_plus",
+   "value": "+4",
+   "number": 4
+  },
+  {
+   "name": "string_exponent",
+   "value": "1e3",
+   "number": 1000
+  },
+  {
+   "name": "string_upper_exponent",
+   "value": "1.5E-2",
+   "number": 0.015
+  },
+  {
+   "name": "string_leading_point",
+   "value": ".5",
+   "number": 0.5
+  },
+  {
+   "name": "string_trailing_point",
+   "value": "5.",
+   "number": 5
+  }
+ ],
+ "invalid": [
+  {
+   "name": "padded",
+   "value": " 7 "
+  },
+  {
+   "name": "leading_space",
+   "value": " 7"
+  },
+  {
+   "name": "trailing_space",
+   "value": "7 "
+  },
+  {
+   "name": "trailing_newline",
+   "value": "7\n"
+  },
+  {
+   "name": "empty",
+   "value": ""
+  },
+  {
+   "name": "blank",
+   "value": " "
+  },
+  {
+   "name": "text",
+   "value": "abc"
+  },
+  {
+   "name": "hex",
+   "value": "0x10"
+  },
+  {
+   "name": "underscore",
+   "value": "1_000"
+  },
+  {
+   "name": "comma",
+   "value": "1,000"
+  },
+  {
+   "name": "string_nan",
+   "value": "NaN"
+  },
+  {
+   "name": "lower_nan",
+   "value": "nan"
+  },
+  {
+   "name": "string_infinity",
+   "value": "Infinity"
+  },
+  {
+   "name": "negative_infinity",
+   "value": "-Infinity"
+  },
+  {
+   "name": "lower_inf",
+   "value": "inf"
+  },
+  {
+   "name": "overflow_exponent",
+   "value": "1e999"
+  },
+  {
+   "name": "non_ascii_digits",
+   "value": "\u0661\u0662"
+  },
+  {
+   "name": "true",
+   "value": true
+  },
+  {
+   "name": "false",
+   "value": false
+  },
+  {
+   "name": "null",
+   "value": null
+  },
+  {
+   "name": "array",
+   "value": [
+    1
+   ]
+  },
+  {
+   "name": "empty_array",
+   "value": []
+  },
+  {
+   "name": "object",
+   "value": {
+    "a": 1
+   }
+  }
+ ]
+}
