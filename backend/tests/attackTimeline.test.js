@@ -101,9 +101,25 @@ beforeAll(async () => {
     },
   ])
   await Alert.create([
-    { title: 'Session alert', message: 'from 203.0.113.9', type: 'HONEYPOT_SESSION', sourceRef: { refModel: 'HoneypotSession', refId: linked._id } },
-    { title: 'Threat alert', message: 'x', type: 'THREAT_DETECTED', sourceRef: { refModel: 'ThreatLog', refId: threat._id }, targetRoles: ['admin', 'analyst', 'viewer'] },
-    { title: 'Other session alert', message: 'x', type: 'HONEYPOT_SESSION', sourceRef: { refModel: 'HoneypotSession', refId: other._id } },
+    {
+      title: 'Session alert',
+      message: 'from 203.0.113.9',
+      type: 'HONEYPOT_SESSION',
+      sourceRef: { refModel: 'HoneypotSession', refId: linked._id },
+    },
+    {
+      title: 'Threat alert',
+      message: 'x',
+      type: 'THREAT_DETECTED',
+      sourceRef: { refModel: 'ThreatLog', refId: threat._id },
+      targetRoles: ['admin', 'analyst', 'viewer'],
+    },
+    {
+      title: 'Other session alert',
+      message: 'x',
+      type: 'HONEYPOT_SESSION',
+      sourceRef: { refModel: 'HoneypotSession', refId: other._id },
+    },
   ])
   const action = await ContainmentAction.create({
     target: '203.0.113.9',
@@ -198,10 +214,14 @@ describe('GET /sessions/:id/timeline', () => {
   })
 
   test('the endpoint is read-only: no collection changes after reads', async () => {
-    const before = await Promise.all([HoneypotSession, Alert, ContainmentAction, BlockedIP].map((m) => m.countDocuments()))
+    const before = await Promise.all(
+      [HoneypotSession, Alert, ContainmentAction, BlockedIP].map((m) => m.countDocuments())
+    )
     const s = await HoneypotSession.findById(ids.linked).lean()
     await get(`/sessions/${ids.linked}/timeline`)
-    const after = await Promise.all([HoneypotSession, Alert, ContainmentAction, BlockedIP].map((m) => m.countDocuments()))
+    const after = await Promise.all(
+      [HoneypotSession, Alert, ContainmentAction, BlockedIP].map((m) => m.countDocuments())
+    )
     expect(after).toEqual(before)
     expect((await HoneypotSession.findById(ids.linked).lean()).updatedAt).toEqual(s.updatedAt)
   })
@@ -210,7 +230,10 @@ describe('GET /sessions/:id/timeline', () => {
 describe('GET /sessions list filters', () => {
   test('q matches session id or source IP, escaped as a literal', async () => {
     expect((await get('/sessions?q=atm-unl')).body.data.map((s) => s.sessionId)).toEqual(['atm-unlinked'])
-    expect((await get('/sessions?q=203.0.113')).body.data.map((s) => s.sessionId).sort()).toEqual(['atm-linked', 'atm-other'])
+    expect((await get('/sessions?q=203.0.113')).body.data.map((s) => s.sessionId).sort()).toEqual([
+      'atm-linked',
+      'atm-other',
+    ])
     expect((await get('/sessions?q=.*')).body.data).toEqual([])
   })
 

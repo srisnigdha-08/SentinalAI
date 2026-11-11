@@ -75,7 +75,8 @@ const PREDICTION_FIELDS =
 const CONTAINMENT_FIELDS =
   'containmentId actionType targetType target policyDecision policyReason enforcementBackend enforcementStatus targetMetadata.originalThreatId targetMetadata.severity requestedByName requestedByRole requestedAt appliedAt expiresAt rolledBackAt failureReason enforcementDetails.adapterName rollbackDetails.reason createdAt updatedAt'
 
-const AUDIT_FIELDS = 'containmentId seq action enforcementStatus enforcementBackend policyDecision occurredAt recordedAt -_id'
+const AUDIT_FIELDS =
+  'containmentId seq action enforcementStatus enforcementBackend policyDecision occurredAt recordedAt -_id'
 
 /** Credentials without passwords for every role (ingest already masks them; this keeps it true for old records). */
 const safeCredentials = (credentials) =>
