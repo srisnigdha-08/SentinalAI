@@ -264,6 +264,44 @@ router.route('/sessions/:id').get(validateObjectId, getSession)
 
 /**
  * @openapi
+ * /honeypot/sessions/{id}/timeline:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Read-only evidence for the Attack Time Machine replay of one recorded session
+ *     description: >
+ *       The session, per-command MITRE mappings, and only the records that reference this session or its linked
+ *       threat (no source-IP correlation). Containment records are returned to admin and analyst only; viewers get
+ *       the standard honeypot redaction. Never writes and never triggers any action.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Evidence bundle
+ *       404:
+ *         description: Session not found
+ */
+router.get('/sessions/:id/timeline', validateObjectId, async (req, res, next) => {
+  try {
+    const evidence = await require('../services/attackTimelineService').getSessionEvidence(
+      req.params.id,
+      req.user?.role || 'viewer'
+    )
+    if (!evidence) return sendError(res, 'Not found', 404)
+    sendSuccess(res, evidence)
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
  * /honeypot/sessions/{id}/commands:
  *   post:
  *     tags:

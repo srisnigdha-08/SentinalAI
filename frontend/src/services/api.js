@@ -45,6 +45,8 @@ export const containmentAPI = {
 export const honeypotAPI = {
   sessions:     (params)  => api.get('/honeypot/sessions', { params }),
   getSession:   (id)      => api.get(`/honeypot/sessions/${id}`),
+  // Attack Time Machine: read-only evidence for one session (GET only)
+  timeline:     (id)      => api.get(`/honeypot/sessions/${encodeURIComponent(id)}/timeline`),
   createSession:(data)    => api.post('/honeypot/sessions', data),
   addCommands:  (id, cmds)=> api.post(`/honeypot/sessions/${id}/commands`, { commands: cmds }),
   closeSession: (id)      => api.put(`/honeypot/sessions/${id}/close`),
