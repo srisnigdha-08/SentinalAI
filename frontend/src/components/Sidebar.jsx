@@ -16,6 +16,7 @@ export default function Sidebar() {
       { to: '/dashboard/threats',  icon: '⚠',  label: 'Threat Logs'           },
       { to: '/dashboard/honeypot', icon: '🍯', label: 'Honeypot'              },
       { to: '/dashboard/attack-time-machine', icon: '⏪', label: 'Attack Time Machine' },
+      { to: '/dashboard/deception-arena', icon: '🎭', label: 'Deception Arena' },
       { to: '/dashboard/campaigns',icon: '🕸', label: 'Campaigns'             },
       { to: '/dashboard/ai',       icon: '🧠', label: 'AI Analytics'          },
       { to: '/dashboard/ai-trust-meter', icon: '⚖', label: 'AI Trust Meter' },

