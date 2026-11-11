@@ -11,7 +11,7 @@ process.env.NODE_ENV = 'test'
 const fs = require('fs')
 const path = require('path')
 const crypto = require('crypto')
-const { execFile, spawnSync } = require('child_process')
+const { execFile } = require('child_process')
 const execFileAsync = require('util').promisify(execFile)
 const express = require('express')
 const request = require('supertest')
@@ -359,16 +359,15 @@ describe('experiment API', () => {
 })
 
 // ---- Real runner, end to end ----
-const pythonCandidates = [
+// Located on disk (no child process here: see the blocking-child guard in containmentAuditSpool.test.js).
+const exe = process.platform === 'win32' ? ['python.exe', 'python3.exe'] : ['python3', 'python']
+const onPath = (process.env.PATH || '').split(path.delimiter).flatMap((dir) => exe.map((n) => path.join(dir, n)))
+const python = [
   process.env.PYTHON,
   path.join(ENGINE, '.venv', 'Scripts', 'python.exe'),
   path.join(ENGINE, '.venv', 'bin', 'python'),
-  'python3',
-  'python',
-].filter(Boolean)
-const python = pythonCandidates.find(
-  (p) => spawnSync(p, ['-c', 'import sys; sys.exit(0 if sys.version_info >= (3, 8) else 1)']).status === 0
-)
+  ...onPath,
+].find((p) => p && !/WindowsApps/i.test(p) && fs.existsSync(p))
 const sha = (f) => (fs.existsSync(f) ? crypto.createHash('sha256').update(fs.readFileSync(f)).digest('hex') : null)
 const QTABLES = [path.join(ENGINE, 'models', 'q_table.json'), path.join(ENGINE, 'runtime', 'q_table.json')]
 ;(python ? describe : describe.skip)('real runner (ai-engine/demo/deception_arena.py)', () => {
