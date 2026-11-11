@@ -196,6 +196,7 @@ const runFullPipeline = async (record, _io = null) => {
       status: result.status,
       action,
       incompleteInput: result.incompleteInput === true,
+      defaultedFeatures: result.defaultedFeatures,
     })
   } catch (err) {
     logger.error('[AI Pipeline] Failed to persist prediction: ' + err.name)

@@ -29,6 +29,11 @@ jest.mock('../models/Alert')
 jest.mock('../models/Campaign')
 jest.mock('../models/BlockedIP')
 jest.mock('../models/ContainmentAction')
+// AI Trust Meter reads (covered against a real database in trustMeter.test.js)
+jest.mock('../services/trustMeterService', () => ({
+  listPredictions: jest.fn().mockResolvedValue({ data: [], total: 0, page: 1, limit: 20, summary: {}, facets: {} }),
+  getPrediction: jest.fn().mockResolvedValue({ prediction: {} }),
+}))
 // Attack Time Machine evidence (its queries are covered against a real database in attackTimeline.test.js)
 jest.mock('../services/attackTimelineService', () => ({
   getSessionEvidence: jest.fn().mockResolvedValue({ session: {}, alerts: [], containment: [], blockedIPs: [] }),
@@ -837,6 +842,17 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     {
       method: 'get',
       path: '/api/ai/predictions',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    // AI Trust Meter: read-only for every signed-in role (viewers get IP redaction)
+    {
+      method: 'get',
+      path: '/api/ai/trust/predictions',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/ai/trust/predictions/:id',
       expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
     },
     // AI engine callback only: user sessions cannot record model output

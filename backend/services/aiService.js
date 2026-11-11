@@ -51,6 +51,16 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified, revie
 const storePrediction = async (data) => {
   const payload = { ...data }
   payload.needsReview = data.action === 'REVIEW'
+  // Trust Meter metadata: keep the engine's list of defaulted features only when it is well formed.
+  if (payload.defaultedFeatures !== undefined) {
+    const list = payload.defaultedFeatures
+    const ok =
+      Array.isArray(list) &&
+      list.length <= 53 &&
+      list.every((f) => typeof f === 'string' && /^[a-z0-9_]{1,64}$/.test(f))
+    if (ok) payload.defaultedFeatures = [...new Set(list)]
+    else delete payload.defaultedFeatures
+  }
   // Honeypot feedback (U4): a network flow from an IP that attacked the honeypot recently but was classified
   // BENIGN/Unknown is a likely missed attack. It joins the analyst review queue; once verified it becomes a
   // training sample through the existing verification -> TrainingSample path. Never a threat or block by itself.

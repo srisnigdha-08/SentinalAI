@@ -18,6 +18,7 @@ export default function Sidebar() {
       { to: '/dashboard/attack-time-machine', icon: '⏪', label: 'Attack Time Machine' },
       { to: '/dashboard/campaigns',icon: '🕸', label: 'Campaigns'             },
       { to: '/dashboard/ai',       icon: '🧠', label: 'AI Analytics'          },
+      { to: '/dashboard/ai-trust-meter', icon: '⚖', label: 'AI Trust Meter' },
     ]},
     { section: 'Management', items: [
       { to: '/dashboard/users',    icon: '👤', label: 'Users',    roles: ['admin'] },

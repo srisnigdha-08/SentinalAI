@@ -44,6 +44,7 @@ test.describe('End-to-End Smoke & Navigation Stability', () => {
       { path: '/dashboard/campaigns', heading: /Attack Campaigns/i },
       { path: '/dashboard/attack-time-machine', heading: /Attack Time Machine/i },
       { path: '/dashboard/ai', heading: /AI Analytics Engine/i },
+      { path: '/dashboard/ai-trust-meter', heading: /AI Trust Meter/i },
     ];
 
     for (const { path, heading } of analystRoutes) {

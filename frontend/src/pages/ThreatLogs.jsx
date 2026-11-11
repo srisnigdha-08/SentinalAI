@@ -1,6 +1,7 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { threatEvidenceLabel } from '../utils/threatEvidence.js'
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
@@ -321,6 +322,25 @@ export default function ThreatLogs() {
                         >
                           Triage
                         </button>
+                      )}
+                      {l.predictionId && (
+                        <Link
+                          to={`/dashboard/ai-trust-meter?prediction=${encodeURIComponent(l.predictionId)}`}
+                          title="View AI Trust Assessment: input quality, signals and limitations of this prediction"
+                          aria-label="View AI Trust Assessment"
+                          style={{
+                            background: 'rgba(0, 212, 255, 0.08)',
+                            border: '1px solid rgba(0, 212, 255, 0.3)',
+                            color: '#00d4ff',
+                            fontSize: 10,
+                            fontFamily: 'Share Tech Mono,monospace',
+                            padding: '3px 8px',
+                            borderRadius: 1,
+                            textDecoration: 'none',
+                          }}
+                        >
+                          Trust
+                        </Link>
                       )}
                       {canExplain && l.predictionId && (
                         <button

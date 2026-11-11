@@ -1,5 +1,6 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { useState, useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
@@ -261,6 +262,17 @@ export default function AIAnalytics() {
         <KpiCard label="Anomaly Rate"      value={loading?'—':`${summary.anomalyRate||0}%`}              delta="isolation forest" color="#ffaa00" />
         <KpiCard label="Avg Inference"     value={loading?'—':`${summary.avgInferenceMs||0}ms`}         delta="per request"      color="#ff2d55" />
       </div>
+
+      <Link to="/dashboard/ai-trust-meter" data-testid="ai-trust-entry" style={{
+        display:'flex', flexWrap:'wrap', gap:12, alignItems:'center', justifyContent:'space-between', textDecoration:'none',
+        background:'#081f35', border:'1px solid #0d3352', borderLeft:'3px solid #00d4ff', padding:'0.85rem 1.1rem', marginBottom:'1.5rem', color:'#c8e6f5',
+      }}>
+        <span>
+          <span style={{ fontFamily:'Orbitron,sans-serif', fontSize:12, letterSpacing:2, color:'#7ab3cc' }}>AI TRUST METER</span>
+          <span style={{ display:'block', fontSize:13, marginTop:4 }}>Check each prediction's input completeness, classifier and anomaly signals, and the model's known limitations.</span>
+        </span>
+        <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#00d4ff' }}>OPEN ›</span>
+      </Link>
 
       {/* Model health: serving model, decision lines, input drift and admin hot reload */}
       {canVerify && (

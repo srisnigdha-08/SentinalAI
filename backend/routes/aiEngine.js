@@ -285,6 +285,85 @@ router.get('/predictions', protect, async (req, res, next) => {
   }
 })
 
+/**
+ * @openapi
+ * /ai/trust/predictions:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: AI Trust Meter - stored ML predictions with a categorical, evidence-based trust assessment
+ *     description: >
+ *       Read-only. No trust percentage is computed; states are UNAVAILABLE, INCOMPLETE, REVIEW, INSUFFICIENT and
+ *       NO_ISSUES. Rule-based honeypot classifications are out of scope. Viewers get IP redaction.
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - { in: query, name: page, schema: { type: integer } }
+ *       - { in: query, name: limit, schema: { type: integer, maximum: 50 } }
+ *       - { in: query, name: q, schema: { type: string } }
+ *       - { in: query, name: state, schema: { type: string } }
+ *       - { in: query, name: predictedClass, schema: { type: string } }
+ *       - { in: query, name: modelVersion, schema: { type: string } }
+ *       - { in: query, name: from, schema: { type: string, format: date-time } }
+ *       - { in: query, name: to, schema: { type: string, format: date-time } }
+ *       - { in: query, name: sort, schema: { type: string, enum: [newest, oldest, score] } }
+ *     responses:
+ *       200:
+ *         description: Paginated predictions with trust assessments, per-state counts and filter facets
+ */
+router.get('/trust/predictions', protect, async (req, res, next) => {
+  try {
+    const r = await require('../services/trustMeterService').listPredictions(req.query, req.user?.role || 'viewer')
+    res.status(200).json({
+      success: true,
+      data: r.data,
+      pagination: { total: r.total, page: r.page, limit: r.limit, pages: Math.ceil(r.total / r.limit) },
+      summary: r.summary,
+      facets: r.facets,
+      timestamp: new Date().toISOString(),
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /ai/trust/predictions/{id}:
+ *   get:
+ *     tags:
+ *       - AI Engine
+ *     summary: AI Trust Meter - one stored ML prediction with its trust assessment and explanation availability
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Prediction with trust assessment
+ *       404:
+ *         description: Not found, or a rule-based honeypot classification (outside the Trust Meter's scope)
+ */
+router.get('/trust/predictions/:id', protect, validateObjectId, async (req, res, next) => {
+  try {
+    const r = await require('../services/trustMeterService').getPrediction(req.params.id, req.user?.role || 'viewer')
+    if (!r || !r.prediction) {
+      return sendError(
+        res,
+        r?.outOfScope ? 'Rule-based honeypot classification: not assessed by the Trust Meter' : 'Not found',
+        404
+      )
+    }
+    sendSuccess(res, r)
+  } catch (err) {
+    next(err)
+  }
+})
+
 // Fields the AI engine callback (inference/main.py _notify) may set. Verification, threat links
 // and anything else on AIPrediction are server-owned and never accepted from the request.
 const PREDICTION_CALLBACK_FIELDS = [
@@ -300,6 +379,8 @@ const PREDICTION_CALLBACK_FIELDS = [
   'inferenceTimeMs',
   'featureVector',
   'featureSchemaVersion',
+  // Metadata for the AI Trust Meter only (not incompleteInput: that would change which callbacks can auto-block)
+  'defaultedFeatures',
   'status',
   'action',
   'eventTime',

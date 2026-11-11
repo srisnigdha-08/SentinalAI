@@ -59,6 +59,15 @@ form[role="search"] :is(input, select, button):focus-visible { outline: 2px soli
 @media (max-width: 700px) { .atm-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (prefers-reduced-motion: reduce) { [data-testid="atm-replay"] * { transition: none !important; scroll-behavior: auto !important; } }
 
+/* AI Trust Meter */
+.trust-summary { display: grid; gap: .75rem; grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.trust-metrics { display: grid; gap: .75rem; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+[data-testid="trust-details"] :is(button, a, summary):focus-visible,
+.trust-summary button:focus-visible,
+[data-testid="trust-table"] button:focus-visible { outline: 2px solid #00d4ff; outline-offset: 2px; }
+@media (max-width: 1100px) { .trust-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); } .trust-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .trust-summary, .trust-metrics { grid-template-columns: minmax(0, 1fr); } }
+
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: var(--bg); }
