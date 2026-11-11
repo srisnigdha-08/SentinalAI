@@ -60,4 +60,28 @@ const FLOW_FIELDS = Object.freeze([
 // A flow with fewer real measurements than this would be scored mostly on engine defaults.
 const MIN_FLOW_FIELDS = 10
 
-module.exports = { FLOW_FIELDS, MIN_FLOW_FIELDS }
+// Same rule as ai-engine/utils/numeric.py and the sniffer (ai-engine/tests/fixtures/strict_numeric_cases.json)
+const DECIMAL = /^[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/
+
+/** A finite number from a JSON number or a plain decimal/exponent string, otherwise null. */
+const parseStrictNumber = (value) => {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : null
+  if (typeof value !== 'string' || !DECIMAL.test(value)) return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+/** Valid flow fields from a request body, and the names of those present but invalid. Other keys are ignored. */
+const parseFlowFields = (body) => {
+  const fields = {}
+  const invalid = []
+  for (const field of FLOW_FIELDS) {
+    if (body[field] === undefined) continue
+    const number = parseStrictNumber(body[field])
+    if (number === null) invalid.push(field)
+    else fields[field] = number
+  }
+  return { fields, invalid }
+}
+
+module.exports = { FLOW_FIELDS, MIN_FLOW_FIELDS, parseStrictNumber, parseFlowFields }

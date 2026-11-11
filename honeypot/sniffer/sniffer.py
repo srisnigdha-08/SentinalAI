@@ -4,6 +4,7 @@ import time
 import csv
 import threading
 import requests
+from collections import Counter
 from datetime import datetime
 from scapy.all import sniff, wrpcap
 from cicflowmeter.flow_session import FlowSession
@@ -116,6 +117,8 @@ def process_pcap(pcap_in, csv_out_dir):
     match_url = f"{sentinel_api}/honeypot/ingest/match-session"
     flow_url = f"{sentinel_api}/honeypot/ingest/flow"
     detected = 0
+    skipped_invalid = 0
+    rejected_fields = Counter()
     
     labeled_rows = []
     headers = []
@@ -164,7 +167,9 @@ def process_pcap(pcap_in, csv_out_dir):
                 labeled_rows.append(row)
 
                 if DETECT:
-                    payload = to_detection_payload(row)
+                    invalid_before = sum(rejected_fields.values())
+                    payload = to_detection_payload(row, rejected=rejected_fields)
+                    skipped_invalid += sum(rejected_fields.values()) > invalid_before
                     if payload:
                         try:
                             r = requests.post(flow_url, headers={"x-api-key": sentinel_key}, json=payload, timeout=10)
@@ -176,7 +181,9 @@ def process_pcap(pcap_in, csv_out_dir):
         return
         
     if DETECT:
-        print(f"Live detection: {detected} flow(s) analysed by the backend")
+        print(f"Live detection: {detected} flow(s) analysed by the backend, {skipped_invalid} skipped for invalid numbers")
+        if rejected_fields:
+            print("Invalid numeric fields: " + ", ".join(f"{name}={count}" for name, count in sorted(rejected_fields.items())))
     if not labeled_rows:
         return
         

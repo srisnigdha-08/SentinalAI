@@ -132,14 +132,22 @@ describe('live flow ingest (POST /ingest/flow)', () => {
     const r = await request(app)
       .post('/ingest/flow')
       .set(key)
-      .send({ sourceIP: '198.51.100.1', ...flow, $where: 'x', label: 'DDoS', syn_flag_count: 'NaN' })
+      .send({ sourceIP: '198.51.100.1', ...flow, $where: 'x', label: 'DDoS' })
     expect(r.status).toBe(200)
     expect(r.body.data).toEqual({ predictedClass: 'DDoS', threatScore: 0.97, action: 'BLOCK', predictionId: 'p1' })
     const record = runFullPipeline.mock.calls[0][0]
     expect(record.sourceIP).toBe('198.51.100.1')
     expect(record).not.toHaveProperty('label')
     expect(record).not.toHaveProperty('$where')
-    expect(record).not.toHaveProperty('syn_flag_count') // non-numeric value dropped
+    expect(record.syn_flag_count).toBe(4)
+    expect(
+      (
+        await request(app)
+          .post('/ingest/flow')
+          .set(key)
+          .send({ sourceIP: '198.51.100.1', ...flow, syn_flag_count: 'NaN' })
+      ).status
+    ).toBe(400) // an invalid value refuses the flow instead of being dropped and replaced by a default
   })
 })
 

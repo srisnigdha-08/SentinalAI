@@ -5,8 +5,8 @@ Starts an isolated uvicorn process (random port, throwaway SENTINEL_KEY, Q-table
 backend callbacks pointed at a dead port), then:
   1. calls every endpoint and checks status codes and response shape;
   2. sends real benign and attack rows per class and prints predicted class / threatScore / action;
-  3. proves train/serve consistency: the vector the engine scores (featureVector from /predict/internal)
-     equals the vector training builds from the same CSV row (utils.features.prepare_features);
+  3. checks the vector the engine scores (featureVector from /predict/internal): against the vector training builds
+     from the same CSV row, or, without the dataset (CI), against a hand-computed fixture;
   4. shows what happens when a caller sends raw CSV header names instead of the schema's field names;
   5. scores two honeypot sessions and asks for a deception recommendation.
 
@@ -25,7 +25,7 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[1]
 AI = ROOT / "ai-engine"
 sys.path.insert(0, str(AI))
-from utils.features import FEATURE_NAMES, RAW_LABEL_TO_TARGET, extract_features_from_record, prepare_features  # noqa: E402
+from utils.features import FEATURE_NAMES, RAW_LABEL_TO_TARGET, prepare_features  # noqa: E402
 
 sys.stdout.reconfigure(errors="backslashreplace")  # CICIDS web-attack labels contain U+FFFD
 
@@ -119,9 +119,12 @@ def run(port, key, q_path):
                       if fn not in ("payload_entropy", "time_of_day_sin", "time_of_day_cos")}
             record["sourceIP"] = "192.0.2.10"
             print("\n[3] Train/serve consistency (synthetic flow)")
-            res = c.post("/predict/internal", headers=H, json=record).json()["result"]
-            check(np.allclose(res["featureVector"], extract_features_from_record(record)),
-                  "served featureVector == utils.features vector for the same record")
+            parity = json.loads((AI / "tests/fixtures/feature_parity_cases.json").read_text(encoding="utf-8"))
+            case = parity["cases"][0]
+            body = {"sourceIP": "192.0.2.10", **{f["schema"]: v for f, v in zip(parity["fields"], case["values"])}}
+            res = c.post("/predict/internal", headers=H, json=body).json()["result"]
+            check(np.allclose(res["featureVector"], [*case["values"], case["entropy"], 0.0, 0.0]),
+                  "served featureVector == hand-computed fixture vector")
             ev = c.post("/predict/eval", headers=H, json=dict(record)).json()["result"]
             check("featureVector" not in ev, "/predict/eval hides featureVector; /predict/internal returns it")
             print("\n[4] Caller sends raw CSV header names instead of schema field names")
