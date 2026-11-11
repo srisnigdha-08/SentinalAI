@@ -117,6 +117,7 @@ describe('honeypotService.closeSession()', () => {
       credentials: [{ success: true }],
       aiAnalysisPending: false,
       deceptionScoringPending: false,
+      deceptionScoredAt: null,
     })
     aiService.storePrediction.mockResolvedValue({})
     SystemSetting.findOne.mockResolvedValue({ key: 'autoBlockEnabled', value: false })
@@ -426,6 +427,82 @@ describe('honeypotService.closeSession()', () => {
     expect(result.deceptionScoringPending).toBe(false)
     expect(result.closureAnalysisState).toBe('complete')
     expect(mockClusterSession).not.toHaveBeenCalled()
+  })
+
+  describe('the Q-learner is credited once per session', () => {
+    const scored = { success: true, result: { deceptionScore: 72, nextProfile: 'debian_11' } }
+    const reclassifiedAs = { success: true, result: { predictedClass: 'Data Exfiltration', threatScore: 0.5 } }
+    const closedBefore = (extra) =>
+      Object.assign(mockSession, {
+        status: 'closed',
+        endTime: new Date('2026-10-14T00:00:00Z'),
+        durationSeconds: 60,
+        qDeceptionScore: 40,
+        recommendedProfile: 'aws_ec2',
+        ...extra,
+      })
+
+    test('a first closure that scores records when the learner was credited', async () => {
+      mockGetDeceptionScore.mockResolvedValue(scored)
+      const result = await closeSession('session-doc-id')
+      expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
+      expect(result.deceptionScoredAt).toBeInstanceOf(Date)
+    })
+
+    test('a first closure that could not score leaves no credit timestamp', async () => {
+      const result = await closeSession('session-doc-id')
+      expect(result.deceptionScoredAt).toBeNull()
+      expect(result.deceptionScoringPending).toBe(true)
+    })
+
+    test('reclassifying a scored session corrects the classification but does not re-credit the learner', async () => {
+      closedBefore({ closureAnalysisState: 'complete', deceptionScoredAt: new Date('2026-10-14T00:00:01Z') })
+      mockPredictHoneypot.mockResolvedValue(reclassifiedAs)
+      mockGetDeceptionScore.mockResolvedValue(scored)
+      const result = await closeSession('session-doc-id', { reclassify: true })
+      expect(mockPredictHoneypot).toHaveBeenCalledTimes(1)
+      expect(result.aiClassification).toBe('Data Exfiltration')
+      expect(mockGetDeceptionScore).not.toHaveBeenCalled()
+      expect(result.qDeceptionScore).toBe(40)
+      expect(result.recommendedProfile).toBe('aws_ec2')
+      expect(result.deceptionScoringPending).toBe(false)
+    })
+
+    test('a session closed before the timestamp existed counts as credited when its scoring was not pending', async () => {
+      closedBefore({ closureAnalysisState: 'complete', deceptionScoringPending: false, deceptionScoredAt: undefined })
+      mockPredictHoneypot.mockResolvedValue(reclassifiedAs)
+      mockGetDeceptionScore.mockResolvedValue(scored)
+      await closeSession('session-doc-id', { reclassify: true })
+      expect(mockGetDeceptionScore).not.toHaveBeenCalled()
+    })
+
+    test('reclassifying a session whose scoring never succeeded credits the learner once', async () => {
+      closedBefore({ closureAnalysisState: 'complete', deceptionScoringPending: true, qDeceptionScore: 0 })
+      mockGetDeceptionScore.mockResolvedValue(scored)
+      const result = await closeSession('session-doc-id', { reclassify: true })
+      expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
+      expect(result.qDeceptionScore).toBe(72)
+      expect(result.deceptionScoredAt).toBeInstanceOf(Date)
+    })
+
+    test('reclassifying a failed closure that had already credited the learner does not credit it again', async () => {
+      closedBefore({ closureAnalysisState: 'failed', deceptionScoredAt: new Date('2026-10-14T00:00:01Z') })
+      mockGetDeceptionScore.mockResolvedValue(scored)
+      await closeSession('session-doc-id', { reclassify: true })
+      expect(mockGetDeceptionScore).not.toHaveBeenCalled()
+    })
+
+    test('a deferred retry still credits a pending session exactly once', async () => {
+      closedBefore({ closureAnalysisState: 'complete', deceptionScoringPending: true, qDeceptionScore: 0 })
+      HoneypotSession.findOneAndUpdate.mockImplementationOnce(async (_filter, update) => {
+        Object.assign(mockSession, update.$set)
+        return mockSession
+      })
+      mockGetDeceptionScore.mockResolvedValue(scored)
+      const result = await retryDeferredAnalysis('session-doc-id')
+      expect(mockGetDeceptionScore).toHaveBeenCalledTimes(1)
+      expect(result.deceptionScoredAt).toBeInstanceOf(Date)
+    })
   })
 
   test('retryDeferredAnalysis does nothing when the claim finds no pending work', async () => {

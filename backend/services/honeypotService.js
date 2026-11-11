@@ -303,6 +303,12 @@ const closeSession = async (id, { reclassify = false, telemetry = {} } = {}) => 
   const existing = await HoneypotSession.findById(id)
   if (!existing) return null
   if (existing.closureAnalysisState === 'complete' && !reclassify) return existing
+  // The Q-learner learns from a session once: a reclassification corrects the classification, not the reward
+  // (which depends on the session's activity, not its class). A completed closure with no pending scoring was
+  // already credited, which also covers sessions closed before deceptionScoredAt existed.
+  const learnerCredited =
+    Boolean(existing.deceptionScoredAt) ||
+    (existing.closureAnalysisState === 'complete' && !existing.deceptionScoringPending)
   const attemptId = require('node:crypto').randomUUID()
   // Claim before credentials, inference or containment. A failed/in-flight attempt requires review,
   // never an automatic retry that might repeat a partly completed external side effect.
@@ -317,7 +323,7 @@ const closeSession = async (id, { reclassify = false, telemetry = {} } = {}) => 
     throw error
   }
   try {
-    const result = await analyseClosure(session, telemetry)
+    const result = await analyseClosure(session, telemetry, { score: !learnerCredited })
     await HoneypotSession.updateOne(
       { _id: id, closureAttemptId: attemptId, closureAnalysisState: 'processing' },
       { $set: { closureAnalysisState: 'complete', closureAnalysisCompletedAt: new Date() } }
@@ -626,12 +632,14 @@ const isSyntheticSession = (sessionId) => /^demo-/i.test(String(sessionId || '')
 const finishClosure = async (session, payload, { score = true, retry = false } = {}) => {
   const synthetic = isSyntheticSession(session.sessionId)
   if (synthetic) logger.info(`[HP] Synthetic session ${session.sessionId}: Q-learner update skipped`)
-  const decRes = synthetic || !score ? null : await aiSvc.getDeceptionScore(payload)
-  if (synthetic) session.deceptionScoringPending = false
+  const credited = Boolean(session.deceptionScoredAt)
+  const decRes = synthetic || !score || credited ? null : await aiSvc.getDeceptionScore(payload)
+  if (synthetic || credited) session.deceptionScoringPending = false
   else if (score) session.deceptionScoringPending = !(decRes?.success && decRes?.result)
   if (decRes?.success && decRes?.result) {
     session.qDeceptionScore = decRes.result.deceptionScore || 0
     session.recommendedProfile = decRes.result.nextProfile || null
+    session.deceptionScoredAt = new Date()
     logger.info(
       `[HP] Q-learner scored session ${session.sessionId}: ${session.qDeceptionScore} (Next Profile: ${session.recommendedProfile})`
     )

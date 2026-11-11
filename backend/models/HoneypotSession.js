@@ -74,6 +74,8 @@ const HoneypotSessionSchema = new mongoose.Schema(
     // are retried by the sweep (honeypotSweepService.retryDeferredAnalysis), at most a few times.
     aiAnalysisPending: { type: Boolean, default: false },
     deceptionScoringPending: { type: Boolean, default: false },
+    // When the Q-learner was credited with this session's reward; set once, so reclassification never re-credits it.
+    deceptionScoredAt: { type: Date, default: null },
     deferredAnalysisAttempts: { type: Number, default: 0 },
   },
   { timestamps: true }
