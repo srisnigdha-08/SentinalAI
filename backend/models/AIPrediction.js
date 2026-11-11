@@ -32,6 +32,9 @@ const AIPredictionSchema = new mongoose.Schema(
     incompleteInput: { type: Boolean, default: false },
     // Source IP attacked the honeypot within HONEYPOT_CORROBORATION_DAYS (U4); BENIGN/Unknown ones are queued
     honeypotCorroborated: { type: Boolean, default: false },
+    // Raw features the engine recorded as not sent (scored with serving defaults). Absent on records stored before
+    // it was kept: their completeness is unknown, not complete. Metadata only; never read by scoring or blocking.
+    defaultedFeatures: { type: [String], default: undefined },
     anomalyScore: { type: Number, min: -1, max: 1 },
     featureImportance: { type: Map, of: Number, select: false },
     inferenceTimeMs: Number,

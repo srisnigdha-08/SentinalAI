@@ -104,6 +104,9 @@ export const aiAPI = {
   predictions:(params) => api.get('/ai/predictions', { params }),
   stats:      ()       => api.get('/ai/stats'),
   verify:     (id,cls) => api.put(`/ai/predictions/${id}/verify`, { actualClass: cls }),
+  // AI Trust Meter (read-only)
+  trustList:  (params) => api.get('/ai/trust/predictions', { params }),
+  trustGet:   (id)     => api.get(`/ai/trust/predictions/${encodeURIComponent(id)}`),
 }
 
 export const campaignAPI = {
