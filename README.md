@@ -27,8 +27,9 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 **SentinelAI** is a full-stack cyber defence prototype, designed toward autonomous operation, that combines ML threat detection, adaptive honeypot deception and a policy-governed containment workflow (enforcement is simulated by default). SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
 1. **Multi-Model Anomaly & Intrusion Detection:** XGBoost (served) and Random Forest classifiers plus an Isolation Forest, trained on **CICIDS2017** flow records. Input is flow records sent on demand or replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`); there is no live packet capture.
 2. **Explainable AI (XAI):** **SHAP** (SHapley Additive exPlanations). Analysts and admins can open **Explain** on a threat from a scored flow: the backend re-scores the feature vector stored with that threat's prediction and shows per-feature contributions only if it reproduces the same class, score and model version (otherwise it says why not). The AI Analytics page shows the global view over recent decisions. SHAP covers the XGBoost classifier, not the Isolation Forest part of the threat score.
-3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` applies it to Cowrie. Persona switching was exercised against a live Cowrie instance in WSL by the integration harness (`run_integration.cjs --cowrie`); whether learned rotation keeps attackers engaged longer than a fixed persona has **not** been measured (`audit/RL001_DESIGN.md`).
+3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` applies it to Cowrie. Persona switching was exercised against a live Cowrie instance in WSL by the integration harness (`run_integration.cjs --cowrie`); whether learned rotation keeps attackers engaged longer than a fixed persona has **not** been established for real attackers (`audit/RL001_DESIGN.md`; the Deception Arena below compares the two strategies only on scripted and simulated attackers).
 4. **Live SOC Operations Interface:** A React dashboard with Socket.IO telemetry, MITRE ATT&CK technique mapping of honeypot sessions, and analyst triage governance.
+5. **Investigation tools:** an Attack Time Machine that replays recorded honeypot sessions, an AI Trust Meter that shows what limits each stored ML prediction, and a Deception Arena that compares static and adaptive personas under controlled conditions (see [Investigation features](#-investigation-features)).
 
 > **Academic Attribution:**  
 > Developed at the **Department of Information Science and Engineering, RNS Institute of Technology (RNSIT), Bengaluru, India**.  
@@ -41,10 +42,13 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 
 * **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised classification (XGBoost `xgb_cicids_v1` is the served model, pinned in `ai-engine/models/registry.json`) with Isolation Forest anomaly scoring over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) to compute a `ThreatScore`.
 * **🧠 Explainable AI (SHAP):** On-demand per-threat explanations (Threat Logs → Explain): positive and negative contributions of all 53 features for the classifier's decision, computed from the stored vector and verified against the stored prediction; plus a global summary on AI Analytics.
-* **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (e.g. Ubuntu, CentOS, Windows); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona has not been measured.
+* **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (e.g. Ubuntu, CentOS, Windows); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona against real attackers has not been established; the Deception Arena compares the two only on scripted and simulated attackers.
 * **🏷️ MITRE ATT&CK Matrix Tagging:** Maps honeypot shell commands to MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
 * **⚡ Real-Time Dispatcher:** Event propagation via Socket.IO from backend ingestion to analyst dashboards (end-to-end latency not yet measured).
 * **🔒 Enterprise Security & Session Management:** Session-backed authentication architecture featuring 15-minute access JWTs, 30-day absolute refresh token rotation, strict CORS isolation, and Asia/Kolkata timezone normalization.
+* **⏪ Attack Time Machine** (`/dashboard/attack-time-machine`): select a recorded Cowrie session and replay its stored events in order (play, pause, step, seek, 0.5–4×), with event details, per-command MITRE mapping and only reference-linked detection and containment records.
+* **⚖ AI Trust Meter** (`/dashboard/ai-trust-meter`): for each stored ML prediction, classifier confidence, threat score, anomaly signal, input completeness and the model's known limitations, summarised as a categorical assessment with reasons. There is no trust percentage.
+* **🎭 Deception Arena** (`/dashboard/deception-arena`): paired static-vs-adaptive persona experiments run by a local runner on a throwaway copy of the Q-learner, with side-by-side metrics, decisions and rule-based conclusions.
 * **🚨 Policy-Governed Containment:** Auto-blocks (off by default) and analyst blocks go through a policy check and a pluggable containment adapter. The default adapter is a **mock** (no firewall change); the Windows Firewall adapter is gated behind two settings and has not been field-tested.
 
 ---
@@ -160,6 +164,12 @@ correction of 2017-Thursday port-scan labels that was decided after earlier resu
 recall on unseen 2018 days drops to about 7–13 % (served recipe: 4–6 %), it has no infiltration class, and its recall
 is unstable across retraining. It is **not** deployed; four 2018 days are kept untouched for a one-shot external test
 that has not been run.
+
+**Deployed model on six CSE-CIC-IDS2018 development days (diagnostic, 2026-11-11).** At the 0.90 alert line the
+served `xgb_cicids_v1` caught **15.2 %** of attack flows (7,219 of 47,553) with a **0.24 %** benign false-alarm rate
+(198 of 81,821). This is a different network and attack tooling; the run is diagnostic only (results kept in a local,
+uncommitted experiment folder) and the locked 2018 test days were not used. It is shown in the AI Trust Meter's
+"Known model limitations" panel next to, not merged with, the random-split figures.
 
 ### Alerting (backend threat/alert creation)
 The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),
@@ -286,6 +296,7 @@ npm run dev
 | `HONEYPOT_API_KEY` | Secret for authenticating honeypot daemon | Generate with `openssl rand -hex 32` |
 | `AI_ENGINE_URL` | Base URL of FastAPI AI engine | `http://localhost:8000` |
 | `CLIENT_URL` | Trusted CORS client origin | `http://localhost:3000` |
+| `DECEPTION_ARENA_RUNNER_ENABLED` | Lets the local Deception Arena runner claim experiments (with `SENTINEL_KEY`); leave unset outside the lab | unset (disabled) |
 
 ### AI Engine (`ai-engine/.env`)
 | Variable | Description | Default / Example |
@@ -348,6 +359,20 @@ with the outputs of the 2026-11-03 rehearsal and recovery steps: [`docs/DEMO_REH
 Readiness and limitations: [`audit/READINESS_2026-11-01.md`](audit/READINESS_2026-11-01.md). Final handover: [`docs/FINAL_PROJECT_GUIDE.md`](docs/FINAL_PROJECT_GUIDE.md)
 (architecture, installation, readiness), [`docs/PROJECT_METRICS.md`](docs/PROJECT_METRICS.md), [`docs/PRESENTATION_CONTENT.md`](docs/PRESENTATION_CONTENT.md), [`docs/VIVA_GUIDE.md`](docs/VIVA_GUIDE.md),
 [`docs/DEPLOYMENT_AND_BACKUP_PLAN.md`](docs/DEPLOYMENT_AND_BACKUP_PLAN.md).
+
+---
+
+## 🔬 Investigation features
+
+Three read-mostly analyst tools added after the demos. Each keeps real, replayed, simulated and derived evidence apart and labels it.
+
+| Feature | Route (sidebar) | What it does | What it does **not** claim |
+| :--- | :--- | :--- | :--- |
+| **Attack Time Machine** | `/dashboard/attack-time-machine` (below Honeypot) | Session selector (search, status, date, order); replay of stored events with play/pause/step/seek/speed; event details; per-command MITRE techniques; detection and containment records only when they reference the session or its threat record; live append for active sessions | Login attempts have no stored per-attempt time, so they are listed under "Unknown time"; nothing is matched by IP alone; mock containment is labelled as simulated |
+| **AI Trust Meter** | `/dashboard/ai-trust-meter` (below AI Analytics; "Trust" link in Threat Logs) | Per prediction: class, classifier confidence (read by label), threat score, Isolation Forest signal against its own boundary, missing input features, reasons with source fields, link to SHAP; states No identified issues / Review recommended / Input incomplete / Insufficient evidence / No model prediction | No trust or correctness percentage; predictions stored before the feature cannot have their input completeness verified; capture source (live vs replayed) is not recorded and is shown as unknown |
+| **Deception Arena** | `/dashboard/deception-arena` (below Attack Time Machine) | Bounded experiments from allowlisted scenarios; `ai-engine/demo/deception_arena.py` runs paired trials with the existing reward and Q-learner on a temporary seed copy (no Q-table written, hashes checked); side-by-side metrics, per-trial charts, decision explainer, timeline, JSON/CSV export; observational Cowrie sessions per persona with Attack Time Machine links | **No improvement in real-attacker engagement has been established.** Scripted scenarios cannot react to the persona; the simulated attacker's preferences are assumptions. A 12-pair simulated run (seed 7) found no difference in commands per session (95 % CI −0.42 to 1.42). Live Cowrie experiments are not supported: scored sessions update the deployed Q-table and persona changes restart Cowrie |
+
+Running a Deception Arena experiment: start the backend with `DECEPTION_ARENA_RUNNER_ENABLED=true`, create the experiment on the page, then from `ai-engine` run the command the page shows (`python demo/deception_arena.py --backend http://127.0.0.1:5000 --experiment <id>` with `SENTINEL_KEY` set).
 
 ---
 

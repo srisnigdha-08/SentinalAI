@@ -37,6 +37,9 @@ SentinelAI is a security-operations prototype with four services and one databas
 | Host-firewall containment | **Simulated** (mock adapter); Windows Firewall adapter disabled, never run live |
 | Q-learning persona recommender | **Real mechanism, experimental**: warm-started from a synthetic seed; benefit unmeasured |
 | Cross-dataset (CSE-CIC-IDS2018) models | **Experimental, not deployed** |
+| Attack Time Machine replay | **Real** recorded session events; MITRE mappings and summaries **derived**; linked containment labelled **simulated** |
+| AI Trust Meter assessment | **Derived** from stored prediction fields; flow capture source (live vs replayed) recorded as **unknown** |
+| Deception Arena experiments | **Scripted or simulated** attackers against a temporary copy of the Q-learner; no real-attacker evidence |
 | Docker Compose, nginx, Prometheus/Grafana stack | **Implemented, untested** |
 
 ## 2. Component communication
@@ -258,7 +261,15 @@ Details per batch: [`../audit/FIXES.md`](../audit/FIXES.md).
 - The model does not detect attack days or tools it has not seen (§3); several classes have too little data.
 - Network flows in Demo B are **recorded CICIDS2017 records replayed**, not live capture.
 - Enforcement is **simulated** (mock adapter) except the honeypot's own deny-list.
-- The persona learner's benefit is unmeasured; its state is only the previous persona (close to a bandit problem).
+- The persona learner's benefit for real attackers is unestablished; its state is only the previous persona (close to a
+  bandit problem). The Deception Arena's scripted runs cannot show an engagement effect by construction, and a 12-pair
+  simulated run found no difference (commands per session, 95 % CI −0.42 to 1.42). Live Cowrie experiments are not
+  supported because scored sessions update the deployed Q-table and persona changes restart Cowrie.
+- The deployed model caught 15.2 % of attack flows on six CSE-CIC-IDS2018 development days at the 0.90 line (0.24 %
+  benign false alarms; diagnostic, 2026-11-11). The AI Trust Meter states this as a dataset-level limitation.
+- The AI Trust Meter can verify input completeness only for predictions stored after 2026-11-12 (`defaultedFeatures`).
+- Reloading a page again while its session-restore request is still in flight logs the user out (refresh-token replay
+  protection). Wait for the page to finish loading before reloading during a demo.
 - Auto-block acts on a single flow at or above 0.92; there is no multi-event correlation.
 - Single process engine (~120–130 requests/s); dashboard analytics and text search scale linearly with stored threats.
 - SEC-001 open (risk accepted); no TLS, no backups, Docker untested.
@@ -299,6 +310,10 @@ Details per batch: [`../audit/FIXES.md`](../audit/FIXES.md).
 | Docker / TLS / multi-host deployment | ✘ not validated | see §12 |
 | Live packet capture | ✘ not implemented (replay only) | — |
 | Real firewall enforcement | ✘ deliberately disabled | — |
+| Attack Time Machine (session replay) | ✔ complete (2026-11-11, PR #22) | `e2e/attack-time-machine.spec.js`; `backend/tests/attackTimeline.test.js` |
+| AI Trust Meter (per-prediction assessment) | ✔ complete (2026-11-12, PR #23) | `e2e/ai-trust-meter.spec.js`; `backend/tests/trustMeter.test.js` |
+| Deception Arena (static vs adaptive, reproducible mode) | ✔ complete; live mode not supported; no real-attacker benefit established | `e2e/deception-arena.spec.js`; `backend/tests/deceptionArena.test.js` (runs the real runner) |
+| All three features together, every role, desktop and phone | ✔ verified 2026-11-12 | `e2e/feature-integration.spec.js` |
 
 ## 16. Final technical readiness assessment
 

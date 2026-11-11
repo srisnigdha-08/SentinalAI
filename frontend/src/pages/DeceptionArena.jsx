@@ -199,13 +199,13 @@ export default function DeceptionArena() {
         <Panel title="Experiments" badge={`${list.rows.length}`} badgeType="info">
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
             <label style={{ ...label, flex: '1 1 120px' }}>STATUS
-              <select data-testid="arena-filter-status" style={field} value={status} onChange={(e) => update({ status: e.target.value })}>
+              <select data-testid="arena-filter-status" style={{ ...field, width: '100%' }} value={status} onChange={(e) => update({ status: e.target.value })}>
                 <option value="">All</option>
                 {Object.entries(STATUS_META).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
               </select>
             </label>
             <label style={{ ...label, flex: '1 1 120px' }}>SCENARIO
-              <select style={field} value={scenario} onChange={(e) => update({ scenario: e.target.value })}>
+              <select data-testid="arena-filter-scenario" style={{ ...field, width: '100%' }} value={scenario} onChange={(e) => update({ scenario: e.target.value })}>
                 <option value="">All</option>
                 {(meta?.scenarios || []).map((s) => <option key={s.id} value={s.id}>{s.title}</option>)}
               </select>
