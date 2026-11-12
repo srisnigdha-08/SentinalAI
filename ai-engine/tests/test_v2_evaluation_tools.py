@@ -168,3 +168,18 @@ def test_gate2_requires_v2_not_worse_on_the_estimate_itself(tmp_path):
     rep = {"gate1": {"met": True}, "adherence": {"adherence": 1.0}, "perPersona": {"external": per},
            "replay": {"v1Recommendations": {"centos_7": 1}, "v2Recommendations": {"raspberry_pi": 1}}}
     assert vr.effectiveness(rep)[0]["status"] != "PASS"
+
+
+def test_session_records_carry_intents_recommendations_and_decision_outcomes(tmp_path):
+    decisions = [{"decisionId": "f1", "state": "centos_7", "action": "debian_11", "status": "FAILED", "policy": "q_learning",
+                  "closedAt": {"$date": T0.isoformat()}},
+                 {"decisionId": "s1", "state": "centos_7", "action": "debian_11", "status": "SUPERSEDED", "policy": "q_learning"}]
+    data = [sess("a", "81.2.69.160", "centos_7", duration=5, cmds=1), sess("b", "81.2.69.160", "centos_7", minutes=3, duration=900, cmds=1)]
+    r = run_report(tmp_path, data, decisions)
+    a = next(x for x in r["sessions"] if x["sessionId"] == "a")
+    assert a["intents"] == {"RECONNAISSANCE": 1} and a["v1RecommendationAfter"] in ds.servable_profiles()
+    assert a["v2ShadowRecommendationAfter"] in ds.servable_profiles()
+    assert r["decisionOutcomes"]["byStatusAndPolicy"] == {"FAILED/q_learning": 1, "SUPERSEDED/q_learning": 1}
+    assert [f["decisionId"] for f in r["decisionOutcomes"]["failed"]] == ["f1"]
+    dur = r["perPersona"]["external"]["centos_7"]["durationSeconds"]
+    assert dur["ci95"][0] >= 0 and dur["median"] == 452.5              # no impossible negative duration bound
