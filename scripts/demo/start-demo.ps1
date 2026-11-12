@@ -16,7 +16,9 @@
 #>
 param(
   [string]$DemoDb = "sentinel-demo",
-  [string]$Distro = "Ubuntu"
+  [string]$Distro = "Ubuntu",
+  # Persona policy v2 mode (docs/PERSONA_POLICY_V2.md); unset = engine default (shadow). Never "active" before READY.
+  [ValidateSet("", "off", "shadow", "active")][string]$DeceptionV2 = ""
 )
 $ErrorActionPreference = "Stop"
 $Root = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
@@ -47,7 +49,8 @@ function Start-Window($title, $command) {
   Start-Process powershell -ArgumentList '-NoExit', '-ExecutionPolicy', 'Bypass', '-Command', $full | Out-Null
 }
 
-Start-Window "AI engine :8000" "`$env:Q_TABLE_PATH='$StateDir\q_table.json'; Set-Location '$Root\ai-engine'; .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env"
+$V2Env = if ($DeceptionV2) { "`$env:DECEPTION_V2='$DeceptionV2'; " } else { "" }
+Start-Window "AI engine :8000" "$V2Env`$env:Q_TABLE_PATH='$StateDir\q_table.json'; Set-Location '$Root\ai-engine'; .\.venv\Scripts\python.exe -m uvicorn inference.main:app --host 127.0.0.1 --port 8000 --env-file ..\backend\.env"
 Start-Window "Backend :5000 ($DemoDb)" "`$env:HOST='$WinIp'; `$env:MONGO_URI='mongodb://127.0.0.1:27017/$DemoDb'; Set-Location '$Root\backend'; node server.js"
 Start-Window "Frontend :3000" "`$env:SENTINEL_DEV_API_PROXY='http://${WinIp}:5000'; Set-Location '$Root\frontend'; npm run dev"
 Start-Window "Cowrie parser" "`$env:HONEYPOT_API_KEY=(K 'HONEYPOT_API_KEY'); `$env:SENTINEL_API='http://${WinIp}:5000/api'; `$env:PARSER_STATE_DIR='$StateDir\parser-state'; `$env:COWRIE_CFG='$CowrieCfg'; & '$Root\ai-engine\.venv\Scripts\python.exe' '$Root\honeypot\parsers\log_parser.py' --live --log '$CowrieLog'"

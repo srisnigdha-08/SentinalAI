@@ -153,6 +153,7 @@ def evaluate(policies, seeds, scenarios=SCENARIOS, show=True):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true")
+    ap.add_argument("--json-out", help="write a machine-readable summary (read by evaluation/v2_readiness.py)")
     a = ap.parse_args()
     seed_hash = hashlib.sha256(SEED_FILE.read_bytes()).hexdigest()
     tune_seeds, eval_seeds = (range(0, 3), range(100, 105)) if a.quick else (range(0, 10), range(100, 130))
@@ -183,7 +184,7 @@ def main():
         "G v2: discounted UCB + margin + prior": v2_factory(**chosen),
     }
     print("\n## Held-out comparison (seeds %d-%d) [SIMULATED]" % (eval_seeds[0], eval_seeds[-1]))
-    evaluate(policies, list(eval_seeds))
+    held = evaluate(policies, list(eval_seeds))
 
     # 3) Sensitivity of v2 to the synthetic prior's weight (how much the seed is allowed to matter).
     print("\n## Sensitivity to synthetic prior weight (v2, chosen params) [SIMULATED]")
@@ -192,6 +193,19 @@ def main():
 
     assert hashlib.sha256(SEED_FILE.read_bytes()).hexdigest() == seed_hash, "shipped seed changed!"
     print("\nshipped seed models/q_table.json unchanged; no learner state was written")
+    if a.json_out:
+        def cell(ms):
+            reg = [m["regret"] for m in ms]
+            h = 1.96 * st.stdev(reg) / math.sqrt(len(reg)) if len(reg) > 1 else 0.0
+            return {"regretMean": round(st.mean(reg), 4), "regretCi95": round(h, 4), "runs": len(ms),
+                    "identified": sum(m["identify"] is not None for m in ms),
+                    "switchesPer100": round(st.mean(m["switches100"] for m in ms), 2)}
+        summary = {"kind": "SIMULATED", "simulator": "demo/deception_arena.play_session (assumed persona preferences)",
+                   "tuneSeeds": [tune_seeds[0], tune_seeds[-1]], "evalSeeds": [eval_seeds[0], eval_seeds[-1]],
+                   "chosenParams": chosen, "seedSha256": seed_hash,
+                   "results": {sc: {pol: cell(ms) for (sc2, pol), ms in held.items() if sc2 == sc} for sc in SCENARIOS}}
+        Path(a.json_out).write_text(json.dumps(summary, indent=2), encoding="utf-8")
+        print("summary written to", a.json_out)
 
 
 if __name__ == "__main__":

@@ -115,3 +115,32 @@ test('engine unreachable: no decision is invented', async () => {
   expect(await svc.currentDecision('centos_7', { recommend: async () => null })).toBeNull()
   expect(await DeceptionDecision.countDocuments({})).toBe(0)
 })
+
+// Persona policy v2 in shadow (docs/PERSONA_POLICY_V2.md): the engine adds a `shadow` block to its recommendation.
+// The decision must come from v1's nextProfile/policy only; the shadow pick is never persisted or applied.
+test('a shadow v2 recommendation never becomes the decision', async () => {
+  const recommend = jest.fn(async () => ({
+    nextProfile: 'ubuntu_22',
+    explored: false,
+    policy: 'q_learning',
+    learnerStats: { provenance: { seedEpisodes: 12087 } },
+    shadow: { mode: 'shadow', applied: false, policyVersion: 'persona-ducb-v2', recommendation: 'raspberry_pi' },
+  }))
+  const { decision } = await svc.currentDecision('centos_7', { recommend })
+  expect(decision.action).toBe('ubuntu_22')
+  expect(decision.policy).toBe('q_learning')
+  const stored = await DeceptionDecision.findOne({ decisionId: decision.decisionId }).lean()
+  expect(JSON.stringify(stored)).not.toMatch(/raspberry_pi|persona-ducb-v2/)
+})
+
+test('an active v2 recommendation is recorded with its own policy version', async () => {
+  const recommend = jest.fn(async () => ({
+    nextProfile: 'raspberry_pi',
+    explored: false,
+    policy: 'persona-ducb-v2',
+    policyV1: { nextProfile: 'ubuntu_22', policy: 'q_learning' },
+  }))
+  const { decision } = await svc.currentDecision('centos_7', { recommend })
+  expect(decision.action).toBe('raspberry_pi')
+  expect(decision.policy).toBe('persona-ducb-v2')
+})
