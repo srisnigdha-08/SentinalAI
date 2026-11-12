@@ -1,6 +1,6 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 import { threatEvidenceLabel } from '../utils/threatEvidence.js'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import {
   LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer
@@ -12,7 +12,8 @@ import ErrorBoundary from '../components/ErrorBoundary.jsx'
 import LiveFeed  from '../components/LiveFeed.jsx'
 import StatusBar from '../components/StatusBar.jsx'
 import SeverityBadge from '../components/SeverityBadge.jsx'
-import { threatAPI, honeypotAPI, systemAPI } from '../services/api.js'
+import { threatAPI, honeypotAPI, systemAPI, reportAPI } from '../services/api.js'
+import { filenameFromDisposition, blobErrorMessage, saveBlob } from '../utils/download.js'
 import { useSocket } from '../hooks/useSocket.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
@@ -30,6 +31,16 @@ const VECTOR_COLORS = {
   'Lateral Movement':'#cc00ff',
 }
 const ATTACK_TYPES = Object.keys(VECTOR_COLORS)
+const REPORT_PERIODS = [
+  { days: 1, label: 'Today' },
+  { days: 7, label: 'Last 7 days' },
+  { days: 30, label: 'Last 30 days' },
+]
+const REPORT_TYPES = { pdf: 'application/pdf', csv: 'text/csv' }
+const exportControlStyle = {
+  background:'#041120', border:'1px solid #1a4a6e', color:'#7ab3cc', fontFamily:'Share Tech Mono,monospace',
+  fontSize:11, padding:'6px 8px', borderRadius:2,
+}
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2,
@@ -52,6 +63,37 @@ export default function Dashboard() {
   const [loading,      setLoading]      = useState(true)
   const [threatCount,  setThreatCount]  = useState(0)
   const { connected, on } = useSocket()
+  const [exporting, setExporting] = useState(false)
+  const [reportDays, setReportDays] = useState(7)
+  const [reportFormat, setReportFormat] = useState('pdf')
+  const exportingRef = useRef(false)
+
+  // Export Report: downloads the server-built security summary (real database figures for the chosen period).
+  // The ref blocks a second export while one is in flight, even before React re-renders the disabled button.
+  const exportReport = async () => {
+    if (exportingRef.current) return
+    exportingRef.current = true
+    setExporting(true)
+    const toastId = toast.loading('Preparing security report...')
+    try {
+      const res = await reportAPI.securitySummary({ days: reportDays, format: reportFormat })
+      const blob = res.data instanceof Blob ? res.data : new Blob([res.data])
+      const type = String(res.headers?.['content-type'] || blob.type || '')
+      if (!blob.size || !type.includes(REPORT_TYPES[reportFormat])) {
+        throw Object.assign(new Error('The server returned an unexpected response instead of the report.'), { invalidReport: true })
+      }
+      const fallback = `sentinelai-security-report-${reportDays}d.${reportFormat}`
+      const name = filenameFromDisposition(res.headers?.['content-disposition'], fallback)
+      saveBlob(blob, name)
+      toast.success(`Report downloaded: ${name}`, { id: toastId })
+    } catch (err) {
+      const message = err?.invalidReport ? err.message : await blobErrorMessage(err, 'Report export failed')
+      toast.error(`Export failed: ${message}`, { id: toastId })
+    } finally {
+      exportingRef.current = false
+      setExporting(false)
+    }
+  }
 
   const load = async () => {
     setError(null)
@@ -480,11 +522,24 @@ export default function Dashboard() {
             ● REAL DATA MODE
           </span>
           {userRole !== 'viewer' ? (
-            <button disabled title="Report export is not available yet" style={{
-              background:'transparent', border:'1px solid #1a4a6e', color:'#7ab3cc',
-              fontFamily:'Rajdhani,sans-serif', fontWeight:600, fontSize:11,
-              letterSpacing:1, textTransform:'uppercase', padding:'7px 16px', borderRadius:2, cursor:'pointer',
-            }}>Export Report</button>
+            <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>
+              <select aria-label="Report period" value={reportDays} disabled={exporting}
+                onChange={e => setReportDays(Number(e.target.value))} style={exportControlStyle}>
+                {REPORT_PERIODS.map(p => <option key={p.days} value={p.days}>{p.label}</option>)}
+              </select>
+              <select aria-label="Report format" value={reportFormat} disabled={exporting}
+                onChange={e => setReportFormat(e.target.value)} style={exportControlStyle}>
+                <option value="pdf">PDF</option>
+                <option value="csv">CSV</option>
+              </select>
+              <button type="button" onClick={exportReport} disabled={exporting} aria-busy={exporting}
+                title="Download a security summary built from current database figures" style={{
+                background:'transparent', border:'1px solid #1a4a6e', color: exporting ? '#3a6a88' : '#7ab3cc',
+                fontFamily:'Rajdhani,sans-serif', fontWeight:600, fontSize:11,
+                letterSpacing:1, textTransform:'uppercase', padding:'7px 16px', borderRadius:2,
+                cursor: exporting ? 'wait' : 'pointer',
+              }}>{exporting ? 'Exporting...' : 'Export Report'}</button>
+            </div>
           ) : (
             <span style={{
               fontFamily: 'Share Tech Mono,monospace', fontSize: 10,

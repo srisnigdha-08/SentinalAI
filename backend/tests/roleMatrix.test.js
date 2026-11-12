@@ -105,6 +105,14 @@ jest.mock('../services/deceptionDecisionService', () => ({
   },
   applyDecision: jest.fn().mockResolvedValue({ status: 'APPLIED' }),
   failDecision: jest.fn().mockResolvedValue({ decisionId: 'decision-1', status: 'FAILED' }),
+  status: jest.fn().mockResolvedValue({ activeProfile: 'ubuntu_22', pendingDecision: null, lastClosedDecision: null }),
+}))
+jest.mock('../services/reportService', () => ({
+  ALLOWED_DAYS: [1, 7, 30, 90],
+  buildSecurityReport: jest.fn().mockResolvedValue({ generatedAt: '2026-01-01T00:00:00.000Z', period: { days: 7 } }),
+  renderPdf: jest.fn(() => Buffer.from('%PDF-1.4 %%EOF', 'latin1')),
+  renderCsv: jest.fn(() => Buffer.from('section,metric,value')),
+  reportFileName: jest.fn((r, ext) => `report.${ext}`),
 }))
 jest.mock('../services/aiEngineService', () => ({
   getHealth: jest.fn().mockResolvedValue({ status: 'ok' }),
@@ -399,6 +407,8 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
 
     Campaign.find = jest.fn(() => createChainableQuery(campaignList))
     Campaign.countDocuments = jest.fn().mockResolvedValue(1)
+    Campaign.aggregate = jest.fn().mockResolvedValue([{ total: 1, maxDeceptionScore: 10, sessionTotal: 2 }])
+    Campaign.distinct = jest.fn().mockResolvedValue(['203.0.113.10'])
     Campaign.findById = jest.fn(() => createChainableQuery(campaignList[0]))
 
     BlockedIP.find = jest.fn(() => createChainableQuery([]))
@@ -434,6 +444,7 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     [require('../routes/honeypotIngest'), '/api/honeypot/ingest'],
     [require('../routes/honeypot'), '/api/honeypot'],
     [require('../routes/campaigns'), '/api/campaigns'],
+    [require('../routes/reports'), '/api/reports'],
     [require('../routes/alerts'), '/api/alerts'],
     [require('../routes/users'), '/api/users'],
     [require('../routes/aiEngine'), '/api/ai'],
@@ -727,6 +738,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     },
     {
       method: 'get',
+      path: '/api/honeypot/deception/status',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
       path: '/api/honeypot/attackers',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
     },
@@ -773,6 +789,16 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     // 7. Campaigns
     { method: 'get', path: '/api/campaigns', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
     { method: 'get', path: '/api/campaigns/:id', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/campaigns/summary',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/reports/security-summary',
+      expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
 
     // 8. Alerts
     {

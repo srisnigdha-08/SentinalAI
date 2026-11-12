@@ -127,13 +127,37 @@ const getUser = async (req, res, next) => {
     next(err)
   }
 }
+// Fields the Edit User form may change. Email (the sign-in identity) and credentials are not editable here:
+// passwords use /api/auth/update-password and forced resets; email changes would need re-verification.
+const EDITABLE_USER_FIELDS = ['name', 'role', 'status', 'department']
+const UPDATE_META_FIELDS = ['expectedUpdatedAt']
+
 const updateUser = async (req, res, next) => {
   try {
-    const allowed = ['name', 'role', 'status', 'department']
+    const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {}
+    const unsupported = Object.keys(body).filter(
+      (k) => !EDITABLE_USER_FIELDS.includes(k) && !UPDATE_META_FIELDS.includes(k)
+    )
+    if (unsupported.length) return sendError(res, `Unsupported account fields: ${unsupported.join(', ')}`, 422)
+
     const updates = {}
-    allowed.forEach((f) => {
-      if (req.body[f] !== undefined) updates[f] = req.body[f]
+    EDITABLE_USER_FIELDS.forEach((f) => {
+      if (body[f] !== undefined) updates[f] = body[f]
     })
+    if (updates.name !== undefined) {
+      if (typeof updates.name !== 'string' || updates.name.trim().length < 2 || updates.name.trim().length > 50)
+        return sendError(res, 'Name must be 2-50 characters', 400)
+      updates.name = updates.name.trim()
+    }
+    if (updates.department !== undefined) {
+      if (
+        typeof updates.department !== 'string' ||
+        !updates.department.trim() ||
+        updates.department.trim().length > 100
+      )
+        return sendError(res, 'Department must be 1-100 characters', 400)
+      updates.department = updates.department.trim()
+    }
     if (
       updates.role !== undefined &&
       (typeof updates.role !== 'string' || !ALLOWED_USER_ROLES.includes(updates.role.toLowerCase()))
@@ -148,9 +172,29 @@ const updateUser = async (req, res, next) => {
     }
     if (updates.role) updates.role = updates.role.toLowerCase()
     if (updates.status) updates.status = updates.status.toLowerCase()
+    if (!Object.keys(updates).length) return sendError(res, 'No editable fields supplied', 400)
 
     const targetUser = await User.findById(req.params.id)
     if (!targetUser) return sendError(res, 'Not found', 404)
+
+    // Stale-edit guard: the form sends the updatedAt it was opened with; a newer record is not overwritten
+    if (body.expectedUpdatedAt !== undefined) {
+      const expected = new Date(body.expectedUpdatedAt)
+      if (Number.isNaN(expected.getTime())) return sendError(res, 'expectedUpdatedAt must be a timestamp', 400)
+      const current = targetUser.updatedAt ? new Date(targetUser.updatedAt).getTime() : null
+      if (current !== null && current !== expected.getTime())
+        return sendError(res, 'This account was changed by someone else. Reload and try again.', 409)
+    }
+
+    // Unchanged values are not updates: re-sending the current role must not revoke the user's sessions
+    for (const f of Object.keys(updates)) {
+      if (targetUser[f] !== undefined && targetUser[f] === updates[f]) delete updates[f]
+    }
+    if (!Object.keys(updates).length) {
+      const unchanged = typeof targetUser.toJSON === 'function' ? targetUser.toJSON() : { ...targetUser }
+      delete unchanged.password
+      return sendSuccess(res, { user: unchanged, changed: [] }, 'No changes')
+    }
 
     const isSelf = req.user?._id?.toString() === req.params.id
 
@@ -219,6 +263,7 @@ const updateUser = async (req, res, next) => {
           },
           { new: true, runValidators: true, session }
         ).select('-password')
+        if (!updated) throw Object.assign(new Error('Not found'), { statusCode: 404 })
 
         await logAudit({
           action: isSecurityChange ? (updates.role ? 'USER_ROLE_CHANGED' : 'USER_STATUS_CHANGED') : 'USER_UPDATED',
@@ -240,6 +285,7 @@ const updateUser = async (req, res, next) => {
           },
           { new: true, runValidators: true }
         ).select('-password')
+        if (!updated) throw Object.assign(new Error('Not found'), { statusCode: 404 })
 
         try {
           await logAudit({
@@ -271,8 +317,10 @@ const updateUser = async (req, res, next) => {
       socketManager.disconnectUser(user._id)
     }
 
-    sendSuccess(res, { user }, 'Updated')
+    sendSuccess(res, { user, changed: Object.keys(updates), sessionsRevoked: Boolean(isSecurityChange) }, 'Updated')
   } catch (err) {
+    if (err.statusCode === 404 && err.message === 'Not found') return sendError(res, 'Not found', 404)
+    if (err.name === 'ValidationError') return sendError(res, 'Invalid account fields', 400)
     if (err.message && err.message.includes('Security audit logging failed')) {
       return sendError(res, err.message, err.statusCode || 500)
     }

@@ -8,6 +8,8 @@ import { useSocket } from '../hooks/useSocket.js'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth.js'
 import { recommendationSummary, learnerProvenanceSummary, decisionStatusSummary, policyLabel } from '../utils/modelHealth.js'
+import { profileSourceLabel, closedDecisionSummary, learningCountsSummary, shadowSummary, deceptionSignature, requestErrorMessage } from '../utils/deceptionStatus.js'
+import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -31,19 +33,71 @@ export default function HoneypotAnalytics() {
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
   const [profile,   setProfile]   = useState(null)
+  const [profileError, setProfileError] = useState(null)
   const [recommendation, setRecommendation] = useState(null)
-  const [recError,  setRecError]  = useState(false)
+  const [recError,  setRecError]  = useState(null)
+  const [deceptionStatus, setDeceptionStatus] = useState(null)
+  const [statusError, setStatusError] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastRefreshed, setLastRefreshed] = useState(null)
+  const [refreshNote, setRefreshNote] = useState(null)
   const { connected, on } = useSocket()
   const { user } = useAuth()
   const canSeeRecommendation = user?.role === 'admin' || user?.role === 'analyst'
+  const deceptionInflight = useRef(null)
+  const deceptionSig = useRef(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
 
   // The Q-learner's pick is applied on the honeypot host by honeypot/deception_rotator.py; this view is read-only.
-  const loadDeception = () => {
-    honeypotAPI.deceptionProfile().then(r => setProfile(r.data?.data || null)).catch(() => setProfile(null))
-    if (!canSeeRecommendation) return
-    honeypotAPI.deceptionRecommendation()
-      .then(r => { setRecommendation(r.data?.data || null); setRecError(false) })
-      .catch(() => { setRecommendation(null); setRecError(true) })
+  // Refresh only reads: the recorded persona, the pending decision (the backend reuses it, RL-001), and a
+  // read-only status snapshot. It never draws a fresh recommendation, rotates Cowrie or touches the Q-table.
+  const loadDeception = ({ manual = false } = {}) => {
+    if (deceptionInflight.current) return deceptionInflight.current // overlapping clicks share one request
+    setRefreshing(true)
+    const run = (async () => {
+      const [p, r, st] = await Promise.allSettled([
+        honeypotAPI.deceptionProfile(),
+        canSeeRecommendation ? honeypotAPI.deceptionRecommendation() : Promise.resolve(null),
+        canSeeRecommendation ? honeypotAPI.deceptionStatus() : Promise.resolve(null),
+      ])
+      if (!mounted.current) return
+      const nextProfile = p.status === 'fulfilled' ? p.value?.data?.data || null : null
+      const nextRec = r.status === 'fulfilled' ? r.value?.data?.data || null : null
+      const nextStatus = st.status === 'fulfilled' ? st.value?.data?.data || null : null
+      setProfile(nextProfile)
+      setProfileError(p.status === 'rejected' ? requestErrorMessage(p.reason, 'Serving persona unavailable') : null)
+      setRecommendation(nextRec)
+      setRecError(r.status === 'rejected' ? requestErrorMessage(r.reason, 'Recommendation unavailable') : null)
+      setDeceptionStatus(nextStatus)
+      setStatusError(st.status === 'rejected' ? requestErrorMessage(st.reason, 'Decision history unavailable') : null)
+      const failed = [p, r, st].filter(x => x.status === 'rejected').length
+      const sig = deceptionSignature(nextProfile, nextRec, nextStatus)
+      const changed = deceptionSig.current !== null && sig !== deceptionSig.current
+      if (failed < 3) {
+        setLastRefreshed(new Date())
+        deceptionSig.current = sig
+      }
+      if (!manual) return
+      if (failed === 3) {
+        setRefreshNote('Refresh failed: no deception data could be loaded.')
+        toast.error('Adaptive deception refresh failed')
+      } else if (failed) {
+        setRefreshNote('Partially refreshed: some deception data is unavailable (see below).')
+        toast.error('Adaptive deception partially refreshed')
+      } else if (changed) {
+        setRefreshNote('Updated: the backend state changed since the last refresh.')
+        toast.success('Adaptive deception updated')
+      } else {
+        setRefreshNote('Up to date: no change since the last refresh.')
+        toast.success('Adaptive deception is up to date')
+      }
+    })().finally(() => {
+      deceptionInflight.current = null
+      if (mounted.current) setRefreshing(false)
+    })
+    deceptionInflight.current = run
+    return run
   }
 
   const load = async () => {
@@ -263,33 +317,61 @@ export default function HoneypotAnalytics() {
 
       {/* Adaptive deception: persona being served and the Q-learner's next pick */}
       <Panel title="Adaptive Deception" badge={profile?.profile ? profile.profile.toUpperCase() : 'UNKNOWN'} badgeType="info" style={{ marginBottom:'1rem' }}>
-        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, fontFamily:'Share Tech Mono,monospace', fontSize:12, color:'#7ab3cc' }}>
-          <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-            <span>Serving persona: <strong style={{ color:'#00d4ff' }}>{profile?.profile || '—'}</strong>
-              {profile?.source && <span style={{ color:'#3a6a88', fontSize:10 }}> (from {profile.source})</span>}</span>
+        <div data-testid="adaptive-deception" aria-busy={refreshing} style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12, fontFamily:'Share Tech Mono,monospace', fontSize:12, color:'#7ab3cc' }}>
+          <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:0, flex:'1 1 320px' }}>
+            {profileError
+              ? <span data-testid="profile-error" style={{ color:'#ffaa00' }}>{profileError}</span>
+              : <span>Serving persona: <strong data-testid="serving-persona" style={{ color:'#00d4ff' }}>{profile?.profile || '—'}</strong>
+                  {profile?.source && <span style={{ color:'#3a6a88', fontSize:10 }}> ({profileSourceLabel(profile.source)}; not a live SSH probe)</span>}</span>}
             {canSeeRecommendation && (
               recError
-                ? <span style={{ color:'#ffaa00' }}>Recommendation unavailable: AI engine unreachable.</span>
-                : <span>{policyLabel(recommendation?.policy)} recommends: <strong style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
+                ? <span data-testid="recommendation-error" style={{ color:'#ffaa00' }}>{recError}</span>
+                : <span>{policyLabel(recommendation?.policy)} recommends: <strong data-testid="recommendation" style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
             )}
             {canSeeRecommendation && !recError && recommendation && (
               <span data-testid="learner-provenance" style={{ color:'#3a6a88', fontSize:10 }}>{learnerProvenanceSummary(recommendation.provenance)}</span>
             )}
             {canSeeRecommendation && !recError && decisionStatusSummary(recommendation) && (
-              <span data-testid="decision-status" style={{ color:'#3a6a88', fontSize:10 }}>{decisionStatusSummary(recommendation)}</span>
+              <span data-testid="decision-status" style={{ color:'#3a6a88', fontSize:10 }}>
+                {decisionStatusSummary(recommendation)}
+                {recommendation?.decisionCreatedAt && ` Drawn ${new Date(recommendation.decisionCreatedAt).toLocaleString('en-IN', { timeZone: REPORT_TIME_ZONE })} IST.`}
+                {recommendation?.policy && ` Active policy: ${recommendation.policy}.`}
+              </span>
             )}
+            {canSeeRecommendation && (statusError
+              ? <span data-testid="status-error" style={{ color:'#ffaa00', fontSize:10 }}>{statusError}</span>
+              : deceptionStatus && (
+                <>
+                  <span data-testid="last-closed-decision" style={{ color:'#3a6a88', fontSize:10 }}>{closedDecisionSummary(deceptionStatus.lastClosedDecision)}</span>
+                  <span data-testid="learning-counts" style={{ color:'#3a6a88', fontSize:10 }}>{learningCountsSummary(deceptionStatus.learning)}</span>
+                  <span data-testid="shadow-summary" style={{ color:'#3a6a88', fontSize:10 }}>{shadowSummary(deceptionStatus.shadow)}</span>
+                </>
+              ))}
           </div>
           {canSeeRecommendation && (
-            <button
-              onClick={loadDeception}
-              style={{ background:'transparent', border:'1px solid #00d4ff', color:'#00d4ff', padding:'3px 10px', borderRadius:2, fontSize:10, cursor:'pointer', fontFamily:'Share Tech Mono,monospace' }}
-            >
-              REFRESH
-            </button>
+            <div style={{ display:'flex', flexDirection:'column', alignItems:'flex-end', gap:4 }}>
+              <button
+                type="button"
+                onClick={() => loadDeception({ manual: true })}
+                disabled={refreshing}
+                aria-busy={refreshing}
+                style={{ background:'transparent', border:'1px solid #00d4ff', color: refreshing ? '#3a6a88' : '#00d4ff', padding:'3px 10px', borderRadius:2, fontSize:10, cursor: refreshing ? 'wait' : 'pointer', fontFamily:'Share Tech Mono,monospace' }}
+              >
+                {refreshing ? 'REFRESHING...' : 'REFRESH'}
+              </button>
+              <span data-testid="deception-last-refreshed" style={{ fontSize:9, color:'#3a6a88' }}>
+                {lastRefreshed ? `Last refreshed ${lastRefreshed.toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })} IST` : 'Not yet refreshed'}
+              </span>
+            </div>
           )}
         </div>
+        {refreshNote && (
+          <div role="status" data-testid="deception-refresh-note" style={{ marginTop:8, fontFamily:'Share Tech Mono,monospace', fontSize:10, color: /failed|unavailable/i.test(refreshNote) ? '#ffaa00' : '#00ff88' }}>
+            {refreshNote}
+          </div>
+        )}
         <div style={{ marginTop:10, fontSize:10, color:'#3a6a88' }}>
-          The learner draws one decision per served persona (epsilon-greedy, so it may be an exploration pick) and keeps it until the deception rotator on the honeypot host applies it or it expires; refreshing shows that same decision. Personas are switched by the rotator, not from this dashboard.
+          The learner draws one decision per served persona (epsilon-greedy, so it may be an exploration pick) and keeps it until the deception rotator on the honeypot host applies it or it expires; refreshing shows that same decision. Refresh only reads state: personas are switched by the rotator, not from this dashboard, and persona policy v2 runs in shadow only.
         </div>
       </Panel>
 

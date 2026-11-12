@@ -72,7 +72,8 @@ export default function Modal({
 
     // Move initial focus into modal
     const timer = setTimeout(() => {
-      if (modalRef.current) {
+      // Never pull focus away from a field the user already focused inside the dialog (typing would be lost)
+      if (modalRef.current && !modalRef.current.contains(document.activeElement)) {
         const focusable = modalRef.current.querySelector(
           'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
         )
