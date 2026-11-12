@@ -7,7 +7,7 @@ import { honeypotAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth.js'
-import { recommendationSummary, learnerProvenanceSummary, decisionStatusSummary } from '../utils/modelHealth.js'
+import { recommendationSummary, learnerProvenanceSummary, decisionStatusSummary, policyLabel } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -270,7 +270,7 @@ export default function HoneypotAnalytics() {
             {canSeeRecommendation && (
               recError
                 ? <span style={{ color:'#ffaa00' }}>Recommendation unavailable: AI engine unreachable.</span>
-                : <span>{recommendation?.policy === 'ucb1' ? 'Bandit (UCB1)' : 'Q-learner'} recommends: <strong style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
+                : <span>{policyLabel(recommendation?.policy)} recommends: <strong style={{ color:'#00ff88' }}>{recommendationSummary(recommendation) || '—'}</strong></span>
             )}
             {canSeeRecommendation && !recError && recommendation && (
               <span data-testid="learner-provenance" style={{ color:'#3a6a88', fontSize:10 }}>{learnerProvenanceSummary(recommendation.provenance)}</span>

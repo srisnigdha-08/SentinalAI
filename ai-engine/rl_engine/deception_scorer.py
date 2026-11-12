@@ -451,6 +451,9 @@ class SessionScorer:
         # centos_7: the persona the shipped cowrie.cfg serves (same fallback as the backend).
         self.learner=DeceptionQLearner(q_table_path=q_table_path); self.current="centos_7"
         self.last_active=None
+        # Persona policy v2 (rl_engine.persona_policy_v2), attached by inference.deception.get_scorer:
+        # "shadow" learns and reports only; "active" also drives /deception/recommendation. None: off.
+        self.v2=None; self.v2_mode="off"
 
     def process_session(self, session: dict) -> dict:
         reward=calc_reward(session)
@@ -465,7 +468,17 @@ class SessionScorer:
         self.learner.update(state,active,reward,active)
         self.last_active=active; self.current=active
         next_p=self.learner.choose_action(active)
-        return {"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learnerStats":self.learner.get_stats()}
+        out={"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learnerStats":self.learner.get_stats()}
+        if self.v2 is not None:
+            # The same observation (session, served persona, reward) feeds v2 exactly once (session-id dedupe).
+            # v2 must never break v1 scoring: any failure is logged and reported, v1's result stands.
+            try:
+                learned=self.v2.observe(session.get("sessionId"),active,reward)
+                out["policyV2"]={"mode":self.v2_mode,"learned":learned,**self.v2.stats(active)}
+            except Exception as e:  # noqa: BLE001
+                log.warning("Persona policy v2 update failed (%s); v1 result unaffected",type(e).__name__)
+                out["policyV2"]={"mode":self.v2_mode,"error":type(e).__name__}
+        return out
 
     def get_current_profile(self): return {"name":self.current,"config":PROFILES[self.current]}
 

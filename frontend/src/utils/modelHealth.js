@@ -86,6 +86,15 @@ export function recommendationSummary(rec) {
   if (rec.nextProfile === rec.activeProfile) {
     return `Keep serving ${rec.activeProfile}${rec.explored ? ' (exploration pick)' : ''}.`
   }
-  const best = rec.policy === 'ucb1' ? ' (highest upper confidence bound)' : ' (best known Q-value)'
+  // UCB1 and persona policy v2 (discounted UCB) rank by a confidence bound, not a Q-value
+  const bandit = rec.policy === 'ucb1' || String(rec.policy || '').startsWith('persona-ducb')
+  const best = bandit ? ' (highest upper confidence bound)' : ' (best known Q-value)'
   return `Switch ${rec.activeProfile} → ${rec.nextProfile}${rec.explored ? ' (exploration pick)' : best}.`
+}
+
+/** Label of the policy that drew a deception recommendation (Honeypot Analytics). */
+export function policyLabel(policy) {
+  if (policy === 'ucb1') return 'Bandit (UCB1)'
+  if (String(policy || '').startsWith('persona-ducb')) return 'Persona policy v2 (discounted UCB)'
+  return 'Q-learner'
 }
