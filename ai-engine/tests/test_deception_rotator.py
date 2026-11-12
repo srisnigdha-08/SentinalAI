@@ -289,7 +289,8 @@ class _banner_server:
         self._srv.bind(("127.0.0.1", 0))
         self._srv.listen(8)
         self._held, self._banner = [], banner
-        threading.Thread(target=self._serve, daemon=True).start()
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
 
     def _serve(self):
         while True:
@@ -308,7 +309,17 @@ class _banner_server:
             self._held.pop().close()
 
     def close(self):
+        """Stop listening for real. On Linux close() alone does not interrupt the thread blocked in accept(), so
+        the kernel keeps accepting and banners keep coming (CI failure); shutdown() wakes accept() first."""
+        import socket
+        try:
+            self._srv.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass  # Windows: shutdown of a listening socket is not supported; close() interrupts accept() there
         self._srv.close()
+        self._thread.join(timeout=5)
+        assert not self._thread.is_alive(), "fake server thread still accepting"
+        self.restart()
 
 
 def test_verify_served_reads_the_real_banner(rotator, tmp_path, monkeypatch):
