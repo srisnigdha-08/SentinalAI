@@ -301,16 +301,42 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
 LOCK_STALE_S = 900  # longer than one rotation: restart (120 s) + verification + restore restart (120 s)
 
 
+def _pid_alive(pid: int):
+    """True/False on POSIX; None where it cannot be checked safely (on Windows os.kill would terminate the process)."""
+    if os.name != "posix":
+        return None
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True  # exists, owned by someone else
+    return True
+
+
+def _lock_holder_alive(lock: Path):
+    """Whether the PID written in the lock is still running; None when unknown (unreadable, not yet written, or not
+    checkable on this platform), in which case only the lock's age decides."""
+    try:
+        pid = int(lock.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    if pid == os.getpid():
+        return True
+    return _pid_alive(pid)
+
+
 @contextlib.contextmanager
 def rotation_lock(cfg_path: Path):
     """Exclusive per-cowrie.cfg lock, so the service loop and a manual `rotate --once` never switch at the same
-    time. Yields False when another live rotator holds it; a lock older than LOCK_STALE_S is taken over."""
+    time. Yields False when another live rotator holds it. A lock whose holder process is gone (a rotator killed
+    mid-switch, which systemd then restarts) is taken over at once; any lock older than LOCK_STALE_S too."""
     lock = Path(str(cfg_path) + ".rotator.lock")
     try:
         fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
     except FileExistsError:
         try:
-            stale = time.time() - lock.stat().st_mtime > LOCK_STALE_S
+            stale = (time.time() - lock.stat().st_mtime > LOCK_STALE_S) or _lock_holder_alive(lock) is False
         except OSError:
             stale = True
         if not stale:
@@ -318,7 +344,11 @@ def rotation_lock(cfg_path: Path):
             return
         log.warning("Taking over a stale rotator lock %s", lock)
         lock.unlink(missing_ok=True)
-        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        try:
+            fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:  # another rotator took it over first
+            yield False
+            return
     try:
         os.write(fd, str(os.getpid()).encode())
         os.close(fd)

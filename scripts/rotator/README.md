@@ -30,6 +30,10 @@ Limitation: `centos_7` and `aws_ec2` send the same SSH banner. For that pair, th
 * **Failure handling.** Backend outages are logged and retried at the next interval.
   Five unexpected errors in a row end the loop with code 1; systemd restarts it after 2 minutes, at most 3 times an hour.
   A failed switch whose restore restart also failed ends the loop with code 3, which systemd does **not** restart (see Recovery).
+* **Crash recovery.** If the rotator is killed mid-switch, systemd restarts it after 2 minutes.
+  The restarted rotator takes over the dead process's lock at once (its PID no longer exists).
+  It then records the persona `cowrie.cfg` actually serves, and the interrupted decision stays PENDING until it is applied or expires; it is never marked APPLIED.
+  `rotator-ctl.sh enable` clears systemd's start counter, so an explicit enable after a recovery always restores the full restart budget.
 
 ## Procedures (inside WSL)
 

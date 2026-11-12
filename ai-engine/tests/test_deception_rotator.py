@@ -506,3 +506,40 @@ def test_sigterm_handler_requests_a_graceful_stop(rotator, tmp_path, monkeypatch
     finally:
         for s, h in saved.items():
             signal.signal(s, h)
+
+
+# ── Crash recovery: a rotator killed mid-switch must not block its systemd restart ─────────────────────────────
+def test_lock_of_a_dead_holder_is_taken_over_at_once(rotator, tmp_path, monkeypatch):
+    cfg = tmp_path / "cowrie.cfg"
+    (tmp_path / "cowrie.cfg.rotator.lock").write_text("424242")   # fresh lock, holder gone
+    monkeypatch.setattr(rotator, "_pid_alive", lambda pid: False)
+    with rotator.rotation_lock(cfg) as acquired:
+        assert acquired is True
+
+
+def test_lock_of_a_live_holder_is_respected(rotator, tmp_path, monkeypatch):
+    cfg = tmp_path / "cowrie.cfg"
+    (tmp_path / "cowrie.cfg.rotator.lock").write_text("424242")
+    monkeypatch.setattr(rotator, "_pid_alive", lambda pid: True)
+    with rotator.rotation_lock(cfg) as acquired:
+        assert acquired is False
+
+
+@pytest.mark.parametrize("content", ["", "not-a-pid"])
+def test_unreadable_lock_falls_back_to_its_age(rotator, tmp_path, monkeypatch, content):
+    # The holder may not have written its PID yet: a fresh unreadable lock is respected, never stolen.
+    cfg = tmp_path / "cowrie.cfg"
+    (tmp_path / "cowrie.cfg.rotator.lock").write_text(content)
+    monkeypatch.setattr(rotator, "_pid_alive", lambda pid: pytest.fail("no PID to check"))
+    with rotator.rotation_lock(cfg) as acquired:
+        assert acquired is False
+
+
+def test_pid_alive_on_this_platform(rotator):
+    import os, subprocess, sys as _sys
+    if os.name == "posix":
+        child = subprocess.Popen([_sys.executable, "-c", "pass"])
+        child.wait()  # reaped: its PID no longer exists
+        assert rotator._pid_alive(os.getpid()) is True and rotator._pid_alive(child.pid) is False
+    else:  # Windows: never probed (os.kill would terminate the process); the lock's age decides
+        assert rotator._pid_alive(os.getpid()) is None
