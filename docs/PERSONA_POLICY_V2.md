@@ -125,6 +125,7 @@ cd ai-engine
 - Reconstructs the policy in force at each session and the switch history.
 - Replays v1 and v2 on the same observed sequence. This is an offline reconstruction from the seed and prior, not the live learners' state.
 - Prints the counterfactual limit: for a session, only the served persona's outcome is ever observed.
+- **Live evidence** (sessions scored from 2026-11-12 on): the backend stores, with each scored session, the deciding policy (`deceptionPolicy`) and v2's shadow pick at that moment (`shadowPolicy`: version, mode, recommendation, learned). The report counts these live v1/v2 disagreements separately from the offline replay.
 
 The 12,087 synthetic warm-start episodes are shown separately and never counted.
 
@@ -180,7 +181,7 @@ $env:SENTINEL_KEY = (Select-String ..\backend\.env -Pattern '^SENTINEL_KEY=(.*)$
 | Category | Result | Why |
 |---|---|---|
 | Engineering | PASS | Shipped defaults equal the simulation-evaluated ones; the live state loads; accounting 1/1 |
-| Simulation | PASS | SIMULATED only |
+| Simulation | **FAIL** | SIMULATED. On held-out scenario S5 (never used for tuning; aws_ec2 preferred, narrow gaps), v2 found the best persona in 28/30 runs. Regret was 0.77 vs v1's 1.40, and restarts 17 vs 98 per 100 decisions |
 | Gate 1 | NOT MET | 0 external sessions |
 | Gate 2 | NOT MET | Not evaluable |
 | Gate 3 | NOT MET | 0 days of shadow; the engine decides with `q_learning` |

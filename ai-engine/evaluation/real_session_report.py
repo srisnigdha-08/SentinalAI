@@ -41,7 +41,8 @@ LOCAL_NETS = [ipaddress.ip_network(n) for n in
                "::1/128", "fc00::/7", "fe80::/10")]
 SESSION_FIELDS = {"_id": 0, "sessionId": 1, "sourceIP": 1, "servedProfile": 1, "startTime": 1, "endTime": 1, "createdAt": 1,
                   "durationSeconds": 1, "commands": 1, "credentials": 1, "iocExtracted": 1, "status": 1,
-                  "closureAnalysisState": 1, "deceptionScoredAt": 1, "qDeceptionScore": 1}
+                  "closureAnalysisState": 1, "deceptionScoredAt": 1, "qDeceptionScore": 1,
+                  "recommendedProfile": 1, "deceptionPolicy": 1, "shadowPolicy": 1}
 DECISION_FIELDS = {"_id": 0, "decisionId": 1, "state": 1, "action": 1, "status": 1, "policy": 1, "explored": 1,
                    "appliedAt": 1, "createdAt": 1, "closedAt": 1}
 
@@ -262,6 +263,17 @@ def report(args):
     for s in sessions:   # what each policy would recommend after this session (offline replay; v2 = shadow, never applied)
         r = recs.get(s["sessionId"], {})
         s["v1RecommendationAfter"], s["v2ShadowRecommendationAfter"] = r.get("v1"), r.get("v2")
+        # Live evidence recorded by the backend at scoring time (sessions scored since it was added), preferred over
+        # the offline reconstruction above: what v1 actually returned and what v2 actually recommended in shadow.
+        live = s.get("shadowPolicy") or {}
+        s["v1RecommendedLive"] = s.get("recommendedProfile")
+        s["v2ShadowRecommendedLive"] = live.get("recommendation")
+        s["decidingPolicyLive"] = s.get("deceptionPolicy")
+    live_rows = [s for s in sessions if s["evidenceClass"] != "simulated" and s.get("v2ShadowRecommendedLive") and s.get("v1RecommendedLive")]
+    live_shadow = {"sessionsWithLiveRecord": len(live_rows),
+                   "disagreements": sum(s["v1RecommendedLive"] != s["v2ShadowRecommendedLive"] for s in live_rows),
+                   "decidingPolicies": dict(Counter(s.get("decidingPolicyLive") or "not recorded" for s in sessions)),
+                   "v2ShadowPicks": dict(Counter(s["v2ShadowRecommendedLive"] for s in live_rows))}
     ext_counts = {p: per["external"][p]["reward"]["n"] for p in SERVABLE}
     q_info = None
     if args.q_table and Path(args.q_table).is_file():
@@ -285,6 +297,7 @@ def report(args):
         "policyInForce": dict(Counter(s["policyInForce"] for s in sessions)),
         "switchHistory": timeline,
         "decisionOutcomes": decision_outcomes(decisions),
+        "liveShadow": live_shadow,
         "replay": rep and {k: rep[k] for k in ("agreement", "v1Recommendations", "v2Recommendations")},
         "v1QTable": q_info, "v2LiveState": v2_info,
         "counterfactual": "Each session shows the outcome only for the persona it was served. How the same attacker would "
@@ -293,7 +306,8 @@ def report(args):
         "sessions": [{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in s.items()
                       if k in ("sessionId", "sourceIP", "servedProfile", "evidenceClass", "classReason", "reward",
                                "durationSeconds", "commandCount", "intents", "learnerScored", "policyInForce",
-                               "v1RecommendationAfter", "v2ShadowRecommendationAfter", "_start")} for s in sessions],
+                               "v1RecommendationAfter", "v2ShadowRecommendationAfter", "v1RecommendedLive", "v2ShadowRecommendedLive",
+                               "decidingPolicyLive", "_start")} for s in sessions],
     }
     if args.schedule:
         out["adherence"] = adherence([s for s in sessions if s["evidenceClass"] == "external"],
@@ -331,6 +345,9 @@ def _print(out, rep):
               f"v1 picks {rep['v1Recommendations']}, v2 picks {rep['v2Recommendations']}")
         for r in rep["rows"][-5:]:
             print(f"  {r['sessionId'][:12]:<13} served {r['served']:<13} v1 -> {r['v1']:<13} v2 -> {r['v2']}")
+    ls = out["liveShadow"]
+    print(f"live shadow evidence (recorded at scoring time): {ls['sessionsWithLiveRecord']} session(s), v1/v2 disagreements {ls['disagreements']}, "
+          f"deciding policies {ls['decidingPolicies']}, v2 picks {ls['v2ShadowPicks']}")
     if out["v1QTable"]:
         q = out["v1QTable"]; print(f"\nv1 Q-table: {q['episodeCount']} episodes, of which {q['syntheticSeedEpisodes']} synthetic warm start (never evidence)")
     if out["v2LiveState"]:
