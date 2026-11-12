@@ -173,3 +173,52 @@ def test_events_carry_ids_matching_the_output_plugin(parser, monkeypatch):
     assert sent_id == parser.event_id(event, "id") == plugin.event_id(event, "id")
     assert parser.event_id({**event, "timestamp": "2026-10-21T10:00:00.123457Z"}, "id") != sent_id
     assert parser.event_id({k: v for k, v in event.items() if k != "timestamp"}, "id") is None
+
+
+class _StopTail(BaseException):
+    """Ends tail()'s endless poll loop from the patched sleep (BaseException: tail() catches Exception)."""
+
+
+def test_dead_handle_is_reopened_and_ingestion_resumes_at_the_saved_offset(parser, tmp_path, monkeypatch):
+    """Regression (2026-11-12): the parser read cowrie.json from Windows through \\wsl.localhost. After WSL
+    restarted, every read on the old handle failed; the loop logged "Tail error" and retried the same dead handle
+    forever, so no session was ingested again. It must reopen the path and continue where it stopped."""
+    log = tmp_path / "cowrie.json"
+    log.write_bytes(b'{"n": 1}\n{"n": 2}\n')
+    seen, opens, polls = [], [], {"n": 0}
+    real_open = open
+
+    class DeadAfterFirstRead:
+        def __init__(self, f):
+            self.f, self.reads = f, 0
+        def readline(self):
+            self.reads += 1
+            if self.reads > 2:                      # handle "dies" after the first two lines
+                raise OSError(5, "Input/output error")
+            return self.f.readline()
+        def __getattr__(self, name):
+            return getattr(self.f, name)
+
+    def fake_open(p, mode="r", *a, **k):
+        f = real_open(p, mode, *a, **k)
+        if str(p) == str(log) and mode == "rb":
+            opens.append(1)
+            return DeadAfterFirstRead(f) if len(opens) == 1 else f
+        return f
+
+    def fake_sleep(_):
+        polls["n"] += 1
+        if polls["n"] == 1:
+            with real_open(log, "ab") as f:          # Cowrie keeps writing while the handle is dead
+                f.write(b'{"n": 3}\n{"n": 4}\n')
+        if polls["n"] >= 4:
+            raise _StopTail
+
+    monkeypatch.setattr(parser, "open", fake_open, raising=False)
+    monkeypatch.setattr(parser.time, "sleep", fake_sleep)
+    monkeypatch.setattr(parser, "process", lambda line: seen.append(json.loads(line)["n"]))
+    monkeypatch.setattr(parser, "use_cfg_next_to", lambda p: None)
+    with pytest.raises(_StopTail):
+        parser.tail(str(log), from_start=True)
+    assert seen == [1, 2, 3, 4]                       # nothing lost, nothing read twice
+    assert len(opens) == 2                            # the dead handle was replaced once
