@@ -23,14 +23,18 @@ expected to be attacked, so it should hold no SentinelAI login. Without the key 
 to an admin login from SENTINEL_ROTATOR_EMAIL / SENTINEL_ROTATOR_PASSWORD or a prompt (never logged).
 """
 import argparse
+import contextlib
 import getpass
+import json
 import logging
 import os
 import re
 import shlex
+import signal
 import socket
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -294,6 +298,90 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
             **({} if verify else {"verified": False})}
 
 
+LOCK_STALE_S = 900  # longer than one rotation: restart (120 s) + verification + restore restart (120 s)
+
+
+@contextlib.contextmanager
+def rotation_lock(cfg_path: Path):
+    """Exclusive per-cowrie.cfg lock, so the service loop and a manual `rotate --once` never switch at the same
+    time. Yields False when another live rotator holds it; a lock older than LOCK_STALE_S is taken over."""
+    lock = Path(str(cfg_path) + ".rotator.lock")
+    try:
+        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        try:
+            stale = time.time() - lock.stat().st_mtime > LOCK_STALE_S
+        except OSError:
+            stale = True
+        if not stale:
+            yield False
+            return
+        log.warning("Taking over a stale rotator lock %s", lock)
+        lock.unlink(missing_ok=True)
+        fd = os.open(str(lock), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    try:
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        yield True
+    finally:
+        lock.unlink(missing_ok=True)
+
+
+# Exit codes for a supervisor (systemd RestartPreventExitStatus=3): 0 stopped on request, 1 repeated unexpected
+# errors (restart later), 3 Cowrie may be down after a failed switch: an operator must recover it, never retry.
+EXIT_OK, EXIT_ERRORS, EXIT_NEEDS_RECOVERY = 0, 1, 3
+
+
+def write_status(path, **fields):
+    """Atomically replace the JSON status file read by `rotator-ctl.sh status` (no secrets in it)."""
+    if not path:
+        return
+    path = Path(path)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_name(path.name + f".tmp{os.getpid()}")
+        tmp.write_text(json.dumps({"pid": os.getpid(), "updatedAt": time.strftime("%Y-%m-%dT%H:%M:%S%z"), **fields},
+                                  indent=2, default=str), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as e:
+        log.warning("Could not write status file %s (%s)", path, type(e).__name__)
+
+
+def run_loop(rotate, interval_s: float, stop: threading.Event, once=False, max_failures=5, status_file=None) -> int:
+    """Calls rotate() every interval_s until stop is set. A stop request never interrupts a rotation: it is honoured
+    at the next check, and the sleep between rotations ends at once. Backend outages (RequestException /
+    RuntimeError) are transient; other exceptions count, and max_failures in a row end the loop (EXIT_ERRORS)."""
+    failures, runs, result = 0, 0, None
+    while not stop.is_set():
+        runs += 1
+        write_status(status_file, state="rotating", runs=runs, consecutiveFailures=failures)
+        try:
+            result = rotate()
+            failures = 0
+            log.info("Rotation result: %s", result)
+        except (requests.RequestException, RuntimeError) as e:
+            result = {"error": f"{type(e).__name__}: {e}"[:300], "transient": True}
+            log.error("Rotation failed: %s", e)
+        except Exception as e:  # noqa: BLE001 - the loop must survive anything one rotation throws
+            failures += 1
+            result = {"error": f"{type(e).__name__}: {e}"[:300]}
+            log.exception("Unexpected rotation error (%d in a row)", failures)
+        if result.get("restored") and result.get("recovered") is False:
+            log.error("Cowrie did not restart with the restored cowrie.cfg: stopping; recover it by hand")
+            write_status(status_file, state="needs_recovery", runs=runs, lastResult=result)
+            return EXIT_NEEDS_RECOVERY
+        if failures >= max_failures:
+            write_status(status_file, state="failed", runs=runs, lastResult=result, consecutiveFailures=failures)
+            return EXIT_ERRORS
+        if once:
+            break
+        write_status(status_file, state="sleeping", runs=runs, lastResult=result, consecutiveFailures=failures,
+                     nextRunInSeconds=interval_s)
+        stop.wait(interval_s)
+    write_status(status_file, state="stopped", runs=runs, lastResult=result, consecutiveFailures=failures)
+    return EXIT_OK
+
+
 def _acknowledge(client, profile, decision_id):
     """Close a "keep" decision so the next rotation draws a new one (otherwise it would be served until its TTL)."""
     resp = client.call("PUT", client.PROFILE, json={"profile": profile, "decisionId": decision_id})
@@ -326,6 +414,9 @@ def main():
     ap.add_argument("--verify-timeout", type=float, default=30.0, help="seconds to wait for the new banner")
     ap.add_argument("--no-verify", action="store_true",
                     help="record the persona without checking Cowrie's banner after the restart (not recommended)")
+    ap.add_argument("--status-file", help="JSON file updated with the loop's state and last result (no secrets)")
+    ap.add_argument("--max-failures", type=int, default=5,
+                    help="unexpected errors in a row before the loop exits (code 1) for its supervisor to restart it")
     args = ap.parse_args()
     verify_addr = None
     if args.verify_addr:
@@ -346,17 +437,23 @@ def main():
         password = os.getenv("SENTINEL_ROTATOR_PASSWORD") or getpass.getpass(f"Password for {args.email}: ")
         client = BackendClient(args.backend, args.email, password, args.origin)
     client.login()
-    while True:
-        try:
-            log.info("Rotation result: %s", rotate_once(client, Path(args.cfg), args.restart_cmd, args.dry_run, args.force,
-                                                        verify=not args.no_verify, verify_addr=verify_addr,
-                                                        verify_timeout=args.verify_timeout))
-        except (requests.RequestException, RuntimeError) as e:
-            log.error("Rotation failed: %s", e)
-        if args.once:
-            return
-        time.sleep(args.interval * 60)
+    cfg = Path(args.cfg)
+
+    def rotate():
+        with rotation_lock(cfg) as acquired:
+            if not acquired:
+                log.info("Another rotator is switching %s; skipping this round", cfg)
+                return {"changed": False, "skipped": "another rotator holds the lock"}
+            return rotate_once(client, cfg, args.restart_cmd, args.dry_run, args.force, verify=not args.no_verify,
+                               verify_addr=verify_addr, verify_timeout=args.verify_timeout)
+
+    # SIGTERM (systemctl stop) / SIGINT: finish the rotation in progress, then exit; a sleep ends at once.
+    stop = threading.Event()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        signal.signal(sig, lambda signum, frame: (log.info("Stop requested (signal %s)", signum), stop.set()))
+    return run_loop(rotate, args.interval * 60, stop, once=args.once, max_failures=args.max_failures,
+                    status_file=args.status_file)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
