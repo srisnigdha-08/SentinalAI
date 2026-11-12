@@ -16,6 +16,9 @@ Type=simple
 # Optional overrides (mode 600): ROTATOR_INTERVAL (minutes), COWRIE_HOME, COWRIE_ENV, BACKEND_PORT
 Environment=ROTATOR_INTERVAL=60
 EnvironmentFile=-%h/.config/sentinelai/rotator.env
+# After a WSL start nothing else starts Cowrie: start it if it is down (follows a changed WSL address; never on a
+# wildcard binding). "-": the rotator still starts if this fails; its next switch restarts Cowrie with checks.
+ExecStartPre=-/bin/bash @REPO_ROOT@/scripts/demo/cowrie-demo-mode.sh ensure
 ExecStart=/bin/bash @REPO_ROOT@/scripts/demo/cowrie-demo-mode.sh rotate --interval ${ROTATOR_INTERVAL} --status-file %h/.local/state/sentinelai/rotator-status.json
 # Exit 1 (repeated unexpected errors) is retried after RestartSec, at most StartLimitBurst times an hour.
 # Exit 3 means Cowrie may be down after a failed switch: never restart automatically; an operator recovers it.

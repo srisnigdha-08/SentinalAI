@@ -65,3 +65,44 @@ The failed decision is already FAILED in the backend. The next run draws a new d
 
 `bash scripts/demo/cowrie-demo-mode.sh rotate --once [--force]` applies one recommendation now, with the same checks.
 If the unit is mid-switch at that moment, the manual run skips (lock held) and says so.
+
+## Keeping WSL running
+
+**What WSL actually does.** WSL stops a distro a few seconds after its last `wsl.exe` process exits. Lingering does not prevent this.
+When it stops, the rotator, Cowrie and its blocker all stop with it.
+When WSL next starts (any `wsl` command, or opening an Ubuntu terminal), the enabled unit starts again on its own. Its `ExecStartPre` (`cowrie-demo-mode.sh ensure`) also starts Cowrie if it is down:
+* an "on" binding is moved to the current WSL address, so a changed address doesn't stop Cowrie from binding;
+* loopback is kept;
+* a wildcard binding is refused.
+
+So rotation is automatic **while WSL is running**, and pauses while it isn't.
+
+**Optional keep-alive (Windows).** One hidden `wsl.exe … sleep infinity` process keeps the distro running. The script changes no Windows settings and lasts until you stop it, sign out or reboot.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 start
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 status
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 stop
+```
+
+To start it at every sign-in, register it yourself. This is a per-user scheduled task and needs no admin rights, but it is a change to your Windows setup, so nothing here does it for you:
+
+```powershell
+$a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PWD\scripts\rotator\wsl-keepalive.ps1`" start"
+Register-ScheduledTask -TaskName "SentinelAI WSL keep-alive" -Action $a -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME)
+# remove: Unregister-ScheduledTask -TaskName "SentinelAI WSL keep-alive" -Confirm:$false
+```
+
+The backend and AI engine run on Windows (`scripts/demo/start-demo.ps1`). While they are down, every round is logged as a transient error and nothing is switched.
+
+**What keeps WSL up in practice (observed 2026-11-12).** While `scripts/demo/start-demo.ps1` is running, WSL stays up with no WSL window open: its log parser reads Cowrie's log through `\wsl.localhost`.
+Without the demo stack, WSL stopped within about a minute of the last window closing.
+
+**If the rotator does not come back after WSL restarts.** Check with `systemctl --user is-system-running`. A forced `wsl --terminate` followed by an immediate restart can leave the user manager failed (`journalctl -u user@1000`: "Failed to spawn executor: Device or resource busy"), so no user unit starts.
+Fix it from Windows:
+
+```powershell
+wsl -d Ubuntu -u root -- systemctl restart user@1000.service
+```
+
+Then the enabled unit starts on its own, and its `ensure` step brings Cowrie back.

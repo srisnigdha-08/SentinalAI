@@ -5,6 +5,7 @@
 #   bash scripts/demo/cowrie-demo-mode.sh off     # restore listen on 127.0.0.1 (the safe default)
 #   bash scripts/demo/cowrie-demo-mode.sh status
 #   bash scripts/demo/cowrie-demo-mode.sh restart   # restart Cowrie, keeping the current binding
+#   bash scripts/demo/cowrie-demo-mode.sh ensure    # start Cowrie only if it is not running (follows a changed WSL IP)
 #   bash scripts/demo/cowrie-demo-mode.sh rotate --once [--force]
 #        apply the Q-learner's recommended persona now (honeypot/deception_rotator.py): rewrites cowrie.cfg
 #        (same binding, per-persona filesystem), restarts Cowrie and records the persona. Without --once it
@@ -44,7 +45,11 @@ set_listen() {
 restart_cowrie() {
   cd "$COWRIE_HOME"
   cowrie stop >/dev/null 2>&1 || true
-  pkill -f "twistd.*cowrie" 2>/dev/null || true
+  # Fallback for a stale twistd that `cowrie stop` missed: only the one running from THIS Cowrie home, so a second
+  # install (an isolated test copy, the integration lab) is never killed with it.
+  for p in $(pgrep -f "twistd.*cowrie" 2>/dev/null || true); do
+    [ "$(readlink "/proc/$p/cwd" 2>/dev/null)" = "$(readlink -f "$COWRIE_HOME")" ] && kill "$p" 2>/dev/null || true
+  done
   sleep 2
   rm -f var/run/cowrie.pid
   cowrie start >/dev/null 2>&1
@@ -84,6 +89,25 @@ case "${1:-status}" in
     restart_cowrie
     status
     ;;
+  ensure)
+    # Start Cowrie if it is not running (WSL boot, sentinel-rotator.service ExecStartPre); never restarts a running
+    # one. WSL's address can change across restarts: an "on" binding (a WSL address) is moved to the current one, so
+    # Cowrie does not fail to bind. Loopback is kept; a wildcard binding is refused (it could expose Cowrie).
+    cd "$COWRIE_HOME"
+    if [ -f var/run/cowrie.pid ] && kill -0 "$(cat var/run/cowrie.pid)" 2>/dev/null; then
+      echo "Cowrie already running (PID $(cat var/run/cowrie.pid)); nothing to do"
+      exit 0
+    fi
+    LISTEN="$(grep '^listen_endpoints' "$CFG" | sed 's/.*interface=//' | tr -d '\r')"
+    case "$LISTEN" in
+      ""|0.0.0.0|::|"[::]") echo "refusing to start Cowrie on a wildcard binding ('${LISTEN:-?}'); use 'on' or 'off'" >&2; exit 3 ;;
+      127.0.0.1) ;;
+      *) if [ "$LISTEN" != "$WSL_IP" ]; then set_listen "$WSL_IP"; echo "WSL address changed: binding moved $LISTEN -> $WSL_IP"; fi ;;
+    esac
+    restart_cowrie
+    echo "Cowrie started (it was not running)"
+    status
+    ;;
   rotate)
     shift
     # switch_profile regenerates the whole cowrie.cfg: carry over the current binding and persona filesystems,
@@ -107,6 +131,6 @@ case "${1:-status}" in
     fi
     ;;
   *)
-    echo "usage: $0 on|off|status|restart|rotate [--once] [--force]"; exit 2
+    echo "usage: $0 on|off|status|restart|ensure|rotate [--once] [--force]"; exit 2
     ;;
 esac
