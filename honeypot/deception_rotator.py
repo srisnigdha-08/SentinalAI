@@ -152,10 +152,41 @@ def read_banner(address, timeout_s: float):
         time.sleep(1)
 
 
+def open_watch(address):
+    """An idle connection to the Cowrie serving now, or None if nothing answers. A real restart drops it; one
+    still open afterwards means the restart command did not restart Cowrie. It sends no SSH client version, so
+    the log parser ignores it (zero SSH activity) and it never becomes a session or a learner episode."""
+    if not address:
+        return None
+    try:
+        s = socket.create_connection(address, timeout=5)
+        s.settimeout(5)
+        if s.recv(256):
+            return s
+        s.close()
+    except OSError:
+        pass
+    return None
+
+
+def still_open(sock) -> bool:
+    """True while the watch connection is alive (data such as Cowrie's KEXINIT is read and discarded)."""
+    sock.settimeout(0.5)
+    try:
+        while True:
+            if not sock.recv(4096):
+                return False
+    except socket.timeout:
+        return True
+    except OSError:
+        return False
+
+
 def verify_served(cfg_path: Path, persona: str, verify_addr=None, timeout_s: float = 30.0):
     """None when Cowrie answers with `persona`'s banner after the restart, else the reason it does not.
-    (centos_7 and aws_ec2 share a banner, so this proves Cowrie restarted with a switch_profile config, not which
-    of those two it serves; the cfg header written just before the restart names it.)"""
+    The banner alone cannot tell centos_7 from aws_ec2 (both send SSH-2.0-OpenSSH_7.4); rotate_once additionally
+    requires the pre-restart watch connection to have been dropped, which proves Cowrie restarted, and the cfg
+    header written just before the restart names which of the two it now serves."""
     address = verify_addr or listen_address(cfg_path)
     if not address:
         return "cannot tell where Cowrie listens (no listen_endpoints in cowrie.cfg; pass --verify-addr)"
@@ -227,11 +258,20 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
         previous_cfg = cfg_path.read_text(encoding="utf-8")
     except OSError:
         previous_cfg = None
+    watch = open_watch(verify_addr or listen_address(cfg_path)) if verify else None
     switch_profile.CFG_PATH = cfg_path
     switch_profile.generate_config(nxt)
-    problem = None if run_restart(restart_cmd) else "restart failed"
+    try:
+        problem = None if run_restart(restart_cmd) else "restart failed"
+        if not problem and watch is not None and still_open(watch):
+            problem = "Cowrie was not restarted (a connection opened before the restart is still alive)"
+    finally:
+        if watch is not None:
+            watch.close()
     if not problem and verify:
         problem = verify_served(cfg_path, nxt, verify_addr, verify_timeout)
+    if not verify:
+        log.warning("--no-verify: recording %s without checking that Cowrie serves it", nxt)
     if problem:
         # Put the served persona's cowrie.cfg back, so the next Cowrie start (or the restart retried here) does not
         # serve a persona the backend never recorded.
@@ -250,7 +290,8 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
     rec = client.call("PUT", client.PROFILE, json={"profile": nxt, **({"decisionId": decision_id} if decision_id else {})})
     if rec.status_code != 200:
         raise RuntimeError(f"Recording the persona failed (HTTP {rec.status_code})")
-    return {"changed": True, "active": nxt, "previous": active, **({"decisionId": decision_id} if decision_id else {})}
+    return {"changed": True, "active": nxt, "previous": active, **({"decisionId": decision_id} if decision_id else {}),
+            **({} if verify else {"verified": False})}
 
 
 def _acknowledge(client, profile, decision_id):
@@ -289,9 +330,12 @@ def main():
     verify_addr = None
     if args.verify_addr:
         host, _, port = args.verify_addr.rpartition(":")
+        host = host.strip("[]")  # [::1]:2222
         if not host or not port.isdigit():
             ap.error("--verify-addr must be HOST:PORT")
         verify_addr = (host, int(port))
+    if args.no_verify:
+        log.warning("--no-verify: personas will be recorded as APPLIED without checking what Cowrie serves")
     api_key = os.getenv("HONEYPOT_API_KEY", "")
     if api_key:
         client = MachineClient(args.backend, api_key)

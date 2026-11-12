@@ -30,6 +30,7 @@ def built_personas(rotator, tmp_path, monkeypatch):
     monkeypatch.setenv("COWRIE_PERSONA_FS", str(fs))
     monkeypatch.delenv("COWRIE_PERSONA_HONEYFS", raising=False)
     monkeypatch.setattr(rotator, "verify_served", lambda cfg, persona, addr=None, timeout=30.0: None)
+    monkeypatch.setattr(rotator, "open_watch", lambda address: None)
     return fs
 
 
@@ -276,25 +277,38 @@ def test_no_verify_skips_the_banner_check(rotator, tmp_path, monkeypatch):
     monkeypatch.setattr(rotator, "verify_served", lambda *a, **k: pytest.fail("verify_served must not run"))
     result = rotator.rotate_once(_client("centos_7", "debian_11"), tmp_path / "cowrie.cfg", "systemctl restart cowrie",
                                  dry_run=False, verify=False)
-    assert result["changed"] is True
+    assert result["changed"] is True and result["verified"] is False  # never silently reported as checked
 
 
-def _banner_server(banner):
-    import socket, threading
-    srv = socket.socket()
-    srv.bind(("127.0.0.1", 0))
-    srv.listen(4)
+class _banner_server:
+    """Fake SSH server: sends `banner` and keeps each connection open until restart() closes them all."""
 
-    def serve():
+    def __init__(self, banner):
+        import socket, threading
+        self._srv = socket.socket()
+        self._srv.bind(("127.0.0.1", 0))
+        self._srv.listen(8)
+        self._held, self._banner = [], banner
+        threading.Thread(target=self._serve, daemon=True).start()
+
+    def _serve(self):
         while True:
             try:
-                conn, _ = srv.accept()
+                conn, _ = self._srv.accept()
             except OSError:
                 return
-            with conn:
-                conn.sendall((banner + "\r\n").encode())
-    threading.Thread(target=serve, daemon=True).start()
-    return srv
+            conn.sendall((self._banner + "\r\n").encode())
+            self._held.append(conn)
+
+    def getsockname(self):
+        return self._srv.getsockname()
+
+    def restart(self):
+        while self._held:
+            self._held.pop().close()
+
+    def close(self):
+        self._srv.close()
 
 
 def test_verify_served_reads_the_real_banner(rotator, tmp_path, monkeypatch):
@@ -313,6 +327,7 @@ def test_verify_served_reads_the_real_banner(rotator, tmp_path, monkeypatch):
         assert real.verify_served(cfg, "raspberry_pi", addr, timeout_s=2) is None
         assert "expected 'SSH-2.0-OpenSSH_8.9p1" in real.verify_served(cfg, "ubuntu_22", addr, timeout_s=2)
     finally:
+        srv.restart()
         srv.close()
     assert "None" in real.verify_served(cfg, "raspberry_pi", addr, timeout_s=0)  # nothing listening any more
 
@@ -323,3 +338,51 @@ def test_wildcard_listen_is_probed_on_loopback(rotator, tmp_path):
     assert rotator.listen_address(cfg) == ("127.0.0.1", 2222)
     cfg.write_text("[ssh]\n")
     assert rotator.listen_address(cfg) is None
+
+
+def _real_rotator():
+    spec = importlib.util.spec_from_file_location("rot_real2", HONEYPOT / "deception_rotator.py")
+    real = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(real)
+    return real
+
+
+@pytest.mark.parametrize("really_restarts, applied", [(False, False), (True, True)])
+def test_shared_banner_switch_needs_proof_of_restart(tmp_path, monkeypatch, built_personas, really_restarts, applied):
+    """centos_7 and aws_ec2 both send SSH-2.0-OpenSSH_7.4: the banner check passes even if Cowrie never restarted.
+    The pre-restart watch connection must have been dropped for the switch to count."""
+    real = _real_rotator()
+    assert real.switch_profile.PROFILES["centos_7"]["banner"] == real.switch_profile.PROFILES["aws_ec2"]["banner"]
+    srv = _banner_server("SSH-2.0-OpenSSH_7.4")
+    addr = srv.getsockname()
+
+    def run(args, **kw):
+        if really_restarts:
+            srv.restart()
+        return MagicMock(returncode=0)
+    monkeypatch.setattr(real.subprocess, "run", run)
+    cfg = tmp_path / "cowrie.cfg"
+    real.switch_profile.CFG_PATH = cfg
+    real.switch_profile.generate_config("centos_7")
+    original = cfg.read_text()
+    client = _decision_client("centos_7", "aws_ec2")
+    try:
+        result = real.rotate_once(client, cfg, "systemctl restart cowrie", dry_run=False, verify_addr=addr, verify_timeout=2)
+    finally:
+        srv.restart()
+        srv.close()
+    assert result["changed"] is applied
+    puts = [c for c in client.call.call_args_list if c.args[0] == "PUT"]
+    if applied:
+        assert puts[-1].kwargs["json"] == {"profile": "aws_ec2", "decisionId": "decision-1"}
+    else:
+        assert "not restarted" in result["error"] and not puts and cfg.read_text() == original
+
+
+def test_watch_without_a_running_cowrie_falls_back_to_the_banner(tmp_path):
+    real = _real_rotator()
+    srv = _banner_server("SSH-2.0-OpenSSH_7.4")
+    addr = srv.getsockname()
+    srv.restart()
+    srv.close()
+    assert real.open_watch(addr) is None and real.open_watch(None) is None
