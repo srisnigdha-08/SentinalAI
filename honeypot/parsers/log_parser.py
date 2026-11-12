@@ -578,7 +578,20 @@ def tail(filepath, from_start=False):
         while True:
             try:
                 flush_spool()
-                if path.exists():
+                if current_file.closed and path.exists():
+                    # Reopen after a dead handle: resume at the saved offset if it is the same file, else from 0.
+                    current_file = open(path, "rb")
+                    new_ino = os.fstat(current_file.fileno()).st_ino
+                    if new_ino != current_ino:
+                        last_pos = 0
+                    else:  # read_lines persisted each processed line before the handle died; never re-read them
+                        saved = load_state() or {}
+                        if saved.get("ino") == new_ino:
+                            last_pos = max(last_pos, int(saved.get("pos", last_pos)))
+                    current_ino = new_ino
+                    save_state(current_ino, last_pos)
+                    log.info("Reopened %s at offset %d", filepath, last_pos)
+                if path.exists() and not current_file.closed:
                     stat = path.stat()
                     if stat.st_ino != current_ino:
                         # Renamed away: the still-open handle reads the old file to its end before switching.
@@ -594,6 +607,15 @@ def tail(filepath, from_start=False):
                         last_pos = 0
                     if stat.st_size > last_pos:
                         last_pos = read_lines(current_file, last_pos, current_ino)
+            except OSError as ex:
+                # The open handle can die while the path stays valid: e.g. the log is read from Windows through
+                # \\wsl.localhost and WSL restarts. Retrying the dead handle failed forever and silently stopped
+                # ingestion (2026-11-12). Drop it; the next poll reopens the path (see the top of the loop).
+                log.error("Tail error (%s); reopening %s", type(ex).__name__, filepath)
+                try:
+                    current_file.close()
+                except OSError:
+                    pass
             except Exception as ex:
                 log.error("Tail error (%s)", type(ex).__name__)
             time.sleep(POLL_INTERVAL)
