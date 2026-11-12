@@ -22,7 +22,8 @@ const consoleErrors = (page) => {
 // in the sidebar, at desktop and phone widths, without console/page errors or page-level horizontal scroll.
 // Read-only: it only navigates. Screenshots go to test-results/integration/.
 const PAGES = [
-  { path: '/dashboard', heading: /Dashboard|Tactical Command|Security Monitoring|Command/i, nav: /Dashboard/ },
+  // Each role's own Dashboard title
+  { path: '/dashboard', heading: /^(Control Centre|Tactical Command|Observability Deck)$/, nav: /Dashboard/ },
   { path: '/dashboard/threats', heading: /Threat Logs/i, nav: /Threat Logs/ },
   { path: '/dashboard/honeypot', heading: /Honeypot Analytics/i, nav: /Honeypot/ },
   { path: '/dashboard/attack-time-machine', heading: /Attack Time Machine/i, nav: /Attack Time Machine/ },
