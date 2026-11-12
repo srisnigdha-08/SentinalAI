@@ -14,6 +14,8 @@ export default defineConfig({
   workers: 1, // Single worker avoids database race conditions
   reporter: [
     ['list'],
+    // On CI, failures also become check annotations, readable without downloading the report.
+    ...(process.env.CI ? [['github']] : []),
     ['html', { outputFolder: 'playwright-report', open: 'never' }],
   ],
   timeout: 60000,

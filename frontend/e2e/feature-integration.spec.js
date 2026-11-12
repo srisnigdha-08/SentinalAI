@@ -2,6 +2,7 @@ import { test, expect } from './fixtures/auth.fixture.js';
 import { trackPageErrors } from './fixtures/navigationErrors.js';
 
 const LAZY_MODULE_CANCELLED = /dynamically imported module|Importing a module script failed/;
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
 // The AI engine is not started in the browser suite, so its proxy endpoints answer 503 by design; every other
 // failed API response or console error is reported.
 const ENGINE_DEPENDENT = /\/api\/(ai\/engine\/|honeypot\/deception\/recommendation)/;
@@ -38,7 +39,7 @@ for (const role of ['viewer', 'analyst', 'admin']) {
     const sidebar = page.locator('.sentinel-sidebar');
     for (const p of PAGES) {
       await sidebar.getByRole('link', { name: p.nav }).click();
-      await expect(page).toHaveURL(new RegExp(`${p.path.replace(/\//g, '\\/')}$`));
+      await expect(page).toHaveURL(new RegExp(`${escapeRegExp(p.path)}$`));
       await expect(page.locator('.dashboard-main').getByText(p.heading).first()).toBeVisible();
       await expect(sidebar.getByRole('link', { name: p.nav })).toHaveAttribute('aria-current', 'page');
     }
