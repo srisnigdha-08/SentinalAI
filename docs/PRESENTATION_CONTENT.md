@@ -78,6 +78,8 @@ server; real-time updates use per-role Socket.IO rooms.
 4. **Adaptive deception:** Q-learning persona recommender and rotator.
 5. **Response:** containment policy, state machine, mock adapter, honeypot deny-list, audit, rollback.
 6. **SOC dashboard:** live feed, threat logs, analytics, role-based views (admin, analyst, viewer).
+7. **Investigation tools:** Attack Time Machine (replay a recorded honeypot session), AI Trust Meter (what limits a
+   stored prediction, no trust percentage), Deception Arena (static vs adaptive persona under controlled conditions).
 
 ## 8. AI/ML architecture
 
@@ -130,9 +132,15 @@ feature vector, and refused if re-scoring does not reproduce the prediction."
 | Train Mon–Wed, test Thu–Fri | 50.6 % | 0.12 % |
 | Leave one day out | 3.1–33.4 % | up to 4.1 % |
 | Later held-out traffic at the 0.90 line | 78.6 % | 0.154 % |
+| Six CSE-CIC-IDS2018 development days at the 0.90 line (diagnostic) | 15.2 % | 0.24 % |
+
+Deception Arena (scripted and simulated attackers only): scripted runs give identical sessions under both strategies,
+as they must; a 12-pair simulated run found no difference in commands per session (95 % CI −0.42 to 1.42). No
+improvement for real attackers has been established.
 
 Performance: single flow p95 ≈ 30 ms; explanation p95 48 ms; backend 75–98 requests/s at 20 clients with no errors.
-Testing: 1,178 backend, 653 engine, 70 frontend unit, 240 browser, 42 integration tests passing.
+Testing (2026-11-12): 1,657 backend, 959 engine, 139 frontend unit and 106 Chromium browser tests passing (plus 12
+phone/tablet layout tests); 42 integration checks passed when last run on 2026-11-03.
 
 *Speaker note:* "High random-split accuracy measures recognition of near-copies from the same capture. The day
 held-out results are the honest estimate for unseen attacks, and they are poor. We report both."
@@ -151,7 +159,9 @@ analytics, `09` settings and containment, `10` viewer redaction.
   test flows.
 - Flows in the demo are recorded CICIDS2017 records replayed, not live capture.
 - Host-firewall enforcement is simulated; the Windows Firewall adapter has never run live.
-- The persona learner's benefit is unmeasured; its state is only the previous persona.
+- The persona learner's benefit for real attackers is not established (Deception Arena: scripted and simulated only);
+  its state is only the previous persona.
+- The AI Trust Meter shows evidence and limitations, not the probability that a prediction is correct.
 - Auto-block acts on a single flow (no correlation); single-host deployment; no TLS; Docker untested.
 - Credentials once committed to history (SEC-001), risk accepted, not rotated.
 

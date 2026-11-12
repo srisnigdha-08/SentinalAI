@@ -154,8 +154,23 @@ real traffic.
 **"Did you block attackers on the host?"** No. The containment logic is real; the firewall action is simulated by a
 mock adapter. Only the honeypot refuses deny-listed IPs.
 
-**"Does the reinforcement learning help?"** Unknown. The mechanism works and is tested; its effect on attacker
-engagement has not been measured. Its state is only the previous persona, so it behaves almost like a bandit.
+**"Does the reinforcement learning help?"** Unknown for real attackers. The mechanism works and is tested; its effect on
+attacker engagement has not been measured. Its state is only the previous persona, so it behaves almost like a bandit.
+
+**"Then what does the Deception Arena show?"** It runs both strategies on the same allowlisted scenarios in pairs that
+share the same attacker behaviour. A scripted attacker cannot react to the persona, so those runs only check the
+mechanics (selection, application, capture, scoring, mapping, reproducibility). The simulated attacker reacts through
+preferences we assumed, so a difference there would only show the learner can find what the simulator favours. Our
+12-pair simulated run found no difference (95 % CI −0.42 to 1.42 commands per session). Live Cowrie trials were not run
+because scored sessions update the deployed Q-table and persona switches restart Cowrie.
+
+**"What does the AI Trust Meter's confidence mean?"** It is the classifier's probability for the class it predicted,
+not the chance it is right. The meter gives a category with reasons (missing features, signal conflict, review queue,
+unknown completeness) and shows dataset-level limits separately, for example 15.2 % recall on 2018 development days.
+
+**"Is the Attack Time Machine re-running the attack?"** No. It animates stored events only. Login attempts have no
+stored time, so they are listed separately; detections and containment are shown only when a record references the
+session or its threat, never matched by IP alone.
 
 **"Why not deep learning?"** Tabular features, limited compute, need for exact explanations and fast inference; tree
 ensembles are the standard strong baseline. Deep models would not fix the cross-day generalisation problem by
