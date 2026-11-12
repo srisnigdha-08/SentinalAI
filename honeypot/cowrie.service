@@ -5,8 +5,12 @@
 #   sudo systemctl enable --now cowrie
 #   journalctl -u cowrie -f
 #
-# The rotator then restarts it with:  deception_rotator.py --restart-cmd "sudo systemctl restart cowrie"
-# (grant only that command to the rotator's user in sudoers). Adjust the paths to your install.
+# The rotator then restarts it with:
+#   COWRIE_PERSONA_FS=personas COWRIE_LISTEN_ADDR=<this host's bind address> \
+#     deception_rotator.py --cfg /home/cowrie/cowrie/etc/cowrie.cfg --restart-cmd "sudo systemctl restart cowrie"
+# (grant only that command to the rotator's user in sudoers; build personas/ with build_honeyfs.py first).
+# It refuses to switch without --restart-cmd or the persona filesystem, and records a persona only after Cowrie
+# answers with its banner. Adjust the paths to your install.
 [Unit]
 Description=Cowrie SSH honeypot (SentinelAI)
 After=network-online.target

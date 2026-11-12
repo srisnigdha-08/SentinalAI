@@ -4,10 +4,13 @@ SentinelAI deception rotator: applies the Q-learner's recommended Cowrie persona
 
 Every --interval minutes it asks the backend for the recommended next persona
 (GET /api/honeypot/deception/recommendation). When it differs from the persona being served it:
-  1. rewrites cowrie.cfg with switch_profile.generate_config,
-  2. restarts Cowrie with --restart-cmd (run without a shell; skipped if not given),
-  3. records the persona now served (PUT /api/honeypot/deception/profile), so the next sessions'
+  1. rewrites cowrie.cfg with switch_profile.generate_config (with the persona's filesystem from
+     COWRIE_PERSONA_FS / COWRIE_PERSONA_HONEYFS, which must be set and built),
+  2. restarts Cowrie with --restart-cmd (run without a shell; required: without it nothing is switched),
+  3. checks that Cowrie now answers with the persona's SSH banner (--no-verify skips this),
+  4. records the persona now served (PUT /api/honeypot/deception/profile), so the next sessions'
      rewards are credited to it.
+Any failure in 1-3 restores the previous cowrie.cfg and marks the decision FAILED instead of APPLIED.
 This closes the learning loop: the learner explores (epsilon-greedy) and exploits personas that keep
 attackers engaged, instead of only scoring the one persona configured by hand.
 
@@ -25,6 +28,7 @@ import logging
 import os
 import re
 import shlex
+import socket
 import subprocess
 import sys
 import time
@@ -96,10 +100,106 @@ def served_persona(cfg_path: Path):
     return m.group(1) if m and m.group(1) in switch_profile.PROFILES else None
 
 
+def persona_fs_problem(cfg_path: Path, persona: str):
+    """Why `persona` would be served without its own filesystem, or None. Without COWRIE_PERSONA_FS /
+    COWRIE_PERSONA_HONEYFS, switch_profile leaves the filesystem out and Cowrie falls back to its stock tree
+    (user "phil", empty os-release) under the new hostname; a missing pickle makes Cowrie refuse every login."""
+    if persona in switch_profile.UNSERVABLE:
+        return None
+    fs_dir = os.getenv("COWRIE_PERSONA_FS", "").strip()
+    honeyfs_dir = os.getenv("COWRIE_PERSONA_HONEYFS", "").strip()
+    if not fs_dir and not honeyfs_dir:
+        return "COWRIE_PERSONA_FS (or COWRIE_PERSONA_HONEYFS) is not set; the persona filesystem would be dropped"
+    # Relative paths in cowrie.cfg resolve against the Cowrie home Cowrie runs from (<home>/etc/cowrie.cfg).
+    home = Path(cfg_path).resolve().parent.parent
+    target = Path(fs_dir) / f"{persona}.pickle" if fs_dir else Path(honeyfs_dir) / persona
+    if not target.is_absolute():
+        target = home / target
+    if not target.exists():
+        return f"persona filesystem {target} does not exist (build it with build_honeyfs.py)"
+    return None
+
+
+def listen_address(cfg_path: Path):
+    """(host, port) Cowrie listens on per cowrie.cfg; a wildcard interface is probed on loopback."""
+    try:
+        text = cfg_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    m = re.search(r"^listen_endpoints\s*=\s*tcp:(\d+)(?::interface=(\S+))?", text, re.MULTILINE)
+    if not m:
+        return None
+    host = m.group(2) or "0.0.0.0"
+    return ("127.0.0.1" if host in ("0.0.0.0", "::") else host), int(m.group(1))
+
+
+def read_banner(address, timeout_s: float):
+    """The SSH identification line served at address, polled until timeout_s (Cowrie needs a moment to bind)."""
+    deadline = time.monotonic() + timeout_s
+    last = None
+    while True:
+        try:
+            with socket.create_connection(address, timeout=5) as s:
+                s.settimeout(5)
+                line = s.recv(256).decode("utf-8", errors="replace").strip()
+                if line:
+                    return line
+        except OSError as e:
+            last = e
+        if time.monotonic() >= deadline:
+            log.warning("No SSH banner from %s:%s (%s)", address[0], address[1], type(last).__name__ if last else "empty")
+            return None
+        time.sleep(1)
+
+
+def open_watch(address):
+    """An idle connection to the Cowrie serving now, or None if nothing answers. A real restart drops it; one
+    still open afterwards means the restart command did not restart Cowrie. It sends no SSH client version, so
+    the log parser ignores it (zero SSH activity) and it never becomes a session or a learner episode."""
+    if not address:
+        return None
+    try:
+        s = socket.create_connection(address, timeout=5)
+        s.settimeout(5)
+        if s.recv(256):
+            return s
+        s.close()
+    except OSError:
+        pass
+    return None
+
+
+def still_open(sock) -> bool:
+    """True while the watch connection is alive (data such as Cowrie's KEXINIT is read and discarded)."""
+    sock.settimeout(0.5)
+    try:
+        while True:
+            if not sock.recv(4096):
+                return False
+    except socket.timeout:
+        return True
+    except OSError:
+        return False
+
+
+def verify_served(cfg_path: Path, persona: str, verify_addr=None, timeout_s: float = 30.0):
+    """None when Cowrie answers with `persona`'s banner after the restart, else the reason it does not.
+    The banner alone cannot tell centos_7 from aws_ec2 (both send SSH-2.0-OpenSSH_7.4); rotate_once additionally
+    requires the pre-restart watch connection to have been dropped, which proves Cowrie restarted, and the cfg
+    header written just before the restart names which of the two it now serves."""
+    address = verify_addr or listen_address(cfg_path)
+    if not address:
+        return "cannot tell where Cowrie listens (no listen_endpoints in cowrie.cfg; pass --verify-addr)"
+    expected = switch_profile.PROFILES[persona]["banner"]
+    served = read_banner(address, timeout_s)
+    if served != expected:
+        return f"Cowrie serves banner {served!r}, expected {expected!r}"
+    return None
+
+
 def run_restart(cmd: str):
     if not cmd:
-        log.info("No --restart-cmd given: restart Cowrie yourself to serve the new persona")
-        return True
+        return False
     result = subprocess.run(shlex.split(cmd), capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
         log.error("Restart command failed (exit %s): %s", result.returncode, result.stderr.strip()[:200])
@@ -107,7 +207,8 @@ def run_restart(cmd: str):
     return True
 
 
-def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run: bool, force: bool = False) -> dict:
+def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run: bool, force: bool = False,
+                verify: bool = True, verify_addr=None, verify_timeout: float = 30.0) -> dict:
     resp = client.call("GET", client.RECOMMENDATION)
     if resp.status_code != 200:
         raise RuntimeError(f"Recommendation unavailable (HTTP {resp.status_code})")
@@ -144,31 +245,53 @@ def rotate_once(client: BackendClient, cfg_path: Path, restart_cmd: str, dry_run
     log.info("Switching persona %s -> %s%s", active, nxt, " (exploration)" if data.get("explored") else "")
     if dry_run:
         return {"changed": False, "active": active, "would_switch_to": nxt}
+    # A persona counts as applied only once Cowrie serves it. Without a restart command the old persona keeps
+    # being served, so recording the new one would mislabel the dashboard and credit rewards to the wrong persona.
+    refusal = ("no --restart-cmd (COWRIE_RESTART_CMD): Cowrie would keep serving the old persona"
+               if not restart_cmd else persona_fs_problem(cfg_path, nxt))
+    if refusal:
+        log.error("Not switching to %s: %s", nxt, refusal)
+        if decision_id:
+            _fail(client, decision_id, f"not applied: {refusal}")
+        return {"changed": False, "active": active, "error": refusal}
     try:
         previous_cfg = cfg_path.read_text(encoding="utf-8")
     except OSError:
         previous_cfg = None
+    watch = open_watch(verify_addr or listen_address(cfg_path)) if verify else None
     switch_profile.CFG_PATH = cfg_path
     switch_profile.generate_config(nxt)
-    if not run_restart(restart_cmd):
+    try:
+        problem = None if run_restart(restart_cmd) else "restart failed"
+        if not problem and watch is not None and still_open(watch):
+            problem = "Cowrie was not restarted (a connection opened before the restart is still alive)"
+    finally:
+        if watch is not None:
+            watch.close()
+    if not problem and verify:
+        problem = verify_served(cfg_path, nxt, verify_addr, verify_timeout)
+    if not verify:
+        log.warning("--no-verify: recording %s without checking that Cowrie serves it", nxt)
+    if problem:
         # Put the served persona's cowrie.cfg back, so the next Cowrie start (or the restart retried here) does not
         # serve a persona the backend never recorded.
         if previous_cfg is None:
             if decision_id:
-                _fail(client, decision_id, "restart failed")
-            return {"changed": False, "active": active, "error": "restart failed; persona not recorded"}
+                _fail(client, decision_id, problem)
+            return {"changed": False, "active": active, "error": f"{problem}; persona not recorded"}
         cfg_path.write_text(previous_cfg, encoding="utf-8")
         recovered = run_restart(restart_cmd)
-        log.error("Restart with %s failed; restored the %s cowrie.cfg%s", nxt, active,
+        log.error("Switch to %s failed (%s); restored the %s cowrie.cfg%s", nxt, problem, active,
                   "" if recovered else " but Cowrie did not restart with it either")
         if decision_id:
-            _fail(client, decision_id, "restart failed" + ("" if recovered else "; Cowrie did not restart with the restored cfg"))
+            _fail(client, decision_id, problem + ("" if recovered else "; Cowrie did not restart with the restored cfg"))
         return {"changed": False, "active": active, "restored": True, "recovered": recovered,
-                "error": "restart failed; persona not recorded"}
+                "error": f"{problem}; persona not recorded"}
     rec = client.call("PUT", client.PROFILE, json={"profile": nxt, **({"decisionId": decision_id} if decision_id else {})})
     if rec.status_code != 200:
         raise RuntimeError(f"Recording the persona failed (HTTP {rec.status_code})")
-    return {"changed": True, "active": nxt, "previous": active, **({"decisionId": decision_id} if decision_id else {})}
+    return {"changed": True, "active": nxt, "previous": active, **({"decisionId": decision_id} if decision_id else {}),
+            **({} if verify else {"verified": False})}
 
 
 def _acknowledge(client, profile, decision_id):
@@ -198,7 +321,21 @@ def main():
     ap.add_argument("--once", action="store_true")
     ap.add_argument("--dry-run", action="store_true")
     ap.add_argument("--force", action="store_true", help="switch even while attacker sessions are open")
+    ap.add_argument("--verify-addr", help="HOST:PORT to read Cowrie's SSH banner from after a restart "
+                    "(default: listen_endpoints in cowrie.cfg, wildcard probed on 127.0.0.1)")
+    ap.add_argument("--verify-timeout", type=float, default=30.0, help="seconds to wait for the new banner")
+    ap.add_argument("--no-verify", action="store_true",
+                    help="record the persona without checking Cowrie's banner after the restart (not recommended)")
     args = ap.parse_args()
+    verify_addr = None
+    if args.verify_addr:
+        host, _, port = args.verify_addr.rpartition(":")
+        host = host.strip("[]")  # [::1]:2222
+        if not host or not port.isdigit():
+            ap.error("--verify-addr must be HOST:PORT")
+        verify_addr = (host, int(port))
+    if args.no_verify:
+        log.warning("--no-verify: personas will be recorded as APPLIED without checking what Cowrie serves")
     api_key = os.getenv("HONEYPOT_API_KEY", "")
     if api_key:
         client = MachineClient(args.backend, api_key)
@@ -211,7 +348,9 @@ def main():
     client.login()
     while True:
         try:
-            log.info("Rotation result: %s", rotate_once(client, Path(args.cfg), args.restart_cmd, args.dry_run, args.force))
+            log.info("Rotation result: %s", rotate_once(client, Path(args.cfg), args.restart_cmd, args.dry_run, args.force,
+                                                        verify=not args.no_verify, verify_addr=verify_addr,
+                                                        verify_timeout=args.verify_timeout))
         except (requests.RequestException, RuntimeError) as e:
             log.error("Rotation failed: %s", e)
         if args.once:
