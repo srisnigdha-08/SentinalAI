@@ -397,3 +397,112 @@ def test_watch_without_a_running_cowrie_falls_back_to_the_banner(tmp_path):
     srv.restart()
     srv.close()
     assert real.open_watch(addr) is None and real.open_watch(None) is None
+
+
+# ── Supervised loop (scripts/rotator/sentinel-rotator.service) ──────────────────────────────────────────────────
+import json as _json
+import threading as _threading
+import time as _time
+
+
+def test_stop_request_ends_the_sleep_at_once(rotator, tmp_path):
+    stop, calls = _threading.Event(), []
+    _threading.Timer(0.3, stop.set).start()
+    t0 = _time.monotonic()
+    code = rotator.run_loop(lambda: calls.append(1) or {"changed": False}, 3600, stop, status_file=tmp_path / "s.json")
+    assert code == rotator.EXIT_OK and calls == [1] and _time.monotonic() - t0 < 5
+    assert _json.loads((tmp_path / "s.json").read_text())["state"] == "stopped"
+
+
+def test_stop_during_a_rotation_lets_it_finish_first(rotator):
+    stop, finished = _threading.Event(), []
+
+    def rotate():
+        stop.set()                      # SIGTERM arrives mid-switch ...
+        _time.sleep(0.2)
+        finished.append(True)           # ... the switch still completes
+        return {"changed": True, "active": "debian_11"}
+    assert rotator.run_loop(rotate, 3600, stop) == rotator.EXIT_OK and finished == [True]
+
+
+def test_backend_outages_are_transient_but_repeated_crashes_end_the_loop(rotator, tmp_path):
+    stop, n = _threading.Event(), {"i": 0}
+
+    def flaky():
+        n["i"] += 1
+        if n["i"] <= 3:
+            raise rotator.requests.ConnectionError("backend down")
+        raise OSError("disk full")
+    code = rotator.run_loop(flaky, 0, stop, max_failures=2, status_file=tmp_path / "s.json")
+    assert code == rotator.EXIT_ERRORS and n["i"] == 5  # 3 transient + 2 counted
+    status = _json.loads((tmp_path / "s.json").read_text())
+    assert status["state"] == "failed" and status["consecutiveFailures"] == 2 and "OSError" in status["lastResult"]["error"]
+
+
+def test_failed_restore_stops_the_loop_for_an_operator(rotator, tmp_path):
+    stop, calls = _threading.Event(), []
+    result = {"changed": False, "restored": True, "recovered": False, "error": "restart failed; persona not recorded"}
+    code = rotator.run_loop(lambda: calls.append(1) or result, 0, stop, status_file=tmp_path / "s.json")
+    assert code == rotator.EXIT_NEEDS_RECOVERY and calls == [1]  # never tries another switch
+    assert _json.loads((tmp_path / "s.json").read_text())["state"] == "needs_recovery"
+
+
+def test_status_file_holds_no_secrets(rotator, tmp_path, monkeypatch):
+    monkeypatch.setenv("HONEYPOT_API_KEY", "super-secret-key")
+    rotator.run_loop(lambda: {"changed": False}, 0, _threading.Event(), once=True, status_file=tmp_path / "s.json")
+    assert "super-secret-key" not in (tmp_path / "s.json").read_text()
+
+
+def test_rotation_lock_is_exclusive_and_released(rotator, tmp_path):
+    cfg = tmp_path / "cowrie.cfg"
+    with rotator.rotation_lock(cfg) as first:
+        with rotator.rotation_lock(cfg) as second:
+            assert first is True and second is False
+    with rotator.rotation_lock(cfg) as again:
+        assert again is True
+    assert not (tmp_path / "cowrie.cfg.rotator.lock").exists()
+
+
+def test_stale_rotation_lock_is_taken_over(rotator, tmp_path):
+    import os
+    cfg = tmp_path / "cowrie.cfg"
+    lock = tmp_path / "cowrie.cfg.rotator.lock"
+    lock.write_text("99999")
+    old = _time.time() - rotator.LOCK_STALE_S - 10
+    os.utime(lock, (old, old))
+    with rotator.rotation_lock(cfg) as acquired:
+        assert acquired is True
+
+
+def test_main_skips_a_round_while_another_rotator_holds_the_lock(rotator, tmp_path, monkeypatch):
+    cfg = tmp_path / "cowrie.cfg"
+    called = []
+    monkeypatch.setattr(rotator, "rotate_once", lambda *a, **k: called.append(1) or {"changed": True})
+    monkeypatch.setenv("HONEYPOT_API_KEY", "k")
+    monkeypatch.setattr(rotator.sys, "argv", ["rot", "--once", "--cfg", str(cfg), "--restart-cmd", "true",
+                                              "--status-file", str(tmp_path / "s.json")])
+    with rotator.rotation_lock(cfg):
+        assert rotator.main() == rotator.EXIT_OK
+    assert called == []
+    status = _json.loads((tmp_path / "s.json").read_text())
+    assert status["state"] == "stopped" and "another rotator" in status["lastResult"]["skipped"]
+    assert rotator.main() == rotator.EXIT_OK and called == [1]
+
+
+def test_sigterm_handler_requests_a_graceful_stop(rotator, tmp_path, monkeypatch):
+    import signal
+    seen = {}
+
+    def fake_loop(rotate, interval_s, stop, **kw):
+        signal.getsignal(signal.SIGTERM)(signal.SIGTERM, None)  # what systemctl stop delivers
+        seen["stopped"] = stop.is_set()
+        return rotator.EXIT_OK
+    saved = {s: signal.getsignal(s) for s in (signal.SIGTERM, signal.SIGINT)}
+    monkeypatch.setattr(rotator, "run_loop", fake_loop)
+    monkeypatch.setenv("HONEYPOT_API_KEY", "k")
+    monkeypatch.setattr(rotator.sys, "argv", ["rot", "--cfg", str(tmp_path / "cowrie.cfg"), "--restart-cmd", "true"])
+    try:
+        assert rotator.main() == rotator.EXIT_OK and seen["stopped"] is True
+    finally:
+        for s, h in saved.items():
+            signal.signal(s, h)

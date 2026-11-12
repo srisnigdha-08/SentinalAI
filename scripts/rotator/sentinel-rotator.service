@@ -1,0 +1,33 @@
+# SentinelAI deception rotator: applies the Q-learner's recommended persona to the WSL Cowrie lab on a schedule.
+# systemd USER unit template. Installed (never enabled) by scripts/rotator/rotator-ctl.sh install, which fills in
+# @REPO_ROOT@; it runs only after an explicit `rotator-ctl.sh enable`. See scripts/rotator/README.md.
+#
+# Every switch goes through honeypot/deception_rotator.py's checks: restart command and built persona filesystem
+# required, the pre-restart connection must be dropped and the new SSH banner served, otherwise cowrie.cfg is
+# restored and the decision marked FAILED. It waits while attacker sessions are open (no --force here).
+[Unit]
+Description=SentinelAI deception rotator (WSL Cowrie lab, supervised)
+Documentation=file://@REPO_ROOT@/scripts/rotator/README.md
+StartLimitIntervalSec=3600
+StartLimitBurst=3
+
+[Service]
+Type=simple
+# Optional overrides (mode 600): ROTATOR_INTERVAL (minutes), COWRIE_HOME, COWRIE_ENV, BACKEND_PORT
+Environment=ROTATOR_INTERVAL=60
+EnvironmentFile=-%h/.config/sentinelai/rotator.env
+ExecStart=/bin/bash @REPO_ROOT@/scripts/demo/cowrie-demo-mode.sh rotate --interval ${ROTATOR_INTERVAL} --status-file %h/.local/state/sentinelai/rotator-status.json
+# Exit 1 (repeated unexpected errors) is retried after RestartSec, at most StartLimitBurst times an hour.
+# Exit 3 means Cowrie may be down after a failed switch: never restart automatically; an operator recovers it.
+Restart=on-failure
+RestartSec=120
+RestartPreventExitStatus=3
+# Stop: SIGTERM to the rotator only. It finishes a switch in progress (restart + verification + any restore)
+# before exiting, so allow longer than one rotation. Cowrie, started by the restart command, keeps running.
+KillMode=process
+KillSignal=SIGTERM
+TimeoutStopSec=330
+NoNewPrivileges=yes
+
+[Install]
+WantedBy=default.target
