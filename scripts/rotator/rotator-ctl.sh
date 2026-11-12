@@ -36,6 +36,9 @@ case "${1:-status}" in
   enable)
     need_systemd
     installed || { echo "not installed: run '$0 install' first" >&2; exit 2; }
+    # An explicit enable starts with a full crash-restart budget (StartLimitBurst counts every start, manual ones
+    # included, so a recovery within the hour could otherwise leave no automatic restart for a later crash).
+    "${SCTL[@]}" reset-failed "$UNIT" 2>/dev/null || true
     "${SCTL[@]}" enable --now "$UNIT"
     "${SCTL[@]}" --no-pager --lines=0 status "$UNIT" || true
     ;;
