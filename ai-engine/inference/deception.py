@@ -99,7 +99,40 @@ def get_scorer():
                 except FileExistsError:
                     pass
         _scorer = SessionScorer(q_table_path=q_table_path)
+        _attach_policy_v2(_scorer, q_table_path, seed)
     return _scorer
+
+
+V2_MODES = ("off", "shadow", "active")
+
+
+def _attach_policy_v2(scorer, q_table_path, seed: Path):
+    """Persona policy v2 (docs/PERSONA_POLICY_V2.md). DECEPTION_V2=shadow (default) learns from the same scored
+    sessions and reports its pick next to v1's; =active makes /deception/recommendation use it (v1 keeps learning,
+    so unsetting it rolls back at once); =off disables it. Its state is its own file, next to the v1 runtime table
+    (DECEPTION_V2_STATE_PATH overrides), never the v1 table. Its prior comes from the shipped synthetic seed only,
+    weighted as DECEPTION_V2_PRIOR_WEIGHT real sessions (default 1). A v2 failure leaves v1 untouched."""
+    mode = os.getenv("DECEPTION_V2", "shadow").strip().lower()
+    if mode not in V2_MODES:
+        mode = "shadow"
+    if mode == "off":
+        return
+    try:
+        from rl_engine.persona_policy_v2 import PersonaPolicyV2, prior_from_q_table
+        state = Path(os.getenv("DECEPTION_V2_STATE_PATH") or Path(q_table_path).with_name("persona_policy_v2.json"))
+        seed_table, seed_episodes = {}, 0
+        if seed.is_file():
+            data = json.loads(seed.read_text(encoding="utf-8"))
+            seed_table, seed_episodes = data.get("q_table", {}), int(data.get("episode_count", 0))
+        weight = os.getenv("DECEPTION_V2_PRIOR_WEIGHT")
+        scorer.v2 = PersonaPolicyV2(state, prior_means=prior_from_q_table(seed_table),
+                                    prior_source="models/q_table.json (synthetic warm start)" if seed_table else "uniform",
+                                    prior_episodes=seed_episodes, prior_weight=float(weight) if weight else None)
+        scorer.v2_mode = mode
+    except Exception as e:  # noqa: BLE001 - v2 is optional; v1 must start regardless
+        import logging
+        logging.getLogger("sentinel.rl.v2").warning("Persona policy v2 not attached (%s: %s)", type(e).__name__, e)
+        scorer.v2, scorer.v2_mode = None, "off"
 
 
 def _initial_table(seed: Path, cold_start: bool):

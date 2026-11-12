@@ -1,6 +1,6 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { driftSummary, topShiftRows, classMixRows, recommendationSummary, globalShapRows, learnerProvenanceSummary } from '../src/utils/modelHealth.js'
+import { driftSummary, topShiftRows, classMixRows, recommendationSummary, globalShapRows, learnerProvenanceSummary, policyLabel } from '../src/utils/modelHealth.js'
 
 test('missing drift report is shown as unavailable, never as healthy', () => {
   for (const report of [null, undefined, 'x']) assert.equal(driftSummary(report).label, 'UNAVAILABLE')
@@ -75,4 +75,13 @@ test('decision status names the persisted decision and says a refresh reuses it 
   assert.match(s, /…b5a69788 \(already pending\)/)
   assert.match(s, /until the rotator applies it or it expires/)
   assert.match(decisionStatusSummary({ decisionId: 'abc', decisionReused: false }), /just drawn/)
+})
+
+test('persona policy v2 recommendations are labelled as a confidence bound, not a Q-value', () => {
+  const rec = { activeProfile: 'ubuntu_22', nextProfile: 'debian_11', explored: false, policy: 'persona-ducb-v2' }
+  assert.match(recommendationSummary(rec), /upper confidence bound/)
+  assert.doesNotMatch(recommendationSummary(rec), /Q-value/)
+  assert.equal(policyLabel('persona-ducb-v2'), 'Persona policy v2 (discounted UCB)')
+  assert.equal(policyLabel('q_learning'), 'Q-learner')
+  assert.equal(policyLabel('ucb1'), 'Bandit (UCB1)')
 })

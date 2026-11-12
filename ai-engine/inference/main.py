@@ -555,11 +555,26 @@ def deception_recommendation(current: str = "centos_7"):
     if current not in PROFILES:
         raise HTTPException(422, f"Unknown profile '{current}'")
     with _scorer_lock:
-        learner = _deception_scorer().learner
+        scorer = _deception_scorer()
+        learner = scorer.learner
         next_profile = learner.choose_action(current)
         greedy = learner.greedy_action(current)
-        return {"success": True, "current": current, "nextProfile": next_profile, "policy": learner.policy,
-                "explored": next_profile != greedy, "learnerStats": learner.get_stats()}
+        out = {"success": True, "current": current, "nextProfile": next_profile, "policy": learner.policy,
+               "explored": next_profile != greedy, "learnerStats": learner.get_stats()}
+        if scorer.v2 is not None:
+            # Persona policy v2. Shadow: reported only, never applied (the backend reads nextProfile/policy/explored).
+            # Active (DECEPTION_V2=active): v2 drives nextProfile; v1's pick is still reported for comparison.
+            try:
+                v2 = scorer.v2.stats(current)
+            except Exception as e:  # noqa: BLE001 - v2 must never break v1 recommendations
+                log.warning("Persona policy v2 recommendation failed (%s); serving v1", type(e).__name__)
+                v2 = None
+            if v2 and scorer.v2_mode == "active":
+                out.update({"nextProfile": v2["recommendation"], "policy": v2["policyVersion"], "explored": v2["explored"],
+                            "policyV1": {"nextProfile": next_profile, "policy": learner.policy, "explored": next_profile != greedy}})
+            elif v2:
+                out["shadow"] = {"mode": "shadow", "applied": False, **v2}
+        return out
 
 class AuthTelemetryRecord(BaseModel):
     # Typed and bounded (L2): optional fields are Optional, strings have length limits, numbers are finite.
