@@ -1,5 +1,5 @@
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import KpiCard from '../components/KpiCard.jsx'
@@ -7,36 +7,87 @@ import SeverityBadge from '../components/SeverityBadge.jsx'
 import { campaignAPI } from '../services/api.js'
 import toast from 'react-hot-toast'
 
+// What the page shows for each campaign; a refresh compares these to say whether anything changed.
+const campaignSignature = (list, summary) =>
+  JSON.stringify([
+    summary ? [summary.total, summary.clusteredIPs, summary.maxDeceptionScore, summary.sessionTotal, summary.latestLastSeen] : null,
+    list.map(c => [c._id, c.threatLevel, c.sessions?.length || 0, (c.sourceIPs || []).length, c.lastSeen, c.maxDeceptionScore]),
+  ])
+
 export default function Campaigns() {
   const [campaigns, setCampaigns] = useState([])
+  const [summary, setSummary] = useState(null)
   const [selectedCampaign, setSelectedCampaign] = useState(null)
   const [expandedSessionId, setExpandedSessionId] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [refreshNote, setRefreshNote] = useState(null)
+  const inflight = useRef(null)
+  const signature = useRef(null)
+  const selectedIdRef = useRef(null)
+  const mounted = useRef(true)
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
+  useEffect(() => { selectedIdRef.current = selectedCampaign?._id ?? null }, [selectedCampaign])
 
-  const loadCampaigns = async (silent = false) => {
-    if (!silent) setLoading(true)
-    setError(null)
-    try {
-      const res = await campaignAPI.list()
-      const list = res.data.data || []
-      setCampaigns(list)
-      // If there is a selected campaign, refresh its data too
-      if (selectedCampaign) {
-        const refreshed = list.find(c => c._id === selectedCampaign._id)
-        if (refreshed) setSelectedCampaign(refreshed)
+  // Reads the stored campaigns (GET only): clustering happens when sessions close, never on refresh, so this
+  // cannot create, merge or reclassify campaigns. Overlapping calls share the in-flight request.
+  const loadCampaigns = ({ manual = false } = {}) => {
+    if (inflight.current) return inflight.current
+    if (manual) setRefreshing(true)
+    else setLoading(true)
+    const run = (async () => {
+      try {
+        const [res, sumRes] = await Promise.all([campaignAPI.list(), campaignAPI.summary()])
+        if (!mounted.current) return
+        const list = res.data.data || []
+        const nextSummary = sumRes.data.data || null
+        const sig = campaignSignature(list, nextSummary)
+        const previous = signature.current
+        setCampaigns(list)
+        setSummary(nextSummary)
+        setError(null)
+        // Keep the open detail panel in sync; close it if the campaign no longer exists
+        if (selectedIdRef.current) {
+          const refreshed = list.find(c => c._id === selectedIdRef.current) || null
+          setSelectedCampaign(refreshed)
+          if (!refreshed) setExpandedSessionId(null)
+        }
+        signature.current = sig
+        setLastUpdated(new Date())
+        if (manual) {
+          if (previous !== null && previous === sig) {
+            setRefreshNote('Campaign feed is up to date.')
+            toast.success('Campaign feed is up to date.')
+          } else {
+            setRefreshNote('Campaign feed updated with the latest stored campaigns.')
+            toast.success('Campaign feed updated')
+          }
+        }
+      } catch (err) {
+        if (!mounted.current) return
+        const status = err?.response?.status
+        const reason = !err?.response
+          ? 'the server could not be reached'
+          : status === 401 ? 'your session has expired' : status === 403 ? 'access denied' : `HTTP ${status}`
+        setError(`Campaign telemetry is unavailable (${reason}). Retry to load current clusters.`)
+        if (manual) setRefreshNote(null)
+        toast.error('Failed to load campaigns')
+      } finally {
+        inflight.current = null
+        if (mounted.current) {
+          setLoading(false)
+          setRefreshing(false)
+        }
       }
-    } catch {
-      setError('Campaign telemetry is unavailable. Retry to load current clusters.')
-      toast.error('Failed to load campaigns')
-    } finally {
-      setLoading(false)
-    }
+    })()
+    inflight.current = run
+    return run
   }
 
   useEffect(() => {
     loadCampaigns()
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only load; the loader reads no props or state
   }, [])
 
   // Helper formatting functions
@@ -51,13 +102,15 @@ export default function Campaigns() {
     return m > 0 ? `${m}m ${s % 60}s` : `${s}s`
   }
 
-  // Calculate KPIs on the fly
-  const totalCampaigns = campaigns.length
-  const uniqueIPs = new Set(campaigns.flatMap(c => c.sourceIPs || [])).size
-  const maxDeception = campaigns.length ? Math.max(...campaigns.map(c => c.maxDeceptionScore || 0)) : 0
-  const avgSessions = campaigns.length
-    ? (campaigns.reduce((acc, c) => acc + (c.sessions?.length || 0), 0) / campaigns.length).toFixed(1)
-    : '0.0'
+  // KPIs come from GET /campaigns/summary (every stored campaign); the table lists the most recent page of rows.
+  const totalCampaigns = summary ? summary.total : campaigns.length
+  const uniqueIPs = summary ? summary.clusteredIPs : new Set(campaigns.flatMap(c => c.sourceIPs || [])).size
+  const maxDeception = summary ? summary.maxDeceptionScore : (campaigns.length ? Math.max(...campaigns.map(c => c.maxDeceptionScore || 0)) : 0)
+  const avgSessions = summary
+    ? Number(summary.avgSessionsPerCampaign || 0).toFixed(1)
+    : campaigns.length
+      ? (campaigns.reduce((acc, c) => acc + (c.sessions?.length || 0), 0) / campaigns.length).toFixed(1)
+      : '0.0'
 
   return (
     <DashboardLayout>
@@ -70,28 +123,39 @@ export default function Campaigns() {
             SentinelAI groups honeypot sessions based on exact SSH Client Fingerprints (HASSH) or command sequence similarity.
           </p>
         </div>
-        <button
-          onClick={() => {
-            loadCampaigns(true)
-            toast.success('Campaign cache refreshed')
-          }}
-          style={{
-            background: 'rgba(0,212,255,.08)',
-            border: '1px solid #0d3352',
-            color: '#00d4ff',
-            fontFamily: 'Share Tech Mono,monospace',
-            fontSize: 11,
-            padding: '6px 14px',
-            borderRadius: 1,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,.15)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,212,255,.08)'}
-        >
-          REFRESH FEED
-        </button>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <button
+            type="button"
+            onClick={() => loadCampaigns({ manual: true })}
+            disabled={refreshing || loading}
+            aria-busy={refreshing}
+            style={{
+              background: 'rgba(0,212,255,.08)',
+              border: '1px solid #0d3352',
+              color: refreshing ? '#3a6a88' : '#00d4ff',
+              fontFamily: 'Share Tech Mono,monospace',
+              fontSize: 11,
+              padding: '6px 14px',
+              borderRadius: 1,
+              cursor: refreshing || loading ? 'wait' : 'pointer',
+              transition: 'all 0.2s',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(0,212,255,.15)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'rgba(0,212,255,.08)'}
+          >
+            {refreshing ? 'REFRESHING...' : 'REFRESH FEED'}
+          </button>
+          <span data-testid="campaigns-last-updated" style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 9, color: '#3a6a88' }}>
+            {lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })} IST` : 'Not loaded yet'}
+          </span>
+        </div>
       </div>
+
+      {refreshNote && !error && (
+        <div role="status" data-testid="campaigns-refresh-note" style={{ marginTop: '-0.75rem', marginBottom: '1rem', fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#00ff88' }}>
+          {refreshNote}
+        </div>
+      )}
 
       {error && (
         <div
@@ -114,7 +178,7 @@ export default function Campaigns() {
         >
           <span>⚠ {error}</span>
           <button
-            onClick={() => loadCampaigns()}
+            onClick={() => loadCampaigns({ manual: true })}
             style={{
               background: '#ffaa00',
               border: 'none',
@@ -144,7 +208,12 @@ export default function Campaigns() {
 
       <div className={`dashboard-grid ${selectedCampaign ? 'dashboard-grid-two' : ''}`} style={{ gap: '1rem', transition: 'all 0.3s' }}>
         {/* Main Campaigns List Panel */}
-        <Panel title="Active Attack Campaigns" badge={`${campaigns.length} Active`} badgeType="info">
+        <Panel title="Active Attack Campaigns" badge={`${totalCampaigns} Stored`} badgeType="info">
+          {!loading && !error && summary && summary.total > campaigns.length && (
+            <div style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#3a6a88', marginBottom: 8 }}>
+              Showing the {campaigns.length} most recently active of {summary.total} campaigns.
+            </div>
+          )}
           <div className="sentinel-table-scroll" role="region" aria-label="Active attack campaigns" tabIndex={0}>
             {loading ? (
               <div style={{ textAlign: 'center', padding: '3rem', color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace', fontSize: 12 }}>
