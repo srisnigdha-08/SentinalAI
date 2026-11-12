@@ -89,6 +89,8 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-CSRF-Token'],
+    // Report downloads name their file in Content-Disposition; a cross-origin client must be able to read it
+    exposedHeaders: ['Content-Disposition'],
   })
 )
 app.use('/api', securityTopology.requireSecureApi)
@@ -308,6 +310,7 @@ app.use('/api/containment', require('./routes/containment'))
 app.use('/api/honeypot/ingest', require('./routes/honeypotIngest'))
 app.use('/api/honeypot', require('./routes/honeypot'))
 app.use('/api/campaigns', require('./routes/campaigns'))
+app.use('/api/reports', require('./routes/reports'))
 app.use('/api/alerts', require('./routes/alerts'))
 app.use('/api/users', require('./routes/users'))
 app.use('/api/ai', require('./routes/aiEngine'))

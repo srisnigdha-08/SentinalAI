@@ -54,6 +54,8 @@ export const honeypotAPI = {
   nodes:        ()        => api.get('/honeypot/nodes'),
   deceptionProfile:        () => api.get('/honeypot/deception/profile'),
   deceptionRecommendation: () => api.get('/honeypot/deception/recommendation'),
+  // Read-only snapshot (never draws a decision or rotates a persona)
+  deceptionStatus:         () => api.get('/honeypot/deception/status'),
 }
 
 export const alertAPI = {
@@ -121,7 +123,14 @@ export const arenaAPI = {
 
 export const campaignAPI = {
   list: () => api.get('/campaigns'),
+  summary: () => api.get('/campaigns/summary'),
   get: (id) => api.get(`/campaigns/${id}`),
+}
+
+// Dashboard "Export Report": the file comes back as a Blob (PDF or CSV attachment)
+export const reportAPI = {
+  securitySummary: ({ days = 7, format = 'pdf' } = {}) =>
+    api.get('/reports/security-summary', { params: { days, format }, responseType: 'blob', timeout: 60000 }),
 }
 
 export const systemAPI = {
