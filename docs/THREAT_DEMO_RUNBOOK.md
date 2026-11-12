@@ -110,8 +110,16 @@ Socket.IO **[RUN]** (`scratchpad/socket_probe.js`, admin socket after `join_room
 
 ### Q8. Does the Q-learner change what Cowrie returns?
 
-**No.** `rl_engine/deception_scorer.py` `process_session` docstring: "The returned nextProfile is only a recommendation; nothing here reconfigures Cowrie". It returns `"recommendationApplied": False`. Only the **separate, opt-in** `honeypot/deception_rotator.py` `rotate_once()` applies it: `switch_profile.generate_config(nxt)` rewrites `cowrie.cfg`, then `run_restart()` restarts Cowrie, which drops live sessions. It changes the persona only (banner, hostname, kernel, filesystem). **[RUN]** Scratch engine: `deceptionScore 43.9, nextProfile ubuntu_22, recommendationApplied false`.
-**Problem:** your running engine on :8000 returned **HTTP 500** for every `/deception/score` call today (backend log: `deception scoring failed: Request failed with status code 500`), so sessions stored `qDeceptionScore: 0, recommendedProfile: null`. A fresh engine with an explicit `Q_TABLE_PATH` returned 200. The root cause on :8000 is **not verified**; read that engine's console. Start the engine with `Q_TABLE_PATH` set (Part 2).
+**Not by itself, but the rotator does, and it is verified (2026-11-12, PRs #26–#28).** The scorer (`rl_engine/deception_scorer.py`) only recommends. It returns `"recommendationApplied": False`. The backend persists one PENDING decision per served persona.
+
+`honeypot/deception_rotator.py` applies a decision as follows:
+1. It rewrites `cowrie.cfg` (banner, hostname, kernel, per-persona filesystem) and restarts Cowrie, which drops live sessions. That is why it waits while attacker sessions are open.
+2. It then requires proof that the persona is really served: the connection it opened before the restart must have dropped, and Cowrie must answer with the new SSH banner.
+3. Only then does it record the decision **APPLIED**. Otherwise it restores the old `cowrie.cfg` and records **FAILED**.
+
+You trigger it by hand in the demo (A5). A supervised, disabled-by-default systemd service (`scripts/rotator/`) can run it every N minutes. It was verified end to end on an isolated copy, but it is **not enabled** on the demo install.
+
+Earlier HTTP 500s from the :8000 engine on `/deception/score` no longer occur (integration A-live). Still start the engine with `Q_TABLE_PATH` set (Part 2), or use `scripts/demo/start-demo.ps1`, which does that.
 
 ---
 
@@ -126,7 +134,8 @@ Socket.IO **[RUN]** (`scratchpad/socket_probe.js`, admin socket after `join_room
 | HASSH campaign clustering | `backend/services/campaignService.js` (exact hassh **or** Jaccard ≥ 0.65 over ≥ 3 commands) | **WORKING (I ran it)** | `CAMP-B1DC0807`, 4 sessions, hassh `6372ee6957562199b2fb773b0be1bf34`, `threatLevel CRITICAL` |
 | Persona attribution from Cowrie cfg | parser `COWRIE_CFG` → collector | **WORKING (I ran it)** | `servedProfile: 'ubuntu_22'` + warning "crediting ubuntu_22" |
 | Q-learning persona scorer | `rl_engine/deception_scorer.py` | **WORKING**: scored live sessions; Q-table persisted (integration A / A-live, 2026-11-02); the earlier :8000 500 no longer occurs | `scripts/integration/runs/20261102_145846` |
-| Persona rotator | `honeypot/deception_rotator.py` | **WORKING (ran live 2026-11-02)**: applied the persisted decision (`APPLIED`, `ubuntu_22 → debian_11`), restarted Cowrie, and the next real SSH session saw `debian-prod-01` and was credited to `debian_11`; effectiveness vs a fixed persona not measured | integration A-live |
+| Persona rotator | `honeypot/deception_rotator.py`, `scripts/demo/cowrie-demo-mode.sh rotate --once` | **WORKING (rehearsed 2026-11-12)**: on an isolated copy with the demo Q-table, the demo command applied the dashboard's pending decision `ubuntu_22 → centos_7` in ~9 s; SSH then showed `centos-web-gateway`, and the dashboard showed `Serving persona: centos_7`. It records APPLIED only after the restart is proven and the new banner is served; otherwise FAILED with cfg restored. Effectiveness vs a fixed persona not measured | PRs #26/#28, A5 |
+| Automatic rotation service | `scripts/rotator/` (systemd user unit + `rotator-ctl.sh`) | **WORKING on an isolated copy, NOT ENABLED here**: 22 APPLIED decisions, all 5 Linux personas, deferral, restart failure and recovery, graceful stop and autostart all verified. WSL stops the distro when no WSL window is open, so it pauses then | PR #27/#28 |
 | CICIDS replay, engine target | `demo/replay_cicids.py` `EngineTarget` → `/predict/eval` | **WORKING (I ran it)** | 10/10, 198/200, 196/200 |
 | CICIDS replay, backend target | `BackendTarget` → `/api/ai/analyze` → `aiService.storePrediction` | **WORKING (I ran it)** | Q7 |
 | XGBoost classifier (served) | `models/registry.json`, `predictor.load` (sha256 + 20-row golden check) | **WORKING (I ran it)** | `"verified": true, "goldenCheck": "20 golden rows reproduced"` |
@@ -298,6 +307,53 @@ Background: `on_cmd` → `/ingest/command` → `recordSessionActivity` (IOCs, `m
 Real [RUN]: `campaignId: 'CAMP-B1DC0807'`, 4 sessions, `sourceIPs: ['172.29.32.1']`, `threatLevel: 'CRITICAL'`, `maxAiThreatScore: 0.98`.
 *Say:* "All four connections, the failed guesses and the shell session, share one HASSH fingerprint, so they're grouped into one campaign. The rule is an exact HASSH match, or at least 65% command overlap. HASSH identifies the client software, not the person: two attackers using the same SSH library would also match."
 
+**A5. Adaptive deception: the Q-learner picks the next persona, the rotator applies it (≈ 90 s).** Rehearsed on an isolated copy with your demo Q-table, 2026-11-12.
+
+*Before you start:*
+- Cowrie must be the **daemon** started by `cowrie-demo-mode.sh on` (the rotation restarts it, and a foreground `COWRIE_STDOUT=yes` Cowrie in Terminal 5 would simply be replaced).
+- A3's session must have **closed**. Otherwise the rotator defers, because it refuses to restart under an open attacker session.
+
+1. **Show the recommendation.** Honeypot Analytics → *Adaptive Deception* panel (scroll down; click **Refresh**). Expected [RUN]:
+   ```
+   Serving persona: ubuntu_22 (from setting)
+   Q-learner recommends: Switch ubuntu_22 → centos_7 (best known Q-value).
+   N updates from scored sessions; 12087 inherited from a synthetic warm start, not attacker data
+   Decision …<8 hex> (already pending): reused for this persona until the rotator applies it or it expires
+   ```
+   (N is 12 in your demo Q-table today plus the sessions scored during A2/A3. About 1 time in 20 the learner explores and recommends another persona; say "this one is an exploration pick", since the panel labels it.)
+   *Say:* "Every session you just watched was scored for engagement: how long the attacker stayed, what they ran, and whether they probed for a honeypot. Those scores update a tabular Q-learning model whose actions are server personas. It has drawn one decision: switch from Ubuntu to CentOS. Note the honest label underneath. Most of what it knows comes from a synthetic warm start, not from real attackers."
+
+2. **Apply it.** In a WSL terminal, from the repo folder (`/mnt/c/Users/srisn/Desktop/Projects/sentinelai-complete`):
+   ```bash
+   bash scripts/demo/cowrie-demo-mode.sh rotate --once
+   ```
+   It takes about 9 s. Expected [RUN] (log lines first, then the generator's summary; the IP is your `<WSL_IP>` when demo mode is on):
+   ```
+   [INFO] Switching persona ubuntu_22 -> centos_7
+   [INFO] Rotation result: {'changed': True, 'active': 'centos_7', 'previous': 'ubuntu_22', 'decisionId': '<same id as the panel>'}
+   [+] Active Profile: CENTOS_7   Hostname: centos-web-gateway   Banner: SSH-2.0-OpenSSH_7.4
+   persona now: centos_7
+   cowrie      : cowrie is running (PID: …)
+   threads     : 2  (2 = blocker sync thread alive)
+   check-block : HTTP 200
+   ```
+   *Say:* "The rotator applied exactly the decision shown on the dashboard. It rewrote Cowrie's configuration and restarted it. Before recording anything, it checked two things: the connection it held open before the restart was dropped, which proves Cowrie really restarted, and Cowrie now answers with the CentOS SSH banner. Only then is the decision marked applied. If either check fails, it restores the old configuration and marks the decision failed."
+
+3. **Show that the attacker now sees a different server.** A3's auto-block has deny-listed the Windows host's address, so a reconnect from Windows would be refused. Connect from **inside WSL**, which is a different source address:
+   ```bash
+   ssh -p 2222 root@<WSL_IP> 'hostname; head -1 /etc/os-release; ls /home'
+   ```
+   Expected [RUN on the isolated copy]: `centos-web-gateway`, `PRETTY_NAME="CentOS Linux 7 (Core)"`, `centos`. (Whether a WSL source address passes the blocker is reasoned from the code, not run with demo mode on. If it is refused, show the banner and hostname lines from step 2 instead.)
+
+4. **Back on the dashboard, click Refresh.** Expected [RUN]: `Serving persona: centos_7 (from setting)`, a **new** decision `Switch centos_7 → ubuntu_22`, and the scored-session count up by one. New sessions are now credited to `centos_7`.
+
+*Say (limitations, unprompted):* "Three things I won't overclaim:
+- The persona choice is mostly the synthetic warm start: in practice it alternates between Ubuntu and CentOS.
+- We have not shown that switching keeps real attackers engaged longer. The Deception Arena compares the two only on simulated attackers.
+- I triggered this round by hand so you can watch it. A supervised service can run it on a schedule, and that is verified on a separate copy, but it is not switched on in this demo environment."
+
+*If it defers* (`Not switching to centos_7: 1 attacker session(s) open`): wait ten seconds for A3's session to close and rerun. Use `--force` only if you accept dropping that session.
+
 ### Transition A → B
 *Say:* "Deception catches attackers who log in and interact. Plenty of hostile traffic never logs in, though: floods and port scans only show up as flow statistics. For that we use a flow classifier. I can't produce a real flood on a laptop, so I'll replay labelled flows from the public CICIDS2017 dataset. One seam to be upfront about: these replayed flows come from 2017 capture addresses, which I re-map to reserved test addresses. They are not the attacker you just watched."
 
@@ -398,7 +454,10 @@ Background: `sentinelblocker.py` background thread → `GET /api/honeypot/ingest
 | "Were these flows in training?" | "Of the 10, one was a training row, one a test row, and eight were never drawn. Same capture day, though, so this is a demonstration, not an independent test." | "Then what's your real generalisation?" | "Leave-one-day-out drops to 0.2–80% detection depending on the day. It doesn't detect unseen attack types reliably." |
 | "Is that a real firewall block?" | "No. The firewall adapter is a mock. The real enforcement is the honeypot refusing the connection." | "Could it block for real?" | "There's a gated netsh adapter, but it's never been run live. It needs admin rights and an explicit opt-in." |
 | "What stops you blocking a legitimate user?" | "Auto-block is off by default, blocks expire after an hour, there's a policy check and protected ranges, and an approval mode plus an hourly cap for honeypot blocks." | "Flow 185?" | "Exactly why it's off by default. That benign flow scored 0.9985." |
-| "What does the Q-learner do?" | "It scores how engaging each session was and recommends the next persona. It doesn't change Cowrie by itself." | "Who applies it?" | "An optional rotator rewrites the Cowrie config and restarts it. I demonstrated that once." |
+| "What does the Q-learner do?" | "It scores how engaging each session was and recommends the next persona. It doesn't change Cowrie by itself." | "Who applies it?" | "The rotator you just saw. It rewrites the config and restarts Cowrie, and records 'applied' only after proving the restart and seeing the new banner." |
+| "Is it fully autonomous?" | "The application step can be: there's a supervised, disabled-by-default service, verified end to end on a separate copy. Here I triggered it by hand." | "Why not on?" | "Each switch restarts the honeypot and drops sessions, so I keep it opt-in. Also, WSL stops when no window is open, so it would pause then." |
+| "Does it actually learn?" | "Yes, each real session updates the Q-table, and the panel shows how many. But 12,087 of its episodes are a synthetic warm start, and that still decides most picks." | "Is UCB better?" | "In simulation, UCB1 found the best persona in 18 of 20 runs. It also switches far more often. That's not shown on real attackers, so it isn't deployed." |
+| "Do CentOS and Amazon Linux look the same?" | "They share an SSH banner, OpenSSH 7.4, which is realistic. Hostname, kernel, files and login user differ." | "Then how do you verify a switch between them?" | "By the restart proof plus the generated config, not by the banner." |
 
 ---
 
@@ -453,7 +512,8 @@ Background: `sentinelblocker.py` background thread → `GET /api/honeypot/ingest
 | "Production model" | Partly | It's the registered, served model of a prototype | "The registered model the engine serves" |
 | "Real network traffic" | **No** | No packet capture; flows are replayed | "Replayed flow records; there's no live packet capture" |
 | "ML classifies honeypot sessions" | **No** | Rules | "Rule-based session classification, mapped to MITRE" |
-| "The honeypot adapts automatically" | **No** | Recommendation only; optional rotator | "The Q-learner recommends a persona; an optional rotator can apply it" |
+| "The honeypot adapts automatically" | **Partly** | Learning and recommendations are automatic. Applying them is by command here; a supervised service exists but is not enabled | "The Q-learner recommends a persona; the rotator applies it with a verified restart; it can run on a schedule" |
+| "Adaptive deception keeps attackers engaged longer" | **No evidence** | Only simulated comparisons (Deception Arena) | "Whether it improves engagement against real attackers has not been measured" |
 | "We captured malware" | **No** | wget failed (no egress) | "Download attempts are logged; no file was fetched" |
 | "Random Forest model" (for the served model) | **No** | XGBoost is served | "XGBoost, with the Random Forest kept as a reference" |
 
@@ -488,6 +548,11 @@ Background: `sentinelblocker.py` background thread → `GET /api/honeypot/ingest
 | Mongo not updated | Used `--target engine` (stateless) | Use `--target backend` | "The engine target is side-effect free on purpose." |
 | `/deception/score` 500, `qDeceptionScore 0` | Engine-side error on the :8000 instance (cause not verified) | Restart the engine with `Q_TABLE_PATH` set (Part 2) | "The persona scorer errored; detection is unaffected." |
 | Cowrie not accepting SSH | Not running, stale `twistd.pid`, wrong IP | `cowrie status`; `rm var/run/cowrie.pid`; re-read `<WSL_IP>` | — |
+| `rotate`: `Not switching … attacker session(s) open` | A3's session is still open in the backend | Wait for it to close and rerun; `--force` drops it | "It won't restart the honeypot under a live attacker." |
+| `rotate`: `Keeping persona … (recommended again)` | The learner chose the current persona (rare) | Rerun after the panel shows a new decision, or move on | "It decided the current persona is best; nothing to apply." |
+| `rotate`: `error: … persona not recorded`, `restored: True` | The restart failed, or Cowrie came back without the new banner | Run `bash scripts/demo/cowrie-demo-mode.sh status`; if Cowrie is down, `cowrie-demo-mode.sh on` | "The safety check caught it: the old persona was restored and the decision marked failed." |
+| `rotate`: `COWRIE_PERSONA_FS … not set` / `persona filesystem … does not exist` | The persona filesystems aren't built for that persona | `ls ~/sentinelai-cowrie-test/cowrie/personas`; build with `honeypot/build_honeyfs.py` | — |
+| Panel still shows the old persona after `rotate` | Page not refreshed | Click **Refresh** on the panel | — |
 | Parser picks up nothing | Wrong `--log` path, saved offset at end of file, wrong key | Check the `Tailing …` line; `--from-start` with a fresh state dir; check the key | — |
 | Auto-block not firing | Setting off; score < 0.92 (v3 wget-only = 0.91); approve mode; hourly cap; protected IP (127.x) | Enable the setting; run `chmod` + `./payload.sh`; attack via `<WSL_IP>`; unset `HONEYPOT_AUTOBLOCK_MODE` | "Auto-block needs a score above 0.92; this one alerted only." |
 | Reconnect not dropped | Old plugin deployed (daemon thread count 1); Cowrie started without `HONEYPOT_API_KEY`/`SENTINEL_API_URL`; blocker can't reach the backend (bound to 127.0.0.1) | Copy `honeypot/cowrie/sentinelblocker.py` to `src/cowrie/output/` and restart; export both vars before `cowrie start`; backend `HOST=<WIN_IP>`; WSL `curl …/check-block` | "The honeypot polls the deny-list; let me check its connection." |
@@ -509,6 +574,7 @@ Skip: brute force, campaigns, the backend replay, the 200-row run.
 1. (1 m) Setup tour: the terminals, `/model/info` (`xgb_cicids_v1`, verified, golden check).
 2. (1.5 m) A2 + A3.
 3. (1 m) A4 campaign and the HASSH caveat.
+3b. (1.5 m) A5 adaptive deception: panel → `rotate --once` → new hostname → panel refresh. To stay at 8 minutes, shorten B3.
 4. (0.5 m) Transition A → B.
 5. (1.5 m) B1, then B2 (backend run; point at the live feed).
 6. (1 m) B3 result slide: 99% / 98% and flows #185 and #02.
@@ -529,6 +595,8 @@ T5 (WSL): export HONEYPOT_API_KEY=... SENTINEL_API_URL=http://<WIN_IP>:5000/api;
 T6:       log_parser.py --live --log \\wsl.localhost\Ubuntu\...\cowrie.json   (env: HONEYPOT_API_KEY, SENTINEL_API, COWRIE_CFG)
 UI:       Settings -> Auto-block ON; unblock <WIN_IP>
 A:        ssh -p 2222 root@<WSL_IP>   (123456)  whoami / uname -a / cat /etc/passwd / wget ... / chmod +x payload.sh / ./payload.sh / exit
+A5 (WSL): bash scripts/demo/cowrie-demo-mode.sh rotate --once      -> Switching persona ubuntu_22 -> centos_7 (≈9 s)
+A5 (WSL): ssh -p 2222 root@<WSL_IP> 'hostname'                     -> centos-web-gateway   (from WSL: Windows is deny-listed by now)
 B:        .venv\Scripts\python.exe demo\replay_cicids.py --rows 10 --delay 1.5 --api-url http://127.0.0.1:8000
 C:        ssh -p 2222 root@<WSL_IP>   -> connection closed before banner
 ```
@@ -552,5 +620,5 @@ C:        ssh -p 2222 root@<WSL_IP>   -> connection closed before banner
 1. "98.43% accuracy", or "the Random Forest" for the served model.
 2. "It detects zero-day / novel attacks."
 3. "The firewall blocked the attacker."
-4. "The AI classifies honeypot sessions" / "the honeypot reconfigures itself automatically."
+4. "The AI classifies honeypot sessions" / "the honeypot is fully autonomous" / "adaptation keeps real attackers longer."
 5. "This is real live network traffic" (for the replay).
