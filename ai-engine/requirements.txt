@@ -4,7 +4,10 @@ scikit-learn==1.4.0
 pandas==2.2.0
 numpy==1.26.4
 joblib==1.5.3
-requests==2.31.0
+requests==2.33.0
+# Transitive (via requests/httpx), pinned for PYSEC-2026-4175/4176/4177 (urllib3) and PYSEC-2026-4320 (certifi CA bundle)
+urllib3==2.8.0
+certifi==2026.10.23
 python-dotenv==1.0.1
 pydantic==2.6.1
 httpx==0.26.0

@@ -11,6 +11,10 @@
  *
  *   node scripts/security/sec001_check.cjs                         # sentinel-db and sentinel-demo on 127.0.0.1:27017
  *   node scripts/security/sec001_check.cjs --mongo <uri> --db sentinel-db [--db sentinel-demo]
+ *   ... --absent-ok sentinel-demo/arjun@sentinel.io   # an affected record the owner removed on purpose
+ *
+ * An affected record missing from its database is OPEN unless acknowledged with --absent-ok (a typo or wrong
+ * database must never read as "resolved"); acknowledged ones are reported ABSENT.
  *
  * Exit code: 0 = no leaked password valid and no pre-change session open; 1 = SEC-001 not resolved; 2 = error.
  * (--candidates-file <path> replaces the Git source; used by the tests with synthetic values only.)
@@ -119,6 +123,8 @@ async function main() {
   const affected = new Set((affectedArgs.length ? affectedArgs : DEFAULT_AFFECTED).map((x) => x.toLowerCase()))
   let unresolved = 0
   let affectedChecked = 0
+  let absent = 0
+  const absentOk = new Set(arg('--absent-ok', true).map((x) => x.toLowerCase()))
   try {
     for (const name of names) {
       const rows = await checkDatabase(client, name, candidates, bcrypt)
@@ -142,15 +148,30 @@ async function main() {
       }
       for (const key of affected) {
         if (key.startsWith(name.toLowerCase() + '/') && !seen.has(key)) {
-          unresolved++
-          console.log(`  MISSING  ${key.slice(name.length + 1)} (affected record not found: not counted as resolved)`)
+          if (absentOk.has(key)) {
+            // Owner-acknowledged removal: the record cannot sign in (login and every token check load the user
+            // record), and a renamed record is still caught by the leaked-password test, which runs on every account.
+            absent++
+            console.log(`  ABSENT   ${key.slice(name.length + 1)} (affected record removed; acknowledged with --absent-ok: cannot sign in)`)
+          } else {
+            unresolved++
+            console.log(`  MISSING  ${key.slice(name.length + 1)} (affected record not found: not counted as resolved; if removed on purpose, pass --absent-ok ${key})`)
+          }
         }
       }
+      // Sessions whose account no longer exists cannot authenticate (authSessionService: User.findById); reported
+      // so a deleted account stays visible.
+      const ids = await client.db(name).collection('users').distinct('_id')
+      const orphans = await client
+        .db(name)
+        .collection('authsessions')
+        .countDocuments({ user: { $nin: ids }, revokedAt: null, expiresAt: { $gt: new Date() } })
+      if (orphans) console.log(`  note     ${orphans} unexpired session(s) belong to no existing account (cannot authenticate)`)
     }
   } finally {
     await client.close()
   }
-  console.log(`\naffected records: ${affectedChecked} checked, ${unresolved} open`)
+  console.log(`\naffected records: ${affectedChecked} checked, ${unresolved} open${absent ? `, ${absent} absent (acknowledged)` : ''}`)
   console.log(
     unresolved
       ? `SEC-001 NOT resolved: ${unresolved} record(s) still open (leaked password valid, pre-change session open, or missing).`

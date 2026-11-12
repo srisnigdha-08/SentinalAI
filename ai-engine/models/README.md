@@ -3,6 +3,7 @@
 **Served:** exactly the two files pinned by SHA-256 in `registry.json`, currently `xgb_classifier_xgb_cicids_v1.pkl` and `isolation_forest_xgb_cicids_v1.pkl`, produced by `training/pipeline.py`.
 - `golden_set.json` holds 20 fixed vectors and the outputs they must reproduce at startup (pinned in the registry).
 - `registry_history.jsonl` is the append-only record of every registration.
+- `registry.json` itself is anchored by `MODEL_REGISTRY_SHA256`, set outside this directory (procedure in `ai-engine/.env.example`). With the pin set, a modified registry stops inference. This was verified on a tampered copy: refused with the pin, accepted without it.
 - Without `registry.json` the engine loads nothing. The legacy "first matching file name" order applies only with `ALLOW_UNREGISTERED_MODELS=1`, intended for development and tests.
 - To change the served model, run `training/register_model.py` and then `POST /model/reload`.
 

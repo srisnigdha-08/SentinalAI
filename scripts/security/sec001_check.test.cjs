@@ -120,6 +120,14 @@ test('only affected records decide: unaffected accounts with sessions are "not a
     assert.strictEqual(missing.status, 1, missing.stdout)
     assert.match(missing.stdout, /MISSING\s+gone@x\.test/)
 
+    // ... unless the owner acknowledges the removal explicitly; then it is reported ABSENT and not open
+    const acked = await runChild(process.execPath, [path.join(__dirname, 'sec001_check.cjs'), '--mongo', mongo.getUri(), '--db', 'scope_db',
+      '--candidates-file', cand, '--affected', 'scope_db/affected@x.test', '--affected', 'scope_db/gone@x.test',
+      '--absent-ok', 'scope_db/gone@x.test'], { encoding: 'utf8' })
+    assert.strictEqual(acked.status, 0, acked.stdout + acked.stderr)
+    assert.match(acked.stdout, /ABSENT\s+gone@x\.test/)
+    assert.match(acked.stdout, /1 checked, 0 open, 1 absent \(acknowledged\)/)
+
     // a leaked password that still works counts even when the record is not on the affected list
     await db.collection('users').insertOne({ email: 'surprise@x.test', role: 'viewer', status: 'active', password: await bcrypt.hash(leaked, 4) })
     const surprise = await run(['scope_db/affected@x.test'])
