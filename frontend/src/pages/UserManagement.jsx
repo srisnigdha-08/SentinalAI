@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react'
 import DashboardLayout from '../layouts/DashboardLayout.jsx'
 import Panel from '../components/Panel.jsx'
 import { userAPI } from '../services/api.js'
+import EditUserModal from '../components/EditUserModal.jsx'
+import { isLastActiveAdmin } from '../utils/userEdit.js'
+import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
 
 const ROLE_STYLES = {
@@ -21,6 +24,8 @@ export default function UserManagement() {
   const emptyForm = { name: '', email: '', password: '', role: 'viewer', department: 'SOC' }
   const [form, setForm] = useState(emptyForm)
   const [createError, setCreateError] = useState(null)
+  const [editingUser, setEditingUser] = useState(null)
+  const { user: currentUser } = useAuth()
   const provision = async event => {
     event.preventDefault()
     if (creating) return
@@ -39,8 +44,8 @@ export default function UserManagement() {
     } finally { setCreating(false) }
   }
 
-  const loadUsers = async () => {
-    setLoading(true)
+  const loadUsers = async ({ quiet = false } = {}) => {
+    if (!quiet) setLoading(true)
     setListError(null)
     try {
       const [uRes, sRes] = await Promise.all([userAPI.list(), userAPI.stats()])
@@ -58,12 +63,27 @@ export default function UserManagement() {
     loadUsers()
   }, [])
 
+  const onUserSaved = async (updated, result) => {
+    setEditingUser(null)
+    const revoked = result?.sessionsRevoked ? ' Their sessions were signed out.' : ''
+    toast.success(result?.changed?.length === 0 ? 'No changes were needed.' : `${updated?.name || 'User'} updated.${revoked}`)
+    await loadUsers({ quiet: true })
+  }
+
+  const onEditStale = async (message) => {
+    setEditingUser(null)
+    toast.error(message)
+    await loadUsers({ quiet: true })
+  }
+
   const deleteUser = async (user) => {
     if (!window.confirm(`Delete ${user.name}?`)) return
     try {
       await userAPI.delete(user._id)
       setUsers(prev => prev.filter(u => u._id !== user._id))
       toast.success(`${user.name} removed`)
+      // Role totals change too; a failed stats reload must not misreport the successful removal
+      try { setStats((await userAPI.stats()).data.data) } catch { setStats(null) }
     } catch (e) { toast.error(e.response?.data?.error || 'Delete failed') }
   }
 
@@ -149,13 +169,13 @@ export default function UserManagement() {
 
       {/* Stats strip */}
       {stats && (
-        <div style={{ display:'flex', gap:'1rem', marginBottom:'1.5rem' }}>
+        <div data-testid="user-stats" style={{ display:'flex', gap:'1rem', marginBottom:'1.5rem', flexWrap:'wrap' }}>
           {[
             { label:'Total Users', value: stats.total },
             ...(stats.byRole||[]).map(r=>({ label:r._id?.toUpperCase(), value:r.count })),
           ].map(s=>(
             <div key={s.label} style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2,
-              padding:'1rem 1.5rem', flex:1 }}>
+              padding:'1rem 1.5rem', flex:'1 1 120px' }}>
               <div style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, color:'#3a6a88', marginBottom:4 }}>{s.label}</div>
               <div style={{ fontFamily:'Orbitron,sans-serif', fontSize:24, fontWeight:700, color:'#00d4ff' }}>{s.value}</div>
             </div>
@@ -205,10 +225,10 @@ export default function UserManagement() {
                   </td>
                   <td style={{ padding:'12px', borderBottom:'1px solid rgba(13,51,82,.5)' }}>
                     <div style={{ display:'flex', gap:6 }}>
-                      <button disabled title="Role/status changes currently use the authorized administrator API" style={{
-                        background:'none', border:'1px solid #0d3352', color:'#3a6a88',
+                      <button type="button" onClick={() => setEditingUser(u)} aria-label={`Edit ${u.name}`} style={{
+                        background:'none', border:'1px solid rgba(0,212,255,.4)', color:'#00d4ff',
                         fontSize:10, fontFamily:'Share Tech Mono,monospace', padding:'4px 10px', cursor:'pointer', borderRadius:1,
-                      }}>Edit via API</button>
+                      }}>Edit</button>
                       {u.role !== 'admin' && (
                         <button onClick={()=>deleteUser(u)} style={{
                           background:'none', border:'1px solid rgba(255,45,85,.3)', color:'#ff2d55',
@@ -224,6 +244,16 @@ export default function UserManagement() {
           </div>
         )}
       </Panel>
+      {editingUser && (
+        <EditUserModal
+          user={editingUser}
+          currentUserId={currentUser?._id || currentUser?.id}
+          isLastActiveAdmin={isLastActiveAdmin(editingUser, users)}
+          onClose={() => setEditingUser(null)}
+          onSaved={onUserSaved}
+          onStale={onEditStale}
+        />
+      )}
     </DashboardLayout>
   )
 }
