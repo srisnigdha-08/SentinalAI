@@ -64,6 +64,19 @@ const HoneypotSessionSchema = new mongoose.Schema(
     qDeceptionScore: { type: Number, default: 0 },
     // The Q-learner's next pick; null until a closure has been scored (no invented default persona).
     recommendedProfile: { type: String, default: null },
+    // Evidence for the persona-policy evaluation (docs/PERSONA_POLICY_V2.md), recorded when the session is scored:
+    // the deciding policy, and what persona policy v2 recommended in shadow at that moment (never applied).
+    deceptionPolicy: { type: String, default: null },
+    shadowPolicy: {
+      type: {
+        version: { type: String, default: null },
+        mode: { type: String, default: null },
+        recommendation: { type: String, default: null },
+        learned: { type: Boolean, default: null },
+        _id: false,
+      },
+      default: null,
+    },
     // Persona Cowrie actually served for this session: the Q-learner's action for its reward.
     servedProfile: { type: String, default: null },
     mitreTechniques: [{ id: { type: String, required: true }, name: { type: String, required: true }, _id: false }],

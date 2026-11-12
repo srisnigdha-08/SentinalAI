@@ -183,3 +183,16 @@ def test_session_records_carry_intents_recommendations_and_decision_outcomes(tmp
     assert [f["decisionId"] for f in r["decisionOutcomes"]["failed"]] == ["f1"]
     dur = r["perPersona"]["external"]["centos_7"]["durationSeconds"]
     assert dur["ci95"][0] >= 0 and dur["median"] == 452.5              # no impossible negative duration bound
+
+
+def test_live_shadow_evidence_is_preferred_and_counted(tmp_path):
+    a = sess("a", "81.2.69.160", "centos_7"); a.update(recommendedProfile="ubuntu_22", deceptionPolicy="q_learning",
+                                                       shadowPolicy={"version": "persona-ducb-v2", "mode": "shadow", "recommendation": "aws_ec2", "learned": True})
+    b = sess("b", "81.2.69.160", "centos_7", minutes=5); b.update(recommendedProfile="ubuntu_22", deceptionPolicy="q_learning",
+                                                                  shadowPolicy={"recommendation": "ubuntu_22"})
+    c = sess("c", "127.0.0.1", "centos_7", minutes=9)        # scored before live recording existed: no live record
+    r = run_report(tmp_path, [a, b, c])
+    assert r["liveShadow"]["sessionsWithLiveRecord"] == 2 and r["liveShadow"]["disagreements"] == 1
+    assert r["liveShadow"]["decidingPolicies"] == {"q_learning": 2, "not recorded": 1}
+    rec = {s["sessionId"]: s for s in r["sessions"]}
+    assert rec["a"]["v2ShadowRecommendedLive"] == "aws_ec2" and rec["c"]["v2ShadowRecommendedLive"] is None

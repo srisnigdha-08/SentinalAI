@@ -118,5 +118,66 @@ describe('active deception profile', () => {
       expect.objectContaining({ deceptionProfile: 'debian_11', previousProfile: 'centos_7' })
     )
     expect(session.recommendedProfile).toBe('ubuntu_22')
+    expect(session.deceptionPolicy).toBe('q_learning')
+    expect(session.shadowPolicy).toBeNull() // no v2 block from the engine: nothing invented
+  })
+
+  const scoreWith = async (result) => {
+    const session = {
+      _id: 'sess-db-2',
+      sessionId: 'sess-2',
+      sourceIP: '198.51.100.6',
+      startTime: new Date(Date.now() - 30000),
+      commands: [],
+      credentials: [],
+      iocExtracted: { urls: [] },
+      closureAnalysisState: 'idle',
+      save: jest.fn().mockResolvedValue(true),
+    }
+    HoneypotSession.findById.mockResolvedValue(session)
+    HoneypotSession.findOneAndUpdate.mockImplementation(async (_f, update) => Object.assign(session, update.$set))
+    HoneypotSession.findOne.mockReturnValue(previousQuery({ servedProfile: 'centos_7' }))
+    SystemSetting.findOne.mockImplementation(async ({ key }) =>
+      key === 'deceptionActiveProfile' ? { key, value: 'centos_7' } : { key, value: false }
+    )
+    mockGetDeceptionScore.mockResolvedValue({ success: true, result })
+    await honeypotService.closeSession('sess-db-2')
+    return session
+  }
+
+  test('records the deciding policy and v2 shadow pick as evaluation evidence', async () => {
+    const session = await scoreWith({
+      deceptionScore: 20,
+      nextProfile: 'ubuntu_22',
+      learnerStats: { policy: 'q_learning' },
+      policyV2: {
+        mode: 'shadow',
+        learned: true,
+        policyVersion: 'persona-ducb-v2',
+        recommendation: 'raspberry_pi',
+        arms: {},
+      },
+    })
+    expect(session.recommendedProfile).toBe('ubuntu_22') // the decision path is unchanged
+    expect(session.deceptionPolicy).toBe('q_learning')
+    expect(session.shadowPolicy).toEqual({
+      version: 'persona-ducb-v2',
+      mode: 'shadow',
+      recommendation: 'raspberry_pi',
+      learned: true,
+    })
+  })
+
+  test('a v2 error or an unknown persona is never stored as a shadow recommendation', async () => {
+    expect(
+      (await scoreWith({ deceptionScore: 1, nextProfile: 'centos_7', policyV2: { mode: 'shadow', error: 'OSError' } }))
+        .shadowPolicy
+    ).toBeNull()
+    const odd = await scoreWith({
+      deceptionScore: 1,
+      nextProfile: 'centos_7',
+      policyV2: { mode: 'shadow', recommendation: 'not_a_persona' },
+    })
+    expect(odd.shadowPolicy.recommendation).toBeNull()
   })
 })

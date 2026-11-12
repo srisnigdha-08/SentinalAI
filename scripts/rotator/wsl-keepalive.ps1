@@ -48,8 +48,8 @@ function Get-DistroState {
 }
 
 function Invoke-Distro([string[]]$Cmd, [switch]$Root) {
-  $args = @("-d", $Distro) + $(if ($Root) { @("-u", "root") } else { @() }) + @("--") + $Cmd
-  $out = & wsl.exe @args 2>&1 | Out-String
+  $wslArgs = @("-d", $Distro) + $(if ($Root) { @("-u", "root") } else { @() }) + @("--") + $Cmd
+  $out = & wsl.exe @wslArgs 2>&1 | Out-String
   return ($out -replace "`0", "").Trim()
 }
 
@@ -117,11 +117,11 @@ switch ($Action) {
       "nothing registered (dry run)"
       break
     }
-    $action = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arg
+    $taskAction = New-ScheduledTaskAction -Execute "powershell.exe" -Argument $arg
     $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
     $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
-    Register-ScheduledTask -TaskName $TaskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings `
+    Register-ScheduledTask -TaskName $TaskName -Action $taskAction -Trigger $trigger -Principal $principal -Settings $settings `
       -Description "SentinelAI: keep WSL running for sentinel-rotator.service (scripts/rotator/wsl-keepalive.ps1)" | Out-Null
     "registered '$TaskName' for $user (limited rights). Remove with: wsl-keepalive.ps1 unregister"
   }

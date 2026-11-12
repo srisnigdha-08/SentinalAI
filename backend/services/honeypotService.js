@@ -651,6 +651,19 @@ const finishClosure = async (session, payload, { score = true, retry = false } =
   if (decRes?.success && decRes?.result) {
     session.qDeceptionScore = decRes.result.deceptionScore || 0
     session.recommendedProfile = decRes.result.nextProfile || null
+    // Policy-evaluation evidence: the deciding learner, and persona policy v2's shadow pick at scoring time
+    // (reported by the engine as policyV2; never applied). Only known persona names are stored.
+    session.deceptionPolicy = String(decRes.result.learnerStats?.policy || 'q_learning').slice(0, 64)
+    const v2 = decRes.result.policyV2
+    session.shadowPolicy =
+      v2 && !v2.error
+        ? {
+            version: typeof v2.policyVersion === 'string' ? v2.policyVersion.slice(0, 64) : null,
+            mode: typeof v2.mode === 'string' ? v2.mode.slice(0, 16) : null,
+            recommendation: DECEPTION_PROFILES.includes(v2.recommendation) ? v2.recommendation : null,
+            learned: typeof v2.learned === 'boolean' ? v2.learned : null,
+          }
+        : null
     session.deceptionScoredAt = new Date()
     logger.info(
       `[HP] Q-learner scored session ${session.sessionId}: ${session.qDeceptionScore} (Next Profile: ${session.recommendedProfile})`

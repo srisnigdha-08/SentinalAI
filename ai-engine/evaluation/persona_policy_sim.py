@@ -36,6 +36,10 @@ SCENARIOS = {
     "S2 prefers centos_7 (agrees with seed)": [(0, pref(["centos_7", "ubuntu_22", "debian_11", "aws_ec2", "raspberry_pi"]))],
     "S3 persona-blind (scripted)": [(0, da.SCENARIOS["scripted_recon"])],
     "S4 drift raspberry_pi -> centos_7 @ epoch 75": [(0, base), (DRIFT_AT, pref(["centos_7", "ubuntu_22", "debian_11", "aws_ec2", "raspberry_pi"]))],
+    # Held out from tuning entirely (different best persona and narrower preference gaps): guards against the v2
+    # parameters being tuned to the evaluation scenarios themselves.
+    "S5 held-out: prefers aws_ec2, narrow gaps": [(0, {**base, "continueProbability": {"aws_ec2": 0.84, "debian_11": 0.8, "ubuntu_22": 0.78,
+                                                                                         "raspberry_pi": 0.76, "centos_7": 0.74, "windows_srv": 0.3}})],
 }
 
 
@@ -160,7 +164,7 @@ def main():
 
     # 1) Tune v2 on seeds 0-9 (S1, S2, S4): minimise regret subject to <= 30 switches per 100 epochs.
     grid = [dict(discount=d, exploration=c, switch_margin=m) for d in (0.97, 0.99) for c in (0.15, 0.3, 0.6) for m in (0.0, 0.04)]
-    tune = {k: v for k, v in SCENARIOS.items() if not k.startswith("S3")}
+    tune = {k: v for k, v in SCENARIOS.items() if k.startswith(("S1", "S2", "S4"))}   # S3 and S5 never used for tuning
     print("## Tuning v2 (seeds %d-%d; S1, S2, S4) [SIMULATED]" % (tune_seeds[0], tune_seeds[-1]))
     scored = []
     for g in grid:
