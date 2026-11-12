@@ -116,16 +116,20 @@ def _tcrit(n):
         return 1.96
 
 
-def summarise(values):
+def summarise(values, lower_bound=None):
+    """n, mean, sd, median and a 95% t-interval. lower_bound clips the interval at a physical limit (durations and
+    command counts cannot be negative; a t-interval on skewed small samples otherwise reports impossible values)."""
     n = len(values)
     if n == 0:
-        return {"n": 0, "mean": None, "sd": None, "ci95": None}
+        return {"n": 0, "mean": None, "sd": None, "median": None, "ci95": None}
     m = st.mean(values)
     if n < 2:
-        return {"n": 1, "mean": round(m, 3), "sd": None, "ci95": None}
+        return {"n": 1, "mean": round(m, 3), "sd": None, "median": round(m, 3), "ci95": None}
     sd = st.stdev(values)
     h = _tcrit(n) * sd / math.sqrt(n)
-    return {"n": n, "mean": round(m, 3), "sd": round(sd, 3), "ci95": [round(m - h, 3), round(m + h, 3)]}
+    lo = m - h if lower_bound is None else max(lower_bound, m - h)
+    return {"n": n, "mean": round(m, 3), "sd": round(sd, 3), "median": round(st.median(values), 3),
+            "ci95": [round(lo, 3), round(m + h, 3)]}
 
 
 # ── policy history and offline replay ──────────────────────────────────────────────────────────────────────────
@@ -135,6 +139,14 @@ def policy_timeline(decisions):
     return [{"at": _date(d["appliedAt"]).isoformat(), "from": d.get("state"), "to": d.get("action"),
              "kind": "switch" if d.get("state") != d.get("action") else "keep", "policy": d.get("policy") or "q_learning",
              "explored": bool(d.get("explored"))} for d in applied]
+
+
+def decision_outcomes(decisions):
+    """Every decision's outcome, not only the applied ones: FAILED and SUPERSEDED decisions are part of the record."""
+    return {"byStatusAndPolicy": dict(Counter(f"{d.get('status')}/{d.get('policy') or 'q_learning'}" for d in decisions)),
+            "failed": [{"decisionId": d.get("decisionId"), "from": d.get("state"), "to": d.get("action"),
+                        "at": (_date(d.get("closedAt")) or _date(d.get("createdAt")) or datetime.min).isoformat()}
+                       for d in decisions if d.get("status") == "FAILED"]}
 
 
 def policy_at(timeline, when):
@@ -222,7 +234,9 @@ def report(args):
         cls, why = classify(s, op_ips, op_nets, op_sessions, ext_nets)
         start = _date(s.get("startTime")) or _date(s.get("createdAt"))
         sessions.append({**s, "evidenceClass": cls, "classReason": why, "reward": round(reward_of(s), 3), "_start": start,
-                         "commandCount": len(s.get("commands") or [])})
+                         "commandCount": len(s.get("commands") or []),
+                         "intents": dict(Counter(c.get("intent") or "UNKNOWN" for c in (s.get("commands") or []))),
+                         "learnerScored": bool(s.get("deceptionScoredAt")) or s.get("qDeceptionScore") is not None})
     sessions.sort(key=lambda s: s["_start"] or datetime.min.replace(tzinfo=timezone.utc))
     timeline = policy_timeline(decisions)
     for s in sessions:
@@ -238,12 +252,16 @@ def report(args):
             ss = by_class[cls].get(p, [])
             if not ss and p == "windows_srv":
                 continue
-            per[cls][p] = {"reward": summarise([x["reward"] for x in ss]), "durationSeconds": summarise([float(x.get("durationSeconds") or 0) for x in ss]),
-                           "commands": summarise([x["commandCount"] for x in ss]),
+            per[cls][p] = {"reward": summarise([x["reward"] for x in ss]), "durationSeconds": summarise([float(x.get("durationSeconds") or 0) for x in ss], lower_bound=0.0),
+                           "commands": summarise([x["commandCount"] for x in ss], lower_bound=0.0),
                            "warning": ("no sessions" if not ss else f"n={len(ss)} < {MIN_PER_PERSONA}: insufficient for the promotion gate" if len(ss) < MIN_PER_PERSONA else None)}
 
     real_seq = [s for s in sessions if s["evidenceClass"] != "simulated"]
     rep = replay(real_seq) if real_seq else None
+    recs = {r["sessionId"]: r for r in (rep or {}).get("rows", [])}
+    for s in sessions:   # what each policy would recommend after this session (offline replay; v2 = shadow, never applied)
+        r = recs.get(s["sessionId"], {})
+        s["v1RecommendationAfter"], s["v2ShadowRecommendationAfter"] = r.get("v1"), r.get("v2")
     ext_counts = {p: per["external"][p]["reward"]["n"] for p in SERVABLE}
     q_info = None
     if args.q_table and Path(args.q_table).is_file():
@@ -266,6 +284,7 @@ def report(args):
         "gate1": {"required": MIN_PER_PERSONA, "met": all(n >= MIN_PER_PERSONA for n in ext_counts.values())},
         "policyInForce": dict(Counter(s["policyInForce"] for s in sessions)),
         "switchHistory": timeline,
+        "decisionOutcomes": decision_outcomes(decisions),
         "replay": rep and {k: rep[k] for k in ("agreement", "v1Recommendations", "v2Recommendations")},
         "v1QTable": q_info, "v2LiveState": v2_info,
         "counterfactual": "Each session shows the outcome only for the persona it was served. How the same attacker would "
@@ -273,7 +292,8 @@ def report(args):
                           "assignment (the 'plan' schedule), not these observational counts.",
         "sessions": [{k: (v.isoformat() if isinstance(v, datetime) else v) for k, v in s.items()
                       if k in ("sessionId", "sourceIP", "servedProfile", "evidenceClass", "classReason", "reward",
-                               "durationSeconds", "commandCount", "policyInForce", "_start")} for s in sessions],
+                               "durationSeconds", "commandCount", "intents", "learnerScored", "policyInForce",
+                               "v1RecommendationAfter", "v2ShadowRecommendationAfter", "_start")} for s in sessions],
     }
     if args.schedule:
         out["adherence"] = adherence([s for s in sessions if s["evidenceClass"] == "external"],
@@ -300,6 +320,7 @@ def _print(out, rep):
         for p, d in out["perPersona"][cls].items():
             print(f"  {p:<13} {_fmt(d['reward']):<38} {_fmt(d['durationSeconds']):<38} {_fmt(d['commands']):<30} {d['warning'] or ''}")
     print(f"\npolicy in force at session start: {out['policyInForce']}")
+    print(f"decision outcomes: {out['decisionOutcomes']['byStatusAndPolicy']}; failed: {len(out['decisionOutcomes']['failed'])}")
     sw = [t for t in out["switchHistory"] if t["kind"] == "switch"]
     print(f"switch history: {len(sw)} applied switches, {len(out['switchHistory']) - len(sw)} keeps; policies {dict(Counter(t['policy'] for t in out['switchHistory']))}")
     for t in sw[-6:]:

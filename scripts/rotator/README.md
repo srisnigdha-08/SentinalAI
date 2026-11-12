@@ -85,12 +85,15 @@ powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 statu
 powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 stop
 ```
 
-To start it at every sign-in, register it yourself. This is a per-user scheduled task and needs no admin rights, but it is a change to your Windows setup, so nothing here does it for you:
+`start` also repairs the WSL user manager if a forced restart left it failed: it restarts `user@<uid>` as the distro's root, which needs no Windows administrator rights. It then reports the rotator and Cowrie state. `status` shows the same, plus the sign-in registration.
+
+To start it at every sign-in, register it as a per-user scheduled task. It runs with limited rights and needs no admin, but it is a change to your Windows setup, so nothing here registers it for you:
 
 ```powershell
-$a = New-ScheduledTaskAction -Execute "powershell.exe" -Argument "-WindowStyle Hidden -ExecutionPolicy Bypass -File `"$PWD\scripts\rotator\wsl-keepalive.ps1`" start"
-Register-ScheduledTask -TaskName "SentinelAI WSL keep-alive" -Action $a -Trigger (New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME)
-# remove: Unregister-ScheduledTask -TaskName "SentinelAI WSL keep-alive" -Confirm:$false
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 register -DryRun   # preview
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 register
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 registration
+powershell -ExecutionPolicy Bypass -File scripts\rotator\wsl-keepalive.ps1 unregister         # disable
 ```
 
 The backend and AI engine run on Windows (`scripts/demo/start-demo.ps1`). While they are down, every round is logged as a transient error and nothing is switched.
