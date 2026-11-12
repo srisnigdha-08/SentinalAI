@@ -93,12 +93,47 @@ def test_state_round_trips_and_is_versioned(tmp_path):
     assert q.arms == p.arms and q.real_episodes == 1
 
 
-def test_other_version_state_is_left_untouched_and_not_used(tmp_path):
+def test_other_version_state_is_kept_aside_never_overwritten(tmp_path):
     f = tmp_path / "v2.json"
-    f.write_text(json.dumps({"policyVersion": "persona-ducb-v1-experimental", "realEpisodes": 99}))
+    original = json.dumps({"policyVersion": "persona-ducb-v1-experimental", "realEpisodes": 99})
+    f.write_text(original)
     p = policy(tmp_path)
-    assert p.real_episodes == 0
-    assert json.loads(f.read_text())["realEpisodes"] == 99   # not overwritten until v2 itself saves
+    assert p.real_episodes == 0 and p.quarantined and Path(p.quarantined).name.startswith("v2.json.incompatible-")
+    assert Path(p.quarantined).read_text() == original          # evidence preserved byte for byte
+    p.observe("s1", "centos_7", 5.0)                            # the next save cannot destroy it
+    assert Path(p.quarantined).read_text() == original and json.loads(f.read_text())["realEpisodes"] == 1
+
+
+@pytest.mark.parametrize("content", [
+    "{not json",
+    json.dumps({"policyVersion": POLICY_VERSION, "arms": {"ubuntu_22": {"n": "lots", "s": 1}}}),
+    json.dumps({"policyVersion": POLICY_VERSION, "arms": {"ubuntu_22": {"n": -1, "s": 0}}}),
+    json.dumps({"policyVersion": POLICY_VERSION, "arms": {"ubuntu_22": {"n": 1, "s": 5}}}),
+    json.dumps({"policyVersion": POLICY_VERSION, "seenSessionIds": "abc"}),
+    json.dumps({"policyVersion": POLICY_VERSION, "realEpisodes": -3}),
+    json.dumps(["not", "an", "object"]),
+])
+def test_malformed_state_is_quarantined_and_the_policy_still_works(tmp_path, content):
+    (tmp_path / "v2.json").write_text(content)
+    p = policy(tmp_path)
+    assert p.quarantined and Path(p.quarantined).read_text() == content
+    assert p.real_episodes == 0 and p.recommend("ubuntu_22") in ds.servable_profiles()
+
+
+def test_a_session_without_an_id_is_never_learned(tmp_path):
+    p = policy(tmp_path)
+    assert p.observe("", "centos_7", 9.0) is False and p.observe(None, "centos_7", 9.0) is False
+    assert p.observe("   ", "centos_7", 9.0) is False and p.real_episodes == 0
+
+
+def test_only_the_five_linux_personas_are_ever_recommended(tmp_path):
+    p = policy(tmp_path, exploration=1.0, switch_margin=0.0)
+    recs = set()
+    for i in range(200):
+        cur = p.recommend(list(recs)[-1] if recs else "ubuntu_22")
+        recs.add(cur)
+        p.observe(f"x{i}", cur, (i * 7) % 20, persist=False)
+    assert recs == set(ds.servable_profiles()) and len(recs) == 5 and "windows_srv" not in recs
 
 
 def test_refuses_to_store_state_in_the_protected_models_directory():

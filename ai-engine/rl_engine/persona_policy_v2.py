@@ -67,25 +67,54 @@ class PersonaPolicyV2:
         self._load()
 
     # ── persistence (own file, atomic, cross-process lock) ─────────────────────────────────────────────────────
+    def _quarantine(self, reason: str):
+        """Move an unusable state file aside (never delete or overwrite it): <name>.<reason>-<UTC timestamp>."""
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        target = self.state_path.with_name(f"{self.state_path.name}.{reason}-{stamp}")
+        n = 1
+        while target.exists():
+            target = self.state_path.with_name(f"{self.state_path.name}.{reason}-{stamp}-{n}"); n += 1
+        try:
+            os.replace(self.state_path, target)
+            log.warning("v2 policy state %s is %s: kept as %s; starting from the prior", self.state_path, reason, target.name)
+            self.quarantined = str(target)
+        except OSError as e:
+            # Could not move it: refuse to run rather than overwrite it on the next save.
+            raise RuntimeError(f"v2 policy state {self.state_path} is {reason} and could not be moved aside ({e})") from e
+
     def _load(self):
+        self.quarantined = None
         if not self.state_path.exists():
             return
         try:
             data = json.loads(self.state_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as e:
-            log.warning("v2 policy state %s unreadable (%s); starting from the prior", self.state_path, type(e).__name__)
+        except (OSError, ValueError):
+            self._quarantine("corrupt")
             return
-        if data.get("policyVersion") != POLICY_VERSION:
-            log.warning("v2 policy state %s has version %r, not %r; starting from the prior (file left as is)",
-                        self.state_path, data.get("policyVersion"), POLICY_VERSION)
+        if not isinstance(data, dict) or data.get("policyVersion") != POLICY_VERSION:
+            self._quarantine("incompatible")
             return
-        self.params = {**self.params, **data.get("params", {})}
+        try:
+            params = {k: float(v) for k, v in (data.get("params") or {}).items() if k in DEFAULTS}
+            arms = {}
+            for a, st in (data.get("arms") or {}).items():
+                if a in self.arms:
+                    n, s = float(st["n"]), float(st["s"])
+                    if not (math.isfinite(n) and math.isfinite(s) and n >= 0 and 0 <= s <= n + 1e-9):
+                        raise ValueError(f"arm {a} out of range")
+                    arms[a] = {"n": n, "s": s}
+            real = int(data.get("realEpisodes", 0))
+            seen = data.get("seenSessionIds", [])
+            if real < 0 or not isinstance(seen, list) or not all(isinstance(x, str) for x in seen):
+                raise ValueError("episode accounting malformed")
+        except (KeyError, TypeError, ValueError, AttributeError):
+            self._quarantine("corrupt")
+            return
+        self.params = {**self.params, **params}
         self.prior = data.get("prior", self.prior)
-        for a, st in (data.get("arms") or {}).items():
-            if a in self.arms:
-                self.arms[a] = {"n": float(st["n"]), "s": float(st["s"])}
-        self.real_episodes = int(data.get("realEpisodes", 0))
-        self.seen = deque(data.get("seenSessionIds", [])[-SEEN_LIMIT:], maxlen=SEEN_LIMIT)
+        self.arms.update(arms)
+        self.real_episodes = real
+        self.seen = deque(seen[-SEEN_LIMIT:], maxlen=SEEN_LIMIT)
         self.created_at = data.get("createdAt", self.created_at)
 
     def save(self):
@@ -105,8 +134,9 @@ class PersonaPolicyV2:
     def observe(self, session_id, persona, reward, persist=True) -> bool:
         """Learn from one real scored session. False (nothing learned) for a session already learned or an unknown
         persona. Discounting runs per observation, so it measures 'sessions ago', not wall-clock time."""
-        sid = str(session_id or "")
-        if persona not in self.arms or (sid and sid in self.seen):
+        sid = str(session_id or "").strip()
+        # No id, no exactly-once guarantee: such an observation is never learned (it could not be deduplicated).
+        if not sid or persona not in self.arms or sid in self.seen:
             return False
         g = self.params["discount"]
         for st in self.arms.values():

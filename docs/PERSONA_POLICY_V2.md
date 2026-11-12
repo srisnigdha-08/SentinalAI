@@ -1,6 +1,6 @@
 # Persona policy v2: fixing synthetic-seed dominance (shadow by default)
 
-**Status:** implemented and running in **shadow** mode. The deployed decisions still come from the v1 Q-learner.
+**Status:** implemented and running in **shadow** mode; readiness on 2026-11-12: **NOT READY FOR PRODUCTION PROMOTION** (section 6). The deployed decisions still come from the v1 Q-learner.
 v2 is *not* proven against real attackers. Read "Promotion gates" before activating it.
 
 ## 1. The problem (v1, `rl_engine/deception_scorer.py`)
@@ -103,27 +103,121 @@ Failure isolation: any v2 error is logged and v1 continues; in `active` mode the
   - One real session was scored once: v1 went from 12,105 to 12,106 episodes, and v2 has `realEpisodes: 1`, in separate files.
   - Every rotator decision is still `policy: q_learning`.
 
-## 5. What real data exists, and what is needed
+## 5. Real-session evidence: what exists and how to collect more
 
-All 19 real sessions so far are operator-generated, and 16 were served ubuntu_22. **There is no real-attacker evidence for any persona policy**, v1 or v2.
+**Tool:** `ai-engine/evaluation/real_session_report.py`. It reads the backend's sessions and decisions read-only and never writes to the database, the Q-tables or the rotator.
 
-**Prospective data-collection protocol** (needed before claiming real-world benefit):
-1. **Assignment.** Serve personas in randomised blocks: each block is a random permutation of the 5 servable personas, one persona per rotation interval. Use fixed intervals (e.g. 6 h) so time of day is balanced, and don't let either policy choose during collection. The rotator can apply a fixed schedule through the same verified switch path.
-2. **Unit and outcome.** One real attacker session, with `calc_reward` as the primary outcome. Secondary outcomes: duration, number of commands, login success, the fingerprint flag, and whether the attacker reconnected within 24 h.
-3. **Exclusions,** fixed before looking at the data:
-   - `demo-*` sessions;
-   - sessions from the operator's own addresses (WSL address, Windows host, loopback);
-   - the Deception Arena;
-   - sessions that started within 60 s of a restart.
-4. **Size.** At least 30 sessions per persona. With the observed sd ≈ 3.1, that detects a mean difference of about 2.2 reward units (α = 0.05, power 0.8, two-sided).
-5. **Analysis.** Per-persona mean reward with a 95% CI, plus a permutation test across personas. Then replay v1 and v2 offline on the randomised data using inverse-propensity weighting, since the propensities are known (1/5).
+```powershell
+cd ai-engine
+.\.venv\Scripts\python.exe evaluation\real_session_report.py report --mongo-uri mongodb://127.0.0.1:27017/sentinel-demo `
+  --q-table $env:USERPROFILE\.sentinelai\demo\q_table.json --v2-state $env:USERPROFILE\.sentinelai\demo\persona_policy_v2.json `
+  --operator-sessions <file of session ids you generated> --json-out report.json
+```
+
+**What it does:**
+- Counts each closed, analysed session once (de-duplicated by `sessionId`).
+- Classifies it:
+  - **simulated:** `demo-*`;
+  - **operator:** loopback, private or link-local sources, `--operator-ip`, `--operator-cidr` or `--operator-sessions`. Cowrie is not internet-facing here, so every private source is the operator;
+  - **external:** anything else. Only this class can count as real-attacker evidence.
+- Recomputes each session's reward with the learner's own `calc_reward`.
+- Reports per served persona: n, mean, sd and 95% t-interval for reward, duration and commands, with a warning below 30.
+- Reconstructs the policy in force at each session and the switch history.
+- Replays v1 and v2 on the same observed sequence. This is an offline reconstruction from the seed and prior, not the live learners' state.
+- Prints the counterfactual limit: for a session, only the served persona's outcome is ever observed.
+
+The 12,087 synthetic warm-start episodes are shown separately and never counted.
+
+**Findings on 2026-11-12:**
+- 19 sessions, **all operator**: 16 served ubuntu_22 and 3 centos_7.
+- **0 external sessions for every persona.**
+- 8 applied switches, all `q_learning`.
+- v1 and v2 agree on 16/19 picks.
+
+**The deployment cannot produce real-attacker evidence as it stands.** Cowrie listens only on 127.0.0.1 or the WSL NAT address, which is unreachable from the internet by design, so every session is the operator's. Collecting gate-1 data needs a **separately authorised, isolated internet-facing honeypot**:
+- its own VM or host, not the development machine;
+- egress filtering as in `honeypot/docker/egress-rules.sh`;
+- no credentials or data from other systems on it;
+- compliance with the hosting network's rules.
+
+That decision is the owner's. Nothing here exposes Cowrie.
+
+**Prospective assignment protocol** (on such a deployment):
+1. **Schedule.** `real_session_report.py plan --start <ISO> --interval-hours 6 --blocks 60 --seed <s> --out schedule.json` writes randomised permuted blocks: each block serves every servable persona once, in random order, so the assignment probability is 1/5 and time of day is balanced. Neither policy chooses during collection.
+2. **Applying it.** Use the verified switch path: each slot's persona through the rotator's checked restart. Driving the rotator from a schedule is a separate, owner-approved change; it is not part of this repository yet.
+3. **Adherence.** `report --schedule schedule.json` reports the share of external sessions served the scheduled persona. Gate 2 needs at least 0.9.
+4. **Outcome and exclusions.** Primary outcome: `calc_reward`. Secondary: duration, commands, login, the fingerprint flag. Exclusions fixed in advance: simulated and operator sessions, the Deception Arena, and sessions starting within 60 s of a restart.
+5. **Sample size.** Gate 1 needs at least 30 external sessions per persona.
+   - That detects only large differences: about 2.2 reward units at the observed sd ≈ 3.1.
+   - Gate 2 must bound a 0.5-unit loss, and at that spread its CI is narrow enough only at about **300 sessions per persona** when the true difference is small.
+   - The readiness tool reports "too uncertain" until then. This is a property of the data, not a reason to relax the gate.
 
 ## 6. Promotion gates (`shadow` → `active`)
 
 Activate only when **all** of these hold, and record them:
-1. Protocol §5 has at least 30 eligible real-attacker sessions per servable persona.
-2. Offline evaluation on that data shows v2's estimated reward ≥ v1's, and the 95% CI of the difference excludes a meaningful loss (> 0.5 reward units).
-3. v2 has run in shadow for at least 2 weeks with no `policyV2.error` and no duplicate `realEpisodes`.
-4. A rollback rehearsal has been done (set `active`, restart, see `policy: persona-ducb-v2` in decisions; unset, restart, see `q_learning`).
+1. Protocol §5 has at least 30 eligible **external** sessions per servable persona.
+2. Offline evaluation on that randomised data shows v2's estimated reward ≥ v1's, and the 95% CI of the difference excludes a meaningful loss (> 0.5 reward units).
+3. v2 has run in shadow for at least 2 weeks, with no `Persona policy v2 … failed` lines and consistent exactly-once accounting.
+4. A live rollback rehearsal has been done and recorded (§7).
 
 Simulated superiority is **not** a gate.
+
+**Automated assessment.** `ai-engine/evaluation/v2_readiness.py` scores six categories, each with its evidence: engineering readiness, simulation performance (labelled SIMULATED), real-session coverage (gate 1), real-world effectiveness (gate 2), operational safety (gate 3) and rollback readiness (gate 4).
+- It prints **READY** only if all six pass; otherwise **NOT READY FOR PRODUCTION PROMOTION** and exit code 2.
+- It reads copies of state, never the live file in place.
+- It queries the engine read-only.
+- The gates are constants in the script, not command-line options.
+
+```powershell
+.\.venv\Scripts\python.exe evaluation\persona_policy_sim.py --json-out sim.json          # SIMULATED evidence, ~4 min
+$env:SENTINEL_KEY = (Select-String ..\backend\.env -Pattern '^SENTINEL_KEY=(.*)$').Matches[0].Groups[1].Value
+.\.venv\Scripts\python.exe evaluation\v2_readiness.py --report-json report.json --sim-json sim.json `
+  --v2-state $env:USERPROFILE\.sentinelai\demo\persona_policy_v2.json --engine-url http://127.0.0.1:8000 --current <served persona>
+```
+
+**Result on 2026-11-12: NOT READY FOR PRODUCTION PROMOTION.**
+
+| Category | Result | Why |
+|---|---|---|
+| Engineering | PASS | Shipped defaults equal the simulation-evaluated ones; the live state loads; accounting 1/1 |
+| Simulation | PASS | SIMULATED only |
+| Gate 1 | NOT MET | 0 external sessions |
+| Gate 2 | NOT MET | Not evaluable |
+| Gate 3 | NOT MET | 0 days of shadow; the engine decides with `q_learning` |
+| Gate 4 | NOT MET | Automated rollback tests pass, but no live rehearsal is recorded |
+
+## 7. Activation and rollback procedure (prepared, NOT executed)
+
+**Use this only after §6 reports READY and the owner approves.**
+
+On Windows, with the demo stack running:
+
+```powershell
+# 0. Evidence and backups (timestamped copies, never overwritten)
+$ts = Get-Date -Format yyyyMMdd-HHmmss; $b = "$env:USERPROFILE\.sentinelai\backups\v2-activation-$ts"; New-Item -ItemType Directory $b | Out-Null
+Copy-Item "$env:USERPROFILE\.sentinelai\demo\q_table.json", "$env:USERPROFILE\.sentinelai\demo\persona_policy_v2.json" $b
+
+# 1. Activate: restart only the engine window with v2 deciding (v1 keeps learning in parallel)
+powershell -ExecutionPolicy Bypass -File scripts\demo\restart-engine.ps1 -DeceptionV2 active
+
+# 2. Verify: decisions drawn from now on carry policy persona-ducb-v2
+mongosh --quiet mongodb://127.0.0.1:27017/sentinel-demo --eval "db.deceptiondecisions.find({}, {_id:0,policy:1,status:1,createdAt:1}).sort({createdAt:-1}).limit(3)"
+```
+
+**Notes:**
+- A decision already PENDING from v1 is still applied once, or expires after `DECEPTION_DECISION_TTL_MINUTES`. Only new decisions come from v2.
+- The rotator, its checks and the dashboard need no change. The panel labels v2 picks "Persona policy v2 (discounted UCB)".
+
+**Rollback**, to be done at any time, and done once as the gate-4 rehearsal:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\demo\restart-engine.ps1 -DeceptionV2 shadow
+mongosh --quiet mongodb://127.0.0.1:27017/sentinel-demo --eval "db.deceptiondecisions.find({}, {_id:0,policy:1}).sort({createdAt:-1}).limit(2)"
+```
+
+New draws should show `q_learning` again. v1 never stopped learning, so no state migration is needed. At most one PENDING v2 decision may still be applied after rollback; the same TTL rule applies.
+
+Record the rehearsal for gate 4 as JSON and pass it with `--rollback-rehearsal`:
+`{"date": "...", "activeObservedPolicy": "persona-ducb-v2", "rolledBackObservedPolicy": "q_learning"}`
+
+**Full removal of v2:** use `-DeceptionV2 off`. Its state file is kept; delete `persona_policy_v2.json` only to reset v2.
