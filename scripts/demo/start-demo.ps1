@@ -26,8 +26,13 @@ $EnvFile = Join-Path $Root "backend\.env"
 if (-not (Test-Path $EnvFile)) { throw "backend\.env not found at $EnvFile" }
 
 foreach ($port in 8000, 5000, 3000) {
-  if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
-    throw "Port $port is already in use. Run scripts\demo\stop-demo.ps1 (or stop that service) first."
+  $c = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | Select-Object -First 1
+  if ($c) {
+    $p = Get-CimInstance Win32_Process -Filter "ProcessId=$($c.OwningProcess)"
+    $since = if ($p.CreationDate) { " since $($p.CreationDate.ToString('s'))" } else { "" }
+    throw ("Port $port is already in use by $($p.Name) (pid $($p.ProcessId))$since. A demo is probably still running. " +
+      "After a git pull, restart just the backend with scripts\demo\restart-backend.ps1 (node does not reload code); " +
+      "otherwise run scripts\demo\stop-demo.ps1 first.")
   }
 }
 if ((Get-Service MongoDB -ErrorAction SilentlyContinue).Status -ne "Running") { throw "MongoDB service is not running (Start-Service MongoDB)." }
@@ -71,6 +76,11 @@ while ((Get-Date) -lt $deadline -and $status.Count -lt $checks.Count) {
   Start-Sleep 2
 }
 foreach ($name in $checks.Keys) { "{0,-45} {1}" -f $name, ($(if ($status[$name]) { "UP" } else { "NOT RESPONDING - check its window" })) }
+# Route-registration check (no credentials sent): a registered route answers 401, a missing one 404.
+$routeCode = 0
+try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 5 "http://${WinIp}:5000/api/reports/security-summary?days=1&format=csv" | Out-Null; $routeCode = 200 }
+catch { if ($_.Exception.Response) { $routeCode = [int]$_.Exception.Response.StatusCode } }
+"{0,-45} {1}" -f "Backend API routes (/api/reports)", $(if ($routeCode -eq 404) { "MISSING (404) - is this checkout up to date?" } elseif ($routeCode) { "registered ($routeCode without a token)" } else { "not checked (backend not responding)" })
 # WSL addresses change after a reboot: write them where the demo console can load them (no secrets in here).
 $EnvScript = Join-Path $StateDir "demo-env.ps1"
 @"
