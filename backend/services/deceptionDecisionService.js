@@ -84,4 +84,68 @@ const view = (d) =>
     createdAt: d.createdAt,
   }
 
-module.exports = { currentDecision, applyDecision, failDecision, view }
+/**
+ * Read-only snapshot for the Honeypot Analytics "Adaptive Deception" panel (its Refresh button). Unlike
+ * currentDecision it never asks the learner for a draw and writes nothing: it reports the pending decision if
+ * one exists, the most recent closed one (applied, failed, superseded/expired), how many sessions have been
+ * scored (real) or skipped (synthetic demo-*), and persona policy v2's shadow evidence, which is never applied.
+ */
+async function status(activeProfile) {
+  const HoneypotSession = require('../models/HoneypotSession')
+  const syntheticId = /^demo-/i
+  const [pending, lastClosed, scored, synthetic, scoringPending, shadowCount, shadowAgree, latestShadow] =
+    await Promise.all([
+      DeceptionDecision.findOne({ status: 'PENDING' }).lean(),
+      DeceptionDecision.findOne({ status: { $ne: 'PENDING' } })
+        .sort({ closedAt: -1, updatedAt: -1 })
+        .lean(),
+      HoneypotSession.countDocuments({ deceptionScoredAt: { $ne: null }, sessionId: { $not: syntheticId } }),
+      HoneypotSession.countDocuments({ sessionId: syntheticId }),
+      HoneypotSession.countDocuments({ deceptionScoringPending: true }),
+      HoneypotSession.countDocuments({ 'shadowPolicy.recommendation': { $ne: null } }),
+      HoneypotSession.countDocuments({
+        'shadowPolicy.recommendation': { $ne: null },
+        $expr: { $eq: ['$shadowPolicy.recommendation', '$recommendedProfile'] },
+      }),
+      HoneypotSession.findOne({ 'shadowPolicy.recommendation': { $ne: null } })
+        .sort({ deceptionScoredAt: -1, _id: -1 })
+        .select('shadowPolicy deceptionScoredAt recommendedProfile deceptionPolicy')
+        .lean(),
+    ])
+  const closedView = (d) =>
+    d && {
+      ...view(d),
+      // SUPERSEDED covers both "expired (TTL)" and "persona changed before it was applied"
+      appliedProfile: d.appliedProfile || null,
+      closedAt: d.closedAt || null,
+      failureReason: d.failureReason || null,
+    }
+  return {
+    activeProfile,
+    pendingDecision: pending ? { ...view(pending), forActivePersona: pending.state === activeProfile } : null,
+    lastClosedDecision: closedView(lastClosed),
+    learning: {
+      scoredRealSessions: scored,
+      syntheticSessionsSkipped: synthetic,
+      sessionsAwaitingScoring: scoringPending,
+    },
+    shadow: {
+      mode: 'shadow (recorded only, never applied)',
+      sessionsWithEvidence: shadowCount,
+      agreementsWithActivePolicy: shadowAgree,
+      latest: latestShadow
+        ? {
+            version: latestShadow.shadowPolicy?.version || null,
+            mode: latestShadow.shadowPolicy?.mode || null,
+            recommendation: latestShadow.shadowPolicy?.recommendation || null,
+            learned: latestShadow.shadowPolicy?.learned ?? null,
+            activePolicy: latestShadow.deceptionPolicy || null,
+            activeRecommendation: latestShadow.recommendedProfile || null,
+            scoredAt: latestShadow.deceptionScoredAt || null,
+          }
+        : null,
+    },
+  }
+}
+
+module.exports = { currentDecision, applyDecision, failDecision, view, status }

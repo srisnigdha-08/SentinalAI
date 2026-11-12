@@ -87,7 +87,33 @@ router.get('/nodes', getNodes)
  */
 router.get('/deception/profile', async (req, res, next) => {
   try {
+    res.set('Cache-Control', 'no-store')
     sendSuccess(res, { ...(await honeypotService.getActiveProfile()), profiles: honeypotService.DECEPTION_PROFILES })
+  } catch (err) {
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /honeypot/deception/status:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Read-only adaptive-deception snapshot (pending and last closed decision, learning counts, v2 shadow)
+ *     description: Never draws a recommendation, rotates a persona or writes anything.
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Deception status snapshot
+ */
+router.get('/deception/status', restrictTo('admin', 'analyst'), async (req, res, next) => {
+  try {
+    const active = await honeypotService.getActiveProfile()
+    const snapshot = await require('../services/deceptionDecisionService').status(active.profile)
+    res.set('Cache-Control', 'no-store')
+    sendSuccess(res, { ...snapshot, profileSource: active.source, checkedAt: new Date().toISOString() })
   } catch (err) {
     next(err)
   }
@@ -114,6 +140,7 @@ router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (r
     // RL-001: viewing this page shows the pending decision; it no longer draws a new one on every view
     const current = await require('../services/deceptionDecisionService').currentDecision(active.profile)
     if (!current) return sendError(res, 'AI engine unreachable', 503)
+    res.set('Cache-Control', 'no-store')
     sendSuccess(res, {
       activeProfile: active.profile,
       nextProfile: current.decision.action,
@@ -123,6 +150,10 @@ router.get('/deception/recommendation', restrictTo('admin', 'analyst'), async (r
       decisionReused: current.reused,
       // Seed episodes (synthetic warm start) vs sessions scored here, as of the draw; null from older engines.
       provenance: current.decision.provenance || null,
+      decisionStatus: current.decision.status || 'PENDING',
+      decisionCreatedAt: current.decision.createdAt || null,
+      // Where the serving persona comes from: the recorded setting/env/latest session, not a live SSH probe
+      profileSource: active.source,
       // M7: the rotator does not restart Cowrie while attackers are connected.
       activeSessions: await require('../models/HoneypotSession')
         .countDocuments({ status: 'active' })
