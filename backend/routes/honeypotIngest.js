@@ -393,7 +393,11 @@ router.post('/flow', internalAuth, async (req, res, next) => {
     if (Object.keys(record).filter((k) => FLOW_FIELDS.includes(k)).length < MIN_FLOW_FIELDS)
       return sendError(res, `At least ${MIN_FLOW_FIELDS} numeric flow fields are required`, 400)
 
-    const result = await require('../services/aiEngineService').runFullPipeline(record, req.app.get('io'))
+    // capture/service.py labels every flow pcap_replay or live_passive; the older sniffer sends no label.
+    const captureSource = ['pcap_replay', 'live_passive'].includes(body.captureSource) ? body.captureSource : 'unknown'
+    const result = await require('../services/aiEngineService').runFullPipeline(record, req.app.get('io'), {
+      captureSource,
+    })
     sendSuccess(res, {
       predictedClass: result.predictedClass,
       threatScore: result.threatScore,
@@ -403,6 +407,27 @@ router.post('/flow', internalAuth, async (req, res, next) => {
   } catch (err) {
     next(err)
   }
+})
+
+/**
+ * @openapi
+ * /honeypot/ingest/capture-heartbeat:
+ *   post:
+ *     tags:
+ *       - Honeypot Ingest
+ *     summary: Capture-service health report (mode live_passive | pcap_replay, status, counters)
+ *     security:
+ *       - ApiKeyAuth: []
+ *     responses:
+ *       200:
+ *         description: Recorded
+ *       400:
+ *         description: Malformed heartbeat
+ */
+router.post('/capture-heartbeat', internalAuth, (req, res) => {
+  const hb = require('../services/captureStatusService').recordHeartbeat(req.body)
+  if (!hb) return sendError(res, 'Invalid capture heartbeat', 400)
+  sendSuccess(res, { mode: hb.mode, status: hb.status })
 })
 
 /**

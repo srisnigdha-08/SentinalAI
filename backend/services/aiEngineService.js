@@ -76,7 +76,15 @@ const predictRecord = async (record) => {
     return null
   }
 }
-const runFullPipeline = async (record, _io = null) => {
+const CAPTURE_SOURCES = ['live_passive', 'pcap_replay', 'dataset_replay', 'manual', 'unknown']
+
+const runFullPipeline = async (record, _io = null, opts = {}) => {
+  // The capture label is chosen by the calling route, not by the record (an analyst cannot claim "live").
+  const captureSource = CAPTURE_SOURCES.includes(opts.captureSource) ? opts.captureSource : 'unknown'
+  if (record && Object.prototype.hasOwnProperty.call(record, 'captureSource')) {
+    record = { ...record }
+    delete record.captureSource
+  }
   let r
   try {
     r = await module.exports.predictRecord(record)
@@ -180,6 +188,7 @@ const runFullPipeline = async (record, _io = null) => {
   try {
     pred = await aiDbSvc.storePrediction({
       inputSource: 'network_traffic',
+      captureSource,
       sourceIP: record.sourceIP,
       targetIP: record.destinationIP || 'INTERNAL',
       predictedClass: result.predictedClass,
@@ -376,7 +385,17 @@ const getDeceptionRecommendation = async (currentProfile) => {
   }
 }
 
+/** Read-only learner statistics and evidence provenance from the engine (GET /deception/stats); null on failure. */
+const getDeceptionStats = async () => {
+  try {
+    return (await guarded(() => ai.get('/deception/stats'), { retry: true })).data
+  } catch {
+    return null
+  }
+}
+
 module.exports = {
+  getDeceptionStats,
   getHealth,
   explainVector,
   getModelInfo,
