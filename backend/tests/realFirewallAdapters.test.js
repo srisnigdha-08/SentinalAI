@@ -198,6 +198,11 @@ describe('LinuxIptablesAdapter (mocked execution, NODE_ENV temporarily not "test
   test('the command prefix must be a JSON array of simple words', () => {
     expect(LinuxIptablesAdapter.parsePrefix('["wsl","-d","Ubuntu","--","sudo","-n"]')).toHaveLength(6)
     expect(() => LinuxIptablesAdapter.parsePrefix('["sh","-c","x; y"]')).toThrow()
+    expect(() => LinuxIptablesAdapter.parsePrefix('["bash","-c"]')).toThrow() // only wsl / sudo may lead the prefix
+    for (const ok of ['iptables', 'ip6tables', 'wsl', 'sudo'])
+      expect(LinuxIptablesAdapter.resolveExecutable(ok)).toBe(ok)
+    for (const bad of ['sh', '203.0.113.5', 'iptables;id', '/bin/sh', ''])
+      expect(() => LinuxIptablesAdapter.resolveExecutable(bad)).toThrow(/not allowed/)
     expect(() => LinuxIptablesAdapter.parsePrefix('wsl sudo')).toThrow()
   })
 

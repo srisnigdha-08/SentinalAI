@@ -23,15 +23,35 @@ const execFilePromise = (file, args, opts) =>
     )
   )
 
+// The only programs this adapter may start. The executable is always taken from this constant list, never from
+// a value that request data could reach (the target address only ever appears as a separate argument).
+const EXECUTABLES = Object.freeze(['iptables', 'ip6tables', 'wsl', 'sudo'])
+const PREFIX_EXECUTABLES = Object.freeze(['wsl', 'sudo'])
+
+const resolveExecutable = (name) => {
+  const file = EXECUTABLES.find((e) => e === name)
+  if (!file) throw new Error(`Executable not allowed: ${name}`)
+  return file
+}
+
+const defaultRun = (argv, timeout) =>
+  execFilePromise(resolveExecutable(argv[0]), argv.slice(1), { timeout, windowsHide: true })
+
 function parsePrefix(raw) {
   if (!raw) return []
   try {
     const v = JSON.parse(raw)
-    if (Array.isArray(v) && v.every((s) => typeof s === 'string' && /^[A-Za-z0-9_./=-]+$/.test(s))) return v
+    if (
+      Array.isArray(v) &&
+      v.length > 0 &&
+      PREFIX_EXECUTABLES.includes(v[0]) &&
+      v.every((s) => typeof s === 'string' && /^[A-Za-z0-9_./=-]+$/.test(s))
+    )
+      return v
   } catch {
     /* fall through */
   }
-  throw new Error('CONTAINMENT_LINUX_COMMAND_PREFIX must be a JSON array of simple words')
+  throw new Error('CONTAINMENT_LINUX_COMMAND_PREFIX must be a JSON array of simple words starting with wsl or sudo')
 }
 
 class LinuxIptablesAdapter extends ContainmentAdapterInterface {
@@ -39,8 +59,7 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     super()
     this.enabled = options.enabled === true
     this.prefix = options.prefix || parsePrefix(process.env.CONTAINMENT_LINUX_COMMAND_PREFIX)
-    this._run =
-      options.run || ((argv, timeout) => execFilePromise(argv[0], argv.slice(1), { timeout, windowsHide: true }))
+    this._run = options.run || defaultRun
   }
 
   getBackendType() {
@@ -170,3 +189,4 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
 
 module.exports = LinuxIptablesAdapter
 module.exports.parsePrefix = parsePrefix
+module.exports.resolveExecutable = resolveExecutable
