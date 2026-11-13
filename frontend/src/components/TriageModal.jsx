@@ -4,6 +4,7 @@ import toast from 'react-hot-toast'
 import Modal from './Modal.jsx'
 import { scoreColor } from '../utils/scoreBands.js'
 import { useScoreLines } from '../hooks/useScoreLines.js'
+import { DECISION_TEXT } from '../utils/capabilities.js'
 
 const ALLOWED_STATUSES = [
   'DETECTED',
@@ -93,6 +94,15 @@ export default function TriageModal({
             <span style={{ fontSize: 12, color: scoreColor(threat.aiScore, scoreLines), fontFamily: 'Share Tech Mono,monospace' }}>
               {Math.round(threat.aiScore * 100)}%
             </span>
+          </div>
+        )}
+        {threat.containmentDecision?.decision && (
+          <div data-testid="containment-decision" style={{ display: 'grid', gap: 2 }}>
+            <span style={{ fontSize: 11, color: '#3a6a88', fontFamily: 'Share Tech Mono,monospace' }}>AUTO-CONTAINMENT DECISION ({threat.containmentDecision.policy || 'n/a'}):</span>
+            <span style={{ fontSize: 12, color: '#c8e6f5' }}>{DECISION_TEXT[threat.containmentDecision.decision] || threat.containmentDecision.decision}</span>
+            {(threat.containmentDecision.reasons || []).map((r, i) => (
+              <span key={i} style={{ fontSize: 11, color: '#7ab3cc' }}>• {r}</span>
+            ))}
           </div>
         )}
         {threat.targetService && (
