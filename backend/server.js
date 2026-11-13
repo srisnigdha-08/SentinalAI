@@ -368,11 +368,26 @@ if (process.env.NODE_ENV !== 'test' || process.env.START_SERVER === 'true') {
       } catch (driftErr) {
         logger.warn('[Drift] Failed to start drift monitor: ' + driftErr.message)
       }
-      server.listen(PORT, process.env.HOST || '127.0.0.1', () => {
-        logger.info('SentinelAI Backend ready on port ' + PORT)
+      const host = process.env.HOST || '127.0.0.1'
+      const startup = require('./utils/startupErrors')
+      // A bind failure (port taken, address not on this machine) is reported in plain words, then the process
+      // shuts down cleanly with code 1 instead of surfacing as a generic uncaught exception.
+      server.once('error', (err) => {
+        logger.error('[Startup] ' + startup.describeListenError(err, host, PORT))
+        defaultShutdownManager
+          .shutdown('LISTEN_ERROR')
+          .catch(() => {})
+          .finally(() => process.exit(1))
+      })
+      server.listen(PORT, host, () => {
+        // Only this address answers: with HOST set to the WSL gateway (demo), http://localhost:PORT is refused.
+        logger.info(`SentinelAI Backend ready on port ${PORT} (listening on ${startup.listenUrl(host, PORT)} only)`)
       })
     })
-    .catch(() => process.exit(1))
+    .catch((err) => {
+      logger.error('[Startup] ' + require('./utils/startupErrors').describeStartupFailure(err))
+      process.exit(1)
+    })
 }
 defaultShutdownManager.setServer(server)
 defaultShutdownManager.setIO(io)
