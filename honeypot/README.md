@@ -13,7 +13,7 @@ Run Cowrie on a separately managed Linux host. Its real JSON log is ingested wit
 |---|---|---|
 | `parsers/log_parser.py` (the ingest path) | `SENTINEL_API`, `HONEYPOT_API_KEY` (required; the backend refuses `SENTINEL_KEY` on honeypot routes), `COWRIE_LOG`, `COWRIE_CFG` (default `<cowrie>/etc/cowrie.cfg` next to the log: the persona served is read from the header `switch_profile.py` writes and sent with each session), `COWRIE_PERSONA` (overrides it), `SENTINEL_POST_RETRIES`, `SENTINEL_POST_BACKOFF`, `PARSER_STATE_DIR` (default `~/.sentinelai/cowrie-parser`: read offset, open sessions, delivery spool), `SENTINEL_SPOOL_MAX`, `SENTINEL_SPOOL_RETRY` | `http://localhost:5000/api` |
 | `cowrie/sentinelblocker.py` (Cowrie output plugin `[output_sentinelblocker]`, enabled in `cowrie.cfg`; install as `src/cowrie/output/sentinelblocker.py`: Cowrie takes the module name from the section up to the next underscore, so the name must not contain one) | `SENTINEL_API_URL`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
-| `switch_profile.py` (writes `cowrie/cowrie.cfg`) | `COWRIE_PERSONA_FS` (directory of persona pickles and txtcmds, e.g. `personas`), `COWRIE_LISTEN_ADDR` (default `0.0.0.0` for containers; `127.0.0.1` for a local test install), `COWRIE_SENSOR_NAME` (default `sentinel-hp-01`). Refuses `windows_srv` unless `--allow-unservable` | n/a |
+| `switch_profile.py` (writes `cowrie/cowrie.cfg`) | `COWRIE_PERSONA_FS` (directory of persona pickles and txtcmds, e.g. `personas`), `COWRIE_LISTEN_ADDR` (default `0.0.0.0` for containers; `127.0.0.1` for a local test install), `COWRIE_SENSOR_NAME` (default `sentinel-hp-01`). Always refuses `windows_srv` (unsupported: Cowrie emulates a Linux shell; see docs/PERSONAS.md) | n/a |
 | `deception_rotator.py` | `HONEYPOT_API_KEY`, `SENTINEL_BACKEND_URL`, `COWRIE_RESTART_CMD`. Waits while attacker sessions are open (`--force` overrides) and skips unservable personas | `http://127.0.0.1:5000` |
 | `sniffer/sniffer.py` (dataset builder: labels captured flows into `flows.csv`) | `SENTINEL_API`, `HONEYPOT_API_KEY` | `http://localhost:5000/api` |
 
@@ -45,7 +45,7 @@ Backend settings for the honeypot (all optional):
 | `HONEYPOT_MAX_COMMANDS`, `HONEYPOT_MAX_CREDENTIALS` | Per-session array caps (2000 / 500); totals are kept in `commandCount` / `credentialCount`. |
 | `HONEYPOT_HEARTBEAT_TIMEOUT_SECONDS` | Node shows `offline` when the blocker has not polled for this long (default 30). |
 | `RETENTION_ENABLED` + `RETENTION_INTERVAL_HOURS` | Both required to schedule archive-then-delete retention; never runs at startup. |
-| `DECEPTION_EXCLUDED_PROFILES` (AI engine) | Personas never recommended (default `windows_srv`, which Cowrie cannot serve). |
+| `DECEPTION_EXCLUDED_PROFILES` (AI engine) | Additional personas never recommended. `windows_srv` is always excluded and cannot be re-enabled. |
 | `HONEYPOT_SSH_PORT` | Port shown for the node in the dashboard (default 2222; 22 when published or redirected there). |
 | `HONEYPOT_AUTOBLOCK_MODE=approve` | Honeypot-originated blocks are never automatic; each raises one "Honeypot block awaiting approval" alert. |
 | `PARSER_METRICS_PORT` / `--metrics-port` (parser) | Prometheus metrics on 127.0.0.1 (events read/posted/rejected/spooled, spool depth, lag). |
