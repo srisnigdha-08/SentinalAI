@@ -7,7 +7,7 @@
 const { v4: uuidv4 } = require('uuid')
 const DeceptionExperiment = require('../models/DeceptionExperiment')
 const HoneypotSession = require('../models/HoneypotSession')
-const { DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
+const { DECEPTION_PROFILES, SERVABLE_DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
 const { parsePagination } = require('../utils/querySecurity')
 const { SCENARIOS, evaluate } = require('../utils/deceptionArenaMetrics')
 
@@ -38,8 +38,9 @@ function validateConfig(body = {}) {
     errors.push('description must be text up to 500 characters')
   if (typeof body.scenario !== 'string' || !SCENARIOS[body.scenario])
     errors.push('scenario must be one of the allowlisted scenarios')
-  if (typeof body.baselinePersona !== 'string' || !DECEPTION_PROFILES.includes(body.baselinePersona))
-    errors.push('baselinePersona must be a configured persona')
+  // Unsupported personas (windows_srv) cannot be a baseline: Cowrie could never serve them
+  if (typeof body.baselinePersona !== 'string' || !SERVABLE_DECEPTION_PROFILES.includes(body.baselinePersona))
+    errors.push('baselinePersona must be a servable persona')
   const trials = intIn(body.trialsPerStrategy, 1, 50)
   if (trials === null) errors.push('trialsPerStrategy must be an integer 1-50')
   const maxSec = body.maxTrialSeconds === undefined ? 600 : intIn(body.maxTrialSeconds, 30, 3600)
@@ -218,7 +219,7 @@ function validateTrial(t, exp) {
   const dur = t.durationSeconds
   if (!(typeof dur === 'number' && Number.isFinite(dur) && dur >= 0 && dur <= exp.maxTrialSeconds))
     bad('durationSeconds')
-  if (!['completed', 'attacker_left', 'fingerprinted', 'time_limit'].includes(t.termination)) bad('termination')
+  if (!DeceptionExperiment.TERMINATIONS.includes(t.termination)) bad('termination')
   if (!(typeof t.reward === 'number' && Number.isFinite(t.reward) && t.reward >= -10 && t.reward <= 20)) bad('reward')
   let decision = null
   if (t.strategy === 'ADAPTIVE') {

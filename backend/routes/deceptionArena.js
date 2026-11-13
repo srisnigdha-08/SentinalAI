@@ -6,7 +6,6 @@ const { protect, restrictTo } = require('../middleware/auth')
 const { sendSuccess, sendError } = require('../utils/apiResponse')
 const { isSentinelKey, isHoneypotKey } = require('../utils/apiKeys')
 const { SCENARIOS, MIN_PAIRS_FOR_INTERVAL, LIVE_CAVEAT } = require('../utils/deceptionArenaMetrics')
-const { DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
 const { logAudit } = require('../utils/auditLogger')
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
@@ -35,7 +34,7 @@ router.get(
   handle(async (req, res) =>
     sendSuccess(res, {
       scenarios: Object.entries(SCENARIOS).map(([id, s]) => ({ id, ...s })),
-      personas: DECEPTION_PROFILES,
+      personas: require('../utils/deceptionProfiles').SERVABLE_DECEPTION_PROFILES,
       runnerEnabled: svc.runnerEnabled(),
       minPairsForInterval: MIN_PAIRS_FOR_INTERVAL,
       liveCaveat: LIVE_CAVEAT,

