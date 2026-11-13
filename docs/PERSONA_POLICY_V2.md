@@ -222,3 +222,58 @@ Record the rehearsal for gate 4 as JSON and pass it with `--rollback-rehearsal`:
 `{"date": "...", "activeObservedPolicy": "persona-ducb-v2", "rolledBackObservedPolicy": "q_learning"}`
 
 **Full removal of v2:** use `-DeceptionV2 off`. Its state file is kept; delete `persona_policy_v2.json` only to reset v2.
+
+## 8. Independent evaluation and isolated rollback rehearsal (2026-11-13)
+
+**Simulation: S6–S11, seeds 200–229, pre-declared** (`evaluation/persona_policy_independent_eval.py`, committed
+before its full run).
+- **Not used:** S5 and seeds 0–129. The S5 result (28/30) stands unchanged, and no parameter was tuned.
+- **Design:** v1 runs in its deployed seeded configuration, v2 with its shipped defaults. Both policies face the
+  same attacker and application-failure draws.
+- **Results:** `ai-engine/experiments/persona_policy_independent_20261113/results.json`. Every figure is SIMULATED.
+
+| Scenario | Best identified v1 / v2 | Regret v1 / v2 (paired diff, 95 % CI) | Switches /100 v1 / v2 | Application failures v1 / v2 |
+|---|---|---|---|---|
+| S6 debian_11, medium gaps | 0 / 30 | 1.55 / 0.90 (−0.65, −0.71 to −0.58) | 96.8 / 17.2 | — |
+| S7 raspberry_pi, frequent fingerprinting | 0 / 30 | 1.09 / 0.71 (−0.38) | 98.6 / 18.3 | — |
+| S8 persona-blind | n/a | 0 / 0 | 97.5 / 16.5 | — |
+| S9 drift ubuntu_22 → aws_ec2 | 0 / 29 | 1.88 / 1.00 (−0.88) | 97.8 / 17.3 | — |
+| S10 two close leaders | 2 / 30 | 1.14 / 0.69 (−0.45) | 93.0 / 17.7 | — |
+| S11 centos_7, 20 % application failures | 0 / 30 | 0.76 / **0.98 (+0.22, +0.15 to +0.28)** | 75.7 / 16.5 | 30.3 / 7.3 |
+
+Decision latency is about 5–13 µs for both policies. Neither ever recommended an unsupported persona.
+
+**Criteria:**
+- **Passed:** C1 (identification), C3 (switching) and C4 (unsupported personas).
+- **Failed:** C2. With 20 % failed switches, v2's regret exceeds v1's, because v1's constant switching happens to
+  land on the preferred `centos_7` often.
+
+**Simulation verdict: NOT READY.** The failure under unreliable application is a genuine weakness, not a tuning
+target.
+
+**Rollback rehearsal: isolated, not live.** `honeypot/rollback_rehearsal.py` drives the real `rotate_once` against
+a disposable `cowrie.cfg` and a loopback banner server.
+
+| Scenario | Outcome |
+|---|---|
+| success | APPLIED, persona recorded |
+| failed application (restart exits non-zero) | FAILED, cfg restored |
+| timeout (no banner after restart) | FAILED, cfg restored |
+| invalid persona (`windows_srv`) | FAILED, cfg untouched |
+| restart that does not restart | FAILED, cfg restored |
+| wrong SSH banner | FAILED, cfg restored |
+
+All six pass (`tests/test_rollback_rehearsal.py`). This prepares gate 4; it does not satisfy it. Gate 4 still needs
+the live rehearsal in §7, done and recorded by the owner.
+
+**Readiness on 2026-11-13: NOT READY FOR PRODUCTION PROMOTION.**
+
+| Gate | Status |
+|---|---|
+| Simulation | FAIL (C2, S11) |
+| Gate 1 | not met (0 external sessions) |
+| Gate 2 | not met (not evaluable) |
+| Gate 3 | not met (shadow period not recorded) |
+| Gate 4 | not met (isolated rehearsal only) |
+
+`DECEPTION_V2` was not changed. v2 remains shadow-only and never applies a decision.

@@ -33,14 +33,14 @@ SentinelAI is a security-operations prototype with four services and one databas
 |---|---|
 | Cowrie SSH sessions, commands, MITRE mapping, honeypot deny-list refusal | **Real** |
 | XGBoost + Isolation Forest inference, threat storage, alerts, SHAP explanations | **Real** computation |
-| Network flows used in Demo B | **Replayed** recorded CICIDS2017 records (not live capture) |
-| Host-firewall containment | **Simulated** (mock adapter); Windows Firewall adapter disabled, never run live |
-| Q-learning persona recommender | **Real mechanism, experimental**: warm-started from a synthetic seed; benefit unmeasured |
+| Network flows used in Demo B | **Replayed** recorded CICIDS2017 records (labelled `dataset_replay`). PCAP replay through `ai-engine/capture` is implemented and tested; live passive capture is implemented but **not enabled** (no Npcap on this laptop) — [CAPTURE.md](CAPTURE.md) |
+| Host-firewall containment | **Simulated** (mock adapter, the default). Windows Firewall and Linux iptables adapters with post-apply verification are implemented and tested with mocked commands, **not enabled**, never run live — [CONTAINMENT_ENFORCEMENT.md](CONTAINMENT_ENFORCEMENT.md) |
+| Q-learning persona recommender | **Real mechanism, experimental**: 12,087 of 12,106 episodes are the synthetic seed; real data changes none of its greedy decisions; provenance now tracked per update — [QLEARNING_EVIDENCE.md](QLEARNING_EVIDENCE.md) |
 | Cross-dataset (CSE-CIC-IDS2018) models | **Experimental, not deployed** |
 | Attack Time Machine replay | **Real** recorded session events; MITRE mappings and summaries **derived**; linked containment labelled **simulated** |
 | AI Trust Meter assessment | **Derived** from stored prediction fields; flow capture source (live vs replayed) recorded as **unknown** |
 | Deception Arena experiments | **Scripted or simulated** attackers against a temporary copy of the Q-learner; no real-attacker evidence |
-| Docker Compose, nginx, Prometheus/Grafana stack | **Implemented, untested** |
+| Docker Compose, nginx, Prometheus/Grafana stack | **Verified in CI on Linux runners** (Compose, TLS, replica set, recovery jobs); never deployed on a real host |
 
 ## 2. Component communication
 
@@ -270,9 +270,11 @@ Details per batch: [`../audit/FIXES.md`](../audit/FIXES.md).
 - The AI Trust Meter can verify input completeness only for predictions stored after 2026-11-12 (`defaultedFeatures`).
 - Reloading a page again while its session-restore request is still in flight logs the user out (refresh-token replay
   protection). Wait for the page to finish loading before reloading during a demo.
-- Auto-block acts on a single flow at or above 0.92; there is no multi-event correlation.
+- Auto-block now needs correlated evidence (≥ 3 suspicious flows from one source in 300 s, ≥ 2 at the block line); a single flow waits for analyst approval. Correlation is single-host only.
+- The Windows persona is unsupported and cannot be selected ([PERSONAS.md](PERSONAS.md)); persona policy v2 is shadow-only and NOT READY; honeypot sessions are classified by rules (no session ML: [SESSION_ML.md](SESSION_ML.md)).
+- Current status of every limitation: [CAPABILITIES.md](CAPABILITIES.md).
 - Single process engine (~120–130 requests/s); dashboard analytics and text search scale linearly with stored threats.
-- SEC-001 open (risk accepted); no TLS, no backups, Docker untested.
+- SEC-001: affected passwords changed 2026-11-08, no leaked password valid (read-only check); Git history not rewritten. No TLS on a real host, no scheduled off-host backups; containers verified in CI only.
 - Open test findings: TEST-008 (browser stalls under memory pressure on this laptop), E2E-002 (one Firefox triage
   failure in 39 runs, not reproduced since).
 
