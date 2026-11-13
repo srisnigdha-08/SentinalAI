@@ -88,7 +88,12 @@ router.get('/nodes', getNodes)
 router.get('/deception/profile', async (req, res, next) => {
   try {
     res.set('Cache-Control', 'no-store')
-    sendSuccess(res, { ...(await honeypotService.getActiveProfile()), profiles: honeypotService.DECEPTION_PROFILES })
+    const { SERVABLE_DECEPTION_PROFILES, UNSUPPORTED_PROFILES } = require('../utils/deceptionProfiles')
+    sendSuccess(res, {
+      ...(await honeypotService.getActiveProfile()),
+      profiles: SERVABLE_DECEPTION_PROFILES,
+      unsupportedProfiles: UNSUPPORTED_PROFILES,
+    })
   } catch (err) {
     next(err)
   }
@@ -394,5 +399,70 @@ router.post('/sessions/:id/commands', validateObjectId, restrictTo('admin', 'ana
  *         description: Analysis is in progress or a failed attempt requires review
  */
 router.put('/sessions/:id/close', validateObjectId, restrictTo('admin', 'analyst'), closeSession)
+
+/**
+ * @openapi
+ * /honeypot/sessions/{id}/evidence-source:
+ *   patch:
+ *     tags:
+ *       - Honeypot
+ *     summary: Correct a session's learning-evidence source (operator | external | simulated | unknown), admin only
+ *     description: >
+ *       Changes only how the session is reported as evidence; it does not re-run learning. "external" requires
+ *       authorised collection (HONEYPOT_EXTERNAL_COLLECTION=authorized with HONEYPOT_COLLECTION_NOTICE). Audited.
+ *     responses:
+ *       200:
+ *         description: Updated
+ *       400:
+ *         description: Invalid source or missing reason
+ *       409:
+ *         description: External label without authorised collection
+ */
+router.patch('/sessions/:id/evidence-source', validateObjectId, restrictTo('admin'), async (req, res, next) => {
+  try {
+    const { evidenceSource, reason } = req.body || {}
+    const updated = await honeypotService.setSessionEvidenceSource(req.params.id, evidenceSource, reason, req.user)
+    if (!updated) return sendError(res, 'Session not found', 404)
+    await logAudit({
+      action: 'SESSION_EVIDENCE_LABELLED',
+      actor: req.user,
+      target: { identifier: updated.sessionId, type: 'HoneypotSession' },
+      status: 'SUCCESS',
+      details: { evidenceSource, reason: String(reason).slice(0, 300) },
+      ip: req.ip,
+    }).catch(() => {})
+    sendSuccess(res, updated)
+  } catch (err) {
+    if (err.statusCode) return sendError(res, err.message, err.statusCode)
+    next(err)
+  }
+})
+
+/**
+ * @openapi
+ * /honeypot/evidence:
+ *   get:
+ *     tags:
+ *       - Honeypot
+ *     summary: Learning-evidence provenance (closed sessions by source and persona; learner seed vs session episodes)
+ *     responses:
+ *       200:
+ *         description: Evidence summary
+ */
+router.get('/evidence', async (req, res, next) => {
+  try {
+    const sessions = await honeypotService.getEvidenceSummary()
+    let learner = null
+    try {
+      const stats = await require('../services/aiEngineService').getDeceptionStats?.()
+      learner = stats?.provenance || null
+    } catch {
+      learner = null
+    }
+    sendSuccess(res, { sessions, learner, sources: ['operator', 'external', 'simulated', 'unknown'] })
+  } catch (err) {
+    next(err)
+  }
+})
 
 module.exports = router

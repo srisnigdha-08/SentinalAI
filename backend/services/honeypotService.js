@@ -6,7 +6,7 @@ const { escapeRegex, parsePagination } = require('../utils/querySecurity')
 const { redactCapturedCredentials } = require('../utils/redact')
 const mitreMapping = require('../utils/mitreMapping')
 
-const { DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
+const { DECEPTION_PROFILES, UNSUPPORTED_PROFILES, SERVABLE_DECEPTION_PROFILES } = require('../utils/deceptionProfiles')
 const ACTIVE_PROFILE_KEY = 'deceptionActiveProfile'
 
 /**
@@ -27,9 +27,75 @@ const getActiveProfile = async () => {
   return { profile: 'centos_7', source: 'default' }
 }
 
+/**
+ * Admin correction of a session's evidence source (utils/evidenceSource.js). "external" needs the collection
+ * authorisation settings, so a session cannot be relabelled as independent external evidence without a recorded
+ * consent / legal basis. Returns the updated session or null.
+ */
+const setSessionEvidenceSource = async (id, source, reason, user) => {
+  const { EVIDENCE_SOURCES, externalCollectionAuthorized } = require('../utils/evidenceSource')
+  if (!EVIDENCE_SOURCES.includes(source)) {
+    const error = new Error(`evidenceSource must be one of ${EVIDENCE_SOURCES.join(', ')}`)
+    error.statusCode = 400
+    throw error
+  }
+  const why = typeof reason === 'string' ? reason.trim().slice(0, 300) : ''
+  if (!why) {
+    const error = new Error('A reason is required')
+    error.statusCode = 400
+    throw error
+  }
+  if (source === 'external' && !externalCollectionAuthorized()) {
+    const error = new Error(
+      'External evidence needs authorised collection (HONEYPOT_EXTERNAL_COLLECTION=authorized and HONEYPOT_COLLECTION_NOTICE)'
+    )
+    error.statusCode = 409
+    throw error
+  }
+  return HoneypotSession.findByIdAndUpdate(
+    id,
+    {
+      $set: {
+        evidenceSource: source,
+        evidenceLabel: { labeledBy: user?._id || user?.id, labeledAt: new Date(), method: 'admin', reason: why },
+      },
+    },
+    { new: true }
+  )
+    .select('sessionId sourceIP evidenceSource evidenceLabel servedProfile')
+    .lean()
+}
+
+/** Closed real sessions by evidence source and served persona, for the dashboard's evidence panel. */
+const getEvidenceSummary = async () => {
+  const rows = await HoneypotSession.aggregate([
+    { $match: { status: 'closed', ...REAL_SESSIONS } },
+    {
+      $group: {
+        _id: { source: { $ifNull: ['$evidenceSource', 'unlabelled'] }, persona: { $ifNull: ['$servedProfile', 'unknown'] } },
+        n: { $sum: 1 },
+      },
+    },
+  ])
+  const bySource = {}
+  const byPersona = {}
+  for (const r of rows) {
+    bySource[r._id.source] = (bySource[r._id.source] || 0) + r.n
+    byPersona[r._id.persona] = byPersona[r._id.persona] || {}
+    byPersona[r._id.persona][r._id.source] = r.n
+  }
+  return { bySource, byPersona, total: rows.reduce((s, r) => s + r.n, 0) }
+}
+
 const setActiveProfile = async (profile) => {
+  if (UNSUPPORTED_PROFILES.includes(profile)) {
+    // Cowrie serves a Linux shell only; recording a Windows persona as served would misrepresent the honeypot.
+    const error = new Error(`Persona ${profile} is unsupported (Cowrie emulates a Linux shell only)`)
+    error.statusCode = 400
+    throw error
+  }
   if (!DECEPTION_PROFILES.includes(profile)) {
-    const error = new Error(`Unknown deception profile. Allowed: ${DECEPTION_PROFILES.join(', ')}`)
+    const error = new Error(`Unknown deception profile. Allowed: ${SERVABLE_DECEPTION_PROFILES.join(', ')}`)
     error.statusCode = 400
     throw error
   }
@@ -422,6 +488,10 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
   // Credit the reward to the persona actually served, and give the learner the persona served in the
   // previous session as its state, so a recorded profile switch becomes a real state transition.
   if (!session.servedProfile) session.servedProfile = (await getActiveProfile()).profile
+  if (!session.evidenceSource) {
+    session.evidenceSource = require('../utils/evidenceSource').classifySession(session)
+    session.evidenceLabel = { method: 'automatic', labeledAt: new Date() }
+  }
   const previous = await findPreviousServedProfile(session._id, session.createdAt)
   const payload = {
     sessionId: session.sessionId,
@@ -436,6 +506,8 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
     // the recorded active profile, not session.recommendedProfile.
     deceptionProfile: session.servedProfile,
     previousProfile: previous?.servedProfile || undefined,
+    // Where this session came from, so the learner can trace and separate its evidence (QLEARNING_EVIDENCE.md)
+    evidenceSource: session.evidenceSource || 'unknown',
   }
   // Only pass startTime if the session stores a trustworthy event timestamp; never substitute processing time
   if (session.startTime && (session.startTime instanceof Date || typeof session.startTime === 'string')) {
@@ -855,4 +927,6 @@ module.exports = {
   getActiveProfile,
   setActiveProfile,
   DECEPTION_PROFILES,
+  setSessionEvidenceSource,
+  getEvidenceSummary,
 }

@@ -39,11 +39,16 @@ def test_ucb_does_not_pick_the_untried_windows_arm(learner):
     assert learner.greedy_action("centos_7") != "windows_srv"
 
 
-def test_exclusions_can_be_cleared(learner, monkeypatch):
+def test_unsupported_persona_cannot_be_re_enabled(learner, monkeypatch):
+    # Changed deliberately (limitation 5): clearing the exclusion list used to re-enable windows_srv. An
+    # unsupported persona is now excluded under every setting; the override can only exclude more.
     monkeypatch.setenv("DECEPTION_EXCLUDED_PROFILES", "")
-    assert ds.servable_profiles() == ds.PROFILES_LIST
-    monkeypatch.setenv("DECEPTION_EXCLUDED_PROFILES", ",".join(ds.PROFILES_LIST))  # nothing left: fall back to all
-    assert ds.servable_profiles() == ds.PROFILES_LIST
+    assert ds.servable_profiles() == ds.SUPPORTED_PROFILES
+    assert "windows_srv" not in ds.servable_profiles()
+    monkeypatch.setenv("DECEPTION_EXCLUDED_PROFILES", "debian_11")
+    assert ds.servable_profiles() == [p for p in ds.SUPPORTED_PROFILES if p != "debian_11"]
+    monkeypatch.setenv("DECEPTION_EXCLUDED_PROFILES", ",".join(ds.PROFILES_LIST))  # nothing left: all Linux personas
+    assert ds.servable_profiles() == ds.SUPPORTED_PROFILES
 
 
 def test_deception_score_is_never_negative_and_fallback_is_centos(tmp_path):

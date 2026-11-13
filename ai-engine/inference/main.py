@@ -545,6 +545,19 @@ def deception_score(s: SessionData):
             raise HTTPException(500, detail={"error": "DECEPTION_SCORING_FAILED", "reason": f"{type(e).__name__}: {e}"})
     return {"success": True, "result": res}
 
+@app.get("/deception/stats", dependencies=[Depends(verify_api_key)])
+def deception_stats():
+    """Read-only learner statistics and evidence provenance (docs/QLEARNING_EVIDENCE.md). Draws no decision and
+    changes nothing (unlike /deception/recommendation, which samples the exploration policy)."""
+    from rl_engine.deception_scorer import SUPPORTED_PROFILES, UNSUPPORTED_PROFILES
+    with _scorer_lock:
+        scorer = _deception_scorer()
+        stats = scorer.learner.get_stats()
+        return {"success": True, "learnerStats": stats, "provenance": stats.get("provenance"),
+                "v2Mode": scorer.v2_mode, "servablePersonas": list(SUPPORTED_PROFILES),
+                "unsupportedPersonas": sorted(UNSUPPORTED_PROFILES)}
+
+
 @app.get("/deception/recommendation", dependencies=[Depends(verify_api_key)])
 def deception_recommendation(current: str = "centos_7"):
     """
