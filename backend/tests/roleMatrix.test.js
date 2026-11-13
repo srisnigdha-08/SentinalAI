@@ -807,7 +807,11 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
     },
     // Capability status and capture status: read-only, every signed-in role
-    { method: 'get', path: '/api/system/capture', expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 } },
+    {
+      method: 'get',
+      path: '/api/system/capture',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
     {
       method: 'get',
       path: '/api/system/capabilities',

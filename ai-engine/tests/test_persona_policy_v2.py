@@ -218,7 +218,8 @@ def test_shadow_is_the_default_and_learns_from_the_same_session_once(fresh_score
     assert r["nextProfile"] in ds.servable_profiles() and r["recommendationApplied"] is False   # v1 result unchanged
     r2 = sc.process_session(dict(SESSION))
     assert r2["policyV2"]["learned"] is False and sc.v2.real_episodes == 1
-    assert sc.learner.episode_count == e0 + 2           # v1 behaviour unchanged (the backend dedupes for v1)
+    # v1 now also refuses a session it already learned (limitation 4 dedupe); it used to learn it twice here
+    assert sc.learner.episode_count == e0 + 1 and r2["learned"] is False and r2["duplicate"] is True
     assert (tmp_path / "rt" / "q_table.json").exists() and (tmp_path / "rt" / "persona_policy_v2.json").exists()
     assert "arms" not in json.loads((tmp_path / "rt" / "q_table.json").read_text()).get("q_table", {})
 

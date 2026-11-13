@@ -72,7 +72,10 @@ const getEvidenceSummary = async () => {
     { $match: { status: 'closed', ...REAL_SESSIONS } },
     {
       $group: {
-        _id: { source: { $ifNull: ['$evidenceSource', 'unlabelled'] }, persona: { $ifNull: ['$servedProfile', 'unknown'] } },
+        _id: {
+          source: { $ifNull: ['$evidenceSource', 'unlabelled'] },
+          persona: { $ifNull: ['$servedProfile', 'unknown'] },
+        },
         n: { $sum: 1 },
       },
     },

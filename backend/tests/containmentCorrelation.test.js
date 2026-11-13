@@ -39,8 +39,13 @@ afterEach(async () => {
 
 async function threat(ip, score, secondsAgo, extra = {}) {
   const t = await ThreatLog.create({
-    severity: score >= 0.92 ? 'CRITICAL' : 'HIGH', sourceIP: ip, attackType: 'DDoS', aiScore: score,
-    confidence: score, status: 'MONITORING', ...extra,
+    severity: score >= 0.92 ? 'CRITICAL' : 'HIGH',
+    sourceIP: ip,
+    attackType: 'DDoS',
+    aiScore: score,
+    confidence: score,
+    status: 'MONITORING',
+    ...extra,
   })
   await ThreatLog.collection.updateOne({ _id: t._id }, { $set: { createdAt: ago(secondsAgo) } })
 }
@@ -103,7 +108,12 @@ describe('correlated evidence', () => {
   test('high volume from one source is handled (bounded query) and blocks', async () => {
     await ThreatLog.insertMany(
       Array.from({ length: 800 }, () => ({
-        severity: 'CRITICAL', sourceIP: '203.0.113.12', attackType: 'DDoS', aiScore: 0.99, confidence: 0.99, status: 'MONITORING',
+        severity: 'CRITICAL',
+        sourceIP: '203.0.113.12',
+        attackType: 'DDoS',
+        aiScore: 0.99,
+        confidence: 0.99,
+        status: 'MONITORING',
       }))
     )
     await ThreatLog.collection.updateMany({}, { $set: { createdAt: ago(5) } })
@@ -144,9 +154,21 @@ describe('suppression', () => {
   })
 
   test('a containment request inside the cooldown suppresses a duplicate; a FAILED one does not', async () => {
-    await ContainmentAction.collection.insertOne({ containmentId: 'c-21', target: '203.0.113.21', normalizedTarget: '203.0.113.21', enforcementStatus: 'ACTIVE', createdAt: ago(100) })
+    await ContainmentAction.collection.insertOne({
+      containmentId: 'c-21',
+      target: '203.0.113.21',
+      normalizedTarget: '203.0.113.21',
+      enforcementStatus: 'ACTIVE',
+      createdAt: ago(100),
+    })
     expect((await evalFlow('203.0.113.21', 0.99)).decision).toBe('SUPPRESSED_DUPLICATE')
-    await ContainmentAction.collection.insertOne({ containmentId: 'c-22', target: '203.0.113.22', normalizedTarget: '203.0.113.22', enforcementStatus: 'FAILED', createdAt: ago(100) })
+    await ContainmentAction.collection.insertOne({
+      containmentId: 'c-22',
+      target: '203.0.113.22',
+      normalizedTarget: '203.0.113.22',
+      enforcementStatus: 'FAILED',
+      createdAt: ago(100),
+    })
     expect((await evalFlow('203.0.113.22', 0.99)).decision).toBe('NEEDS_APPROVAL')
   })
 })
@@ -189,8 +211,13 @@ describe('end to end through storePrediction (in-memory DB, auto-block on, mock 
 
   const store = (ip, score) =>
     aiService.storePrediction({
-      inputSource: 'network_traffic', captureSource: 'pcap_replay', sourceIP: ip, predictedClass: 'DDoS',
-      threatScore: score, action: 'BLOCK', modelVersion: 'xgb_cicids_v1',
+      inputSource: 'network_traffic',
+      captureSource: 'pcap_replay',
+      sourceIP: ip,
+      predictedClass: 'DDoS',
+      threatScore: score,
+      action: 'BLOCK',
+      modelVersion: 'xgb_cicids_v1',
     })
 
   test('flow 1 and 2 wait for approval; flow 3 (2 at the block line) requests containment', async () => {

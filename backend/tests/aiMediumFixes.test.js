@@ -1,4 +1,7 @@
 'use strict'
+// These tests cover single-flow storePrediction mechanics (M2 incomplete input, block line). They run under the
+// explicit legacy policy; the correlated default is covered in tests/containmentCorrelation.test.js.
+process.env.AUTO_BLOCK_POLICY = 'single_flow'
 /**
  * AI engine audit, medium-priority fixes on the backend side:
  *  M1 one severity scale anchored on the shared alert/block lines (utils/severity.js)

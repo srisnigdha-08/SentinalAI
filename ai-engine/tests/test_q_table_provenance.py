@@ -28,8 +28,11 @@ def test_seed_copy_is_labelled_synthetic_and_the_seed_is_untouched(fresh_scorer)
     seed_episodes = json.loads(SEED.read_text())["episode_count"]
     scorer = deception.get_scorer()
     prov = scorer.learner.get_stats()["provenance"]
-    assert prov == {"seed": "models/q_table.json (synthetic warm start)", "seedEpisodes": seed_episodes,
-                    "sessionEpisodes": 0, "synthetic": True}
+    assert {k: prov[k] for k in ("seed", "seedEpisodes", "sessionEpisodes", "synthetic")} == {
+        "seed": "models/q_table.json (synthetic warm start)", "seedEpisodes": seed_episodes, "sessionEpisodes": 0, "synthetic": True}
+    # evidence provenance (limitation 4): nothing learned yet, from any source
+    assert prov["trackedSessionEpisodes"] == 0 and prov["independentExternalSessions"] == 0
+    assert set(prov["bySource"]) == {"operator", "external", "simulated", "unknown"}
     scorer.process_session(SESSION)
     assert scorer.learner.get_stats()["provenance"]["sessionEpisodes"] == 1
     saved = json.loads(fresh_scorer.read_text())

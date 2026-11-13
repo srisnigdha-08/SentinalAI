@@ -46,7 +46,9 @@ describe('real-enforcement gate', () => {
   test('the Windows backend needs its own flag plus the same host-bound confirmation', () => {
     const env = { CONTAINMENT_BACKEND: 'windows-firewall', ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT: 'true' }
     expect(realEnforcementDecision(env, HOST).allowed).toBe(false)
-    expect(realEnforcementDecision({ ...env, CONTAINMENT_REAL_ENFORCEMENT_CONFIRM: confirmationPhrase(HOST) }, HOST).allowed).toBe(true)
+    expect(
+      realEnforcementDecision({ ...env, CONTAINMENT_REAL_ENFORCEMENT_CONFIRM: confirmationPhrase(HOST) }, HOST).allowed
+    ).toBe(true)
   })
 
   test('the factory never returns a real adapter during tests, whatever the configuration', () => {
@@ -55,7 +57,11 @@ describe('real-enforcement gate', () => {
     try {
       factory.resetContainmentAdapter()
       expect(factory.getContainmentAdapter({ forceNew: true })).toBeInstanceOf(MockContainmentAdapter)
-      expect(factory.describeEnforcement()).toMatchObject({ hostFirewall: 'simulated', backend: 'mock', cowrieDenylist: 'cowrie_denylist' })
+      expect(factory.describeEnforcement()).toMatchObject({
+        hostFirewall: 'simulated',
+        backend: 'mock',
+        cowrieDenylist: 'cowrie_denylist',
+      })
     } finally {
       process.env = saved
       factory.resetContainmentAdapter()
@@ -69,8 +75,13 @@ function fakeRunner({ exists = () => false, failOn = null } = {}) {
   const run = async (argv) => {
     calls.push(argv)
     const op = argv.find((a) => ['-C', '-I', '-D'].includes(a))
-    if (failOn === op) throw Object.assign(new Error('iptables failed'), { code: 4, stderr: 'iptables: Permission denied' })
-    if (op === '-C' && !exists(calls)) throw Object.assign(new Error('no rule'), { code: 1, stderr: 'iptables: Bad rule (does a matching rule exist in that chain?).' })
+    if (failOn === op)
+      throw Object.assign(new Error('iptables failed'), { code: 4, stderr: 'iptables: Permission denied' })
+    if (op === '-C' && !exists(calls))
+      throw Object.assign(new Error('no rule'), {
+        code: 1,
+        stderr: 'iptables: Bad rule (does a matching rule exist in that chain?).',
+      })
     return { stdout: '', stderr: '' }
   }
   return { run, calls }
@@ -86,14 +97,38 @@ describe('LinuxIptablesAdapter (mocked execution, NODE_ENV temporarily not "test
     process.env.NODE_ENV = savedEnv
   })
 
-  const adapter = (r, opts = {}) => new LinuxIptablesAdapter({ enabled: true, run: r.run, prefix: ['wsl', '-d', 'Ubuntu', '--', 'sudo', '-n'], ...opts })
+  const adapter = (r, opts = {}) =>
+    new LinuxIptablesAdapter({
+      enabled: true,
+      run: r.run,
+      prefix: ['wsl', '-d', 'Ubuntu', '--', 'sudo', '-n'],
+      ...opts,
+    })
 
   test('apply checks first, then inserts a tagged DROP rule through the configured prefix, without a shell', async () => {
     const r = fakeRunner()
     const res = await adapter(r).applyRule({ containmentId: 'abc-1', target: '203.0.113.5' })
     expect(res).toMatchObject({ success: true, ruleName: 'SentinelAI-Rule-abc-1' })
-    expect(r.calls[0]).toEqual(['wsl', '-d', 'Ubuntu', '--', 'sudo', '-n', 'iptables', '-w', '-C', 'INPUT', '-s', '203.0.113.5',
-      '-m', 'comment', '--comment', 'SentinelAI-Rule-abc-1', '-j', 'DROP'])
+    expect(r.calls[0]).toEqual([
+      'wsl',
+      '-d',
+      'Ubuntu',
+      '--',
+      'sudo',
+      '-n',
+      'iptables',
+      '-w',
+      '-C',
+      'INPUT',
+      '-s',
+      '203.0.113.5',
+      '-m',
+      'comment',
+      '--comment',
+      'SentinelAI-Rule-abc-1',
+      '-j',
+      'DROP',
+    ])
     expect(r.calls[1]).toContain('-I')
   })
 
@@ -110,15 +145,20 @@ describe('LinuxIptablesAdapter (mocked execution, NODE_ENV temporarily not "test
     expect(r.calls[1]).toContain('ip6tables')
   })
 
-  test.each(['203.0.113.5; rm -rf /', '999.1.1.1', '1.2.3.4/40', '', '$(id)'])('invalid target %p is refused before any command', async (t) => {
-    const r = fakeRunner()
-    await expect(adapter(r).applyRule({ containmentId: 'x', target: t })).rejects.toThrow(/Invalid target/)
-    expect(r.calls).toHaveLength(0)
-  })
+  test.each(['203.0.113.5; rm -rf /', '999.1.1.1', '1.2.3.4/40', '', '$(id)'])(
+    'invalid target %p is refused before any command',
+    async (t) => {
+      const r = fakeRunner()
+      await expect(adapter(r).applyRule({ containmentId: 'x', target: t })).rejects.toThrow(/Invalid target/)
+      expect(r.calls).toHaveLength(0)
+    }
+  )
 
   test('foreign rule names are refused (only SentinelAI-tagged rules are touched)', async () => {
     const r = fakeRunner()
-    await expect(adapter(r).removeRule({ containmentId: 'x', target: '203.0.113.5', ruleName: 'ssh-allow' })).rejects.toThrow(/unauthorized rule name/)
+    await expect(
+      adapter(r).removeRule({ containmentId: 'x', target: '203.0.113.5', ruleName: 'ssh-allow' })
+    ).rejects.toThrow(/unauthorized rule name/)
   })
 
   test('a failing insert is reported as a failure with stderr', async () => {
@@ -132,7 +172,10 @@ describe('LinuxIptablesAdapter (mocked execution, NODE_ENV temporarily not "test
     let present = true
     const r = fakeRunner({ exists: () => present })
     const a = adapter(r)
-    expect(await a.verifyRule({ containmentId: 'v', target: '203.0.113.8' })).toMatchObject({ exists: true, active: true })
+    expect(await a.verifyRule({ containmentId: 'v', target: '203.0.113.8' })).toMatchObject({
+      exists: true,
+      active: true,
+    })
     expect((await a.inspectRule({ containmentId: 'v', target: '203.0.113.8' })).state).toBe('PRESENT')
     await a.removeRule({ containmentId: 'v', target: '203.0.113.8' })
     expect(r.calls.at(-1)).toContain('-D')
@@ -144,7 +187,9 @@ describe('LinuxIptablesAdapter (mocked execution, NODE_ENV temporarily not "test
 
   test('disabled unless explicitly enabled, and always under NODE_ENV=test', async () => {
     const r = fakeRunner()
-    await expect(new LinuxIptablesAdapter({ run: r.run }).applyRule({ containmentId: 'd', target: '203.0.113.9' })).rejects.toThrow(/disabled/)
+    await expect(
+      new LinuxIptablesAdapter({ run: r.run }).applyRule({ containmentId: 'd', target: '203.0.113.9' })
+    ).rejects.toThrow(/disabled/)
     process.env.NODE_ENV = 'test'
     await expect(adapter(r).applyRule({ containmentId: 'd', target: '203.0.113.9' })).rejects.toThrow(/disabled/)
     expect(r.calls).toHaveLength(0)
@@ -216,7 +261,12 @@ describe('containment service: post-apply verification (in-memory DB)', () => {
 
   test('a verified rule becomes ACTIVE', async () => {
     factory.setContainmentAdapter(new Unverifiable(true))
-    const res = await containment.requestContainment({ target: '198.51.100.61', requester: ADMIN, reason: 'verify', emitEvents: false })
+    const res = await containment.requestContainment({
+      target: '198.51.100.61',
+      requester: ADMIN,
+      reason: 'verify',
+      emitEvents: false,
+    })
     expect(res.action.enforcementStatus).toBe('ACTIVE')
   })
 
@@ -224,7 +274,12 @@ describe('containment service: post-apply verification (in-memory DB)', () => {
     const m = new MockContainmentAdapter()
     const spy = jest.spyOn(m, 'verifyRule')
     factory.setContainmentAdapter(m)
-    await containment.requestContainment({ target: '198.51.100.62', requester: ADMIN, reason: 'mock', emitEvents: false })
+    await containment.requestContainment({
+      target: '198.51.100.62',
+      requester: ADMIN,
+      reason: 'mock',
+      emitEvents: false,
+    })
     expect(spy).not.toHaveBeenCalled()
   })
 })

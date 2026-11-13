@@ -40,8 +40,7 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     this.enabled = options.enabled === true
     this.prefix = options.prefix || parsePrefix(process.env.CONTAINMENT_LINUX_COMMAND_PREFIX)
     this._run =
-      options.run ||
-      ((argv, timeout) => execFilePromise(argv[0], argv.slice(1), { timeout, windowsHide: true }))
+      options.run || ((argv, timeout) => execFilePromise(argv[0], argv.slice(1), { timeout, windowsHide: true }))
   }
 
   getBackendType() {
@@ -71,7 +70,8 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
 
   _ruleName(containmentId, ruleName) {
     const name = ruleName || `SentinelAI-Rule-${String(containmentId).replace(/[^a-zA-Z0-9-]/g, '')}`
-    if (!/^SentinelAI-Rule-[A-Za-z0-9-]{1,64}$/.test(name)) throw new Error(`Invalid or unauthorized rule name: ${name}`)
+    if (!/^SentinelAI-Rule-[A-Za-z0-9-]{1,64}$/.test(name))
+      throw new Error(`Invalid or unauthorized rule name: ${name}`)
     return name
   }
 
@@ -84,7 +84,13 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     const t0 = Date.now()
     try {
       const { stdout, stderr } = await this._run(argv, 10000)
-      return { ok: true, exitCode: 0, stdout: (stdout || '').trim(), stderr: (stderr || '').trim(), ms: Date.now() - t0 }
+      return {
+        ok: true,
+        exitCode: 0,
+        stdout: (stdout || '').trim(),
+        stderr: (stderr || '').trim(),
+        ms: Date.now() - t0,
+      }
     } catch (err) {
       return {
         ok: false,
@@ -121,10 +127,24 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     const name = this._ruleName(containmentId, ruleName || ruleId)
     const present = await this._exec(this._argv(tool, '-C', clean, name))
     if (!present.ok) {
-      return { success: true, exitCode: 0, stdout: '', stderr: '', executionDurationMs: present.ms, details: { alreadyAbsent: true } }
+      return {
+        success: true,
+        exitCode: 0,
+        stdout: '',
+        stderr: '',
+        executionDurationMs: present.ms,
+        details: { alreadyAbsent: true },
+      }
     }
     const r = await this._exec(this._argv(tool, '-D', clean, name))
-    return { success: r.ok, exitCode: r.exitCode, stdout: r.stdout, stderr: r.stderr, executionDurationMs: r.ms, details: { target: clean } }
+    return {
+      success: r.ok,
+      exitCode: r.exitCode,
+      stdout: r.stdout,
+      stderr: r.stderr,
+      executionDurationMs: r.ms,
+      details: { target: clean },
+    }
   }
 
   async verifyRule({ containmentId, ruleId, target, ruleName }) {
@@ -142,7 +162,8 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     const r = await this._exec(this._argv(tool, '-C', clean, name))
     if (r.ok) return { state: 'PRESENT', details: { ruleName: name } }
     // iptables -C exits 1 with "does a matching rule exist" when absent; anything else (no sudo, no binary) is unknown
-    if (r.exitCode === 1 && /matching rule|Bad rule/i.test(r.stderr)) return { state: 'ABSENT', details: { ruleName: name } }
+    if (r.exitCode === 1 && /matching rule|Bad rule/i.test(r.stderr))
+      return { state: 'ABSENT', details: { ruleName: name } }
     return { state: 'UNKNOWN', details: { ruleName: name, exitCode: r.exitCode } }
   }
 }

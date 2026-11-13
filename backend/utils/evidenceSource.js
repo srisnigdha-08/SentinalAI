@@ -19,7 +19,10 @@ const SIMULATED_PREFIX = /^(demo|arena|sim)-/i
 function cidrList(raw) {
   const list = new net.BlockList()
   let any = false
-  for (const entry of String(raw || '').split(',').map((s) => s.trim()).filter(Boolean)) {
+  for (const entry of String(raw || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)) {
     const [addr, prefix] = entry.split('/')
     const fam = net.isIP(addr)
     if (!fam) continue
@@ -33,7 +36,9 @@ function cidrList(raw) {
 }
 
 function externalCollectionAuthorized(env = process.env) {
-  return env.HONEYPOT_EXTERNAL_COLLECTION === 'authorized' && Boolean(String(env.HONEYPOT_COLLECTION_NOTICE || '').trim())
+  return (
+    env.HONEYPOT_EXTERNAL_COLLECTION === 'authorized' && Boolean(String(env.HONEYPOT_COLLECTION_NOTICE || '').trim())
+  )
 }
 
 /** Automatic label for a new session. Pure function of its inputs. */

@@ -117,7 +117,14 @@ async function evaluate(p, deps = {}) {
   const scores = prior.map((t) => Number(t.aiScore) || 0).concat(score)
   const flows = scores.length
   const blockLineFlows = scores.filter((s) => s >= p.blockThreshold).length
-  const attackTypes = [...new Set(prior.map((t) => t.attackType).concat(p.attackType).filter(Boolean))]
+  const attackTypes = [
+    ...new Set(
+      prior
+        .map((t) => t.attackType)
+        .concat(p.attackType)
+        .filter(Boolean)
+    ),
+  ]
   const times = prior.map((t) => new Date(t.createdAt).getTime()).concat(now.getTime())
   const evidence = {
     windowSeconds: cfg.windowSeconds,

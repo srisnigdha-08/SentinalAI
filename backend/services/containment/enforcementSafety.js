@@ -21,7 +21,8 @@ const confirmationPhrase = (host = os.hostname()) => `I-AUTHORIZE-FIREWALL-CHANG
 function realEnforcementDecision(env = process.env, host = os.hostname()) {
   const backend = env.CONTAINMENT_BACKEND || 'mock'
   const reasons = []
-  if (!REAL_BACKENDS[backend]) return { allowed: false, backend, reasons: ['CONTAINMENT_BACKEND is not a real firewall backend'] }
+  if (!REAL_BACKENDS[backend])
+    return { allowed: false, backend, reasons: ['CONTAINMENT_BACKEND is not a real firewall backend'] }
   if (env[REAL_BACKENDS[backend]] !== 'true') reasons.push(`${REAL_BACKENDS[backend]} is not "true"`)
   if (env.CONTAINMENT_REAL_ENFORCEMENT_CONFIRM !== confirmationPhrase(host))
     reasons.push('CONTAINMENT_REAL_ENFORCEMENT_CONFIRM does not match this host')

@@ -259,6 +259,9 @@ async function main() {
     AI_ENGINE_ADMIN_KEY: engineEnv.SENTINEL_ADMIN_KEY,
     CONTAINMENT_BACKEND: 'mock',
     CONTAINMENT_PROTECTED_TARGETS: '198.51.100.0/30', // auto-block refusal check (C)
+    // Check C asserts the single-flow containment mechanics (every flow at the block line contained, protected
+    // targets refused with a note). The correlated default is covered by backend/tests/containmentCorrelation.test.js.
+    AUTO_BLOCK_POLICY: 'single_flow',
     ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT: 'false',
     LOG_LEVEL: 'info',
     ...S,

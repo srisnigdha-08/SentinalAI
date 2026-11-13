@@ -49,11 +49,21 @@ function getStatus(now = Date.now()) {
   const age = now - Date.parse(latest.receivedAt)
   const fresh = age <= FRESH_MS
   if (latest.status === 'unavailable')
-    return { mode: 'unavailable', reason: latest.lastError || 'The capture service reported it cannot capture.', fresh, last: latest }
+    return {
+      mode: 'unavailable',
+      reason: latest.lastError || 'The capture service reported it cannot capture.',
+      fresh,
+      last: latest,
+    }
   if (latest.mode === 'pcap_replay' && latest.status === 'finished')
     return { mode: 'pcap_replay', state: 'finished', fresh, last: latest }
   if (!fresh)
-    return { mode: 'unavailable', reason: `No heartbeat for ${Math.round(age / 1000)} s (capture stopped or crashed).`, fresh, last: latest }
+    return {
+      mode: 'unavailable',
+      reason: `No heartbeat for ${Math.round(age / 1000)} s (capture stopped or crashed).`,
+      fresh,
+      last: latest,
+    }
   return { mode: latest.mode, state: latest.status, fresh, last: latest }
 }
 
