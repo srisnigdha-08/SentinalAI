@@ -217,7 +217,10 @@ router.post('/engine/reload', protect, restrictTo('admin'), async (req, res, nex
  */
 router.post('/analyze', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
   try {
-    const r = await aiSvc.runFullPipeline(req.body, req.app.get('io'))
+    // An analyst-submitted flow is either a dataset replay (demo/replay_cicids.py says so) or manual input. It can
+    // never be labelled live or PCAP capture: those labels come only from the capture service's own key.
+    const captureSource = req.body && req.body.captureSource === 'dataset_replay' ? 'dataset_replay' : 'manual'
+    const r = await aiSvc.runFullPipeline(req.body, req.app.get('io'), { captureSource })
     if (!r) return sendError(res, 'AI failed', 503)
     sendSuccess(res, { result: r })
   } catch (err) {

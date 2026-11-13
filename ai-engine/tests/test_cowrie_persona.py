@@ -136,7 +136,7 @@ def test_use_cfg_next_to_keeps_an_explicit_cowrie_cfg(parser):
     assert parser.COWRIE_CFG == "/explicit/cowrie.cfg"
 
 
-@pytest.mark.parametrize("persona", ["ubuntu_22", "debian_11", "centos_7", "windows_srv", "aws_ec2", "raspberry_pi"])
+@pytest.mark.parametrize("persona", ["ubuntu_22", "debian_11", "centos_7", "aws_ec2", "raspberry_pi"])
 def test_every_config_switch_profile_writes_is_recognised(parser, tmp_path, monkeypatch, persona):
     """Contract with honeypot/switch_profile.py: its header is what the parser reads."""
     sys.path.insert(0, str(ROOT / "honeypot"))
@@ -146,8 +146,24 @@ def test_every_config_switch_profile_writes_is_recognised(parser, tmp_path, monk
         sys.path.pop(0)
     cfg = tmp_path / "cowrie.cfg"
     monkeypatch.setattr(switch_profile, "CFG_PATH", cfg)
-    switch_profile.generate_config(persona, allow_unservable=True)
+    switch_profile.generate_config(persona)
     os.utime(cfg, (BEFORE, BEFORE))
     parser.COWRIE_CFG = str(cfg)
     assert parser.served_persona("2026-10-21T10:00:00Z") == persona
     assert set(parser.PERSONAS) == set(switch_profile.PROFILES)
+
+
+def test_switch_profile_refuses_the_unsupported_windows_persona_under_every_flag(tmp_path, monkeypatch):
+    """windows_srv is unsupported (Cowrie is a Linux shell): no flag writes it any more (limitation 5)."""
+    sys.path.insert(0, str(ROOT / "honeypot"))
+    try:
+        switch_profile = _load("switch_profile_unsupported", ROOT / "honeypot/switch_profile.py")
+    finally:
+        sys.path.pop(0)
+    cfg = tmp_path / "cowrie.cfg"
+    monkeypatch.setattr(switch_profile, "CFG_PATH", cfg)
+    for allow in (False, True):
+        with pytest.raises(SystemExit) as e:
+            switch_profile.generate_config("windows_srv", allow_unservable=allow)
+        assert e.value.code == 2
+    assert not cfg.exists()

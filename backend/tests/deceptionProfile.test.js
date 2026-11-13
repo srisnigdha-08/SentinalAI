@@ -80,10 +80,14 @@ describe('active deception profile', () => {
     await expect(honeypotService.setActiveProfile('$where')).rejects.toMatchObject({ statusCode: 400 })
     expect(SystemSetting.findOneAndUpdate).not.toHaveBeenCalled()
 
-    await honeypotService.setActiveProfile('windows_srv')
+    // windows_srv is unsupported (limitation 5): Cowrie emulates a Linux shell, so it can never be recorded as served
+    await expect(honeypotService.setActiveProfile('windows_srv')).rejects.toMatchObject({ statusCode: 400 })
+    expect(SystemSetting.findOneAndUpdate).not.toHaveBeenCalled()
+
+    await honeypotService.setActiveProfile('aws_ec2')
     expect(SystemSetting.findOneAndUpdate).toHaveBeenCalledWith(
       { key: 'deceptionActiveProfile' },
-      { value: 'windows_srv' },
+      { value: 'aws_ec2' },
       { upsert: true, new: true }
     )
   })

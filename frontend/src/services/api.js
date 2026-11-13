@@ -135,6 +135,8 @@ export const reportAPI = {
 
 export const systemAPI = {
   health: () => api.get('/system/health'),
+  capabilities: () => api.get('/system/capabilities'),
+  capture: () => api.get('/system/capture'),
 }
 
 export const trainingSampleAPI = {

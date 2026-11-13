@@ -70,20 +70,22 @@ PROFILES = {
 
 CFG_PATH = Path(__file__).parent / "cowrie" / "cowrie.cfg"
 
-# Personas Cowrie cannot serve convincingly: a Windows banner over a Linux shell is an instant giveaway (H2).
-# The Q-learner never recommends them (DECEPTION_EXCLUDED_PROFILES); writing one needs --allow-unservable.
+# Personas Cowrie cannot serve: a Windows banner over a Linux shell is an instant giveaway and a false claim of a
+# Windows host (H2, docs/PERSONAS.md). They are UNSUPPORTED: never written, under any flag. The Q-learner never
+# recommends them either (deception_scorer.UNSUPPORTED_PROFILES).
 UNSERVABLE = {"windows_srv"}
 
 def generate_config(profile_key, allow_unservable=False):
+    # allow_unservable is accepted for backward compatibility of callers but no longer bypasses the refusal.
     if profile_key not in PROFILES:
         print(f"Error: Unknown profile '{profile_key}'. Available options:")
         for k, v in PROFILES.items():
             print(f"  - {k:<14} ({v['os']} | {v['banner']})")
         sys.exit(1)
 
-    if profile_key in UNSERVABLE and not allow_unservable:
-        print(f"Error: '{profile_key}' cannot be served by Cowrie (Linux shell only); "
-              "pass --allow-unservable to write it anyway.")
+    if profile_key in UNSERVABLE:
+        print(f"Error: '{profile_key}' is unsupported: Cowrie emulates a Linux shell only, so a Windows banner "
+              "would misrepresent the host. Choose a Linux persona (docs/PERSONAS.md).")
         sys.exit(2)
     p = PROFILES[profile_key]
     # Per-persona filesystems built by build_honeyfs.py, used only when the operator opts in, so an unbuilt

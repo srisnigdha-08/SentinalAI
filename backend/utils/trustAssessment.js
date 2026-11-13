@@ -15,6 +15,46 @@
  *   NO_ISSUES     none of the checks above found a problem; this does not establish that the prediction is correct
  */
 
+// Where a flow came from (AIPrediction.captureSource, set by the receiving route). Older records lack the field.
+const CAPTURE_PROVENANCE = {
+  live_passive: {
+    code: 'PROVENANCE_LIVE_PASSIVE',
+    value: 'LIVE_PASSIVE',
+    title: 'Captured live (passive capture)',
+    detail: 'The capture service read this flow from a network interface on this host (receive-only).',
+    impact: 'Live traffic from this network, scored by a model trained on CICIDS2017.',
+  },
+  pcap_replay: {
+    code: 'PROVENANCE_PCAP_REPLAY',
+    value: 'PCAP_REPLAY',
+    title: 'Replayed from a recorded PCAP',
+    detail: 'The capture service extracted this flow from a recorded capture file.',
+    impact: 'Recorded traffic, not live traffic.',
+  },
+  dataset_replay: {
+    code: 'PROVENANCE_DATASET_REPLAY',
+    value: 'DATASET_REPLAY',
+    title: 'Replayed from a dataset',
+    detail: 'A recorded dataset flow (e.g. CICIDS2017) submitted by the replay tool.',
+    impact: 'Recorded benchmark traffic, not live traffic.',
+  },
+  manual: {
+    code: 'PROVENANCE_MANUAL',
+    value: 'MANUAL',
+    title: 'Submitted manually',
+    detail: 'An analyst submitted this flow record through the API.',
+    impact: 'Not observed on the network by SentinelAI.',
+  },
+  unknown: {
+    code: 'PROVENANCE_UNKNOWN',
+    value: 'UNKNOWN',
+    title: 'Capture source not recorded',
+    detail:
+      'This prediction does not record whether the flow was captured live or replayed from a dataset (e.g. CICIDS2017).',
+    impact: 'Do not assume this was live traffic.',
+  },
+}
+
 const EXPECTED_FEATURES = 53
 // Computed by the engine itself, never expected from callers (ai-engine/inference/main.py _NOT_SENT_BY_CALLERS).
 const ENGINE_DERIVED_FEATURES = ['payload_entropy', 'time_of_day_sin', 'time_of_day_cos']
@@ -426,15 +466,16 @@ function assessPrediction(p) {
       )
     )
   }
+  const prov = CAPTURE_PROVENANCE[p.captureSource] || CAPTURE_PROVENANCE.unknown
   reasons.push(
     reason(
-      'PROVENANCE_UNKNOWN',
+      prov.code,
       'info',
-      'Capture source not recorded',
-      'Flow predictions do not record whether the flow was captured live or replayed from a dataset (e.g. CICIDS2017).',
-      p.inputSource || null,
-      'inputSource',
-      'Do not assume this was live traffic.'
+      prov.title,
+      prov.detail,
+      p.captureSource || p.inputSource || null,
+      p.captureSource ? 'captureSource' : 'inputSource',
+      prov.impact
     )
   )
 
@@ -447,7 +488,7 @@ function assessPrediction(p) {
     anomaly,
     input,
     modelVersion: { value: p.modelVersion || null, verifiable: !versionUnverifiable(p.modelVersion) },
-    provenance: 'UNKNOWN',
+    provenance: prov.value,
   }
 }
 

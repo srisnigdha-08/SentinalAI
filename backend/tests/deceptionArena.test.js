@@ -169,12 +169,16 @@ describe('metrics', () => {
   test('scenario allowlist matches the Python runner', () => {
     const py = fs.readFileSync(path.join(ENGINE, 'demo', 'deception_arena.py'), 'utf8')
     const block = py.slice(py.indexOf('SCENARIOS = {'), py.indexOf('\ndef sha256'))
-    const ids = [...block.matchAll(/^ {4}"([a-z_]+)": \{/gm)].map((m) => m[1]).sort()
-    expect(ids).toEqual(Object.keys(M.SCENARIOS).sort())
+    const ids = [...block.matchAll(/^ {4}"([a-z_]+)": \{/gm)].map((m) => m[1])
+    // Attacker profiles are declared with the _P(...) helper, which sets kind SIMULATED
+    const profiles = [...block.matchAll(/^ {4}"([a-z_]+)": _P\(/gm)].map((m) => m[1])
+    expect(block).toMatch(/_P = lambda \*\*kw: \{"kind": "SIMULATED"/)
+    expect([...ids, ...profiles].sort()).toEqual(Object.keys(M.SCENARIOS).sort())
     for (const id of ids) {
       const kind = block.slice(block.indexOf(`"${id}"`)).match(/"kind": "([A-Z]+)"/)[1]
       expect(kind).toBe(M.SCENARIOS[id].kind)
     }
+    for (const id of profiles) expect(M.SCENARIOS[id].kind).toBe('SIMULATED')
   })
 })
 
@@ -354,7 +358,19 @@ describe('experiment API', () => {
   test('scenarios endpoint discloses that live mode is unavailable', async () => {
     const d = (await request(app).get('/api/deception-arena/scenarios').set(as('viewer'))).body.data
     expect(d.liveMode.available).toBe(false)
-    expect(d.scenarios.map((s) => s.id).sort()).toEqual(['persona_sensitive_sim', 'scripted_dropper', 'scripted_recon'])
+    expect(d.scenarios.map((s) => s.id).sort()).toEqual([
+      'persona_sensitive_sim',
+      'profile_cautious_fingerprinter',
+      'profile_credential_bruteforcer',
+      'profile_interactive_explorer',
+      'profile_opportunistic_dropper',
+      'profile_persistence_seeker',
+      'profile_recon_scanner',
+      'scripted_dropper',
+      'scripted_recon',
+    ])
+    // The unsupported Windows persona is never offered as a baseline
+    expect(d.personas).not.toContain('windows_srv')
   })
 })
 

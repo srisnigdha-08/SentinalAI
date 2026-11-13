@@ -106,3 +106,20 @@ models, papers, diagrams and presentation files are retained.
 The owner postponed all Docker operations. The unbuilt fresh deployment files
 and their validator were removed; see VALIDATION.md for the removal record.
 Original environment files, models, datasets and persistent data remain protected.
+
+## Components added 2026-11-13 (limitation remediation)
+
+| Component | Where | Default state |
+|---|---|---|
+| Passive flow capture (PCAP replay, opt-in live) | `ai-engine/capture/`; heartbeat `POST /api/honeypot/ingest/capture-heartbeat`; status `GET /api/system/capture` | replay only; live off |
+| Capture provenance per prediction | `AIPrediction.captureSource` (set by the receiving route) | always on |
+| Correlated auto-block | `backend/services/containmentCorrelationService.js`; `ThreatLog.containmentDecision` | correlated |
+| Real host-firewall adapters with post-apply verification | `backend/services/containment/` (Windows, Linux iptables, `enforcementSafety.js`) | not enabled (mock) |
+| Learning-evidence provenance and v1 dedupe | `rl_engine/deception_scorer.py`; `HoneypotSession.evidenceSource`; `GET /deception/stats`; `GET /api/honeypot/evidence` | always on |
+| Unsupported Windows persona | `UNSUPPORTED_PROFILES` (engine), `switch_profile.UNSERVABLE`, `backend/utils/deceptionProfiles.js` | never selectable |
+| v2 independent evaluation, rollback rehearsal | `evaluation/persona_policy_independent_eval.py`, `honeypot/rollback_rehearsal.py` | offline tools |
+| Arena attacker profiles and batch statistics | `demo/deception_arena.py`, `evaluation/arena_batch.py` | simulated |
+| Session-ML pipeline (no model) | `ai-engine/session_ml/` | blocked: no independent labels |
+| Capability Status | `GET /api/system/capabilities`, `/dashboard/capabilities` | always on |
+
+Status of each: [CAPABILITIES.md](CAPABILITIES.md).

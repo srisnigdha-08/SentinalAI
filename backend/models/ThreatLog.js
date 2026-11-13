@@ -89,6 +89,24 @@ const ThreatLogSchema = new mongoose.Schema(
     rawPayload: { type: String, select: false },
     handledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     notes: { type: String, default: '' },
+    // Why automatic containment was or was not requested (services/containmentCorrelationService.js). Auditable
+    // record of the decision; absent on threats below the block line and on threats stored before it existed.
+    containmentDecision: {
+      type: new mongoose.Schema(
+        {
+          decision: {
+            type: String,
+            enum: ['AUTO_BLOCK', 'NEEDS_APPROVAL', 'SUPPRESSED_TRUSTED', 'SUPPRESSED_DUPLICATE', 'MONITOR', 'DISABLED'],
+          },
+          policy: { type: String, enum: ['correlated', 'single_flow'] },
+          reasons: [String],
+          evidence: { type: mongoose.Schema.Types.Mixed },
+          evaluatedAt: Date,
+        },
+        { _id: false }
+      ),
+      default: undefined,
+    },
     threatIntel: {
       provider: { type: String, default: 'AbuseIPDB' },
       status: {

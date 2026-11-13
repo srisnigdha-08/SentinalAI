@@ -1,0 +1,735 @@
+{
+ "label": "SIMULATED",
+ "preDeclared": "2026-11-13",
+ "seeds": [
+  200,
+  229
+ ],
+ "epochs": 150,
+ "sessionsPerEpoch": 4,
+ "scenarios": {
+  "S6 prefers debian_11, medium gaps": {
+   "policies": {
+    "v1 (deployed q_learning, seeded)": {
+     "identified": 0,
+     "runs": 30,
+     "regret": {
+      "mean": 1.5453,
+      "ci95": [
+       1.5396,
+       1.551
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 96.8233,
+      "ci95": [
+       95.9248,
+       97.7217
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.0089,
+      "ci95": [
+       0.0035,
+       0.0143
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4480.5644,
+      "ci95": [
+       4429.2753,
+       4531.8535
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 5.1511,
+      "ci95": [
+       5.008,
+       5.2941
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    },
+    "v2 (shipped defaults)": {
+     "identified": 30,
+     "runs": 30,
+     "regret": {
+      "mean": 0.8968,
+      "ci95": [
+       0.8297,
+       0.9639
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 17.1812,
+      "ci95": [
+       16.8211,
+       17.5413
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.5111,
+      "ci95": [
+       0.4203,
+       0.602
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4869.0589,
+      "ci95": [
+       4800.0604,
+       4938.0575
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 7.5241,
+      "ci95": [
+       7.1381,
+       7.9101
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    }
+   },
+   "pairedRegretDiff_v2_minus_v1": {
+    "mean": -0.6485,
+    "ci95": [
+     -0.7149,
+     -0.582
+    ],
+    "n": 30
+   },
+   "noUniqueBest": false
+  },
+  "S7 prefers raspberry_pi, frequent fingerprinting": {
+   "policies": {
+    "v1 (deployed q_learning, seeded)": {
+     "identified": 0,
+     "runs": 30,
+     "regret": {
+      "mean": 1.0944,
+      "ci95": [
+       1.0904,
+       1.0984
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 98.6353,
+      "ci95": [
+       98.3297,
+       98.941
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.0056,
+      "ci95": [
+       0.001,
+       0.0101
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 2898.203,
+      "ci95": [
+       2859.6935,
+       2936.7124
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 6.4093,
+      "ci95": [
+       6.065,
+       6.7535
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    },
+    "v2 (shipped defaults)": {
+     "identified": 30,
+     "runs": 30,
+     "regret": {
+      "mean": 0.7126,
+      "ci95": [
+       0.6722,
+       0.7529
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 18.3221,
+      "ci95": [
+       17.9326,
+       18.7117
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.3856,
+      "ci95": [
+       0.3049,
+       0.4663
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 3115.7253,
+      "ci95": [
+       3060.0632,
+       3171.3873
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 11.2627,
+      "ci95": [
+       10.5801,
+       11.9453
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    }
+   },
+   "pairedRegretDiff_v2_minus_v1": {
+    "mean": -0.3819,
+    "ci95": [
+     -0.423,
+     -0.3407
+    ],
+    "n": 30
+   },
+   "noUniqueBest": false
+  },
+  "S8 persona-blind (equal preferences)": {
+   "policies": {
+    "v1 (deployed q_learning, seeded)": {
+     "identified": null,
+     "runs": 30,
+     "regret": {
+      "mean": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 97.5168,
+      "ci95": [
+       97.0077,
+       98.0259
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.4933,
+      "ci95": [
+       0.4819,
+       0.5048
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4468.7557,
+      "ci95": [
+       4418.4261,
+       4519.0852
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 7.615,
+      "ci95": [
+       7.0921,
+       8.1379
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    },
+    "v2 (shipped defaults)": {
+     "identified": null,
+     "runs": 30,
+     "regret": {
+      "mean": 0.0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 16.4653,
+      "ci95": [
+       16.0342,
+       16.8965
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.2578,
+      "ci95": [
+       0.1966,
+       0.3189
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4468.7557,
+      "ci95": [
+       4418.4261,
+       4519.0852
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 12.8683,
+      "ci95": [
+       11.3598,
+       14.3768
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    }
+   },
+   "pairedRegretDiff_v2_minus_v1": {
+    "mean": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "n": 30
+   },
+   "noUniqueBest": true
+  },
+  "S9 drift ubuntu_22 -> aws_ec2 @ epoch 50": {
+   "policies": {
+    "v1 (deployed q_learning, seeded)": {
+     "identified": 0,
+     "runs": 30,
+     "regret": {
+      "mean": 1.88,
+      "ci95": [
+       1.8731,
+       1.8869
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 97.83,
+      "ci95": [
+       97.3551,
+       98.3048
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.01,
+      "ci95": [
+       0.0036,
+       0.0164
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4442.5106,
+      "ci95": [
+       4394.025,
+       4490.9961
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 9.095,
+      "ci95": [
+       8.6956,
+       9.4945
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    },
+    "v2 (shipped defaults)": {
+     "identified": 29,
+     "runs": 30,
+     "regret": {
+      "mean": 1.0004,
+      "ci95": [
+       0.9401,
+       1.0607
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 17.3378,
+      "ci95": [
+       16.8613,
+       17.8143
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.5311,
+      "ci95": [
+       0.4541,
+       0.6082
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4960.3148,
+      "ci95": [
+       4886.1051,
+       5034.5245
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 11.7704,
+      "ci95": [
+       11.4483,
+       12.0925
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    }
+   },
+   "pairedRegretDiff_v2_minus_v1": {
+    "mean": -0.8796,
+    "ci95": [
+     -0.9408,
+     -0.8184
+    ],
+    "n": 30
+   },
+   "noUniqueBest": false
+  },
+  "S10 two close leaders (ubuntu_22 vs debian_11)": {
+   "policies": {
+    "v1 (deployed q_learning, seeded)": {
+     "identified": 2,
+     "runs": 30,
+     "regret": {
+      "mean": 1.1426,
+      "ci95": [
+       1.1279,
+       1.1573
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 92.9978,
+      "ci95": [
+       92.0234,
+       93.9722
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.5556,
+      "ci95": [
+       0.5314,
+       0.5797
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4732.9999,
+      "ci95": [
+       4678.2779,
+       4787.7218
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 8.7626,
+      "ci95": [
+       8.2427,
+       9.2824
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    },
+    "v2 (shipped defaults)": {
+     "identified": 30,
+     "runs": 30,
+     "regret": {
+      "mean": 0.6883,
+      "ci95": [
+       0.636,
+       0.7407
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 17.6957,
+      "ci95": [
+       17.2799,
+       18.1116
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.4533,
+      "ci95": [
+       0.3662,
+       0.5405
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4988.3313,
+      "ci95": [
+       4917.5632,
+       5059.0995
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 12.0347,
+      "ci95": [
+       11.6107,
+       12.4587
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 0,
+      "ci95": [
+       0.0,
+       0.0
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    }
+   },
+   "pairedRegretDiff_v2_minus_v1": {
+    "mean": -0.4543,
+    "ci95": [
+     -0.51,
+     -0.3986
+    ],
+    "n": 30
+   },
+   "noUniqueBest": false
+  },
+  "S11 prefers centos_7, 20 % application failures": {
+   "policies": {
+    "v1 (deployed q_learning, seeded)": {
+     "identified": 0,
+     "runs": 30,
+     "regret": {
+      "mean": 0.7593,
+      "ci95": [
+       0.7416,
+       0.777
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 75.7047,
+      "ci95": [
+       74.4974,
+       76.912
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.5044,
+      "ci95": [
+       0.4855,
+       0.5234
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4971.5064,
+      "ci95": [
+       4918.2283,
+       5024.7845
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 8.6426,
+      "ci95": [
+       8.1759,
+       9.1093
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 30.3333,
+      "ci95": [
+       28.291,
+       32.3757
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    },
+    "v2 (shipped defaults)": {
+     "identified": 30,
+     "runs": 30,
+     "regret": {
+      "mean": 0.9761,
+      "ci95": [
+       0.9066,
+       1.0457
+      ],
+      "n": 30
+     },
+     "switches100": {
+      "mean": 16.4653,
+      "ci95": [
+       15.9658,
+       16.9649
+      ],
+      "n": 30
+     },
+     "bestShareLast30": {
+      "mean": 0.5144,
+      "ci95": [
+       0.4298,
+       0.5991
+      ],
+      "n": 30
+     },
+     "cumReward": {
+      "mean": 4833.79,
+      "ci95": [
+       4757.2518,
+       4910.3283
+      ],
+      "n": 30
+     },
+     "latencyUs": {
+      "mean": 10.6401,
+      "ci95": [
+       10.0583,
+       11.2219
+      ],
+      "n": 30
+     },
+     "applicationFailures": {
+      "mean": 7.2667,
+      "ci95": [
+       6.4212,
+       8.1121
+      ],
+      "n": 30
+     },
+     "unsupportedRecommendations": 0
+    }
+   },
+   "pairedRegretDiff_v2_minus_v1": {
+    "mean": 0.2168,
+    "ci95": [
+     0.1505,
+     0.2831
+    ],
+    "n": 30
+   },
+   "noUniqueBest": false
+  }
+ },
+ "criteria": {
+  "passed": false,
+  "failures": [
+   "C2 S11 prefers centos_7, 20 % application failures: regret diff upper bound 0.2831 > 0.05"
+  ]
+ },
+ "s5": "not used; its earlier result (28/30) is unchanged",
+ "seedTableSha256": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff",
+ "readiness": "NOT READY: simulation criteria are necessary, not sufficient; gates 1-4 need real evidence"
+}

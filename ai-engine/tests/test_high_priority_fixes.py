@@ -42,13 +42,17 @@ def test_concurrent_deception_updates_are_not_lost(monkeypatch):
                "commands": [], "deceptionProfile": "centos_7"}
     start = client.post("/deception/score", json=session, headers=HEADERS).json()["result"]["learnerStats"]["episodeCount"]
 
-    def call(_):
-        return client.post("/deception/score", json=session, headers=HEADERS).status_code
+    # 40 DISTINCT sessions (a repeated session id is now refused by v1 dedupe, which would hide lost updates)
+    def call(i):
+        return client.post("/deception/score", json={**session, "sessionId": f"s{i}"}, headers=HEADERS).status_code
 
     with ThreadPoolExecutor(max_workers=8) as pool:
         codes = list(pool.map(call, range(40)))
 
     assert codes == [200] * 40
+    assert deception.get_scorer().learner.episode_count == start + 40
+    # ...and re-sending one of them is refused rather than learned twice
+    assert client.post("/deception/score", json={**session, "sessionId": "s7"}, headers=HEADERS).json()["result"]["learned"] is False
     assert deception.get_scorer().learner.episode_count == start + 40
 
 

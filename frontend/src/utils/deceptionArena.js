@@ -27,6 +27,7 @@ export const TERMINATION_LABEL = Object.freeze({
   attacker_left: 'Attacker left',
   fingerprinted: 'Honeypot fingerprinted',
   time_limit: 'Hit time limit',
+  login_failed: 'Login failed',
   not_recorded: 'Not recorded',
 })
 

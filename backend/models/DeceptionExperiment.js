@@ -7,7 +7,7 @@ const mongoose = require('mongoose')
 
 const STATUSES = ['CREATED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED']
 const STRATEGIES = ['STATIC', 'ADAPTIVE']
-const TERMINATIONS = ['completed', 'attacker_left', 'fingerprinted', 'time_limit']
+const TERMINATIONS = ['completed', 'attacker_left', 'fingerprinted', 'time_limit', 'login_failed']
 
 const CommandSchema = new mongoose.Schema(
   { command: { type: String, maxlength: 200 }, intent: { type: String, maxlength: 40 } },

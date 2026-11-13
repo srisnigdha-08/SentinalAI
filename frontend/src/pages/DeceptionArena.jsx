@@ -182,6 +182,10 @@ export default function DeceptionArena() {
           <strong style={{ color: '#7ab3cc' }}>Adaptive</strong> serves the persona SentinelAI’s existing Q-learner recommends after each session.
           Both run the same allowlisted scenario, in pairs that share the same attacker behaviour, with the same limits and measurements.
         </div>
+        <div data-testid="arena-simulation-banner" role="note" style={{ marginTop: 8, padding: '6px 10px', border: '1px solid #ffaa00', borderRadius: 4, fontSize: 12, color: '#ffaa00' }}>
+          SIMULATED EVIDENCE — NOT ATTACKER INTELLIGENCE. Every result on this page comes from scripted or simulated attackers with assumed behaviour.
+          It shows how the learner behaves under those assumptions, not how real attackers respond. Real, operator-generated and external sessions are counted separately on the Capability Status page.
+        </div>
         {meta && (
           <div data-testid="arena-live-mode" role="note" style={{ marginTop: 8, fontSize: 12, color: '#ffaa00' }}>
             {meta.liveCaveat} Live Cowrie mode is not available: {meta.liveMode.reason}

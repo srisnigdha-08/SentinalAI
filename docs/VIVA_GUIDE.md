@@ -185,8 +185,7 @@ is raised, health reports 503, and scoring resumes automatically when the engine
 **"Could a viewer see attacker IPs?"** No. Viewer API responses and socket events are redacted on the server (last
 octet masked, commands removed); tested end to end.
 
-**"Is it production-ready?"** No. No TLS, Docker deployment untested, credentials once committed to history (SEC-001,
-risk accepted), simulated enforcement, single host.
+**"Is it production-ready?"** No. No TLS on a real host, containers verified only in CI, credentials once committed to Git history (SEC-001: the affected passwords were changed on 2026-11-08 and a read-only check found no leaked password still valid; the history itself was not rewritten), simulated enforcement by default, single host.
 
 **"What was the hardest bug?"** For example, dashboards silently stopped receiving live threats after a database
 outage: the server closes sockets when it cannot verify sessions, and Socket.IO does not retry that. Fixed with a
@@ -387,11 +386,11 @@ than once left its earlier detections BLOCKED (CONT-001); a real-database test r
 
 ## K. Security limitations
 
-**K1. Is SentinelAI production-ready?** No: no TLS, Docker untested, single host, simulated enforcement, and
-credentials once committed to Git history (SEC-001, risk accepted, not rotated).
+**K1. Is SentinelAI production-ready?** No: no TLS on a real host, containers verified only in CI, single host, simulated enforcement by default, and
+credentials once committed to Git history (SEC-001: the affected passwords were changed on 2026-11-08 and a read-only check found no leaked password still valid; the history itself was not rewritten).
 
-**K2. What is SEC-001?** Credentials were committed in the repository's history. Fixing it needs rotation and history
-clean-up; the owner accepted the risk for this project and it stays documented as open.
+**K2. What is SEC-001?** Credentials were committed in the repository's history. The affected passwords were changed on 2026-11-08
+and `scripts/security/sec001_check.cjs` (read-only) found none still valid; the history was not rewritten.
 
 **K3. Biggest risk if deployed as it is?** Over-trusting the detector: it misses most unseen attacks.
 

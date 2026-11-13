@@ -1,0 +1,527 @@
+{
+ "label": "SIMULATED",
+ "evidenceSource": "simulated",
+ "preDeclared": "2026-11-13",
+ "baselinePersona": "centos_7",
+ "pairsPerReplication": 50,
+ "replications": 4,
+ "seed0": 1000,
+ "profiles": {
+  "profile_recon_scanner": {
+   "title": "Reconnaissance scanner (automated, fast, shallow)",
+   "kind": "PROFILE",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 3.68,
+    "adaptive": 3.76,
+    "meanDiff": 0.08,
+    "ci95": [
+     0.005,
+     0.18
+    ],
+    "dz": 0.126,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "depth": {
+    "static": 1.535,
+    "adaptive": 1.57,
+    "meanDiff": 0.035,
+    "ci95": [
+     0.005,
+     0.075
+    ],
+    "dz": 0.138,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "diversity": {
+    "static": 1.375,
+    "adaptive": 1.395,
+    "meanDiff": 0.02,
+    "ci95": [
+     0.0,
+     0.05
+    ],
+    "dz": 0.116,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "fingerprinted": {
+    "static": 0.05,
+    "adaptive": 0.05,
+    "meanDiff": 0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": 2.0982,
+    "adaptive": 2.1112,
+    "meanDiff": 0.013,
+    "ci95": [
+     0.0017,
+     0.0276
+    ],
+    "dz": 0.137,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  },
+  "profile_credential_bruteforcer": {
+   "title": "Credential brute-forcer (many logins, little shell activity)",
+   "kind": "PROFILE",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 5.135,
+    "adaptive": 5.135,
+    "meanDiff": 0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "depth": {
+    "static": 0.44,
+    "adaptive": 0.44,
+    "meanDiff": 0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "diversity": {
+    "static": 0.405,
+    "adaptive": 0.405,
+    "meanDiff": 0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "fingerprinted": {
+    "static": 0.015,
+    "adaptive": 0.015,
+    "meanDiff": 0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": 1.4644,
+    "adaptive": 1.4644,
+    "meanDiff": 0.0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  },
+  "profile_interactive_explorer": {
+   "title": "Interactive explorer (human-paced, deep discovery)",
+   "kind": "PROFILE",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 66.96,
+    "adaptive": 82.18,
+    "meanDiff": 15.22,
+    "ci95": [
+     9.7049,
+     21.65
+    ],
+    "dz": 0.35,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "depth": {
+    "static": 2.66,
+    "adaptive": 3.195,
+    "meanDiff": 0.535,
+    "ci95": [
+     0.355,
+     0.745
+    ],
+    "dz": 0.377,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "diversity": {
+    "static": 2.24,
+    "adaptive": 2.58,
+    "meanDiff": 0.34,
+    "ci95": [
+     0.22,
+     0.475
+    ],
+    "dz": 0.367,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "fingerprinted": {
+    "static": 0.125,
+    "adaptive": 0.135,
+    "meanDiff": 0.01,
+    "ci95": [
+     0.0,
+     0.025
+    ],
+    "dz": 0.1,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": 3.9344,
+    "adaptive": 4.5097,
+    "meanDiff": 0.5753,
+    "ci95": [
+     0.3339,
+     0.8558
+    ],
+    "dz": 0.303,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  },
+  "profile_persistence_seeker": {
+   "title": "Persistence seeker (cron, keys, services)",
+   "kind": "PROFILE",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 30.085,
+    "adaptive": 31.13,
+    "meanDiff": 1.045,
+    "ci95": [
+     0.275,
+     1.98
+    ],
+    "dz": 0.169,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "depth": {
+    "static": 2.79,
+    "adaptive": 2.87,
+    "meanDiff": 0.08,
+    "ci95": [
+     0.01,
+     0.165
+    ],
+    "dz": 0.142,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "diversity": {
+    "static": 2.18,
+    "adaptive": 2.225,
+    "meanDiff": 0.045,
+    "ci95": [
+     -0.005,
+     0.105
+    ],
+    "dz": 0.115,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "fingerprinted": {
+    "static": 0.07,
+    "adaptive": 0.075,
+    "meanDiff": 0.005,
+    "ci95": [
+     0.0,
+     0.015
+    ],
+    "dz": 0.071,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": 4.9834,
+    "adaptive": 5.1034,
+    "meanDiff": 0.1199,
+    "ci95": [
+     -0.0064,
+     0.277
+    ],
+    "dz": 0.116,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  },
+  "profile_cautious_fingerprinter": {
+   "title": "Cautious fingerprinter (checks for virtualisation, leaves early)",
+   "kind": "PROFILE",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 15.475,
+    "adaptive": 15.715,
+    "meanDiff": 0.24,
+    "ci95": [
+     0.0,
+     0.61
+    ],
+    "dz": 0.105,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "depth": {
+    "static": 1.245,
+    "adaptive": 1.265,
+    "meanDiff": 0.02,
+    "ci95": [
+     0.0,
+     0.05
+    ],
+    "dz": 0.116,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "diversity": {
+    "static": 1.18,
+    "adaptive": 1.2,
+    "meanDiff": 0.02,
+    "ci95": [
+     0.0,
+     0.05
+    ],
+    "dz": 0.116,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "fingerprinted": {
+    "static": 0.34,
+    "adaptive": 0.355,
+    "meanDiff": 0.015,
+    "ci95": [
+     0.0,
+     0.035
+    ],
+    "dz": 0.123,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": -0.0775,
+    "adaptive": -0.1155,
+    "meanDiff": -0.0379,
+    "ci95": [
+     -0.1019,
+     0.0066
+    ],
+    "dz": -0.091,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  },
+  "profile_opportunistic_dropper": {
+   "title": "Opportunistic dropper (download and run a payload)",
+   "kind": "PROFILE",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 22.125,
+    "adaptive": 20.95,
+    "meanDiff": -1.175,
+    "ci95": [
+     -1.93,
+     -0.535
+    ],
+    "dz": -0.229,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "depth": {
+    "static": 2.92,
+    "adaptive": 2.775,
+    "meanDiff": -0.145,
+    "ci95": [
+     -0.24,
+     -0.07
+    ],
+    "dz": -0.233,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "diversity": {
+    "static": 2.28,
+    "adaptive": 2.155,
+    "meanDiff": -0.125,
+    "ci95": [
+     -0.2,
+     -0.06
+    ],
+    "dz": -0.245,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "fingerprinted": {
+    "static": 0.065,
+    "adaptive": 0.065,
+    "meanDiff": 0,
+    "ci95": [
+     0.0,
+     0.0
+    ],
+    "dz": null,
+    "statisticallyMeaningful": false,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": 7.8438,
+    "adaptive": 7.3712,
+    "meanDiff": -0.4726,
+    "ci95": [
+     -0.7689,
+     -0.2232
+    ],
+    "dz": -0.238,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  },
+  "persona_sensitive_sim": {
+   "title": "Persona-sensitive simulated attacker (assumed preferences)",
+   "kind": "SIMULATED",
+   "pairs": 200,
+   "durationSeconds": {
+    "static": 30.115,
+    "adaptive": 43.11,
+    "meanDiff": 12.995,
+    "ci95": [
+     8.895,
+     17.4201
+    ],
+    "dz": 0.422,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "depth": {
+    "static": 2.155,
+    "adaptive": 3.07,
+    "meanDiff": 0.915,
+    "ci95": [
+     0.635,
+     1.215
+    ],
+    "dz": 0.437,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "diversity": {
+    "static": 1.955,
+    "adaptive": 2.595,
+    "meanDiff": 0.64,
+    "ci95": [
+     0.44,
+     0.855
+    ],
+    "dz": 0.428,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "fingerprinted": {
+    "static": 0.105,
+    "adaptive": 0.135,
+    "meanDiff": 0.03,
+    "ci95": [
+     0.01,
+     0.055
+    ],
+    "dz": 0.175,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": false
+   },
+   "reward": {
+    "static": 5.1856,
+    "adaptive": 6.3491,
+    "meanDiff": 1.1635,
+    "ci95": [
+     0.7497,
+     1.6132
+    ],
+    "dz": 0.374,
+    "statisticallyMeaningful": true,
+    "practicallyMeaningful": true
+   },
+   "switchesPer100": 99.0,
+   "adaptivePersonaShare": {
+    "aws_ec2": 0.01,
+    "centos_7": 0.47,
+    "debian_11": 0.005,
+    "raspberry_pi": 0.005,
+    "ubuntu_22": 0.51
+   }
+  }
+ },
+ "decisionOverheadMicroseconds": 12.52,
+ "isolation": {
+  "liveStateUnchanged": true,
+  "liveFilesChecked": 2
+ }
+}

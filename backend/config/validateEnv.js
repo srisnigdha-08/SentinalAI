@@ -90,8 +90,8 @@ const validateEnv = (env = process.env) => {
   const realEnforcement =
     !isTest &&
     env.CONTAINMENT_DRY_RUN !== 'true' &&
-    env.CONTAINMENT_BACKEND === 'windows-firewall' &&
-    env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true'
+    ((env.CONTAINMENT_BACKEND === 'windows-firewall' && env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true') ||
+      (env.CONTAINMENT_BACKEND === 'linux-iptables' && env.ENABLE_REAL_LINUX_FIREWALL_ENFORCEMENT === 'true'))
   if (realEnforcement) {
     if (!env.CONTAINMENT_PROTECTED_TARGETS || !env.CONTAINMENT_PROTECTED_TARGETS.trim()) {
       errors.push('CONTAINMENT_PROTECTED_TARGETS is required with real firewall enforcement (own hosts, gateway, LAN).')

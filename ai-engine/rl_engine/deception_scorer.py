@@ -80,18 +80,31 @@ PROFILES = {
 }
 PROFILES_LIST = list(PROFILES.keys())
 
-# Personas the honeypot cannot actually serve are never recommended (H5). Cowrie emulates only a Linux shell,
-# so windows_srv would be a Windows banner over bash, an instant giveaway; under UCB1 its untried arm would
-# even be picked first. They stay in the table (states, history, the shipped seed) and can still be credited
-# if served by hand. DECEPTION_EXCLUDED_PROFILES (comma-separated) overrides the default; "" allows all.
+# Personas the honeypot cannot actually serve (H5, docs/PERSONAS.md). Cowrie emulates only a Linux shell, so
+# windows_srv would be a Windows banner over bash: an instant giveaway and a false claim of a Windows host. It is
+# UNSUPPORTED: never recommended, never selectable, never served, under every setting. It stays in the Q-table
+# only so the shipped seed and history keep their shape. DECEPTION_EXCLUDED_PROFILES can exclude MORE personas,
+# never re-enable an unsupported one; excluding every Linux persona falls back to all Linux personas.
+UNSUPPORTED_PROFILES = frozenset({"windows_srv"})
 DEFAULT_EXCLUDED = "windows_srv"
+SUPPORTED_PROFILES = [p for p in PROFILES_LIST if p not in UNSUPPORTED_PROFILES]
+
+# Evidence provenance of learning updates (docs/QLEARNING_EVIDENCE.md)
+EVIDENCE_SOURCES = ("operator", "external", "simulated", "unknown")
+UPDATE_LOG_MAX = 200
+LEARNED_SESSIONS_MAX = 20000
+
+
+def normalise_source(value) -> str:
+    v = str(value or "").strip().lower()
+    return v if v in EVIDENCE_SOURCES else "unknown"
 
 
 def servable_profiles():
     raw = os.getenv("DECEPTION_EXCLUDED_PROFILES", DEFAULT_EXCLUDED)
-    excluded = {p.strip() for p in raw.split(",") if p.strip()}
+    excluded = {p.strip() for p in raw.split(",") if p.strip()} | UNSUPPORTED_PROFILES
     allowed = [p for p in PROFILES_LIST if p not in excluded]
-    return allowed or PROFILES_LIST
+    return allowed or list(SUPPORTED_PROFILES)
 
 INTENT_BONUSES = {"CREDENTIAL_HARVEST":1.5,"MALWARE_DOWNLOAD":3.0,"REVERSE_SHELL":2.5,"PERSISTENCE":2.0,"PRIVILEGE_ESCALATION":1.5}
 
@@ -225,6 +238,15 @@ class DeceptionQLearner:
         # Where the table's starting values came from (written by inference.deception.get_scorer when it
         # copies the shipped seed); None for tables that predate the field.
         self.seed_provenance = None
+        # Evidence provenance (docs/QLEARNING_EVIDENCE.md): where every session-driven update came from, per persona,
+        # a bounded log tracing updates to sessions, and the session ids already learned (v1 dedupe: a session is
+        # learned at most once, however often it is re-scored). Sessions learned before this existed are "untracked".
+        self.learned_sessions = {}
+        self.evidence_counts = {s: 0 for s in EVIDENCE_SOURCES}
+        self.arm_evidence = {a: {s: 0 for s in EVIDENCE_SOURCES} for a in PROFILES_LIST}
+        self.update_log = []
+        self.duplicates_rejected = 0
+        self._pending_meta = []
         self._load()
 
     def _load(self):
@@ -241,10 +263,27 @@ class DeceptionQLearner:
                     if a in self.arm_stats:
                         self.arm_stats[a] = {"n": int(st.get("n", 0)), "mean": float(st.get("mean", 0.0))}
                 self.seed_provenance=data.get("seed_provenance")
+                self._load_evidence(data)
                 self._fill_missing(self.q_table)
                 self._disk_signature=_file_signature(p)
             except (OSError, ValueError) as e:
                 log.warning("Q-table at %s could not be read (%s); starting from defaults", p, type(e).__name__)
+
+    def _load_evidence(self, data):
+        ev = data.get("evidence") or {}
+        self.learned_sessions = {str(k): normalise_source(v) for k, v in (ev.get("learned_sessions") or {}).items()}
+        for s in EVIDENCE_SOURCES:
+            self.evidence_counts[s] = int((ev.get("counts") or {}).get(s, 0))
+        for a in PROFILES_LIST:
+            row = (ev.get("per_persona") or {}).get(a) or {}
+            self.arm_evidence[a] = {s: int(row.get(s, 0)) for s in EVIDENCE_SOURCES}
+        self.update_log = list(ev.get("update_log") or [])[-UPDATE_LOG_MAX:]
+        self.duplicates_rejected = int(ev.get("duplicates_rejected", 0))
+
+    def _evidence_payload(self):
+        ids = list(self.learned_sessions.items())[-LEARNED_SESSIONS_MAX:]
+        return {"counts": self.evidence_counts, "per_persona": self.arm_evidence, "learned_sessions": dict(ids),
+                "update_log": self.update_log[-UPDATE_LOG_MAX:], "duplicates_rejected": self.duplicates_rejected}
 
     @staticmethod
     def _fill_missing(table):
@@ -283,6 +322,13 @@ class DeceptionQLearner:
             self._record_arm(action, reward)
         self.q_table = self._fill_missing(table)
         self.seed_provenance = disk.get("seed_provenance", self.seed_provenance)
+        # Evidence: the other process's records plus ours (sessions it already learned are not counted twice)
+        mine = self._pending_meta
+        self._load_evidence(disk)
+        for sid, source, action, entry in mine:
+            if sid and sid in self.learned_sessions:
+                continue
+            self._count_evidence(sid, source, action, entry)
         self.episode_count = disk.get("episode_count", 0) + len(self._pending)
         self.total_reward = disk.get("total_reward", 0.0) + sum(r for _, _, r, _ in self._pending)
         self.reward_history = (disk.get("reward_history", []) + [round(r, 2) for _, _, r, _ in self._pending])[-100:]
@@ -358,6 +404,7 @@ class DeceptionQLearner:
             }
             if self.seed_provenance is not None:
                 payload["seed_provenance"] = self.seed_provenance
+            payload["evidence"] = self._evidence_payload()
             try:
                 with open(tmp_target, "w", encoding="utf-8") as f:
                     json.dump(payload, f, indent=2)
@@ -373,6 +420,7 @@ class DeceptionQLearner:
                 raise
             self._disk_signature = _file_signature(target)
             self._pending = []
+            self._pending_meta = []
 
     def current_epsilon(self) -> float:
         return max(EPSILON_MIN, self.epsilon / (1 + self.episode_count * 0.01))
@@ -405,7 +453,33 @@ class DeceptionQLearner:
         if random.random()<self.current_epsilon(): return random.choice(actions)
         return self.greedy_action(state)
 
-    def update(self, state, action, reward, next_state):
+    def _count_evidence(self, session_id, source, action, entry):
+        self.evidence_counts[source] = self.evidence_counts.get(source, 0) + 1
+        row = self.arm_evidence.setdefault(action, {s: 0 for s in EVIDENCE_SOURCES})
+        row[source] = row.get(source, 0) + 1
+        if session_id:
+            self.learned_sessions[session_id] = source
+            if len(self.learned_sessions) > LEARNED_SESSIONS_MAX:
+                for k in list(self.learned_sessions)[: len(self.learned_sessions) - LEARNED_SESSIONS_MAX]:
+                    del self.learned_sessions[k]
+        self.update_log = (self.update_log + [entry])[-UPDATE_LOG_MAX:]
+
+    def already_learned(self, session_id) -> bool:
+        return bool(session_id) and str(session_id) in self.learned_sessions
+
+    def update(self, state, action, reward, next_state, session_id=None, source="unknown"):
+        """One TD update. With a session_id the update is traced to it, and a session already learned is refused
+        (returns False, nothing changes). Returns True when the table was updated."""
+        session_id = str(session_id) if session_id else None
+        source = normalise_source(source)
+        if self.already_learned(session_id):
+            self.duplicates_rejected += 1
+            log.info("Q-learner: session %s already learned; duplicate update refused", session_id[:64])
+            return False
+        entry = {"sessionId": session_id, "source": source, "state": state, "persona": action,
+                 "reward": round(float(reward), 4), "at": datetime.now(timezone.utc).isoformat()}
+        self._count_evidence(session_id, source, action, entry)
+        self._pending_meta.append((session_id, source, action, entry))
         td_error = self._td_update(self.q_table, state, action, reward, next_state)
         self.td_errors = (self.td_errors + [round(td_error, 4)])[-CONVERGENCE_WINDOW:]
         self._pending.append((state, action, reward, next_state))
@@ -413,6 +487,7 @@ class DeceptionQLearner:
         self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
         # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
         if self.episode_count % max(1, int(os.getenv("Q_SAVE_EVERY", "1"))) == 0: self.save()
+        return True
 
     def get_profile_rankings(self):
         avg={p:sum(self.q_table[s].get(p,0) for s in PROFILES_LIST)/len(PROFILES_LIST) for p in PROFILES_LIST}
@@ -430,11 +505,19 @@ class DeceptionQLearner:
         The shipped seed (models/q_table.json) is a synthetic warm start, not attacker data.
         """
         seed = self.seed_provenance
+        tracked = sum(self.evidence_counts.values())
+        evidence = {"bySource": dict(self.evidence_counts), "trackedSessionEpisodes": tracked,
+                    "perPersona": {a: dict(r) for a, r in self.arm_evidence.items()},
+                    "duplicatesRejected": self.duplicates_rejected,
+                    "independentExternalSessions": self.evidence_counts.get("external", 0)}
         if not seed:
-            return {"seed": "unknown", "seedEpisodes": None, "sessionEpisodes": None, "synthetic": None}
+            return {"seed": "unknown", "seedEpisodes": None, "sessionEpisodes": None, "synthetic": None,
+                    "untrackedSessionEpisodes": None, **evidence}
         seed_n = int(seed.get("episodes", 0))
-        return {"seed": seed.get("source", "unknown"), "seedEpisodes": seed_n,
-                "sessionEpisodes": max(0, self.episode_count - seed_n), "synthetic": bool(seed.get("synthetic"))}
+        session_n = max(0, self.episode_count - seed_n)
+        return {"seed": seed.get("source", "unknown"), "seedEpisodes": seed_n, "sessionEpisodes": session_n,
+                "synthetic": bool(seed.get("synthetic")), "untrackedSessionEpisodes": max(0, session_n - tracked),
+                **evidence}
 
     def get_stats(self):
         recent=self.reward_history[-20:]
@@ -465,10 +548,11 @@ class SessionScorer:
         for s in (state, active):
             row=self.learner.q_table.setdefault(s,{})
             for a in PROFILES_LIST: row.setdefault(a,0.0)
-        self.learner.update(state,active,reward,active)
+        source=normalise_source(session.get("evidenceSource"))
+        learned=self.learner.update(state,active,reward,active,session_id=session.get("sessionId"),source=source)
         self.last_active=active; self.current=active
         next_p=self.learner.choose_action(active)
-        out={"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learnerStats":self.learner.get_stats()}
+        out={"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learned":learned,"evidenceSource":source,"duplicate":not learned,"learnerStats":self.learner.get_stats()}
         if self.v2 is not None:
             # The same observation (session, served persona, reward) feeds v2 exactly once (session-id dedupe).
             # v2 must never break v1 scoring: any failure is logged and reported, v1's result stands.

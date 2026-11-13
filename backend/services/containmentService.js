@@ -326,6 +326,45 @@ const requestContainment = async ({
     }
   }
 
+  // Step 9b: a successful command is not proof of a block. Real host adapters declare requiresPostApplyVerification;
+  // their rule is looked up again, and an unconfirmed rule fails the action (and is removed if half-created).
+  if (adapterResult.success && adapter.requiresPostApplyVerification === true) {
+    const ruleParams = {
+      containmentId: actionDoc.containmentId,
+      ruleId: adapterResult.ruleId,
+      target: normalized,
+      ruleName: adapterResult.ruleName || `SentinelAI-Rule-${actionDoc.containmentId}`,
+    }
+    let verified = false
+    try {
+      const v = await adapter.verifyRule(ruleParams)
+      verified = Boolean(v && v.exists && v.active)
+    } catch (verifyErr) {
+      logger.warn(`[Containment] Post-apply verification error: ${verifyErr.message}`)
+    }
+    logContainmentAudit({
+      action: verified ? 'ENFORCEMENT_VERIFIED' : 'ENFORCEMENT_NOT_VERIFIED',
+      containmentId: actionDoc.containmentId,
+      correlationId,
+      target: normalized,
+      enforcementStatus: 'APPLYING',
+      operatorId: requester?._id || requester?.id,
+      details: { backend: adapter.getBackendType(), ruleName: ruleParams.ruleName },
+    })
+    if (!verified) {
+      try {
+        await adapter.removeRule(ruleParams)
+      } catch (cleanupErr) {
+        logger.error(`[Containment] Cleanup of unverified rule failed: ${cleanupErr.message}`)
+      }
+      adapterResult = {
+        ...adapterResult,
+        success: false,
+        stderr: 'ENFORCEMENT_NOT_VERIFIED: the rule was not found after the apply command reported success',
+      }
+    }
+  }
+
   // Step 10: Process Adapter Result
   if (!adapterResult.success) {
     actionDoc.transitionTo('FAILED', {

@@ -61,7 +61,7 @@ def _generate(tmp_path, monkeypatch, persona, honeyfs=None):
     else:
         monkeypatch.setenv("COWRIE_PERSONA_HONEYFS", honeyfs)
     monkeypatch.setattr(switch_profile, "CFG_PATH", tmp_path / "cowrie.cfg")
-    switch_profile.generate_config(persona, allow_unservable=True)  # windows_srv is written on purpose here
+    switch_profile.generate_config(persona)
     cfg = configparser.ConfigParser(interpolation=None)
     cfg.read(tmp_path / "cowrie.cfg")
     return cfg
@@ -71,7 +71,8 @@ def test_switch_profile_uses_persona_contents_only_when_opted_in(tmp_path, monke
     assert not _generate(tmp_path, monkeypatch, "ubuntu_22").has_option("honeypot", "contents_path")
     cfg = _generate(tmp_path, monkeypatch, "ubuntu_22", "honeyfs-personas")
     assert cfg.get("honeypot", "contents_path") == "honeyfs-personas/ubuntu_22"
-    assert not _generate(tmp_path, monkeypatch, "windows_srv", "honeyfs-personas").has_option("honeypot", "contents_path")
+    with pytest.raises(SystemExit):  # windows_srv is unsupported and never written (limitation 5)
+        _generate(tmp_path, monkeypatch, "windows_srv", "honeyfs-personas")
 
 
 # ---- fs.pickle mode (current Cowrie: contents inside the pickle). Shapes copied from cowrie c7773f4's
@@ -152,7 +153,8 @@ def test_switch_profile_points_shell_filesystem_at_the_persona_pickle(tmp_path, 
     monkeypatch.setenv("COWRIE_PERSONA_FS", "personas")
     cfg = _generate(tmp_path, monkeypatch, "aws_ec2")
     assert cfg.get("shell", "filesystem") == "personas/aws_ec2.pickle"
-    assert not _generate(tmp_path, monkeypatch, "windows_srv").has_option("shell", "filesystem")
+    with pytest.raises(SystemExit):  # windows_srv is unsupported and never written (limitation 5)
+        _generate(tmp_path, monkeypatch, "windows_srv")
 
 
 def test_pickle_mode_plants_canaries_and_motd(cowrie_pickle, tmp_path):

@@ -11,6 +11,18 @@ const SCENARIOS = Object.freeze({
   scripted_recon: { kind: 'SCRIPTED', title: 'Scripted reconnaissance (fixed script)' },
   scripted_dropper: { kind: 'SCRIPTED', title: 'Scripted dropper (fixed script)' },
   persona_sensitive_sim: { kind: 'SIMULATED', title: 'Persona-sensitive simulated attacker (assumed preferences)' },
+  profile_recon_scanner: { kind: 'SIMULATED', title: 'Reconnaissance scanner (automated, fast, shallow)' },
+  profile_credential_bruteforcer: {
+    kind: 'SIMULATED',
+    title: 'Credential brute-forcer (many logins, little shell activity)',
+  },
+  profile_interactive_explorer: { kind: 'SIMULATED', title: 'Interactive explorer (human-paced, deep discovery)' },
+  profile_persistence_seeker: { kind: 'SIMULATED', title: 'Persistence seeker (cron, keys, services)' },
+  profile_cautious_fingerprinter: {
+    kind: 'SIMULATED',
+    title: 'Cautious fingerprinter (checks for virtualisation, leaves early)',
+  },
+  profile_opportunistic_dropper: { kind: 'SIMULATED', title: 'Opportunistic dropper (download and run a payload)' },
 })
 const MIN_PAIRS_FOR_INTERVAL = 10
 

@@ -1,0 +1,127 @@
+{
+ "table": "operator demo table (%USERPROFILE%/.sentinelai/demo/q_table.json; read from a copy)",
+ "tableSha256": "99cf9af14c2b873b86b52e285a06a90c53097547afe2309f5a6a7b3694849fcf",
+ "readOnly": true,
+ "episodes": {
+  "total": 12106,
+  "syntheticSeed": 12087,
+  "sessionDriven": 19,
+  "syntheticShare": 0.99843,
+  "bySource": {
+   "operator": 0,
+   "external": 0,
+   "simulated": 0,
+   "unknown": 0
+  },
+  "untracked": 19,
+  "independentExternal": 0
+ },
+ "perPersona": {
+  "ubuntu_22": {
+   "servable": true,
+   "realSessions": 16,
+   "realMeanNormalisedReward": 0.4482,
+   "seedWeightTypical": 0.7551,
+   "seedWeightBestCase": 0.1853,
+   "bySource": null
+  },
+  "debian_11": {
+   "servable": true,
+   "realSessions": 0,
+   "realMeanNormalisedReward": null,
+   "seedWeightTypical": 1.0,
+   "seedWeightBestCase": 1.0,
+   "bySource": null
+  },
+  "centos_7": {
+   "servable": true,
+   "realSessions": 3,
+   "realMeanNormalisedReward": 0.4421,
+   "seedWeightTypical": 0.9487,
+   "seedWeightBestCase": 0.729,
+   "bySource": null
+  },
+  "windows_srv": {
+   "servable": false,
+   "realSessions": 0,
+   "realMeanNormalisedReward": null,
+   "seedWeightTypical": 1.0,
+   "seedWeightBestCase": 1.0,
+   "bySource": null
+  },
+  "aws_ec2": {
+   "servable": true,
+   "realSessions": 0,
+   "realMeanNormalisedReward": null,
+   "seedWeightTypical": 1.0,
+   "seedWeightBestCase": 1.0,
+   "bySource": null
+  },
+  "raspberry_pi": {
+   "servable": true,
+   "realSessions": 0,
+   "realMeanNormalisedReward": null,
+   "seedWeightTypical": 1.0,
+   "seedWeightBestCase": 1.0,
+   "bySource": null
+  }
+ },
+ "personasWithRealEvidence": [
+  "ubuntu_22",
+  "centos_7"
+ ],
+ "personasWithoutRealEvidence": [
+  "debian_11",
+  "aws_ec2",
+  "raspberry_pi"
+ ],
+ "decisions": {
+  "ubuntu_22": {
+   "seedOnly": "centos_7",
+   "current": "centos_7",
+   "changedByRealData": false
+  },
+  "debian_11": {
+   "seedOnly": "ubuntu_22",
+   "current": "ubuntu_22",
+   "changedByRealData": false
+  },
+  "centos_7": {
+   "seedOnly": "ubuntu_22",
+   "current": "ubuntu_22",
+   "changedByRealData": false
+  },
+  "windows_srv": {
+   "seedOnly": "ubuntu_22",
+   "current": "ubuntu_22",
+   "changedByRealData": false
+  },
+  "aws_ec2": {
+   "seedOnly": "ubuntu_22",
+   "current": "ubuntu_22",
+   "changedByRealData": false
+  },
+  "raspberry_pi": {
+   "seedOnly": "ubuntu_22",
+   "current": "ubuntu_22",
+   "changedByRealData": false
+  }
+ },
+ "decisionsChangedByRealData": 0,
+ "rankingSeedAvgQ": [
+  "ubuntu_22",
+  "centos_7",
+  "aws_ec2",
+  "raspberry_pi",
+  "debian_11"
+ ],
+ "rankingRealMeanReward": [
+  "ubuntu_22",
+  "centos_7"
+ ],
+ "recentRewards": {
+  "n": 100,
+  "mean": 11.715
+ },
+ "verdict": "Synthetic initialisation dominates: 19 session-driven updates against 12087 synthetic seed episodes; 0 independent external sessions."
+}

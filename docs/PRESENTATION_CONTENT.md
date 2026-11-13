@@ -162,8 +162,9 @@ analytics, `09` settings and containment, `10` viewer redaction.
 - The persona learner's benefit for real attackers is not established (Deception Arena: scripted and simulated only);
   its state is only the previous persona.
 - The AI Trust Meter shows evidence and limitations, not the probability that a prediction is correct.
-- Auto-block acts on a single flow (no correlation); single-host deployment; no TLS; Docker untested.
-- Credentials once committed to history (SEC-001), risk accepted, not rotated.
+- Auto-block needs correlated flows from one source (a single flow waits for approval); single-host only; real TLS and containers verified in CI, never deployed.
+- Credentials once committed to history (SEC-001): passwords changed, none still valid; history not rewritten.
+- Windows persona unsupported; v2 shadow-only (simulation criterion failed under application failures); live capture and real firewall adapters implemented but not enabled; no session ML (no independent labels). Status: docs/CAPABILITIES.md.
 
 ## 15. Future improvements
 

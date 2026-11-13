@@ -18,6 +18,7 @@ import { useSocket } from '../hooks/useSocket.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
 import { manualBlockOutcome } from '../utils/containmentLabels.js'
+import { captureChip } from '../utils/capabilities.js'
 import { scoreColor } from '../utils/scoreBands.js'
 import { useScoreLines } from '../hooks/useScoreLines.js'
 
@@ -159,6 +160,17 @@ export default function Dashboard() {
     return () => clearInterval(interval)
   // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only poll; load only calls APIs and setters
   }, [])
+
+  // Traffic source (live passive capture / recorded PCAP replay / unavailable); never labels a replay as live
+  const [captureStatus, setCaptureStatus] = useState(null)
+  useEffect(() => {
+    let alive = true
+    const poll = () => systemAPI.capture().then((r) => alive && setCaptureStatus(r.data.data)).catch(() => alive && setCaptureStatus(null))
+    poll()
+    const t = setInterval(poll, 30000)
+    return () => { alive = false; clearInterval(t) }
+  }, [])
+  const capture = captureChip(captureStatus)
 
   // ── Real Socket.IO telemetry & threat events ──
   useEffect(() => {
@@ -520,6 +532,12 @@ export default function Dashboard() {
             background: 'rgba(0,255,136,.08)', padding: '5px 12px', borderRadius: 2
           }}>
             ● REAL DATA MODE
+          </span>
+          <span data-testid="capture-chip" title={capture.title} style={{
+            fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: capture.color,
+            border: `1px solid ${capture.color}`, padding: '5px 10px', borderRadius: 2
+          }}>
+            {capture.text}
           </span>
           {userRole !== 'viewer' ? (
             <div style={{ display:'flex', gap:6, alignItems:'center', flexWrap:'wrap' }}>

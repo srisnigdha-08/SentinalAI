@@ -24,6 +24,7 @@ const HoneypotAnalytics = lazy(() => import("./pages/HoneypotAnalytics.jsx"));
 const Campaigns = lazy(() => import("./pages/Campaigns.jsx"));
 const AttackTimeMachine = lazy(() => import("./pages/AttackTimeMachine.jsx"));
 const AITrustMeter = lazy(() => import("./pages/AITrustMeter.jsx"));
+const CapabilityStatus = lazy(() => import("./pages/CapabilityStatus.jsx"));
 const DeceptionArena = lazy(() => import("./pages/DeceptionArena.jsx"));
 const AIAnalytics = lazy(() => import("./pages/AIAnalytics.jsx"));
 const UserManagement = lazy(() => import("./pages/UserManagement.jsx"));
@@ -181,6 +182,7 @@ function AppRoutes() {
               <Route path="/dashboard/deception-arena" element={<DeceptionArena />} />
               <Route path="/dashboard/ai" element={<AIAnalytics />} />
               <Route path="/dashboard/ai-trust-meter" element={<AITrustMeter />} />
+              <Route path="/dashboard/capabilities" element={<CapabilityStatus />} />
 
               {/* Admin-only Protected Pages */}
               <Route element={<AdminRoute />}>

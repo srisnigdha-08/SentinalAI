@@ -1,4 +1,7 @@
 'use strict'
+// These tests cover the single-flow containment mechanics (block, compensation, rollback). They run under the
+// explicit legacy policy; the correlated default is covered in tests/containmentCorrelation.test.js.
+process.env.AUTO_BLOCK_POLICY = 'single_flow'
 /**
  * F-08: services/threatService.js had 67 % line / 42 % branch coverage. In-memory MongoDB; the AI engine
  * threshold, containment and threat-intel enrichment are mocked (no network, no firewall). The thresholds used

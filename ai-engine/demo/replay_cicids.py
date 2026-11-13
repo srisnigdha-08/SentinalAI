@@ -260,6 +260,8 @@ class BackendTarget:
 
     def analyze(self, payload: dict) -> requests.Response:
         url = f"{self.base}/api/ai/analyze"
+        # Labelled as a dataset replay so the dashboard can never present these recorded flows as live traffic.
+        payload = {**payload, "captureSource": "dataset_replay"}
         resp = self.http.post(url, json=payload, headers=self._auth(), timeout=30.0)
         if resp.status_code == 401:
             self.login()

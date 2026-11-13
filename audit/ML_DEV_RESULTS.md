@@ -399,3 +399,39 @@ does not depend on C0 getting worse. **FPR is stable** (D18 0.35–0.39 %). **Re
 
 The rules are not changed. The one-shot external test can still be run as registered; on this evidence it would most
 likely confirm "do not deploy" and would use up the protected days. The served model stays either way.
+
+## Protocol v4
+
+Domain-balanced candidates (`ML_DEV_PROTOCOL_V4.md`), run 2026-11-13. The protocol and script were committed
+before the run (06b8d8a). Results: `ai-engine/experiments/candidate_v4_20261113/results.json`.
+
+- **Inputs:** corrected_v3 labels, frozen v3 folds, the six 2018 development days only (protected days not opened).
+- **Reproduction:** C0 and C4AI reproduce their v3 fold results exactly (22 of 22 folds).
+- **Decision:** binary decision at the classifier, as in v1–v3.
+
+| Candidate | D17 macro recall | D17 pooled FPR | D18 macro recall | D18 pooled FPR | Worst-fold FPR (D17 / D18) | Mean balanced acc. (D17 / D18) |
+|---|---|---|---|---|---|---|
+| C0 (served recipe) | 24.7 % | 0.25 % | 6.5 % | 0.34 % | 0.41 / 1.58 % | 0.622 / 0.531 |
+| C4AI (v3 reference) | 40.6 % | 0.21 % | 37.5 % | 0.34 % | 0.36 / 1.42 % | 0.702 / 0.686 |
+| C5 (domain-balanced, regularised) | 33.5 % | 0.53 % | 40.5 % | 0.57 % | 0.82 / **2.35 %** | 0.665 / 0.699 |
+| C5E (C5 + feature set E) | 39.8 % | **1.40 %** | 32.5 % | **2.28 %** | **3.03 / 3.67 %** | 0.691 / 0.651 |
+
+Paired fold differences (mean, 95 % bootstrap CI over folds):
+
+| Comparison | Recall difference | FPR difference |
+|---|---|---|
+| C5 − C0, D18 | **+34.0 pp** (+7.4 to +64.2) | +0.24 pp (+0.04 to +0.50) |
+| C5 − C0, D17 | +7.1 pp (−16.0 to +27.4) | +0.30 pp (+0.21 to +0.45) |
+| C5 − C4AI, D17 | −5.7 pp (−25.2 to +12.1) | +0.33 pp |
+| C5 − C4AI, D18 | +3.0 pp (−14.9 to +26.0) | +0.24 pp |
+
+**Pre-registered outcome: no candidate is eligible.**
+- **C5** fails four conditions:
+  - D17 recall is below C4AI.
+  - Pooled FPR exceeds C4AI's by more than 0.10 pp on both fold sets.
+  - The D18 worst fold reaches 2.35 % FPR.
+- **C5E** fails all six.
+
+Domain balancing raises recall on unseen 2018 days over the served recipe, but buys it with more false alarms and
+does not beat the v3 reference. Nothing was saved to `models/`, registered or promoted; `xgb_cicids_v1` is
+unchanged.

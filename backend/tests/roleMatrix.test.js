@@ -190,6 +190,8 @@ jest.mock('../services/honeypotService', () => ({
     durationSeconds: 60,
     deceptionScore: 0.8,
   }),
+  setSessionEvidenceSource: jest.fn().mockResolvedValue({ _id: 'hp-1', sessionId: 's1', evidenceSource: 'operator' }),
+  getEvidenceSummary: jest.fn().mockResolvedValue({ bySource: {}, byPersona: {}, total: 0 }),
 }))
 
 jest.mock('../services/containmentService', () => ({
@@ -451,6 +453,7 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
     [require('../routes/deceptionArena'), '/api/deception-arena'],
     [require('../routes/trainingSamples'), '/api/training-samples'],
     [require('../routes/systemOutbox'), '/api/system/outbox'],
+    [require('../routes/system'), '/api/system'],
     [require('../routes/audit'), '/api/audit'],
   ])
 
@@ -693,6 +696,12 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       path: '/api/honeypot/ingest/flow',
       expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
     },
+    // Capture-service health: honeypot key only
+    {
+      method: 'post',
+      path: '/api/honeypot/ingest/capture-heartbeat',
+      expected: { 'no-token': 401, viewer: 401, analyst: 401, admin: 401 },
+    },
     // Rotator endpoints: honeypot key only, so even a logged-in admin gets 401 here.
     {
       method: 'get',
@@ -784,6 +793,29 @@ describe('Phase 3C & 3.5: Comprehensive Role x Express Router Stack Matrix', () 
       method: 'put',
       path: '/api/honeypot/sessions/:id/close',
       expected: { 'no-token': 401, viewer: 403, analyst: 200, admin: 200 },
+    },
+    {
+      // Learning-evidence label: admin only, audited
+      method: 'patch',
+      path: '/api/honeypot/sessions/:id/evidence-source',
+      body: { evidenceSource: 'operator', reason: 'lab test by the project team' },
+      expected: { 'no-token': 401, viewer: 403, analyst: 403, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/honeypot/evidence',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    // Capability status and capture status: read-only, every signed-in role
+    {
+      method: 'get',
+      path: '/api/system/capture',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
+    },
+    {
+      method: 'get',
+      path: '/api/system/capabilities',
+      expected: { 'no-token': 401, viewer: 200, analyst: 200, admin: 200 },
     },
 
     // 7. Campaigns

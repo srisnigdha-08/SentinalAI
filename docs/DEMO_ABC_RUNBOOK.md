@@ -126,7 +126,7 @@ is not a detector of novel attacks."
 | 2 | **Threat Logs** row / **Settings** containment status | The policy is evaluated before any action |
 | 3 | Protected targets | Loopback, link-local and `CONTAINMENT_PROTECTED_TARGETS` are **refused** (`AUTO_BLOCK_REFUSED` note); never contained |
 | 4 | Score between 0.90 and 0.92 | Threat stored, **not** blocked (unit-tested; replay rarely produces such a score) |
-| 5 | Score at or above 0.92, unprotected | Containment record created (`requestedByName: AI Auto-Block`); every open detection of that address is marked BLOCKED |
+| 5 | Score at or above 0.92, unprotected | **Correlated policy (default):** the first flows from an address are held as `NEEDS_APPROVAL` (triage shows the reasons); once that address has ≥ 3 suspicious flows in 300 s with ≥ 2 at the block line, a containment record is created (`requestedByName: AI Auto-Block`) and every open detection of that address is marked BLOCKED. A single flow is approved with the manual block. (`AUTO_BLOCK_POLICY=single_flow` restores one-flow blocking, simulated only.) |
 | 6 | Containment details | `enforcementBackend: mock`, status `ACTIVE`. **The mock adapter records a simulated rule; no firewall changes.** The honeypot's deny-list is the only real enforcement: Cowrie refuses that IP on the next connection |
 | 7 | Dashboard / **Settings** blocked-IP list | IP listed as blocked; `ip_blocked` event |
 | 8 | Backend window (or `backend\logs\sentinel*.log`) | `[AUDIT] CONTAINMENT_REQUESTED` → `CONTAINMENT_ACTIVE` (structured JSON lines). **Settings → audit log** shows sign-ins, settings changes and manual `IP_BLOCKED_MANUAL` / `IP_UNBLOCKED_MANUAL`, not these containment lines |

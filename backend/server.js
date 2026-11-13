@@ -317,6 +317,7 @@ app.use('/api/ai', require('./routes/aiEngine'))
 app.use('/api/deception-arena', require('./routes/deceptionArena'))
 app.use('/api/training-samples', require('./routes/trainingSamples'))
 app.use('/api/system/outbox', require('./routes/systemOutbox'))
+app.use('/api/system', require('./routes/system'))
 app.use('/api/audit', require('./routes/audit'))
 
 // Unauthenticated E2E hook: requires both flags so a stray ALLOW_TEST_ROUTES can't expose it outside tests

@@ -13,6 +13,14 @@ const VerificationHistorySchema = new mongoose.Schema(
 const AIPredictionSchema = new mongoose.Schema(
   {
     inputSource: { type: String, enum: ['network_traffic', 'honeypot_log', 'system_log', 'manual'], required: true },
+    // Where a network flow came from (docs/CAPTURE.md). Set by the server from the route that received it, never
+    // trusted from an analyst: live_passive / pcap_replay only from the capture service's key, dataset_replay /
+    // manual from /api/ai/analyze. Absent on older records, which the Trust Meter reports as unknown.
+    captureSource: {
+      type: String,
+      enum: ['live_passive', 'pcap_replay', 'dataset_replay', 'manual', 'unknown'],
+      default: undefined,
+    },
     sourceIP: { type: String },
     targetIP: String,
     predictedClass: { type: String, required: true },

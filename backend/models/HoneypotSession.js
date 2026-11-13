@@ -14,6 +14,14 @@ const HoneypotSessionSchema = new mongoose.Schema(
   {
     sessionId: { type: String, required: true, unique: true },
     sourceIP: { type: String, required: true },
+    // Learning-evidence provenance (utils/evidenceSource.js). Absent on sessions stored before it existed.
+    evidenceSource: { type: String, enum: ['operator', 'external', 'simulated', 'unknown'], default: undefined },
+    evidenceLabel: {
+      labeledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      labeledAt: Date,
+      method: { type: String, enum: ['automatic', 'admin'] },
+      reason: String,
+    },
     sourcePort: { type: Number },
     hassh: { type: String, default: null },
     // SSH client banner (cowrie.client.version): with hassh, the basis of attacker profiles.

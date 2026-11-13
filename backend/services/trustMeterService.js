@@ -11,7 +11,7 @@ const { STATES, STATE_ORDER, ML_SCOPE, assessPrediction, stateFilter } = require
 
 // Never returned: raw request record (attacker/replay controlled), vectors, per-feature importance.
 const LIST_FIELDS =
-  'inputSource sourceIP targetIP predictedClass classProbabilities threatScore modelVersion modelType isAnomaly anomalyScore needsReview incompleteInput defaultedFeatures honeypotCorroborated verified actualClass generatedThreat createdAt'
+  'inputSource captureSource sourceIP targetIP predictedClass classProbabilities threatScore modelVersion modelType isAnomaly anomalyScore needsReview incompleteInput defaultedFeatures honeypotCorroborated verified actualClass generatedThreat createdAt'
 const SORTS = {
   newest: { createdAt: -1, _id: -1 },
   oldest: { createdAt: 1, _id: 1 },
