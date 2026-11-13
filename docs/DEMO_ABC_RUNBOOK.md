@@ -163,6 +163,7 @@ it only when you mean to. Never reset `sentinel-db`.
 | `start-demo.ps1`: "Port … in use" | Previous run still open | `stop-demo.ps1` (add `-Force` for foreign processes) |
 | Engine `NOT RESPONDING` | venv missing or model verification failed | Read the engine window; models must match `registry.json` |
 | Engine window closed during the demo | Engine stopped | `scripts\demo\restart-engine.ps1` |
+| Dashboard action fails with "Route not found: GET /api/…" (e.g. Export Report) | Backend window started before a `git pull`; `node server.js` does not reload code, Vite does | `scripts\demo\restart-backend.ps1` (restarts only the backend, checks the routes are registered) |
 | SSH refused at once | Your IP is still deny-listed from a rehearsal | Settings → Unblock IP |
 | `status`: check-block not 200 | Backend not reachable from WSL | Restart with `start-demo.ps1` (binds the WSL-visible address) |
 | No session on the dashboard | Parser window stopped, or Cowrie on 127.0.0.1 | Check the parser window; `cowrie-demo-mode.sh on` |
