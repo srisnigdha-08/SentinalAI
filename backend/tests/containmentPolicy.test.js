@@ -324,10 +324,13 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
       )
       expect(mockBlockedIPFindOneAndUpdate).toHaveBeenCalledWith(
         { ip: '185.220.101.47' },
-        expect.objectContaining({
-          ip: '185.220.101.47',
-          threatRef: 'threat-5',
-        }),
+        // insert-only: an existing deny-list entry keeps its original reason and threat
+        {
+          $setOnInsert: expect.objectContaining({
+            ip: '185.220.101.47',
+            threatRef: 'threat-5',
+          }),
+        },
         { upsert: true, new: true }
       )
       expect(mockSocketManager.emitIPBlocked).toHaveBeenCalledWith('185.220.101.47', 'AI Engine', 'threat-5')
@@ -403,9 +406,11 @@ describe('Phase 2.2: Containment Policy Alignment & Atomicity', () => {
       )
       expect(mockBlockedIPFindOneAndUpdate).toHaveBeenCalledWith(
         { ip: '45.95.147.22' },
-        expect.objectContaining({
-          ip: '45.95.147.22',
-        }),
+        {
+          $setOnInsert: expect.objectContaining({
+            ip: '45.95.147.22',
+          }),
+        },
         { upsert: true, new: true }
       )
       expect(mockSocketManager.emitIPBlocked).toHaveBeenCalledWith('45.95.147.22', 'AI Engine', 'threat-6')

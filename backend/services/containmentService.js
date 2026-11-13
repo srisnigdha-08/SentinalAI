@@ -1167,18 +1167,36 @@ const executeAutoBlock = async ({ threat, threatScore, source = 'AI Engine', sou
 
   let blockedDoc
   try {
+    // Insert-only: an existing entry keeps its original reason and threat. Concurrent flows from one source can
+    // all pass correlation before any of them writes the entry; only the request that created it enforces and
+    // alerts, the others link to it (below).
     blockedDoc = await BlockedIP.findOneAndUpdate(
       { ip: threat.sourceIP },
       {
-        ip: threat.sourceIP,
-        reason: `${source} Autonomous Action (score = ${threatScore})`,
-        blockedAt: new Date(),
-        blockedBy: null,
-        threatRef: threat._id,
+        $setOnInsert: {
+          ip: threat.sourceIP,
+          reason: `${source} Autonomous Action (score = ${threatScore})`,
+          blockedAt: new Date(),
+          blockedBy: null,
+          threatRef: threat._id,
+        },
       },
       { upsert: true, new: true }
     )
     threat.containmentId = blockedDoc._id
+    const blockedByOtherThreat = Boolean(blockedDoc.threatRef) && String(blockedDoc.threatRef) !== String(threat._id)
+    if (blockedByOtherThreat) {
+      if (threat.containmentDecision?.decision === 'AUTO_BLOCK') {
+        threat.containmentDecision.decision = 'SUPPRESSED_DUPLICATE'
+        threat.containmentDecision.reasons = [
+          'source was added to the deny-list by a concurrent request for another threat; no second containment request',
+        ]
+        threat.markModified?.('containmentDecision')
+      }
+      await threat.save()
+      logger.info(`[Containment] Auto-block for ${threat.sourceIP} already applied by threat ${blockedDoc.threatRef}`)
+      return { success: true, duplicate: true, blockedDoc, threat, enforcement: null }
+    }
     await threat.save()
   } catch (blockedErr) {
     logger.error(
