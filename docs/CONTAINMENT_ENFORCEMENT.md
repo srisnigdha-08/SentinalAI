@@ -37,6 +37,28 @@ Tests (`tests/containmentCorrelation.test.js`):
 - fail-closed behaviour
 - end to end through `storePrediction`
 
+`tests/correlatedAutoBlockIntegration.test.js` runs the **shipped default** (no `AUTO_BLOCK_POLICY`) end to end with
+nothing stubbed but the adapter: `storePrediction` -> correlation -> `executeAutoBlock` -> `requestContainment` ->
+mock adapter. It covers one flow held for approval, the third correlated flow producing exactly one ACTIVE mock
+containment and one deny-list entry, duplicates after the block, concurrent flows, the cooldown before and after it
+expires, trusted CIDRs and loopback, flows below the block line, and a rule that fails post-apply verification
+(removed, recorded FAILED, no cooldown started). Demo C's harness pins `single_flow` and is not evidence for the default.
+
+**Concurrent flows.** Several flows from one source can pass correlation before any of them writes the deny-list. The
+deny-list write is insert-only (`$setOnInsert`): the request that created the entry enforces and alerts; the others
+link to it, record `SUPPRESSED_DUPLICATE` ("added to the deny-list by a concurrent request"), and send no second
+containment request or alert. An existing entry keeps its original reason and threat.
+
+**Honeypot sessions are a separate path.** Correlation applies to network-flow threats (`storePrediction`). A scored
+Cowrie session that updates an existing threat is contained on its own, gated by `HONEYPOT_AUTOBLOCK_MODE` and the
+hourly cap, because the source interacted with the honeypot.
+
+**Before enabling a real adapter:** `/api/honeypot/ingest/flow` and `/capture-heartbeat` accept the honeypot key
+(the same key Cowrie uses, limited by source address). A holder of that key can submit crafted flows, labelled
+`live_passive`, that reach correlation; correlation raises the bar from one flow to three but does not authenticate
+them. With mock containment this can only add a Cowrie deny-list entry. Give the capture service its own key, or
+require approval for flow-originated blocks, before real host-firewall enforcement is switched on.
+
 ## Enforcement
 
 | Kind | What it is | State |

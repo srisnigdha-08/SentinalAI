@@ -244,6 +244,10 @@ npm run dev
 # Backend runs on http://localhost:5000
 ```
 
+> The scripted Windows demo (`scripts/demo/start-demo.ps1`) is different: its backend listens only on the WSL
+> gateway address (e.g. `http://172.29.32.1:5000`), so `http://localhost:5000` is refused by design. Open the
+> dashboard at http://localhost:3000. See [docs/DEMO_STARTUP_AND_TROUBLESHOOTING.md](docs/DEMO_STARTUP_AND_TROUBLESHOOTING.md).
+
 ---
 
 ### Step 4: Setup & Run the AI Inference Engine

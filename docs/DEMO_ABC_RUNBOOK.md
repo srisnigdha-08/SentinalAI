@@ -48,7 +48,10 @@ powershell -ExecutionPolicy Bypass -File scripts\demo\start-demo.ps1
 
 This opens four windows: the engine on :8000, the backend on :5000 using the **`sentinel-demo`** database, the
 frontend on :3000 and the Cowrie log parser. `sentinel-db` is never written to. The demo uses its own Q-table in
-`%USERPROFILE%\.sentinelai\demo\`. Expected: three lines ending in `UP`.
+`%USERPROFILE%\.sentinelai\demo\`. Expected: the engine `UP`, the backend `READY`, the frontend `UP`, and exit code 0.
+Open the dashboard at **http://localhost:3000**. The backend listens only on the WSL gateway address, so
+`http://localhost:5000` is refused by design. Check the stack any time with `scripts\demo\status-demo.ps1`; start-up
+failures and their fixes: [DEMO_STARTUP_AND_TROUBLESHOOTING.md](DEMO_STARTUP_AND_TROUBLESHOOTING.md).
 
 In WSL (from the repository directory, e.g. `cd /mnt/c/Users/<you>/Desktop/Projects/sentinelai-complete`):
 
@@ -161,6 +164,10 @@ it only when you mean to. Never reset `sentinel-db`.
 | Symptom | Cause | Fix |
 |---|---|---|
 | `start-demo.ps1`: "Port … in use" | Previous run still open | `stop-demo.ps1` (add `-Force` for foreign processes) |
+| `start-demo.ps1`: "demo window(s) from an earlier start are still open" | A service crashed and freed its port, its window is still open | `status-demo.ps1` to see which; `stop-demo.ps1`, then start again |
+| Browser: `localhost:5000` refused (`ERR_CONNECTION_REFUSED`) | Expected: the backend listens only on the WSL gateway address | Use http://localhost:3000; `status-demo.ps1` prints the backend address |
+| Backend `NOT RESPONDING` | `node` exited (the window shows a `[Startup]` error), or MongoDB is down | Read the backend window; `status-demo.ps1` |
+| Backend `DEGRADED` | AI engine not (yet) ready; backend safe, threats held as MONITOR | Wait up to 30 s after the engine loads, or check the engine window |
 | Engine `NOT RESPONDING` | venv missing or model verification failed | Read the engine window; models must match `registry.json` |
 | Engine window closed during the demo | Engine stopped | `scripts\demo\restart-engine.ps1` |
 | Dashboard action fails with "Route not found: GET /api/…" (e.g. Export Report) | Backend window started before a `git pull`; `node server.js` does not reload code, Vite does | `scripts\demo\restart-backend.ps1` (restarts only the backend, checks the routes are registered) |
@@ -170,6 +177,7 @@ it only when you mean to. Never reset `sentinel-db`.
 | Persona rotation "waiting" | Attacker sessions still open | Exit the SSH sessions, or `rotate --once --force` |
 | Recommendation "unavailable" | Engine down | Restart the engine window |
 | Auto-block never fires | Off, or target protected or loopback | Settings → Auto-block ON; attack the WSL IP, not 127.0.0.1 |
+| One flow at the block line is `NEEDS_APPROVAL`, not blocked | Correlated policy (default): 3 suspicious flows in 300 s, 2 at the block line | Expected; approve with the manual block, or send the correlated burst |
 
 ## 6. Automated re-check before a viva (about 5 minutes; throwaway database)
 
