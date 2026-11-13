@@ -113,7 +113,20 @@ const createThreat = async (data) => {
   // Same alert line as the AI pipeline (THR-002; was a fixed 0.70). Read after getBlockThreshold refreshed the cache.
   const alertThreshold = currentAlertLine()
 
-  const shouldBlock = isAiGenerated && score >= blockThreshold && autoBlockEnabled
+  // Correlation (containmentCorrelationService): one flow alone never auto-blocks under the default policy.
+  let containmentDecision
+  if (isAiGenerated && score >= blockThreshold && data.status !== 'DEGRADED') {
+    containmentDecision = autoBlockEnabled
+      ? await require('./containmentCorrelationService').evaluateSafely({
+          sourceIP: data.sourceIP,
+          attackType: data.attackType,
+          threatScore: score,
+          alertThreshold,
+          blockThreshold,
+        })
+      : { decision: 'DISABLED', reasons: ['auto-block is off'], evaluatedAt: new Date() }
+  }
+  const shouldBlock = Boolean(containmentDecision && containmentDecision.decision === 'AUTO_BLOCK')
   const actionTaken = shouldBlock
 
   let status = 'DETECTED'
@@ -139,6 +152,8 @@ const createThreat = async (data) => {
       actionTime: actionTaken ? new Date() : null,
     },
     eventTime: data.eventTime || null,
+    // Always the server's own decision (undefined clears anything a caller put in `data`)
+    containmentDecision,
   })
 
   if (actionTaken) {

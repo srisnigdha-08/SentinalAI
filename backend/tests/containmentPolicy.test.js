@@ -1,4 +1,7 @@
 'use strict'
+// These tests cover the single-flow containment mechanics (block, compensation, rollback). They run under the
+// explicit legacy policy; the correlated default is covered in tests/containmentCorrelation.test.js.
+process.env.AUTO_BLOCK_POLICY = 'single_flow'
 /**
  * tests/containmentPolicy.test.js
  *

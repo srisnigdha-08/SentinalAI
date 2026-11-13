@@ -120,7 +120,26 @@ const storePrediction = async (data) => {
 
     // Incomplete input (M2): many features were filled with defaults, so the score describes a partly
     // fabricated flow. It may still raise a threat for an analyst, but it never triggers an automatic block.
-    const shouldBlock = !isDegraded && !data.incompleteInput && pred.threatScore >= blockThreshold && autoBlockEnabled
+    const blockCandidate = !isDegraded && !data.incompleteInput && pred.threatScore >= blockThreshold
+    // Correlation (containmentCorrelationService): one flow alone never auto-blocks under the default policy.
+    let containmentDecision
+    if (blockCandidate && autoBlockEnabled) {
+      containmentDecision = await require('./containmentCorrelationService').evaluateSafely({
+        sourceIP: pred.sourceIP,
+        attackType: pred.predictedClass,
+        threatScore: pred.threatScore,
+        isAnomaly: pred.isAnomaly,
+        alertThreshold,
+        blockThreshold,
+      })
+    } else if (blockCandidate) {
+      containmentDecision = {
+        decision: 'DISABLED',
+        reasons: ['auto-block is off'],
+        evaluatedAt: new Date(),
+      }
+    }
+    const shouldBlock = Boolean(containmentDecision && containmentDecision.decision === 'AUTO_BLOCK')
     const status = isDegraded ? 'DEGRADED' : shouldBlock ? 'BLOCKED' : 'MONITORING'
 
     const rawEventTime = data.eventTime || data.timestamp
@@ -148,6 +167,7 @@ const storePrediction = async (data) => {
         actionType: shouldBlock ? 'IP_BLOCKED' : null,
         actionTime: shouldBlock ? new Date() : null,
       },
+      ...(containmentDecision && { containmentDecision }),
       notes: isDegraded
         ? data.notes ||
           (data.status === 'UNAVAILABLE'

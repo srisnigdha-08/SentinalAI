@@ -31,6 +31,11 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     return 'windows-firewall'
   }
 
+  // The containment service looks the rule up again after applyRule and fails the action if it is absent.
+  get requiresPostApplyVerification() {
+    return true
+  }
+
   /**
    * Internal safety check to verify execution permission.
    */
