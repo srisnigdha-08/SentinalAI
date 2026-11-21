@@ -252,3 +252,79 @@ describe('replay heartbeat and Capability Status', () => {
     ).toBe(401)
   })
 })
+
+describe('flowId: a retried or replayed flow is stored once', () => {
+  const ThreatLog = require('../models/ThreatLog')
+  beforeAll(async () => {
+    await AIPrediction.init() // the unique flowId index must exist before the concurrency case
+  })
+  afterEach(async () => {
+    await ThreatLog.deleteMany({})
+  })
+  const attack = () =>
+    aiEngineService.predictRecord.mockImplementation(async (record) => {
+      engineCalls.push(record)
+      return {
+        success: true,
+        result: {
+          predictedClass: 'DDoS',
+          threatScore: 0.99,
+          action: 'BLOCK',
+          isAnomaly: false,
+          anomalyScore: 0,
+          classProbabilities: { DDoS: 0.99 },
+          modelVersion: 'xgb_cicids_v1',
+          featureVector: Array(53).fill(0),
+          featureSchemaVersion: 'v2.1_53feat',
+          defaultedFeatures: [],
+          incompleteInput: false,
+        },
+      }
+    })
+
+  test('the same flowId twice: one prediction, the engine called once, the repeat marked duplicate', async () => {
+    const first = await postFlow({ ...TCP_FLOW, flowId: 'pcap-0001-abcdef' })
+    const second = await postFlow({ ...TCP_FLOW, flowId: 'pcap-0001-abcdef' })
+    expect(first.status).toBe(200)
+    expect(first.body.data.duplicate).toBeUndefined()
+    expect(second.status).toBe(200)
+    expect(second.body.data).toMatchObject({ duplicate: true, predictedClass: 'BENIGN', action: 'ALLOW' })
+    expect(String(second.body.data.predictionId)).toBe(String(first.body.data.predictionId))
+    expect(engineCalls).toHaveLength(1)
+    expect(await AIPrediction.countDocuments({})).toBe(1)
+  })
+
+  test('an attacking flow repeated with its flowId creates one threat, not two', async () => {
+    attack()
+    await postFlow({ ...TCP_FLOW, flowId: 'pcap-0002-abcdef' })
+    const again = await postFlow({ ...TCP_FLOW, flowId: 'pcap-0002-abcdef' })
+    expect(again.body.data).toMatchObject({ duplicate: true, action: 'BLOCK' })
+    expect(await ThreatLog.countDocuments({})).toBe(1)
+    expect(await AIPrediction.countDocuments({})).toBe(1)
+  })
+
+  test('concurrent requests for one flowId store one prediction and one threat, and both succeed', async () => {
+    attack()
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () => postFlow({ ...TCP_FLOW, flowId: 'pcap-0003-abcdef' }))
+    )
+    expect(responses.map((r) => r.status)).toEqual([200, 200, 200, 200, 200])
+    expect(new Set(responses.map((r) => String(r.body.data.predictionId))).size).toBe(1)
+    expect(await AIPrediction.countDocuments({})).toBe(1)
+    expect(await ThreatLog.countDocuments({})).toBe(1)
+  })
+
+  test('without flowId nothing changes: two posts are two predictions', async () => {
+    await postFlow(TCP_FLOW)
+    await postFlow(TCP_FLOW)
+    expect(await AIPrediction.countDocuments({})).toBe(2)
+  })
+
+  test('a malformed flowId is refused before scoring', async () => {
+    for (const flowId of ['short', 'has space in it', '$where:1', 'x'.repeat(129), 12345678, { $ne: null }]) {
+      const r = await postFlow({ ...TCP_FLOW, flowId })
+      expect(r.status).toBe(400)
+    }
+    expect(engineCalls).toHaveLength(0)
+  })
+})

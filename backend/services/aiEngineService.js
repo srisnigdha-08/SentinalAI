@@ -189,6 +189,7 @@ const runFullPipeline = async (record, _io = null, opts = {}) => {
     pred = await aiDbSvc.storePrediction({
       inputSource: 'network_traffic',
       captureSource,
+      ...(typeof opts.flowId === 'string' ? { flowId: opts.flowId } : {}),
       sourceIP: record.sourceIP,
       targetIP: record.destinationIP || 'INTERNAL',
       predictedClass: result.predictedClass,
@@ -214,6 +215,12 @@ const runFullPipeline = async (record, _io = null, opts = {}) => {
       defaultedFeatures: result.defaultedFeatures,
     })
   } catch (err) {
+    // A concurrent request with the same flowId stored it first: not a persistence failure (the route answers with
+    // the stored prediction). Nothing else was written: the threat is created only after the prediction.
+    if (err.code === 11000 && typeof opts.flowId === 'string') {
+      err.duplicateFlowId = true
+      throw err
+    }
     logger.error('[AI Pipeline] Failed to persist prediction: ' + err.name)
     // Emergency Audit Disk Fallback (Section 2.E)
     try {

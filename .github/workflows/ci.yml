@@ -80,6 +80,9 @@ jobs:
         working-directory: backend
         run: npm test
 
+      - name: Local database backup tool (in-memory MongoDB)
+        run: node --test scripts/demo/backup-local-db.test.cjs
+
   ai-engine:
     name: AI Engine (Pytest)
     runs-on: ubuntu-latest

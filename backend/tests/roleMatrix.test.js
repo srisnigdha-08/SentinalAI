@@ -114,6 +114,10 @@ jest.mock('../services/reportService', () => ({
   renderCsv: jest.fn(() => Buffer.from('section,metric,value')),
   reportFileName: jest.fn((r, ext) => `report.${ext}`),
 }))
+// The readiness probe pings MongoDB; this suite has no database (readyState is stubbed), so report it healthy.
+jest.mock('../utils/dbHealth', () => ({
+  databaseHealth: jest.fn().mockResolvedValue({ ok: true, state: 'connected' }),
+}))
 jest.mock('../services/aiEngineService', () => ({
   getHealth: jest.fn().mockResolvedValue({ status: 'ok' }),
   getModelInfo: jest.fn().mockResolvedValue({ model: 'RandomForest', version: '1.0' }),

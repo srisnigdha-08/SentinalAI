@@ -106,6 +106,23 @@ describe('privileges', () => {
     expect(role.roles).toEqual([])
   })
 
+  test("every model's collection is writable by the application role (append-only ones excepted)", async () => {
+    const modelsDir = path.join(__dirname, '..', 'models')
+    for (const file of fs.readdirSync(modelsDir).filter((f) => f.endsWith('.js'))) require(path.join(modelsDir, file))
+    const appendOnly = new Set(['auditlogs', 'containment_audit_events'])
+    const collections = mongoose
+      .modelNames()
+      .map((name) => mongoose.model(name).collection.collectionName)
+      .filter((name) => !appendOnly.has(name))
+    expect(collections).toContain('deception_experiments')
+    const database = app.db(DB)
+    for (const name of collections) {
+      const { insertedId } = await database.collection(name).insertOne({ privilegeProbe: true })
+      await database.collection(name).updateOne({ _id: insertedId }, { $set: { privilegeProbe: false } })
+      await database.collection(name).deleteOne({ _id: insertedId })
+    }
+  })
+
   test('the application cannot watch the cluster or another database', async () => {
     await denied(app.watch().tryNext())
     await denied(app.db('admin').watch().tryNext())

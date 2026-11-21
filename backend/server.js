@@ -170,7 +170,6 @@ app.get('/', (_, res) =>
 // Prometheus scrape endpoint: bearer METRICS_TOKEN when set, otherwise loopback only.
 app.get('/metrics', metrics.handler)
 app.get('/health', async (_, res) => {
-  const mongoose = require('mongoose')
   const aiSvc = require('./services/aiEngineService')
 
   let aiHealth = { status: 'unknown' }
@@ -180,7 +179,8 @@ app.get('/health', async (_, res) => {
     aiHealth = { status: 'unreachable', error: e.message }
   }
 
-  const ready = mongoose.connection.readyState === 1 && aiHealth?.status === 'ok' && revocationDelivery.available()
+  const db = await require('./utils/dbHealth').databaseHealth()
+  const ready = db.ok && aiHealth?.status === 'ok' && revocationDelivery.available()
   res.status(ready ? 200 : 503).json({
     status: ready ? 'ok' : 'unavailable',
   })
@@ -209,15 +209,14 @@ const readyAiOk = () => {
   return promise
 }
 app.get('/health/ready', async (_, res) => {
-  const mongoose = require('mongoose')
-  const aiOk = await readyAiOk()
-  const dbOk = mongoose.connection.readyState === 1
+  // A ping, not only readyState: a hung server keeps readyState 1 while every operation fails.
+  const [aiOk, db] = await Promise.all([readyAiOk(), require('./utils/dbHealth').databaseHealth()])
   const revocationOk = revocationDelivery.available()
-  const ready = dbOk && revocationOk
+  const ready = db.ok && revocationOk
   res.status(ready ? 200 : 503).json({
     status: ready ? (aiOk ? 'ready' : 'degraded') : 'unavailable',
     dependencies: {
-      database: dbOk ? 'connected' : 'disconnected',
+      database: db.state,
       aiEngine: aiOk ? 'available' : 'unavailable',
       revocation: revocationOk ? 'available' : 'unavailable',
     },
