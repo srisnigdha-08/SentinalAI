@@ -4,6 +4,14 @@ import Navbar from '../components/Navbar.jsx'
 import { threatAPI, honeypotAPI, aiAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 
+// What the platform does, shown to anonymous visitors in place of measured figures (none of these is a statistic).
+const SHOWCASE_CAPABILITIES = [
+  { title: 'SHAP', label: 'Explainable Detection' },
+  { title: 'CICIDS2017', label: 'Recorded Traffic Replay' },
+  { title: 'ATT&CK', label: 'MITRE Mapping' },
+  { title: 'MOCK', label: 'Simulated Containment' },
+]
+
 function animateCounter(el, target, suffix = '') {
   if (!el) return
   if (target === 0) {
@@ -26,23 +34,9 @@ export default function Landing() {
   useEffect(() => {
     let isMounted = true
 
-    // Safe fallback metrics for unauthenticated showcase visitors
-    // TODO: Implement an unauthenticated public aggregation endpoint (e.g., GET /api/public/stats)
-    // on the backend to stream live showcase metrics without requiring an operator JWT.
-    const fallbackStats = {
-      blocked: 2341,
-      analyzed: 14823,
-      honeypot: 312,
-      accuracy: 94,
-    }
-
-    if (!user) {
-      animateCounter(cnt1.current, fallbackStats.blocked)
-      animateCounter(cnt2.current, fallbackStats.analyzed)
-      animateCounter(cnt3.current, fallbackStats.honeypot)
-      animateCounter(cnt4.current, fallbackStats.accuracy, '%')
-      return
-    }
+    // Anonymous visitors see capability descriptions (SHOWCASE_CAPABILITIES), never invented counters:
+    // there is no public statistics endpoint, and the pipeline counters need an operator session.
+    if (!user) return
 
     Promise.all([
       threatAPI.analytics().catch(() => null),
@@ -156,26 +150,18 @@ export default function Landing() {
             display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', marginTop: '5rem',
             animation: 'fadeUp .6s .6s ease both',
           }}>
-            {!user && (
-              <span
-                data-testid="sample-data-badge"
-                style={{
-                  fontFamily: 'Share Tech Mono, monospace',
-                  fontSize: 11,
-                  letterSpacing: 2,
-                  textTransform: 'uppercase',
-                  color: '#ffaa00',
-                  background: 'rgba(255, 170, 0, 0.1)',
-                  border: '1px solid #ffaa00',
-                  padding: '2px 8px',
-                  borderRadius: 2,
-                }}
-              >
-                Sample data
-              </span>
-            )}
-            <div style={{ display: 'flex', gap: '3rem' }}>
-              {[
+            <div style={{ display: 'flex', gap: '3rem', flexWrap: 'wrap', justifyContent: 'center' }}>
+              {!user ? SHOWCASE_CAPABILITIES.map(({ title, label }) => (
+                <div key={label} data-testid="capability-tile" style={{ textAlign: 'center' }}>
+                  <div style={{
+                    fontFamily: 'Orbitron,sans-serif', fontSize: 22, lineHeight: '38px', fontWeight: 700, color: '#00d4ff',
+                  }}>{title}</div>
+                  <div style={{
+                    fontSize: 12, color: '#3a6a88', letterSpacing: 2,
+                    textTransform: 'uppercase', marginTop: 4,
+                  }}>{label}</div>
+                </div>
+              )) : [
                 { ref: cnt1, label: 'Threats Blocked' },
                 { ref: cnt2, label: 'Attacks Analyzed' },
                 { ref: cnt3, label: 'Honeypot Sessions' },

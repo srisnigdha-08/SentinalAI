@@ -2,6 +2,7 @@ import { useState } from 'react'
 import Modal from './Modal.jsx'
 import { scoreColor } from '../utils/scoreBands.js'
 import { useScoreLines } from '../hooks/useScoreLines.js'
+import { enforcementEngineLabel } from '../utils/containmentLabels.js'
 
 export default function ContainmentConfirmModal({
   isOpen,
@@ -29,7 +30,8 @@ export default function ContainmentConfirmModal({
     })
   }
 
-  const isMock = !backendInfo || backendInfo.backend === 'mock' || !backendInfo.realEnforcementEnabled
+  const engineLabel = enforcementEngineLabel(backendInfo)
+  const isMock = engineLabel.simulated
 
   return (
     <Modal
@@ -56,10 +58,10 @@ export default function ContainmentConfirmModal({
         }}
       >
         <span style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 11, color: isMock ? '#00d4ff' : '#ff2d55' }}>
-          ● ENFORCEMENT ENGINE: {isMock ? 'SIMULATION / MOCK ADAPTER' : 'WINDOWS FIREWALL (HOST)'}
+          ● ENFORCEMENT ENGINE: {engineLabel.engine}
         </span>
         <span style={{ fontFamily: 'Share Tech Mono,monospace', fontSize: 10, color: '#7ab3cc' }}>
-          {isMock ? 'Safe Dev Mode' : 'Live Host Rules'}
+          {engineLabel.mode}
         </span>
       </div>
 
