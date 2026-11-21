@@ -20,7 +20,10 @@ suite('Actual browser cookie, cross-tab session and cutover regressions', () => 
   let user
   let password
   const root = path.resolve(__dirname, '../..')
-  const evidence = path.join(root, '.test-runtime/auth-timezone-db-20261014-01/evidence')
+  // Rank 8: AUTH_EVIDENCE_DIR lets a re-run write its screenshots and log elsewhere, so the evidence recorded on
+  // 2026-10-14 is never overwritten. The default is unchanged.
+  const evidence =
+    process.env.AUTH_EVIDENCE_DIR || path.join(root, '.test-runtime/auth-timezone-db-20261014-01/evidence')
   // BROWSER_EXECUTABLE wins; otherwise the usual Chrome location for this OS (GitHub's Ubuntu runners ship Chrome).
   const browserExecutable = () => {
     if (process.env.BROWSER_EXECUTABLE) return process.env.BROWSER_EXECUTABLE
@@ -102,10 +105,11 @@ suite('Actual browser cookie, cross-tab session and cutover regressions', () => 
     browser = await puppeteer.launch({
       headless: true,
       executablePath: browserExecutable(),
-      userDataDir: path.join(
-        root,
-        '.test-runtime/auth-timezone-db-20261014-01/browser-hardening-' + crypto.randomUUID()
-      ),
+      // Rank 8: with AUTH_EVIDENCE_DIR set, the throwaway browser profile goes next to it (outside the 2026-10-14
+      // evidence folder). The default is unchanged.
+      userDataDir: process.env.AUTH_EVIDENCE_DIR
+        ? path.join(path.dirname(process.env.AUTH_EVIDENCE_DIR), 'browser-hardening-' + crypto.randomUUID())
+        : path.join(root, '.test-runtime/auth-timezone-db-20261014-01/browser-hardening-' + crypto.randomUUID()),
       args: ['--no-first-run', '--disable-background-networking'],
     })
   }, 60000)

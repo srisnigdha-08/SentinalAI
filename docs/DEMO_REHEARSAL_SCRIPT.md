@@ -12,7 +12,7 @@ and the rehearsal database was dropped. Your demo uses the default `sentinel-dem
 **Say once, at the start:** network flows are **recorded CICIDS2017 flows replayed** through the live engine, not live
 capture; host-firewall enforcement is **simulated** by a mock adapter (the honeypot's own deny-list is real); the
 persona learner's benefit is **not measured**; the model is strong on its own dataset and **weak on unseen attack
-days**.
+days** and on another network (about 15 % recall on CICIDS2018).
 
 | Capability | Status in the demo |
 |---|---|
@@ -90,7 +90,7 @@ Honeypot: 1 active, AI Engine: Running*. (Screenshot: [`02-dashboard-analyst.png
 | A1 | Demo console: `ssh -p 2222 root@$env:SENTINEL_HONEYPOT_IP`, password from Cowrie's `etc/userdb.txt` (lab credential) | prompt `root@ubuntu-prod-srv:~#` | a convincing Ubuntu server | Cowrie is a medium-interaction honeypot: it emulates SSH and a shell; nothing runs on a real host |
 | A2 | `uname -a`, `whoami`, `cat /etc/passwd`, `ls /tmp`, `exit` | `Linux ubuntu-prod-srv 5.15.0-91-generic … x86_64`, `root`, a fake passwd file | fabricated output | the persona (kernel, hostname, banner) is configured, not real |
 | A3 | Dashboard → **Honeypot** | the session appears with its commands; *LIVE* badge | live update without reload | parser → `/api/honeypot/ingest` → Socket.IO `honeypot_*` events |
-| A4 | Open the session | MITRE **T1082** (uname), **T1033** (whoami), **T1003 / T1003.008** (/etc/passwd), **T1595** | ATT&CK techniques per command | rule-based mapping (`honeypot_rules`), not the network model; session threat score 0.40 → a LOW ThreatLog |
+| A4 | Open the session | MITRE **T1082** (uname), **T1033** (whoami), **T1003.008** (/etc/passwd), each with its tactic (Discovery / Credential Access). Since Rank 8, on-host reconnaissance is no longer shown as T1595 Active Scanning, which is an external pre-compromise technique | ATT&CK techniques per command | rule-based mapping (`honeypot_rules`), not the network model; session threat score 0.40 → a LOW ThreatLog |
 | A5 | Same view | deception score (≈ 25), Q-learner score (≈ 26), engagement *medium* | engagement scoring | reward = duration, commands, intent bonuses, IOCs, login; minus a fingerprinting penalty |
 | A6 | **Honeypot → Adaptive Deception** (analyst) | *Serving persona: ubuntu_22*; recommendation e.g. **centos_7**, decision id `…`; REFRESH shows the same decision | one decision per served persona | tabular Q-learning, ε-greedy; provenance shows it was warm-started from a **synthetic** seed table |
 | A7 | WSL: `bash scripts/demo/cowrie-demo-mode.sh rotate --once` | `Rotation result: {'changed': True, 'active': 'centos_7', 'previous': 'ubuntu_22', 'decisionId': '…'}`, `persona now: centos_7` | the decision is applied | rotator rewrites `cowrie.cfg` from a template, restarts Cowrie, records `APPLIED` |
@@ -130,7 +130,7 @@ Flow #02 | Client IP: 198.51.100.3 | …   Model Prediction: DDoS    Threat: 1.0
 | B5 | Threat Logs → **Explain** on a DDoS row | *Predicted class DDoS, confidence 100 %, model xgb_cicids_v1, "reproduced from the features stored with this prediction"*; bars led by `init_win_bytes_backward` (+3.66) | SHAP for **that** stored prediction | stored 53-feature vector re-scored; refused if class/score/model differ; contributions are log-odds and add up to the margin (base 0.246 + Σ = 8.26 in the rehearsal); covers the classifier, not the anomaly term |
 | B6 | (optional) sign in as **viewer** | no Explain button; IPs shown as `198.51.100.xxx` | redaction | viewer API and socket payloads are redacted on the server (rehearsal: viewer explanation request → 403) |
 
-Say: *"98.97 % accuracy on a de-duplicated random split; 3–51 % recall on attack days it never saw — it is not a
+Say: *"98.97 % accuracy on a de-duplicated random split; 3–51 % recall on attack days it never saw and about 15 % on CICIDS2018 — it is not a
 detector of novel attacks."*
 
 ## 4. Demo C — Autonomous Incident Response (≈ 5 minutes)

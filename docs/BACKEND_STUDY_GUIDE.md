@@ -174,7 +174,7 @@ invalid or `mustChangePassword`. After connect, the socket joins `auth-session:<
 **Client → server** (`websocket/socketManager.js`)
 | Event | Payload | Effect | Line |
 |---|---|---|---|
-| `join_room` | `{role, userId, room}` (role is **ignored**; server-verified role used) | joins `<role>`, `threat_subscribers_<role>`, `all`, `threat_subscribers`; admin/analyst also `threat_subscribers_privileged` (+ `admin`/`analyst` custom room); replies `connected` | 24-53 |
+| `join_room` | `{role, userId, room}` (role is **ignored**; server-verified role used) | joins `<role>`, `threat_subscribers_<role>`, `all`, `threat_subscribers`; admin/analyst also `threat_subscribers_privileged`; a client-named `room` is never joined (a request for any room other than the verified role is refused and logged), so an analyst cannot enter `admin`; replies `connected` | 26-60 |
 | `subscribe_threats` | — | joins threat rooms; replies `subscribed` | 55-62 |
 | `request_stats` | — | 3 `countDocuments` → replies `stats_snapshot` | 64-83 |
 | `ping_sentinel` | — | replies `pong_sentinel` | 85 |
@@ -223,9 +223,9 @@ Analyst/UI          Node /api/ai          aiEngineService        FastAPI        
    |                    |                       |                     | (finite numbers)    |                          |                          |                        |
    |                    |                       |                     |-- predict() ------->| extract_features_from_   |                          |                        |
    |                    |                       |                     |                     | record → 53-vector       |                          |                        |
-   |                    |                       |                     |                     | RF predict+proba         |                          |                        |
+   |                    |                       |                     |                     | XGBoost predict+proba    |                          |                        |
    |                    |                       |                     |                     | IF score_samples         |                          |                        |
-   |                    |                       |                     |                     | score=0.7*rf+0.3*if_sig  |                          |                        |
+   |                    |                       |                     |                     | combine_threat_score()   |                          |                        |
    |                    |                       |                     |<-- result ----------|                          |                          |                        |
    |                    |                       |<-- {result, featureVector} --------------|                          |                          |                        |
    |                    |                       | validate score ∈[0,1]; else DEGRADED      |                          |                          |                        |
@@ -577,7 +577,7 @@ setInterval(() => s.emit('ping_sentinel'), 10000)
 Expected output:
 - `connected`, `subscribed`, `stats_snapshot` and `pong_sentinel` straight away.
 - `system_health` every 15 s.
-- `ai_prediction` (and `new_threat` when score ≥ 0.7) after the `/api/ai/analyze` call.
+- `ai_prediction` (and `new_threat` when the class is not BENIGN and the score is at or above the 0.90 alert line) after the `/api/ai/analyze` call.
 - `honeypot_*` events during 3.3.
 
 ## 3.5 Tests: how to run, and what happened today
@@ -610,7 +610,7 @@ and frontend test and build.
 | Auth (JWT + server sessions, CSRF, RBAC) | Working (tested) | auth*, roleMatrix, rbacPhase3B suites | `middleware/auth.js`, `authCookies.js`, `services/authSessionService.js` |
 | Socket.IO auth + role rooms | Working (tested) | `websocket.test.js`, `socketRoomDelivery.test.js` (untracked) | `websocket/*.js` |
 | FastAPI inference service | Working (live-verified) | started, `/ready` ok, 401/403/422 correct | `ai-engine/inference/main.py` |
-| RF + IF models | Working, metrics unverified on independent data | loads, predicts; see 3.7(c) | `ai-engine/models/` |
+| XGBoost + IF models (served `xgb_cicids_v1`, registry-pinned) | Working, metrics unverified on independent data | loads, predicts; see 3.7(c) | `ai-engine/models/` |
 | XGBoost / stacking models | Present, **not used at runtime** | first-match load order | `predictor.py:124-141` |
 | SHAP explanations | Working (startup log) | "SHAP TreeExplainer initialized" | `predictor.py::init_explainer` |
 | Node ↔ FastAPI integration | Working (unit + contract tests); no retries | `aiDependencyContract.test.js` | `services/aiEngineService.js` |
@@ -1049,11 +1049,16 @@ Code fixes are minimal and match the surrounding style.
 
 1. **Walk me through what happens when a threat is detected.**
    The backend posts the flow to FastAPI `/predict/internal`. FastAPI builds a 53-feature vector
-   and runs a random forest (class) and an isolation forest (anomaly). It returns
-   `threatScore = 0.7 × RF confidence + 0.3 × anomaly signal`. Node validates the score, picks an
-   action against a 0.92 block threshold, stores an `AIPrediction`, and creates a `ThreatLog` if
-   the score is at least 0.7. It then pushes `new_threat` and `ai_prediction` over Socket.IO to
-   role-based rooms. Auto-block only happens if an admin has enabled `autoBlockEnabled`.
+   and runs the served XGBoost classifier (class) and an isolation forest (anomaly). It returns
+   `blend = 0.7 × classifier confidence + 0.3 × anomaly signal`; for an attack class the score is
+   `max(confidence, blend)`, so the anomaly signal can only raise it, and for BENIGN it is the blend
+   (an anomalous BENIGN flow becomes "Unknown" with a 0.55 floor and goes to analyst REVIEW; it can reach
+   the alert or block line only when the classifier's own BENIGN probability is very low, about 0.14 or less) —
+   `ai-engine/inference/predictor.py` `combine_threat_score`. Node validates the score, picks an
+   action against the 0.92 block line, stores an `AIPrediction`, and creates a `ThreatLog` when the
+   class is not BENIGN and the score is at least the 0.90 alert line. It then pushes `new_threat` and
+   `ai_prediction` over Socket.IO to role-based rooms. Auto-block only happens if an admin has
+   enabled `autoBlockEnabled`, and then only with correlated evidence (default `AUTO_BLOCK_POLICY=correlated`).
 
 2. **Why split Node and Python?**
    Python owns the ML ecosystem (scikit-learn, XGBoost, SHAP). Node owns I/O-heavy work: auth,

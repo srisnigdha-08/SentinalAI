@@ -94,12 +94,14 @@ feature vector, and refused if re-scoring does not reproduce the prediction."
 
 ## 9. Honeypot and reinforcement learning
 
-- Real SSH sessions; commands mapped to ATT&CK (rehearsal: T1082, T1033, T1003.008, T1595).
+- Real SSH sessions; commands mapped to ATT&CK with tactics (rehearsal: T1082, T1033 Discovery; T1003.008 Credential Access). The rehearsal recorded T1595 before Rank 8 corrected that mapping.
 - Reward: engagement (duration, commands, intent bonuses, IOCs, login) minus a fingerprinting penalty.
 - Tabular Q-learning (α 0.1, γ 0.9, ε 0.2 → floor 0.05) over 5 Linux personas; one decision per served persona,
   applied by the rotator.
 - **Honest limit:** the learner was warm-started from a synthetic table and its effect on real attacker engagement
-  has **not** been measured.
+  has **not** been measured. 12,087 of its 12,106 episodes (99.84 %) are that seed, none come from independent
+  external sessions, and real data changed none of the 6 per-state greedy choices (`docs/QLEARNING_EVIDENCE.md`).
+  The mechanism is implemented; adaptive deception is not demonstrated.
 
 *Screenshot:* `presentation/screenshots/06-honeypot-analytics.png`
 
@@ -133,6 +135,7 @@ feature vector, and refused if re-scoring does not reproduce the prediction."
 | Leave one day out | 3.1–33.4 % | up to 4.1 % |
 | Later held-out traffic at the 0.90 line | 78.6 % | 0.154 % |
 | Six CSE-CIC-IDS2018 development days at the 0.90 line (diagnostic) | 15.2 % | 0.24 % |
+| Same six 2018 days, every row (5.55 M flows; Rank 5, `docs/ML_GENERALISATION.md`) | 15.0 %; ROC-AUC 0.65; accuracy 72.94 % vs 72.96 % for always BENIGN | 0.39 % |
 
 Deception Arena (scripted and simulated attackers only): scripted runs give identical sessions under both strategies,
 as they must; a 12-pair simulated run found no difference in commands per session (95 % CI −0.42 to 1.42). No
@@ -155,8 +158,11 @@ analytics, `09` settings and containment, `10` viewer redaction.
 
 ## 14. Limitations
 
-- The model misses most attacks from days and tools it never saw (3–51 % recall); several classes have under 10
-  test flows.
+- The model misses most attacks from days and tools it never saw (3–51 % recall) and from another network
+  (CSE-CIC-IDS2018: ≈15 % recall, no better than always predicting BENIGN).
+- Rare and missing classes: training rows SQL Injection 17, RCE Attempt 9 (all Heartbleed, not code execution),
+  Lateral Movement 29, Data Exfiltration 0 (cannot be predicted).
+- The Isolation Forest is a weak anomaly signal: its review tier recovered 2 of 2,254 attacks the classifier missed.
 - Flows in the demo are recorded CICIDS2017 records replayed, not live capture.
 - Host-firewall enforcement is simulated; the Windows Firewall adapter has never run live.
 - The persona learner's benefit for real attackers is not established (Deception Arena: scripted and simulated only);

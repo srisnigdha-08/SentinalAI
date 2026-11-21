@@ -85,3 +85,18 @@ test('persona policy v2 recommendations are labelled as a confidence bound, not 
   assert.equal(policyLabel('q_learning'), 'Q-learner')
   assert.equal(policyLabel('ucb1'), 'Bandit (UCB1)')
 })
+
+test('learner evidence is broken down by source; only external counts as independent', async () => {
+  const { learnerEvidenceSourceSummary } = await import('../src/utils/modelHealth.js')
+  assert.equal(learnerEvidenceSourceSummary(null), null)
+  assert.equal(learnerEvidenceSourceSummary({ seedEpisodes: 1 }), null)
+  const demo = learnerEvidenceSourceSummary({
+    bySource: { operator: 0, external: 0, simulated: 0, unknown: 0 }, untrackedSessionEpisodes: 19,
+  })
+  assert.equal(demo, 'By source: operator 0, external 0, simulated 0, unknown 0, untracked 19. Independent evidence: none.')
+  const ops = learnerEvidenceSourceSummary({ bySource: { operator: 5, unknown: 'x' } })
+  assert.match(ops, /operator 5/)
+  assert.match(ops, /unknown 0/)
+  assert.match(ops, /Independent evidence: none/)
+  assert.match(learnerEvidenceSourceSummary({ bySource: { external: 1 } }), /Independent evidence: 1 external session\./)
+})

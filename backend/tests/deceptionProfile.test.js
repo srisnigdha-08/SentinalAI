@@ -164,19 +164,24 @@ describe('active deception profile', () => {
     })
     expect(session.recommendedProfile).toBe('ubuntu_22') // the decision path is unchanged
     expect(session.deceptionPolicy).toBe('q_learning')
+    // Rank 6 (utils/shadowPolicy.js): the stored record also carries its schema, status and error code
     expect(session.shadowPolicy).toEqual({
+      schemaVersion: 'shadow-v2/1',
       version: 'persona-ducb-v2',
       mode: 'shadow',
       recommendation: 'raspberry_pi',
       learned: true,
+      status: 'OK',
+      errorCode: null,
     })
   })
 
   test('a v2 error or an unknown persona is never stored as a shadow recommendation', async () => {
+    // Rank 6: a v2 error is recorded as shadow evidence (status ERROR), still with no recommendation
     expect(
       (await scoreWith({ deceptionScore: 1, nextProfile: 'centos_7', policyV2: { mode: 'shadow', error: 'OSError' } }))
         .shadowPolicy
-    ).toBeNull()
+    ).toMatchObject({ status: 'ERROR', errorCode: 'OSError', recommendation: null })
     const odd = await scoreWith({
       deceptionScore: 1,
       nextProfile: 'centos_7',

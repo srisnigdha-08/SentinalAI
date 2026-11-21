@@ -104,6 +104,30 @@ class ContainmentReconciliationService {
           removeResult = { success: false, stderr: adapterErr.message, exitCode: 1, executionDurationMs: 0 }
         }
 
+        // As in rollbackContainment: a real host rule still PRESENT after a reported removal is a failed release
+        if (removeResult.success && adapter.requiresPostApplyVerification === true) {
+          let state = null
+          try {
+            state = (
+              await adapter.inspectRule({
+                containmentId: action.containmentId,
+                ruleId: action.enforcementDetails?.ruleId || undefined,
+                target: action.normalizedTarget,
+                ruleName: action.enforcementDetails?.ruleName || undefined,
+              })
+            )?.state
+          } catch (inspectErr) {
+            logger.warn(`[ContainmentReconciliation] Post-expiry lookup failed: ${inspectErr.message}`)
+          }
+          if (state === 'PRESENT')
+            removeResult = {
+              ...removeResult,
+              success: false,
+              exitCode: 1,
+              stderr: 'RELEASE_NOT_VERIFIED: the rule is still present after the removal command reported success',
+            }
+        }
+
         if (!removeResult.success) {
           logger.error(
             `[ContainmentReconciliation] Adapter removal failed for ${action.containmentId}: ${removeResult.stderr}`

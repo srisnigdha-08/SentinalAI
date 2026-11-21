@@ -26,11 +26,14 @@ const AIPredictionSchema = new mongoose.Schema(
     predictedClass: { type: String, required: true },
     classProbabilities: { type: Map, of: Number },
     threatScore: { type: Number, required: true, min: 0, max: 1 },
-    modelVersion: { type: String, default: 'rf_classifier_v2.1' },
+    // Rank 8: the served classifier is XGBoost. 'xgboost' / 'stacking' / 'unknown' are added; 'ensemble' and
+    // 'random_forest' stay valid so existing records still validate. A record created without model fields is
+    // 'unknown', no longer silently labelled as a Random Forest.
+    modelVersion: { type: String, default: 'unknown' },
     modelType: {
       type: String,
-      enum: ['isolation_forest', 'random_forest', 'ensemble', 'rules'],
-      default: 'random_forest',
+      enum: ['isolation_forest', 'random_forest', 'ensemble', 'xgboost', 'stacking', 'rules', 'unknown'],
+      default: 'unknown',
     },
     isAnomaly: { type: Boolean, default: false },
     // Classifier said BENIGN but the anomaly tier flagged it strongly (engine action REVIEW): analyst queue,

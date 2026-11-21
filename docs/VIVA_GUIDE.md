@@ -73,7 +73,7 @@ Point out: the classification here is **rule-based** (`honeypot_rules`), not the
 - **Isolation Forest:** unsupervised, so it can flag flows unlike the training data that the classifier would
   confidently call benign. Those go to an analyst review queue rather than becoming threats.
 - **Honest limit:** neither fixes generalisation to unseen attack days (3–51 % recall); the anomaly tier was not
-  shown to recover those attacks.
+  shown to recover those attacks (on the chronological test its review tier recovered 2 of 2,254 missed attacks).
 
 ## 7. How Q-learning works in SentinelAI
 
@@ -116,6 +116,8 @@ Say: "the decision and its record are real; enforcement on the host is simulated
   both sides.
 - Train Monday–Wednesday, test Thursday–Friday: attack recall 50.6 %.
 - Leave one day out: 3.1–33.4 % attack recall; a model trained on one DDoS tool detected 0 % of other DoS tools.
+- Another network (six CSE-CIC-IDS2018 development days, 5.55 M flows): ≈15 % attack recall at the alert line,
+  ROC-AUC ≈0.65, accuracy 72.94 % against 72.96 % for always predicting BENIGN (`docs/ML_GENERALISATION.md`).
 - Conclusion: excellent at recognising attacks like those it was trained on; **not** a detector of new attacks.
   This is the most important limitation and is stated in the README.
 

@@ -70,6 +70,12 @@ beforeAll(async () => {
     CONTAINMENT_BACKEND: 'mock',
     ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT: 'false',
     LOG_LEVEL: 'info',
+    // Rank 8: the spawned server is not a Jest worker, so its log and audit files are redirected explicitly; it
+    // never writes to the real backend/logs.
+    LOG_DIR: tmp,
+    EMERGENCY_AUDIT_DIR: tmp,
+    CONTAINMENT_AUDIT_SPOOL_DIR: tmp,
+    OUTBOX_DIR: tmp,
   }
   child = spawn(process.execPath, ['server.js'], {
     cwd: path.join(__dirname, '..'),

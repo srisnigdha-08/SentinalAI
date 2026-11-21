@@ -12,6 +12,9 @@ Capture service: packets -> flows -> SentinelAI backend (POST /api/honeypot/inge
 
 Health: every --heartbeat-seconds the service POSTs {mode, interface, counters} to
 /api/honeypot/ingest/capture-heartbeat (same honeypot key) and writes it to --health-file. The dashboard shows "Capture unavailable" when heartbeats stop.
+Exit codes: 0 finished (a truncated file is replayed up to the cut and reported in lastError), 2 missing key,
+3 live capture unavailable, 4 the PCAP could not be read (missing, empty, not a pcap, pcapng, unsupported link type,
+corrupt record); a failed replay also sends a heartbeat with status "failed" and the reason.
 Resource limits: --max-flows, --max-packets, --max-seconds, --max-flows-per-second (excess flows are counted and
 dropped, never queued without bound).
 """
@@ -26,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from capture.flows import FlowExtractor, to_ingest_payload  # noqa: E402
+from capture.packets import PcapError  # noqa: E402
 from capture.sources import CaptureUnavailable, LivePassiveSource, PcapReplaySource  # noqa: E402
 
 
@@ -33,7 +37,8 @@ class Health:
     def __init__(self, mode, interface, path=None):
         self.mode, self.interface, self.path = mode, interface, path
         self.started = datetime.now(timezone.utc).isoformat()
-        self.counters = {"packets": 0, "flows": 0, "posted": 0, "post_errors": 0, "rate_limited": 0, "dropped_packets": 0}
+        self.counters = {"packets": 0, "flows": 0, "posted": 0, "post_errors": 0, "rate_limited": 0, "dropped_packets": 0,
+                         "records": 0, "skipped_frames": 0}
         self.last_packet_at = None
         self.last_error = None
 
@@ -104,11 +109,33 @@ def run(source, extractor, sink, health, heartbeat=None, heartbeat_seconds=15.0,
         for rec in extractor.flush():
             deliver(rec)
         health.counters["dropped_packets"] = getattr(source, "dropped", 0)
+        _replay_notes(source, health)
         beat("finished")
     except CaptureUnavailable as e:
         health.last_error = e.reason
         beat("unavailable")
         raise
+    except (PcapError, OSError) as e:
+        # A file that cannot be read is reported, never swallowed: status "failed" with the reason.
+        _replay_notes(source, health)
+        health.last_error = f"pcap: {e}" if isinstance(e, PcapError) else f"pcap: cannot read file ({type(e).__name__})"
+        beat("failed")
+        raise
+
+
+def _replay_notes(source, health):
+    """Copy the PCAP reader's counters into health, and say plainly when a replay was partial or found nothing."""
+    st = getattr(source, "stats", None)
+    if not st:
+        return
+    health.counters["records"] = st.get("records", 0)
+    health.counters["skipped_frames"] = st.get("skipped_frames", 0)
+    if st.get("truncated"):
+        health.last_error = (f"pcap truncated: the file ends inside a record after {st.get('records', 0)} complete "
+                             "record(s); those were replayed, the cut-off record was not")
+    elif health.counters["packets"] == 0:
+        health.last_error = (f"no TCP/UDP packets found ({st.get('records', 0)} record(s) read, "
+                             f"{st.get('skipped_frames', 0)} skipped as non-TCP/UDP)")
 
 
 def main(argv=None):
@@ -134,6 +161,9 @@ def main(argv=None):
     except CaptureUnavailable as e:
         print(json.dumps({"mode": "unavailable", "reason": e.reason}))
         return 3
+    except PcapError as e:
+        print(json.dumps({"mode": "pcap_replay", "status": "failed", "error": str(e)}))
+        return 4
     health = Health(source.kind, a.iface if a.live else None, a.health_file)
     if a.dry_run:
         sink, heartbeat = (lambda p: print(json.dumps(p))), None
@@ -151,6 +181,10 @@ def main(argv=None):
     except CaptureUnavailable as e:
         print(json.dumps({"mode": "unavailable", "reason": e.reason}))
         return 3
+    except (PcapError, OSError):
+        print(json.dumps({"mode": "pcap_replay", "status": "failed", "error": health.last_error}))
+        print(json.dumps(health.snapshot("failed")), file=sys.stderr)
+        return 4
     print(json.dumps(health.snapshot("finished")), file=sys.stderr)
     return 0
 

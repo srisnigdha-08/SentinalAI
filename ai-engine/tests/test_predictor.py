@@ -5,6 +5,12 @@ Unit tests for ai-engine/inference/predictor.py:
   - Model prioritization: cicids real-data models take precedence over synthetic baselines
   - the engine has no IP-reputation client (enrichment lives in the backend)
   - _demo() fallback produces correct response shape
+
+Rank 8: these tests used to reload inference.predictor. Reloading replaced the SentinelPredictor class object while
+inference.main (imported by other test modules at collection) kept instances of the original class, so tests that
+later patched inference.predictor.SentinelPredictor.<method> by dotted path no longer reached the engine (two
+test_explain_vector endpoint tests failed whenever this file ran first). The module has no import-time state these
+tests change, so they import it normally; tests/test_test_isolation.py forbids reloading production modules.
 """
 import sys
 import os
@@ -73,9 +79,8 @@ class TestModelPrioritization:
         with patch("joblib.load", return_value=MagicMock()), \
              patch("inference.predictor.SentinelPredictor.init_explainer"):
             from inference.predictor import SentinelPredictor
-            import importlib
             import inference.predictor as pred_mod
-            importlib.reload(pred_mod)
+            # Rank 8: no importlib.reload of the production module (see the module docstring)
             p = pred_mod.SentinelPredictor(model_dir=str(model_dir))
 
         assert p.model_type == "xgboost"
@@ -90,9 +95,8 @@ class TestModelPrioritization:
         with patch("joblib.load", return_value=MagicMock()), \
              patch("inference.predictor.SentinelPredictor.init_explainer"):
             from inference.predictor import SentinelPredictor
-            import importlib
             import inference.predictor as pred_mod
-            importlib.reload(pred_mod)
+            # Rank 8: no importlib.reload of the production module (see the module docstring)
             p = pred_mod.SentinelPredictor(model_dir=str(model_dir))
 
         assert p.model_type == "rf"
@@ -103,9 +107,8 @@ class TestModelPrioritization:
         model_dir = tmp_path / "models"
         model_dir.mkdir()
 
-        import importlib
         import inference.predictor as pred_mod
-        importlib.reload(pred_mod)
+        # Rank 8: no importlib.reload of the production module (see the module docstring)
 
         with patch("inference.predictor.SentinelPredictor.init_explainer"):
             p = pred_mod.SentinelPredictor(model_dir=str(model_dir))
@@ -131,9 +134,8 @@ class TestIsolationForestScoring:
 
     @pytest.fixture
     def predictor(self):
-        import importlib
         import inference.predictor as pred_mod
-        importlib.reload(pred_mod)
+        # Rank 8: no importlib.reload of the production module (see the module docstring)
         with patch("inference.predictor.SentinelPredictor.load"), \
              patch("inference.predictor.SentinelPredictor.init_explainer"):
             p = pred_mod.SentinelPredictor()

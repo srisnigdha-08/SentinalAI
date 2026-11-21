@@ -282,7 +282,12 @@ const recordSessionActivity = async (
 ) => {
   // pre('save') does not run for updates; MITRE techniques are derived from intents and only ever grow.
   // Intent-level and per-command techniques (e.g. T1003.008 for /etc/shadow); the set only ever grows.
-  const techniques = mitreMapping.getMitreTechniquesForSession(commands)
+  // Rank 8: Windows-style techniques only for sessions served as windows_srv (decided inside the atomic update from
+  // the stored servedProfile); records keep the {id, name} shape, tactics are derived from the id when read.
+  const techniques = mitreMapping.storedForm(mitreMapping.getMitreTechniquesForSession(commands))
+  const windowsTechniques = mitreMapping.storedForm(
+    mitreMapping.getMitreTechniquesForSession(commands, { persona: mitreMapping.WINDOWS_PERSONA })
+  )
   const guarded = eventId ? { ...filter, ingestEventIds: { $ne: eventId } } : filter
   const max = limits()
   const updated = await HoneypotSession.findOneAndUpdate(
@@ -316,7 +321,13 @@ const recordSessionActivity = async (
           'iocExtracted.urls': unionWith('$iocExtracted.urls', urls),
           'iocExtracted.hashes': unionWith('$iocExtracted.hashes', hashes),
           malwareDownloaded: unionWith('$malwareDownloaded', malware),
-          mitreTechniques: unionWith('$mitreTechniques', techniques),
+          mitreTechniques: {
+            $cond: [
+              { $eq: ['$servedProfile', mitreMapping.WINDOWS_PERSONA] },
+              unionWith('$mitreTechniques', windowsTechniques),
+              unionWith('$mitreTechniques', techniques),
+            ],
+          },
           downloadCount: { $add: [{ $ifNull: ['$downloadCount', 0] }, downloads] },
         },
       },
@@ -522,6 +533,15 @@ const analyseClosure = async (session, telemetry, { classify = true, score: scor
   const finishOptions = { score: scoreQ, retry }
   const aiRes = classify ? await aiSvc.predictHoneypotSession(payload) : null
   if (classify) session.aiAnalysisPending = !(aiRes?.success && aiRes?.result)
+  // Shadow-only session ML (docs/SESSION_ML.md): stored next to, never instead of, the rule-based result below.
+  // Informational only: nothing in this function or in containment reads session.sessionMl.
+  if (classify) {
+    const { sanitizeSessionMl, engineUnavailable } = require('../utils/sessionMl')
+    session.sessionMl =
+      aiRes?.success && aiRes?.result
+        ? sanitizeSessionMl(aiRes.sessionML, session.sessionId)
+        : engineUnavailable(session.sessionId)
+  }
   if (aiRes?.success && aiRes?.result) {
     session.aiClassification = aiRes.result.predictedClass || null
     session.aiThreatScore = aiRes.result.threatScore || 0
@@ -729,16 +749,9 @@ const finishClosure = async (session, payload, { score = true, retry = false } =
     // Policy-evaluation evidence: the deciding learner, and persona policy v2's shadow pick at scoring time
     // (reported by the engine as policyV2; never applied). Only known persona names are stored.
     session.deceptionPolicy = String(decRes.result.learnerStats?.policy || 'q_learning').slice(0, 64)
-    const v2 = decRes.result.policyV2
-    session.shadowPolicy =
-      v2 && !v2.error
-        ? {
-            version: typeof v2.policyVersion === 'string' ? v2.policyVersion.slice(0, 64) : null,
-            mode: typeof v2.mode === 'string' ? v2.mode.slice(0, 16) : null,
-            recommendation: DECEPTION_PROFILES.includes(v2.recommendation) ? v2.recommendation : null,
-            learned: typeof v2.learned === 'boolean' ? v2.learned : null,
-          }
-        : null
+    // Validated by utils/shadowPolicy.js: servable personas only (never windows_srv), and a v2 failure is recorded as
+    // status ERROR instead of being dropped. The served persona and v1's pick stay in their own fields.
+    session.shadowPolicy = require('../utils/shadowPolicy').shadowPolicyRecord(decRes.result.policyV2)
     session.deceptionScoredAt = new Date()
     logger.info(
       `[HP] Q-learner scored session ${session.sessionId}: ${session.qDeceptionScore} (Next Profile: ${session.recommendedProfile})`

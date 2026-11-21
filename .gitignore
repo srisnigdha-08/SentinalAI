@@ -42,6 +42,8 @@ Thumbs.db
 # Native test and learning state
 .test-runtime/
 runtime/
+# Rank 8: derived results the AI engine caches (reference global SHAP summary); never inside ai-engine/models/
+ai-engine/derived/
 .native-integration/
 coverage/
 *.bak*

@@ -81,12 +81,38 @@ const HoneypotSessionSchema = new mongoose.Schema(
         mode: { type: String, default: null },
         recommendation: { type: String, default: null },
         learned: { type: Boolean, default: null },
+        // Rank 6 (utils/shadowPolicy.js): OK | INVALID_RECOMMENDATION | ERROR; absent on older records
+        status: { type: String, default: null },
+        errorCode: { type: String, default: null },
+        schemaVersion: { type: String, default: null },
         _id: false,
       },
       default: null,
     },
     // Persona Cowrie actually served for this session: the Q-learner's action for its reward.
     servedProfile: { type: String, default: null },
+    // Honeypot-session ML, SHADOW ONLY (utils/sessionMl.js, docs/SESSION_ML.md): separate from the rule-based
+    // aiClassification above, never read by containment, alerts or scores. Absent on sessions closed before it existed.
+    sessionMl: {
+      type: {
+        status: { type: String, default: null },
+        reason: { type: String, default: null },
+        shadowOnly: { type: Boolean, default: true },
+        mode: { type: String, default: null },
+        prediction: { type: String, default: null },
+        score: { type: Number, default: null },
+        calibrated: { type: Boolean, default: false },
+        modelName: { type: String, default: null },
+        modelVersion: { type: String, default: null },
+        featureSchemaVersion: { type: String, default: null },
+        reasonCodes: { type: [String], default: undefined },
+        evidenceSource: { type: String, default: null },
+        sessionId: { type: String, default: null },
+        inferredAt: { type: Date, default: null },
+      },
+      default: undefined,
+      _id: false,
+    },
     mitreTechniques: [{ id: { type: String, required: true }, name: { type: String, required: true }, _id: false }],
     // Ids of Cowrie command/download events already applied (parser/plugin eventId), so a replayed or
     // doubly delivered event is a no-op. Internal: never returned by default.
@@ -112,7 +138,9 @@ HoneypotSessionSchema.index({ 'commands.command': 1, createdAt: -1 })
 HoneypotSessionSchema.index({ status: 1, updatedAt: 1 })
 HoneypotSessionSchema.pre('save', function (next) {
   if (this.isModified('commands') || !this.mitreTechniques || this.mitreTechniques.length === 0) {
-    this.mitreTechniques = mitreMapping.getMitreTechniquesForSession(this.commands)
+    this.mitreTechniques = mitreMapping.storedForm(
+      mitreMapping.getMitreTechniquesForSession(this.commands, { persona: this.servedProfile })
+    )
   }
   next()
 })

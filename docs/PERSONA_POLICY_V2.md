@@ -189,7 +189,8 @@ $env:SENTINEL_KEY = (Select-String ..\backend\.env -Pattern '^SENTINEL_KEY=(.*)$
 
 ## 7. Activation and rollback procedure (prepared, NOT executed)
 
-**Use this only after §6 reports READY and the owner approves.**
+**Use this only after §6 reports READY and the owner approves.** Since the Rank 6 corrections the engine also
+enforces this: `DECEPTION_V2=active` serves nothing unless the newest readiness evidence is READY (§10).
 
 On Windows, with the demo stack running:
 
@@ -277,3 +278,169 @@ the live rehearsal in §7, done and recorded by the owner.
 | Gate 4 | not met (isolated rehearsal only) |
 
 `DECEPTION_V2` was not changed. v2 remains shadow-only and never applies a decision.
+
+## 9. Shadow verification and V1/V2 comparison (Rank 6, 2026-11-14)
+
+**Call paths (unchanged).**
+- **Production:** session closes → backend `closeSession` → engine `/deception/score` → `SessionScorer.process_session`:
+  1. V1 learns the session (`DeceptionQLearner.update`, Q-table write).
+  2. V1 picks `nextProfile`.
+  3. The backend stores `recommendedProfile`, and the rotator later applies V1's pick from
+     `/deception/recommendation`.
+- **Shadow:** after step 2, in a `try`, V2 observes the same (session id, served persona, reward) and computes its own
+  pick, saved in its own file. It is returned as `policyV2` and stored as `HoneypotSession.shadowPolicy`. The served
+  persona (`servedProfile`) and V1's pick (`recommendedProfile`) are separate fields.
+- **Active mode:** `DECEPTION_V2=active` (a manual owner switch, default `shadow`) is the only way V2's pick reaches
+  `nextProfile`. Rank 6 did not change it or use it. The Rank 6 corrections made it fail-closed (§10).
+
+**Safeguards added.** These close gaps found in the audit; none changes V1:
+- **Validated picks.** Every V2 pick is checked with `persona_policy_v2.validate_recommendation`. Only a servable
+  persona is reported, stored or (in `active` mode) applied; `windows_srv`, unknown or malformed picks become `status:
+  INVALID_RECOMMENDATION` with no persona. In `active` mode, V1's pick then stands.
+- **Errors are recorded.** A V2 failure was a missing record; it is now shadow evidence (`status: ERROR`,
+  `errorCode` = exception type).
+- **Backend storage.** The backend used to accept `windows_srv` as a shadow pick. `backend/utils/shadowPolicy.js`
+  now stores servable personas only, plus `status`, `errorCode` and `schemaVersion` (`shadow-v2/1`).
+- **Separate state file.** `DECEPTION_V2_STATE_PATH` pointing at the V1 Q-table or the shipped seed is refused
+  (V2 stays off) so V2's saves can never overwrite V1's learning.
+
+**Persona registry.** The engine, V2, backend, switcher, log parser and honeyfs builder all list the same six
+personas. Five are servable (`ubuntu_22`, `debian_11`, `centos_7`, `aws_ec2`, `raspberry_pi`), each with a switcher
+config, banner and 11 honeyfs overrides. `windows_srv` is unsupported everywhere. There is no `alpine_3`.
+
+**Read-only evaluation** (`ai-engine/evaluation/rank6_v2_shadow_eval.py`; evidence in
+`audit/rank6_persona_policy_v2/run_20261114T144642Z/`):
+- **Safety.** All production policy artifacts are hashed before and after (unchanged). Learners run on temporary
+  copies with saving disabled. Sessions are read with `mongosh find` and a projection (the existing
+  `real_session_report.load`). Evidence records carry no IP address, command, credential or session id.
+- **Isolation self-checks.** V1's decisions and learned Q-table content are identical with V2 healthy, raising,
+  timing out on save, returning `windows_srv` or returning garbage; a V2 state path on the V1 table is refused.
+- **Replay** (production order: learn, then recommend), on 19 recorded sessions (all *labelled* operator, inferred from a
+  private source address; their original provenance is untracked, see §10; served ubuntu_22 16, centos_7 3):
+
+  | | Value |
+  |---|---|
+  | Successful decisions | V1 19/19, V2 19/19 |
+  | V2 errors | 0 |
+  | V2 invalid or unsupported picks | 0 |
+  | Agreement | 16/19 (84.2 %) |
+  | V1 picks | centos_7 16, ubuntu_22 3 |
+  | V2 picks | centos_7 17, aws_ec2 2 |
+  | Personas never picked by V1 | debian_11, aws_ec2, raspberry_pi |
+  | Personas never picked by V2 | ubuntu_22, debian_11, raspberry_pi |
+  | Median decision time | V1 5 µs, V2 30 µs |
+  | Two runs | identical |
+  | Live shadow records in `sentinel-demo` | 0 |
+
+  A different persona mix says nothing about which policy deceives better: for each session only the served
+  persona's outcome is observed.
+
+**Readiness gates** (`readiness_status.json`):
+
+| # | Gate | Status |
+|---|---|---|
+| 1 | Shadow isolation | PASS |
+| 2 | Persona compatibility | PASS |
+| 3 | Invalid-action handling | PASS |
+| 4 | Failure isolation | PASS |
+| 5 | Evidence schema and provenance | PASS |
+| 6 | Reproducible evaluation | PASS |
+| 7 | Adequate session evidence (≥ 30 per servable persona) | INSUFFICIENT_DATA (16 / 0 / 3 / 0 / 0) |
+| 8 | Independent evidence (≥ 30 external per persona) | INSUFFICIENT_DATA (0 everywhere) |
+| 9 | Decision stability (SIMULATED, §8) | FAIL (C2, S11) |
+| 10 | Documented acceptance criteria (§6) | NOT_MET |
+
+**Overall: NOT_READY.** The shadow pipeline is verified; V2's effectiveness is not.
+
+**Evidence, kept apart:**
+- 12,087 synthetic seed episodes: a warm start, not attacker data.
+- 19 session-driven V1 updates with untracked provenance (Rank 3 report).
+- 19 recorded sessions labelled operator by source address; provenance untracked (§10).
+- 0 independent external sessions.
+
+Nothing promotes V2 automatically: even an all-PASS file only reports READY, and activation stays the owner's §7
+procedure.
+
+Reproduce:
+
+```bash
+cd ai-engine
+.venv/Scripts/python evaluation/rank6_v2_shadow_eval.py --mongo-uri mongodb://127.0.0.1:27017/sentinel-demo
+```
+
+Tests:
+
+```bash
+cd ai-engine
+.venv/Scripts/python -m pytest tests/test_rank6_v2_shadow.py tests/test_persona_policy_v2.py -q
+```
+
+```bash
+cd backend
+npx jest --runInBand tests/rank6PersonaPolicyV2.test.js
+```
+
+## 10. Fail-closed activation and session provenance (Rank 6 corrections, 2026-11-14)
+
+**The bypass.** Before this change, `DECEPTION_V2=active` alone made `/deception/recommendation` serve V2's pick
+(if it was a servable persona). Readiness was documented (§6, §9) but nothing in the engine checked it.
+
+**The guard** (`ai-engine/rl_engine/v2_activation.py`, called by `/deception/recommendation` in
+`inference/main.py`). V2's pick replaces V1's only when **all** of these hold:
+1. The owner's existing switch is set: `DECEPTION_V2=active`. Nothing in the code sets it.
+2. The newest run in `audit/rank6_persona_policy_v2/` has a readable, valid `readiness_status.json`. An older READY
+   run never stands in for a newer invalid one.
+3. `overall` is exactly `READY` and `shadow_engineering` is `PASS`.
+4. All ten mandatory gates are present and `PASS`.
+5. It is a production run: known `rank6_version`, a `mongosh read-only find` data source, no `smoke`/`fixture` flag,
+   a valid past `generated_at`, and `artifact_integrity.json` says the production artifacts were unchanged.
+6. It is current: its `policy_version` and `v2_defaults` equal the running V2's. Evidence for other parameters is stale.
+7. V2's pick passes `validate_recommendation` (a servable persona).
+
+Anything else keeps V1 authoritative: NOT_READY, NOT_VERIFIED, LIMITED, INSUFFICIENT_DATA, FAILED, a missing or
+unreadable file, invalid JSON, missing or failed gates, stale or smoke evidence, an unsupported pick, a V2 exception
+or a crash in the guard itself. The response carries `v2Activation` (`requested`, `allowed`, `readiness`, `reason`,
+`failedGates`, `evidence`); `/deception/stats` reports the same. A blocked request is logged once per reason as a
+warning. The guard only reads files: it never writes evidence, the Q-table or V2's state.
+
+READY never activates V2 by itself: without the owner's switch the result is `NOT_REQUESTED`. There is no expiry
+age for evidence in this project; the guard's currency rule is the policy version and parameters.
+
+**Current result:** active mode would be blocked with `READINESS_NOT_READY` (failed gates 7, 8, 9, 10). The
+deployment stays in shadow mode with V1 deciding.
+
+**Session provenance** (`provenance_reconciliation.json` in
+`audit/rank6_persona_policy_v2/run_20261114T151206Z/`, read-only `mongosh find` with a projection):
+
+| Category | Sessions |
+|---|---|
+| Historical sessions evaluated in the replay | 19 |
+| Labelled operator in the replay (inferred: private source address, `real_session_report.classify`) | 19 |
+| With a recorded source (`HoneypotSession.evidenceSource`) | 0 |
+| With recorded and verified provenance (admin-confirmed `evidenceLabel`) | 0 |
+| With untracked or unverifiable provenance | 19 |
+| Independently verified external attacker sessions | 0 |
+| Scored by the engine (`deceptionScoredAt`) | 7 (12 never scored) |
+
+The Q-table's 19 session-driven updates (Rank 3) are untracked and have no learned-session index. They **cannot be
+linked** to these 19 sessions; the equal count is not a match. Only 7 of the replayed sessions were ever scored.
+
+So: 19 historical sessions were evaluated in the replay. They are labelled as operator sessions in the evaluation
+context, but their original source provenance remains untracked. They are not counted as independently verified
+external attacker sessions. Gate 8 now counts only sessions whose recorded provenance is external; an
+address-inferred label never counts. Gate thresholds are unchanged (30 per servable persona).
+
+Tests:
+
+```bash
+cd ai-engine
+.venv/Scripts/python -m pytest tests/test_v2_activation_guard.py tests/test_rank6_v2_shadow.py tests/test_persona_policy_v2.py -q
+```
+
+## Note: retrospective test correction (recorded in Rank 8, 2026-11-19)
+
+Rank 6 changed the stored shadow record (`utils/shadowPolicy.js`: `schemaVersion`, `status`, `errorCode`, and V2
+errors recorded as `status: ERROR` instead of dropped). `backend/tests/deceptionProfile.test.js` was not run in Rank 6
+and kept the old expectations, so two of its assertions failed until they were corrected during Rank 7 to the
+intended Rank 6 behaviour. The Rank 6 report's test summary did not include that suite. The full backend run in
+Rank 8 (all 123 suites) includes it and passes.

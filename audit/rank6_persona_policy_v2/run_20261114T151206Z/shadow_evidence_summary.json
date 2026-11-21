@@ -1,0 +1,74 @@
+{
+ "rank6_version": "rank6/1",
+ "generated_at": "2026-11-14T15:12:09.202508+00:00",
+ "policy_version": "persona-ducb-v2",
+ "v2_defaults": {
+  "discount": 0.99,
+  "exploration": 0.15,
+  "switch_margin": 0.04,
+  "prior_weight": 1.0
+ },
+ "data_source": "mongosh read-only find (real_session_report.load)",
+ "synthetic_seed_episodes": 12087,
+ "q_table_total_episodes": 12106,
+ "q_table_session_driven_updates": 19,
+ "q_table_untracked_updates": 19,
+ "q_table_independent_external": 0,
+ "q_table_report": "ai-engine\\experiments\\qlearning_evidence_v2_20261113\\report.json",
+ "recorded_sessions_by_source": {
+  "operator": 19
+ },
+ "recorded_sessions_per_persona_by_source": {
+  "ubuntu_22": {
+   "operator": 16
+  },
+  "debian_11": {},
+  "centos_7": {
+   "operator": 3
+  },
+  "aws_ec2": {},
+  "raspberry_pi": {}
+ },
+ "independent_external_sessions": 0,
+ "live_shadow_records": 0,
+ "live_shadow_by_status": {},
+ "live_shadow_agreement_with_v1": 0,
+ "notes": [
+  "synthetic seed episodes are a warm start, never attacker evidence",
+  "untracked Q-table updates have no recorded source and are never counted as operator or external",
+  "operator labels are inferred from a private source address, not recorded provenance (see session_provenance); never independent evidence"
+ ],
+ "session_provenance": {
+  "total_sessions_evaluated": 19,
+  "labelled_operator_in_replay": 19,
+  "replay_label_basis": "inferred from the source address by real_session_report.classify (private/loopback = operator); not recorded provenance",
+  "replay_labels": {
+   "operator": 19
+  },
+  "with_recorded_source_provenance": 0,
+  "recorded_by_source": {},
+  "with_recorded_and_verified_provenance": 0,
+  "with_untracked_or_unverifiable_provenance": 19,
+  "without_any_recorded_source": 19,
+  "independently_verified_external": 0,
+  "independently_verified_external_per_persona": {
+   "ubuntu_22": 0,
+   "debian_11": 0,
+   "centos_7": 0,
+   "aws_ec2": 0,
+   "raspberry_pi": 0
+  },
+  "scored_by_engine": 7,
+  "never_scored_by_engine": 12,
+  "q_table_link": {
+   "q_table_session_driven_updates": 19,
+   "q_table_untracked_updates": 19,
+   "q_table_learned_session_index": 0,
+   "linked_to_replayed_sessions": false,
+   "note": "the Q-table's session-driven updates have no recorded session ids, so they cannot be matched to the replayed sessions; equal counts are not a match"
+  },
+  "synthetic_seed_episodes_counted_as_sessions": 0,
+  "statement": "19 historical sessions were evaluated in the replay. 19 are labelled operator in the evaluation context (inferred from a private source address); 0 carry a recorded source and 0 a verified one, so the original source provenance of 19 remains untracked or unverifiable. 0 are independently verified external attacker sessions."
+ },
+ "recorded_sessions_by_source_basis": "inferred from the source address by real_session_report.classify (private/loopback = operator); not recorded provenance"
+}

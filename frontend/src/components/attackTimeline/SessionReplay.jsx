@@ -8,6 +8,8 @@ import { btn } from './SessionSelector.jsx'
 import { usePlayback } from '../../hooks/usePlayback.js'
 import { SPEEDS, stepDelay } from '../../utils/playbackEngine.js'
 import { dateText, timeText, REPORT_TIME_ZONE } from '../../utils/reportingTime.js'
+import { personaLabel } from '../../utils/personaLabels.js'
+import { tacticText } from '../../utils/mitreTactics.js'
 import {
   PROVENANCE, PROVENANCE_META, TIME_BASIS, buildTimeline, formatDuration, narrative, summarize, techniqueIndex,
 } from '../../utils/attackTimeline.js'
@@ -87,7 +89,7 @@ function EventDetails({ event, start }) {
           <Row k="Explanation" v={d.explanation} />
         </>)}
         {event.kind === 'persona' && (<>
-          <Row k="Persona served" v={d.servedProfile} />
+          <Row k="Persona served" v={d.servedProfile ? personaLabel(d.servedProfile) : null} />
           <Row k="Next recommended" v={d.recommendedProfile} />
           <Row k="Deception score" v={Number.isFinite(d.deceptionScore) ? `${d.deceptionScore} / 100` : null} />
           <Row k="Q-learner reward" v={Number.isFinite(d.qDeceptionScore) && d.qDeceptionScore ? d.qDeceptionScore : null} />
@@ -125,7 +127,7 @@ function EventDetails({ event, start }) {
           <ul style={{ listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {event.techniques.map((t) => (
               <li key={t.id} style={{ ...mono, fontSize: 11, color: '#00d4ff', border: '1px solid rgba(0,212,255,.3)', padding: '2px 6px' }}>
-                ◆ {t.id} <span style={{ color: '#7ab3cc' }}>{t.name}</span>
+                ◆ {t.id} <span style={{ color: '#7ab3cc' }}>{t.name}</span> <span style={{ color: '#3a6a88' }}>· {tacticText(t)}</span>
               </li>
             ))}
           </ul>
@@ -191,7 +193,7 @@ export default function SessionReplay({ evidence, onBack, live }) {
         <Kpi testId="atm-kpi-commands" label="COMMANDS" value={summary.commandsCaptured} sub={summary.commandsCaptured > summary.commandsStored ? `${summary.commandsStored} stored` : null} />
         <Kpi testId="atm-kpi-mitre" label="MITRE TECHNIQUES" value={summary.techniques} sub="Derived from this session" />
         <Kpi label="HIGHEST SEVERITY" value={summary.highestSeverity || 'None linked'} sub={summary.threatScore !== null ? `Rule score ${Math.round(summary.threatScore * 100)}%` : null} />
-        <Kpi label="PERSONA" value={summary.persona || 'Not recorded'} />
+        <Kpi label="PERSONA" value={personaLabel(summary.persona)} />
         <Kpi testId="atm-kpi-status" label="FINAL STATUS" value={(summary.status || 'Unknown').toUpperCase()} />
       </div>
       <p data-testid="atm-narrative" style={{ fontSize: 14, color: '#c8e6f5', margin: '0 0 0.4rem' }}>{narrative(summary)}</p>
@@ -289,7 +291,7 @@ export default function SessionReplay({ evidence, onBack, live }) {
                       {ev.techniques.length > 0 && (
                         <div style={{ marginTop: 4, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
                           {ev.techniques.map((t) => (
-                            <span key={t.id} title={`${t.name} (derived mapping)`} style={{ ...mono, fontSize: 10, color: '#00d4ff', border: '1px dashed rgba(0,212,255,.4)', padding: '0 5px' }}>◆ {t.id}</span>
+                            <span key={t.id} title={`${t.name} · ${tacticText(t)} (derived mapping)`} style={{ ...mono, fontSize: 10, color: '#00d4ff', border: '1px dashed rgba(0,212,255,.4)', padding: '0 5px' }}>◆ {t.id}</span>
                           ))}
                         </div>
                       )}
@@ -330,6 +332,7 @@ export default function SessionReplay({ evidence, onBack, live }) {
                         >
                           <span style={mono}>◆ {t.id}</span>
                           <span style={{ fontWeight: 500 }}>{t.name}</span>
+                          <span style={{ ...mono, fontSize: 10, color: '#7ab3cc' }}>{tacticText(t)}</span>
                           <span style={{ ...mono, fontSize: 10, marginLeft: 'auto', color: '#3a6a88' }}>
                             {t.threatOnly ? 'threat record only · ' : ''}{t.eventIds.length ? `${t.eventIds.length} event${t.eventIds.length > 1 ? 's' : ''}` : 'session-level only'}
                           </span>

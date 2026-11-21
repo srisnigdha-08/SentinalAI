@@ -1,0 +1,246 @@
+{
+ "rank6_version": "rank6/1",
+ "generated_at": "2026-11-14T14:46:44.733311+00:00",
+ "policy_version": "persona-ducb-v2",
+ "v2_defaults": {
+  "discount": 0.99,
+  "exploration": 0.15,
+  "switch_margin": 0.04,
+  "prior_weight": 1.0
+ },
+ "data_source": "mongosh read-only find (real_session_report.load)",
+ "persona_registry": {
+  "registries": {
+   "engine_profiles": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "windows_srv",
+    "aws_ec2",
+    "raspberry_pi"
+   ],
+   "engine_unsupported": [
+    "windows_srv"
+   ],
+   "engine_servable": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "aws_ec2",
+    "raspberry_pi"
+   ],
+   "v2_arms": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "windows_srv",
+    "aws_ec2",
+    "raspberry_pi"
+   ],
+   "backend_profiles": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "windows_srv",
+    "aws_ec2",
+    "raspberry_pi"
+   ],
+   "backend_unsupported": [
+    "windows_srv"
+   ],
+   "switcher_profiles": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "windows_srv",
+    "aws_ec2",
+    "raspberry_pi"
+   ],
+   "switcher_unservable": [
+    "windows_srv"
+   ],
+   "log_parser_personas": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "windows_srv",
+    "aws_ec2",
+    "raspberry_pi"
+   ],
+   "honeyfs_distros": [
+    "ubuntu_22",
+    "debian_11",
+    "centos_7",
+    "aws_ec2",
+    "raspberry_pi"
+   ]
+  },
+  "persona_configs": {
+   "ubuntu_22": {
+    "switcher_config": true,
+    "banner": true,
+    "honeyfs_overrides": 11,
+    "servable": true
+   },
+   "debian_11": {
+    "switcher_config": true,
+    "banner": true,
+    "honeyfs_overrides": 11,
+    "servable": true
+   },
+   "centos_7": {
+    "switcher_config": true,
+    "banner": true,
+    "honeyfs_overrides": 11,
+    "servable": true
+   },
+   "windows_srv": {
+    "switcher_config": true,
+    "banner": true,
+    "honeyfs_overrides": 0,
+    "servable": false
+   },
+   "aws_ec2": {
+    "switcher_config": true,
+    "banner": true,
+    "honeyfs_overrides": 11,
+    "servable": true
+   },
+   "raspberry_pi": {
+    "switcher_config": true,
+    "banner": true,
+    "honeyfs_overrides": 11,
+    "servable": true
+   }
+  },
+  "checks": {
+   "same_six_everywhere": true,
+   "unsupported_is_windows_srv_everywhere": true,
+   "every_servable_persona_has_switcher_config_and_banner": true,
+   "every_servable_persona_has_honeyfs_overrides": true,
+   "windows_srv_not_servable": true,
+   "historical_alpine_3_present": false
+  },
+  "ok": true
+ },
+ "isolation_self_checks": {
+  "ok": true,
+  "variants": {
+   "v2_healthy": {
+    "v1_decisions_identical": true,
+    "v1_q_table_identical": true,
+    "v2_statuses": {
+     "OK": 12
+    }
+   },
+   "v2_raises_on_observe": {
+    "v1_decisions_identical": true,
+    "v1_q_table_identical": true,
+    "v2_statuses": {
+     "ERROR": 12
+    }
+   },
+   "v2_times_out_on_save": {
+    "v1_decisions_identical": true,
+    "v1_q_table_identical": true,
+    "v2_statuses": {
+     "ERROR": 12
+    }
+   },
+   "v2_returns_unsupported_persona": {
+    "v1_decisions_identical": true,
+    "v1_q_table_identical": true,
+    "v2_statuses": {
+     "INVALID_RECOMMENDATION": 12
+    }
+   },
+   "v2_returns_garbage": {
+    "v1_decisions_identical": true,
+    "v1_q_table_identical": true,
+    "v2_statuses": {
+     "INVALID_RECOMMENDATION": 12
+    }
+   },
+   "v2_state_path_equal_to_v1_table": {
+    "v2_attached": false,
+    "v1_table_unchanged": true
+   }
+  },
+  "fixture": "12 synthetic sessions (self-check only, not evidence)"
+ },
+ "replay": {
+  "method": "V1 greedy (no exploration) and V2 deterministic, both from the shipped seed / prior on temporary copies, deciding before learning each observed session",
+  "sessions_skipped": {},
+  "samples": 19,
+  "v1_successful": 19,
+  "v2_successful": 19,
+  "v2_errors": 0,
+  "v2_invalid_or_unsupported": 0,
+  "fallbacks": 0,
+  "fallback_note": "shadow mode never substitutes a persona; an invalid v2 pick is recorded, v1 decides",
+  "agreement": 16,
+  "disagreement": 3,
+  "agreement_pct": 84.21,
+  "served": {
+   "ubuntu_22": 16,
+   "centos_7": 3
+  },
+  "v1": {
+   "centos_7": 16,
+   "ubuntu_22": 3
+  },
+  "v2": {
+   "centos_7": 17,
+   "aws_ec2": 2
+  },
+  "v1_concentration": {
+   "total": 19,
+   "max_share": 0.8421,
+   "normalised_entropy": 0.271,
+   "never_selected": [
+    "debian_11",
+    "aws_ec2",
+    "raspberry_pi"
+   ]
+  },
+  "v2_concentration": {
+   "total": 19,
+   "max_share": 0.8947,
+   "normalised_entropy": 0.2091,
+   "never_selected": [
+    "ubuntu_22",
+    "debian_11",
+    "raspberry_pi"
+   ]
+  },
+  "served_concentration": {
+   "total": 19,
+   "max_share": 0.8421,
+   "normalised_entropy": 0.271,
+   "never_selected": [
+    "debian_11",
+    "aws_ec2",
+    "raspberry_pi"
+   ]
+  },
+  "records_valid": true,
+  "record_problems": [],
+  "latency_us": {
+   "v1_median": 5.4,
+   "v2_median": 30.2
+  },
+  "reproducible": true,
+  "v1_learning": {
+   "episodes": 12106,
+   "duplicates_rejected": 0
+  },
+  "v2_learning": {
+   "realEpisodes": 19
+  }
+ },
+ "live_shadow": {
+  "live_shadow_records": 0,
+  "live_shadow_by_status": {},
+  "live_shadow_agreement_with_v1": 0
+ }
+}

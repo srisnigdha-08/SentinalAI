@@ -1,0 +1,100 @@
+{
+ "rank6_version": "rank6/1",
+ "generated_at": "2026-11-14T15:12:09.202508+00:00",
+ "policy_version": "persona-ducb-v2",
+ "v2_defaults": {
+  "discount": 0.99,
+  "exploration": 0.15,
+  "switch_margin": 0.04,
+  "prior_weight": 1.0
+ },
+ "data_source": "mongosh read-only find (real_session_report.load)",
+ "overall": "NOT_READY",
+ "shadow_engineering": "PASS",
+ "gates": {
+  "1_shadow_isolation": {
+   "status": "PASS",
+   "evidence": "self-checks: V1 decisions, learning and Q-table bytes identical with V2 healthy, failing, timing out or invalid; V2 state on the V1 table refused"
+  },
+  "2_persona_compatibility": {
+   "status": "PASS",
+   "evidence": {
+    "same_six_everywhere": true,
+    "unsupported_is_windows_srv_everywhere": true,
+    "every_servable_persona_has_switcher_config_and_banner": true,
+    "every_servable_persona_has_honeyfs_overrides": true,
+    "windows_srv_not_servable": true,
+    "historical_alpine_3_present": false
+   }
+  },
+  "3_invalid_action_handling": {
+   "status": "PASS",
+   "evidence": "unsupported (windows_srv) and malformed picks are rejected, never substituted"
+  },
+  "4_failure_isolation": {
+   "status": "PASS",
+   "evidence": "V2 exceptions and lock timeouts recorded as ERROR; V1 unaffected"
+  },
+  "5_evidence_schema_and_provenance": {
+   "status": "PASS",
+   "evidence": {
+    "schema": "shadow-evidence/1",
+    "problems": [],
+    "note": "source classification on every record; synthetic and untracked kept apart"
+   }
+  },
+  "6_reproducible_evaluation": {
+   "status": "PASS",
+   "evidence": "two replays on the same inputs gave identical records"
+  },
+  "7_adequate_session_evidence": {
+   "status": "INSUFFICIENT_DATA",
+   "evidence": {
+    "ubuntu_22": 16,
+    "debian_11": 0,
+    "centos_7": 3,
+    "aws_ec2": 0,
+    "raspberry_pi": 0,
+    "required_per_persona": 30
+   }
+  },
+  "8_independent_evidence": {
+   "status": "INSUFFICIENT_DATA",
+   "evidence": {
+    "external_per_persona": {
+     "ubuntu_22": 0,
+     "debian_11": 0,
+     "centos_7": 0,
+     "aws_ec2": 0,
+     "raspberry_pi": 0
+    },
+    "counted": "recorded, verified external provenance only",
+    "required_per_persona": 30
+   }
+  },
+  "9_decision_stability": {
+   "status": "FAIL",
+   "evidence": {
+    "source": "ai-engine\\experiments\\persona_policy_independent_20261113\\results.json",
+    "label": "SIMULATED",
+    "passed": false,
+    "failures": [
+     "C2 S11 prefers centos_7, 20 % application failures: regret diff upper bound 0.2831 > 0.05"
+    ]
+   }
+  },
+  "10_documented_acceptance_criteria": {
+   "status": "NOT_MET",
+   "evidence": "docs/PERSONA_POLICY_V2.md section 6 gates 1-4: 0 external sessions, effectiveness not evaluable, shadow period not recorded, no live rollback rehearsal"
+  }
+ },
+ "promotion": "never automatic: DECEPTION_V2 is unchanged (default shadow); activation is an owner decision after every gate passes",
+ "session_provenance": {
+  "total_sessions_evaluated": 19,
+  "labelled_operator_in_replay": 19,
+  "with_recorded_and_verified_provenance": 0,
+  "with_untracked_or_unverifiable_provenance": 19,
+  "independently_verified_external": 0,
+  "statement": "19 historical sessions were evaluated in the replay. 19 are labelled operator in the evaluation context (inferred from a private source address); 0 carry a recorded source and 0 a verified one, so the original source provenance of 19 remains untracked or unverifiable. 0 are independently verified external attacker sessions."
+ }
+}

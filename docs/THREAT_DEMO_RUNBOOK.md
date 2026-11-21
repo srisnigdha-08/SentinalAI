@@ -510,9 +510,9 @@ Background: `sentinelblocker.py` background thread → `GET /api/honeypot/ingest
 | "Firewall blocks the attacker" | **No** | Mock adapter; netsh never run | "The honeypot refuses reconnects; the firewall adapter is simulated" |
 | "The AI retrains itself" | **No** | The retraining script exists, but no automatic loop ran here | "Retraining is a manual, registered pipeline step" |
 | "Production model" | Partly | It's the registered, served model of a prototype | "The registered model the engine serves" |
-| "Real network traffic" | **No** | No packet capture; flows are replayed | "Replayed flow records; there's no live packet capture" |
+| "Real network traffic" | **No** | Flows are replayed (CICIDS2017 rows, or a recorded PCAP through `ai-engine/capture`); live passive capture is implemented but off by default and unverified on this hardware | "Replayed flow records or a recorded PCAP; live capture exists but is not enabled" |
 | "ML classifies honeypot sessions" | **No** | Rules | "Rule-based session classification, mapped to MITRE" |
-| "The honeypot adapts automatically" | **Partly** | Learning and recommendations are automatic. Applying them is by command here; a supervised service exists but is not enabled | "The Q-learner recommends a persona; the rotator applies it with a verified restart; it can run on a schedule" |
+| "The honeypot adapts automatically" | **Partly** | Learning and recommendations are automatic. The supervised rotator service (`sentinel-rotator.service`, 60-min interval) is enabled and active in the WSL lab (checked 2026-11-20), but no switch has succeeded in the 7 days before that check: its attempts failed the post-restart banner check and `cowrie.cfg` was restored (Cowrie still serves `centos_7`) | "The Q-learner recommends a persona; the rotator applies it with a verified restart; it can run on a schedule" |
 | "Adaptive deception keeps attackers engaged longer" | **No evidence** | Only simulated comparisons (Deception Arena) | "Whether it improves engagement against real attackers has not been measured" |
 | "We captured malware" | **No** | wget failed (no egress) | "Download attempts are logged; no file was fetched" |
 | "Random Forest model" (for the served model) | **No** | XGBoost is served | "XGBoost, with the Random Forest kept as a reference" |

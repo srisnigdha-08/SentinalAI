@@ -1,0 +1,41 @@
+{
+ "rank6_version": "rank6/1",
+ "generated_at": "2026-11-14T14:46:44.733311+00:00",
+ "policy_version": "persona-ducb-v2",
+ "v2_defaults": {
+  "discount": 0.99,
+  "exploration": 0.15,
+  "switch_margin": 0.04,
+  "prior_weight": 1.0
+ },
+ "data_source": "mongosh read-only find (real_session_report.load)",
+ "synthetic_seed_episodes": 12087,
+ "q_table_total_episodes": 12106,
+ "q_table_session_driven_updates": 19,
+ "q_table_untracked_updates": 19,
+ "q_table_independent_external": 0,
+ "q_table_report": "ai-engine\\experiments\\qlearning_evidence_v2_20261113\\report.json",
+ "recorded_sessions_by_source": {
+  "operator": 19
+ },
+ "recorded_sessions_per_persona_by_source": {
+  "ubuntu_22": {
+   "operator": 16
+  },
+  "debian_11": {},
+  "centos_7": {
+   "operator": 3
+  },
+  "aws_ec2": {},
+  "raspberry_pi": {}
+ },
+ "independent_external_sessions": 0,
+ "live_shadow_records": 0,
+ "live_shadow_by_status": {},
+ "live_shadow_agreement_with_v1": 0,
+ "notes": [
+  "synthetic seed episodes are a warm start, never attacker evidence",
+  "untracked Q-table updates have no recorded source and are never counted as operator or external",
+  "operator sessions are real traffic from the project's own operators, not independent evidence"
+ ]
+}

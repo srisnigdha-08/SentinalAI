@@ -64,8 +64,9 @@ export default function Landing() {
       let realAccuracy = 0
       if (aiSummary.verifiedAccuracy) {
         realAccuracy = Math.round(aiSummary.verifiedAccuracy)
-      } else if (modelInfo.rfMetrics?.accuracy) {
-        realAccuracy = Math.round(modelInfo.rfMetrics.accuracy * 100)
+      } else if ((modelInfo.classifierMetrics || modelInfo.rfMetrics)?.accuracy) {
+        // Rank 8: canonical classifierMetrics (XGBoost), legacy rfMetrics as fallback
+        realAccuracy = Math.round((modelInfo.classifierMetrics || modelInfo.rfMetrics).accuracy * 100)
       }
 
       animateCounter(cnt1.current, realBlocked)

@@ -1,0 +1,41 @@
+{
+ "production_policy_artifacts": {
+  "shipped_seed": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\q_table.json",
+   "sha256": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff"
+  },
+  "repository_runtime_table": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\runtime\\q_table.json",
+   "sha256": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+  },
+  "per_user_runtime_table": {
+   "path": "%USERPROFILE%\\AppData\\Local\\SentinelAI\\runtime\\q_table.json",
+   "sha256": "d585e8700ebc52ef213d916248e58401838e69145faab0d96449ebdbd1de0541"
+  },
+  "per_user_v2_state": {
+   "path": "%USERPROFILE%\\AppData\\Local\\SentinelAI\\runtime\\persona_policy_v2.json",
+   "sha256": null
+  },
+  "demo_q_table": {
+   "path": "%USERPROFILE%\\.sentinelai\\demo\\q_table.json",
+   "sha256": "99cf9af14c2b873b86b52e285a06a90c53097547afe2309f5a6a7b3694849fcf"
+  },
+  "demo_v2_state": {
+   "path": "%USERPROFILE%\\.sentinelai\\demo\\persona_policy_v2.json",
+   "sha256": "0c555e557a8eb6d1d2949f4aac38b7e5b7537958cbbb81761a1595d870798aae"
+  },
+  "model_registry": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\registry.json",
+   "sha256": "5f76c13605910bd63e4a3c8df778ebf206d1e1ebba0eb10c6bf43588e5678ff3"
+  }
+ },
+ "key_files": {
+  "ai-engine/rl_engine/v2_activation.py": "34cd2581cd0e69d4fbdad3d07ba0af4b44d051d698c21f8b62403c68a99f84eb",
+  "ai-engine/rl_engine/persona_policy_v2.py": "b909d4d808c61941010b5f20374c31cf5a1d32ce578459c775e4e7fe89f91ca5",
+  "ai-engine/rl_engine/deception_scorer.py": "ac41141fb45c7ea9348e45e8c856cbb8cd8e0a7f5e47be0453719b77e6bc52e9",
+  "ai-engine/evaluation/protected_data.py": "56633c953738534f1a5c0b55c983166f5f45066eba9a740ba53c7bdb86c16019",
+  "honeypot/switch_profile.py": "f87675f85e8b89b1c090d1eb17e8bcc1db1b0ce7211177c17fed83c3cdeedfc4",
+  "backend/utils/deceptionProfiles.js": "b7839bdc6ef641c2154e03c2401d0be48b3ac71be163dfe9110adbf3215011f3",
+  "backend/utils/shadowPolicy.js": "2406f306eb839b1760ea6461a6c4139ad3e2bafe28aa334bc95eebf9d2e3cc1f"
+ }
+}

@@ -12,6 +12,7 @@
  * apply, so a command that "succeeded" without creating the rule fails the action.
  */
 const net = require('net')
+const path = require('path')
 const { execFile } = require('child_process')
 const ContainmentAdapterInterface = require('./adapterInterface')
 const logger = require('../../utils/logger')
@@ -34,8 +35,29 @@ const resolveExecutable = (name) => {
   return file
 }
 
+/**
+ * Where the allowlisted program is started from. On Windows (the WSL prefix) wsl.exe is taken from the system
+ * directory rather than looked up by name, which on Windows can include the current directory. Elsewhere the name is
+ * resolved through PATH as before.
+ */
+function executablePath(name, env = process.env, platform = process.platform) {
+  const file = resolveExecutable(name)
+  if (platform === 'win32' && file === 'wsl') {
+    const root =
+      typeof env.SystemRoot === 'string' && /^[A-Za-z]:\\[A-Za-z0-9_ .\\-]+$/.test(env.SystemRoot)
+        ? env.SystemRoot
+        : 'C:\\Windows'
+    return path.win32.join(root, 'System32', 'wsl.exe')
+  }
+  return file
+}
+
 const defaultRun = (argv, timeout) =>
-  execFilePromise(resolveExecutable(argv[0]), argv.slice(1), { timeout, windowsHide: true })
+  execFilePromise(executablePath(argv[0]), argv.slice(1), { timeout, windowsHide: true })
+
+// `iptables -C` answers exit 1 with this text when the exact rule is not in the chain. Only that answer means
+// "absent"; any other failure (no sudo rights, no binary, lock timeout) says nothing about the rule.
+const isRuleAbsentAnswer = (r) => r.exitCode === 1 && /matching rule|Bad rule/i.test(r.stderr || '')
 
 function parsePrefix(raw) {
   if (!raw) return []
@@ -145,7 +167,9 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     const { clean, tool } = this._target(target)
     const name = this._ruleName(containmentId, ruleName || ruleId)
     const present = await this._exec(this._argv(tool, '-C', clean, name))
-    if (!present.ok) {
+    // Positively absent: nothing to remove. A check that failed for another reason is NOT taken as "absent" (that
+    // would report a release that never happened); the delete is attempted and its own result decides.
+    if (!present.ok && isRuleAbsentAnswer(present)) {
       return {
         success: true,
         exitCode: 0,
@@ -156,13 +180,24 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
       }
     }
     const r = await this._exec(this._argv(tool, '-D', clean, name))
+    if (!r.ok && isRuleAbsentAnswer(r)) {
+      return {
+        success: true,
+        exitCode: 0,
+        stdout: r.stdout,
+        stderr: '',
+        executionDurationMs: present.ms + r.ms,
+        details: { target: clean, alreadyAbsent: true },
+      }
+    }
+    if (!r.ok) logger.error(`[LinuxIptablesAdapter] Rule removal failed: ${r.stderr}`)
     return {
       success: r.ok,
       exitCode: r.exitCode,
       stdout: r.stdout,
       stderr: r.stderr,
-      executionDurationMs: r.ms,
-      details: { target: clean },
+      executionDurationMs: present.ms + r.ms,
+      details: { target: clean, checkFailed: !present.ok },
     }
   }
 
@@ -181,8 +216,7 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
     const r = await this._exec(this._argv(tool, '-C', clean, name))
     if (r.ok) return { state: 'PRESENT', details: { ruleName: name } }
     // iptables -C exits 1 with "does a matching rule exist" when absent; anything else (no sudo, no binary) is unknown
-    if (r.exitCode === 1 && /matching rule|Bad rule/i.test(r.stderr))
-      return { state: 'ABSENT', details: { ruleName: name } }
+    if (isRuleAbsentAnswer(r)) return { state: 'ABSENT', details: { ruleName: name } }
     return { state: 'UNKNOWN', details: { ruleName: name, exitCode: r.exitCode } }
   }
 }
@@ -190,3 +224,4 @@ class LinuxIptablesAdapter extends ContainmentAdapterInterface {
 module.exports = LinuxIptablesAdapter
 module.exports.parsePrefix = parsePrefix
 module.exports.resolveExecutable = resolveExecutable
+module.exports.executablePath = executablePath

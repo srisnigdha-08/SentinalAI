@@ -4,8 +4,12 @@ const fs = require('fs')
 const path = require('path')
 const logger = require('./logger')
 
-const LOGS_DIR = path.join(__dirname, '..', 'logs')
-const EMERGENCY_AUDIT_PATH = path.join(LOGS_DIR, 'emergency_audit.log')
+const { logDir } = require('./logPaths')
+
+// Rank 8: resolved at write time through utils/logPaths.js (EMERGENCY_AUDIT_DIR, then LOG_DIR, then backend/logs).
+// Under Jest it can never resolve to the real backend/logs, so tests cannot append to or rotate real audit files.
+const logsDir = () => logDir('EMERGENCY_AUDIT_DIR')
+const auditPath = () => path.join(logsDir(), 'emergency_audit.log')
 const MAX_LOG_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB rotation threshold
 
 const SENSITIVE_KEYS = new Set([
@@ -51,8 +55,8 @@ const MAX_ROTATED_FILES = 5 // Bounded retention threshold: keep at most 5 rotat
  * Ensures the target log directory exists.
  */
 function ensureLogDir() {
-  if (!fs.existsSync(LOGS_DIR)) {
-    fs.mkdirSync(LOGS_DIR, { recursive: true })
+  if (!fs.existsSync(logsDir())) {
+    fs.mkdirSync(logsDir(), { recursive: true })
   }
 }
 
@@ -62,17 +66,17 @@ function ensureLogDir() {
  */
 function checkRotation() {
   try {
-    if (fs.existsSync(EMERGENCY_AUDIT_PATH)) {
-      const stats = fs.statSync(EMERGENCY_AUDIT_PATH)
+    if (fs.existsSync(auditPath())) {
+      const stats = fs.statSync(auditPath())
       if (stats.size >= MAX_LOG_SIZE_BYTES) {
         // Enforce bounded retention: prune oldest rotated files if count exceeds limit
         const files = fs
-          .readdirSync(LOGS_DIR)
+          .readdirSync(logsDir())
           .filter((f) => f.startsWith('emergency_audit.') && f.endsWith('.log'))
           .map((f) => ({
             name: f,
-            path: path.join(LOGS_DIR, f),
-            mtime: fs.statSync(path.join(LOGS_DIR, f)).mtimeMs,
+            path: path.join(logsDir(), f),
+            mtime: fs.statSync(path.join(logsDir(), f)).mtimeMs,
           }))
           .sort((a, b) => a.mtime - b.mtime)
 
@@ -83,8 +87,8 @@ function checkRotation() {
           } catch (_) {}
         }
 
-        const rotatedPath = path.join(LOGS_DIR, `emergency_audit.${Date.now()}.log`)
-        fs.renameSync(EMERGENCY_AUDIT_PATH, rotatedPath)
+        const rotatedPath = path.join(logsDir(), `emergency_audit.${Date.now()}.log`)
+        fs.renameSync(auditPath(), rotatedPath)
       }
     }
   } catch (err) {
@@ -108,7 +112,7 @@ function writeEmergencyAudit(eventData) {
     ensureLogDir()
     checkRotation()
 
-    fd = fs.openSync(EMERGENCY_AUDIT_PATH, 'a', 0o600) // Restricted permissions rw-------
+    fd = fs.openSync(auditPath(), 'a', 0o600) // Restricted permissions rw-------
     const buffer = Buffer.from(line, 'utf8')
     const bytesWritten = fs.writeSync(fd, buffer, 0, buffer.length, null)
     fs.fsyncSync(fd) // Flush OS disk cache to physical medium
@@ -117,7 +121,7 @@ function writeEmergencyAudit(eventData) {
 
     return {
       success: true,
-      path: EMERGENCY_AUDIT_PATH,
+      path: auditPath(),
       bytesWritten,
       durable: true,
     }
@@ -138,6 +142,8 @@ function writeEmergencyAudit(eventData) {
 
 module.exports = {
   writeEmergencyAudit,
-  EMERGENCY_AUDIT_PATH,
   sanitizeRecord,
+  auditPath,
 }
+// Backward compatible: EMERGENCY_AUDIT_PATH is still exported, now resolved when read (Rank 8).
+Object.defineProperty(module.exports, 'EMERGENCY_AUDIT_PATH', { enumerable: true, get: auditPath })

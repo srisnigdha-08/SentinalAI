@@ -3,7 +3,8 @@ const path = require('path')
 const fs = require('fs')
 const redact = require('./redact')
 const { getRequestId } = require('./requestContext')
-const logDir = process.env.LOG_DIR || path.join(__dirname, '../logs')
+// Rank 8: utils/logPaths.js (LOG_DIR, else backend/logs; never the real backend/logs while Jest runs)
+const logDir = require('./logPaths').logDir('LOG_DIR')
 if (!fs.existsSync(logDir)) fs.mkdirSync(logDir, { recursive: true })
 // Console: human-readable by default; LOG_FORMAT=json emits one JSON object per line (for log shippers).
 const cf =

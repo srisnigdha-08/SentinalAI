@@ -1,0 +1,11 @@
+{
+ "static_import_and_call_audit": "test_package_cannot_touch_the_host (no os/subprocess/socket/pathlib/io imports; no eval/exec/open/compile; literal getattr only)",
+ "injection_corpus": "test_injection_never_reaches_the_host: subprocess/os/socket/open/eval/exec patched to fail; 0 calls",
+ "filesystem_isolation": "test_path_traversal_cannot_leave_the_virtual_root, test_invalid_paths_are_rejected, test_writes_stay_inside_the_virtual_filesystem_and_allowed_areas, test_write_quotas",
+ "network": "test_network_commands_are_simulated (socket and DNS patched to fail)",
+ "inside_cowrie": {
+  "forbiddenCalls": [],
+  "linux_commands_never_reach_cowries_shell": true
+ },
+ "all_passed": true
+}

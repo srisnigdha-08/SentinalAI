@@ -133,7 +133,7 @@ ThreatLogSchema.index({ sourceIP: 1, createdAt: -1 })
 ThreatLogSchema.index({ 'threatIntel.status': 1 })
 ThreatLogSchema.pre('save', function (next) {
   if (this.isModified('attackType') || !this.mitreTechniques || this.mitreTechniques.length === 0) {
-    this.mitreTechniques = mitreMapping.getMitreTechniquesForThreat(this.attackType)
+    this.mitreTechniques = mitreMapping.storedForm(mitreMapping.getMitreTechniquesForThreat(this.attackType))
   }
   next()
 })

@@ -1,0 +1,2210 @@
+{
+ "rank5_version": "rank5/1",
+ "generated_at": "2026-11-14T12:50:01.513588+00:00",
+ "smoke_run_not_evidence": false,
+ "seed": 20261114,
+ "software": {
+  "python": "3.11.9",
+  "numpy": "1.26.4",
+  "pandas": "2.2.0"
+ },
+ "model_id": "xgb_cicids_v1",
+ "runtime_seconds": 740.4,
+ "model": {
+  "integrity_before": {
+   "registry_sha256": "5f76c13605910bd63e4a3c8df778ebf206d1e1ebba0eb10c6bf43588e5678ff3",
+   "entries": {
+    "classifier": {
+     "file": "xgb_classifier_xgb_cicids_v1.pkl",
+     "registry_sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+     "actual_sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+     "version": "xgb_cicids_v1"
+    },
+    "anomaly": {
+     "file": "isolation_forest_xgb_cicids_v1.pkl",
+     "registry_sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
+     "actual_sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
+     "version": "xgb_cicids_v1"
+    },
+    "golden": {
+     "file": "golden_set.json",
+     "registry_sha256": "c8d72dd96dc35287e7dd15c1af1e9c4c3b6a4a2f79507e04cc34359bd0420af6",
+     "actual_sha256": "c8d72dd96dc35287e7dd15c1af1e9c4c3b6a4a2f79507e04cc34359bd0420af6",
+     "version": null
+    }
+   },
+   "version": "xgb_cicids_v1"
+  },
+  "integrity_after": {
+   "registry_sha256": "5f76c13605910bd63e4a3c8df778ebf206d1e1ebba0eb10c6bf43588e5678ff3",
+   "entries": {
+    "classifier": {
+     "file": "xgb_classifier_xgb_cicids_v1.pkl",
+     "registry_sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+     "actual_sha256": "6d08ef19dad31bf6423eb91cb42105f786800307f5690efd2c94db6a8736360b",
+     "version": "xgb_cicids_v1"
+    },
+    "anomaly": {
+     "file": "isolation_forest_xgb_cicids_v1.pkl",
+     "registry_sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
+     "actual_sha256": "46b16b745613f1ccec6afb04d89c0732c504c19aa2e308af382922179e5ec053",
+     "version": "xgb_cicids_v1"
+    },
+    "golden": {
+     "file": "golden_set.json",
+     "registry_sha256": "c8d72dd96dc35287e7dd15c1af1e9c4c3b6a4a2f79507e04cc34359bd0420af6",
+     "actual_sha256": "c8d72dd96dc35287e7dd15c1af1e9c4c3b6a4a2f79507e04cc34359bd0420af6",
+     "version": null
+    }
+   },
+   "version": "xgb_cicids_v1"
+  },
+  "unchanged": true,
+  "contract": {
+   "feature_schema_version": "v2.1_53feat",
+   "feature_count": 53,
+   "feature_names_sha256": "d1d3e7c1f754dc0ab6857c75170dfa75c8f925382e7276aaf53e9c58b9478e0e",
+   "model_meta_n_features": 53,
+   "label_map": {
+    "BENIGN": 0,
+    "SSH Brute Force": 1,
+    "SQL Injection": 2,
+    "Port Scan": 3,
+    "DDoS": 4,
+    "RCE Attempt": 5,
+    "XSS Attempt": 6,
+    "Malware Beacon": 7,
+    "Credential Stuffing": 8,
+    "Lateral Movement": 9,
+    "Data Exfiltration": 10
+   }
+  },
+  "thresholds": {
+   "alert": 0.9,
+   "block": 0.92,
+   "anomaly": -0.55,
+   "review_min_signal": 0.55
+  },
+  "training_meta": {
+   "version": "xgb_cicids_v1",
+   "trained_at": "2026-10-21T16:03:34.831870",
+   "metrics": {
+    "accuracy": 0.9897,
+    "f1_weighted": 0.9907,
+    "f1_macro": 0.8738
+   },
+   "evaluation": {
+    "split": "stratified_random_80_20",
+    "random_state": 42,
+    "deduplicated": true,
+    "independent_holdout": false,
+    "note": "Random row split; see evaluation/day_holdout_eval.py for chronological and leave-one-day-out results"
+   },
+   "deduplication": {
+    "rows_before": 148015,
+    "rows_after": 124534,
+    "removed": 23481,
+    "conflicting_label_vectors": 33
+   },
+   "class_counts": {
+    "train": {
+     "BENIGN": 74682,
+     "SSH Brute Force": 2575,
+     "SQL Injection": 17,
+     "Port Scan": 283,
+     "DDoS": 14440,
+     "RCE Attempt": 9,
+     "XSS Attempt": 522,
+     "Malware Beacon": 1149,
+     "Credential Stuffing": 5921,
+     "Lateral Movement": 29
+    },
+    "test": {
+     "BENIGN": 18671,
+     "SSH Brute Force": 644,
+     "SQL Injection": 4,
+     "Port Scan": 71,
+     "DDoS": 3610,
+     "RCE Attempt": 2,
+     "XSS Attempt": 130,
+     "Malware Beacon": 288,
+     "Credential Stuffing": 1480,
+     "Lateral Movement": 7
+    }
+   },
+   "provenance": {
+    "git_commit": "cf667f13d603ebfdd7b1acd45584f0b57c454f8f",
+    "git_dirty": true,
+    "sklearn": "1.4.0",
+    "numpy": "1.26.4",
+    "python": "3.11.9"
+   }
+  }
+ },
+ "production_path_parity": {
+  "checked": 2100,
+  "mismatches": 0
+ },
+ "E1_random_split": {
+  "protocol": "stratified random 80/20, random_state 42 (train.py), rebuilt and count-checked",
+  "independent": false,
+  "reproduced": true,
+  "rebuild_seconds": 27.3,
+  "train_rows": 99627,
+  "test_rows": 24907,
+  "training_class_counts": {
+   "BENIGN": 74682,
+   "SSH Brute Force": 2575,
+   "SQL Injection": 17,
+   "Port Scan": 283,
+   "DDoS": 14440,
+   "RCE Attempt": 9,
+   "XSS Attempt": 522,
+   "Malware Beacon": 1149,
+   "Credential Stuffing": 5921,
+   "Lateral Movement": 29
+  },
+  "classes_without_training_rows": [
+   "Data Exfiltration"
+  ],
+  "test_rows_whose_vector_is_in_train": 15,
+  "metrics_argmax": {
+   "n": 24907,
+   "class_distribution": {
+    "BENIGN": 18671,
+    "SSH Brute Force": 644,
+    "SQL Injection": 4,
+    "Port Scan": 71,
+    "DDoS": 3610,
+    "RCE Attempt": 2,
+    "XSS Attempt": 130,
+    "Malware Beacon": 288,
+    "Credential Stuffing": 1480,
+    "Lateral Movement": 7
+   },
+   "accuracy": 0.989682,
+   "balanced_accuracy": 0.884775,
+   "precision_macro": 0.89445,
+   "recall_macro": 0.884775,
+   "f1_macro": 0.87384,
+   "f1_weighted": 0.990713,
+   "macro_over_classes": [
+    "BENIGN",
+    "SSH Brute Force",
+    "SQL Injection",
+    "Port Scan",
+    "DDoS",
+    "RCE Attempt",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "predicted_but_absent": [],
+   "per_class": {
+    "BENIGN": {
+     "support": 18671,
+     "predicted": 18616,
+     "tp": 18604,
+     "precision": 0.999355,
+     "recall": 0.996412,
+     "f1": 0.997881,
+     "recall_wilson95": [
+      0.995446,
+      0.997173
+     ],
+     "reliable": true
+    },
+    "SSH Brute Force": {
+     "support": 644,
+     "predicted": 645,
+     "tp": 644,
+     "precision": 0.99845,
+     "recall": 1.0,
+     "f1": 0.999224,
+     "recall_wilson95": [
+      0.99407,
+      1.0
+     ],
+     "reliable": true
+    },
+    "SQL Injection": {
+     "support": 4,
+     "predicted": 2,
+     "tp": 2,
+     "precision": 1.0,
+     "recall": 0.5,
+     "f1": 0.666667,
+     "recall_wilson95": [
+      0.150036,
+      0.849964
+     ],
+     "reliable": false
+    },
+    "Port Scan": {
+     "support": 71,
+     "predicted": 80,
+     "tp": 68,
+     "precision": 0.85,
+     "recall": 0.957746,
+     "f1": 0.900662,
+     "recall_wilson95": [
+      0.882974,
+      0.985527
+     ],
+     "reliable": true
+    },
+    "DDoS": {
+     "support": 3610,
+     "predicted": 3620,
+     "tp": 3608,
+     "precision": 0.996685,
+     "recall": 0.999446,
+     "f1": 0.998064,
+     "recall_wilson95": [
+      0.997982,
+      0.999848
+     ],
+     "reliable": true
+    },
+    "RCE Attempt": {
+     "support": 2,
+     "predicted": 2,
+     "tp": 2,
+     "precision": 1.0,
+     "recall": 1.0,
+     "f1": 1.0,
+     "recall_wilson95": [
+      0.342372,
+      1.0
+     ],
+     "reliable": false
+    },
+    "XSS Attempt": {
+     "support": 130,
+     "predicted": 253,
+     "tp": 103,
+     "precision": 0.407115,
+     "recall": 0.792308,
+     "f1": 0.537859,
+     "recall_wilson95": [
+      0.714682,
+      0.853153
+     ],
+     "reliable": true
+    },
+    "Malware Beacon": {
+     "support": 288,
+     "predicted": 323,
+     "tp": 285,
+     "precision": 0.882353,
+     "recall": 0.989583,
+     "f1": 0.932897,
+     "recall_wilson95": [
+      0.969826,
+      0.996451
+     ],
+     "reliable": true
+    },
+    "Credential Stuffing": {
+     "support": 1480,
+     "predicted": 1360,
+     "tp": 1329,
+     "precision": 0.977206,
+     "recall": 0.897973,
+     "f1": 0.935915,
+     "recall_wilson95": [
+      0.881507,
+      0.912378
+     ],
+     "reliable": true
+    },
+    "Lateral Movement": {
+     "support": 7,
+     "predicted": 6,
+     "tp": 5,
+     "precision": 0.833333,
+     "recall": 0.714286,
+     "f1": 0.769231,
+     "recall_wilson95": [
+      0.358929,
+      0.917783
+     ],
+     "reliable": false
+    }
+   },
+   "confusion_matrix": {
+    "labels": [
+     "BENIGN",
+     "SSH Brute Force",
+     "SQL Injection",
+     "Port Scan",
+     "DDoS",
+     "RCE Attempt",
+     "XSS Attempt",
+     "Malware Beacon",
+     "Credential Stuffing",
+     "Lateral Movement"
+    ],
+    "rows_true_cols_pred": [
+     [
+      18604,
+      1,
+      0,
+      11,
+      12,
+      0,
+      2,
+      38,
+      2,
+      1
+     ],
+     [
+      0,
+      644,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0
+     ],
+     [
+      2,
+      0,
+      0,
+      68,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      1,
+      0,
+      0,
+      1,
+      3608,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      2,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      103,
+      0,
+      26,
+      0
+     ],
+     [
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      285,
+      0,
+      0
+     ],
+     [
+      3,
+      0,
+      0,
+      0,
+      0,
+      0,
+      148,
+      0,
+      1329,
+      0
+     ],
+     [
+      2,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      5
+     ]
+    ]
+   },
+   "binary": {
+    "benign": 18671,
+    "attack": 6236,
+    "fp": 67,
+    "fn": 12,
+    "fpr": 0.003588,
+    "fpr_wilson95": [
+     0.002827,
+     0.004554
+    ],
+    "fnr": 0.001924,
+    "fnr_wilson95": [
+     0.001101,
+     0.003361
+    ],
+    "attack_recall": 0.998076,
+    "roc_auc": 0.999796,
+    "pr_auc": 0.999457,
+    "auc_not_computed_because": null
+   }
+  },
+  "metrics_alert_line": {
+   "benign": 18671,
+   "attack": 6236,
+   "fp": 43,
+   "fn": 298,
+   "fpr": 0.002303,
+   "fpr_wilson95": [
+    0.00171,
+    0.003101
+   ],
+   "fnr": 0.047787,
+   "fnr_wilson95": [
+    0.042765,
+    0.053366
+   ],
+   "attack_recall": 0.952213,
+   "roc_auc": 0.999796,
+   "pr_auc": 0.999457,
+   "auc_not_computed_because": null
+  },
+  "majority_baseline": {
+   "predicts": "BENIGN",
+   "accuracy": 0.749629,
+   "balanced_accuracy": 0.1,
+   "f1_macro": 0.08569,
+   "n": 24907
+  },
+  "meta_recorded_metrics": {
+   "accuracy": 0.9897,
+   "f1_weighted": 0.9907,
+   "f1_macro": 0.8738
+  }
+ },
+ "E2_2017_unseen_rows": {
+  "protocol": "CICIDS2017 rows never sampled into the training pool, minus any row whose exact vector is in the pool",
+  "independent": false,
+  "files": {
+   "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": {
+    "day": "2017-07-07",
+    "cleaned_rows": 225711,
+    "pool_rows": 22444,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 4358,
+    "evaluated_rows": 198909
+   },
+   "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": {
+    "day": "2017-07-07",
+    "cleaned_rows": 286096,
+    "pool_rows": 22397,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 155834,
+    "evaluated_rows": 107865
+   },
+   "Friday-WorkingHours-Morning.pcap_ISCX.csv": {
+    "day": "2017-07-07",
+    "cleaned_rows": 190911,
+    "pool_rows": 14553,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 12027,
+    "evaluated_rows": 164331
+   },
+   "Monday-WorkingHours.pcap_ISCX.csv": {
+    "day": "2017-07-03",
+    "cleaned_rows": 529481,
+    "pool_rows": 12512,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 28803,
+    "evaluated_rows": 488166
+   },
+   "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": {
+    "day": "2017-07-06",
+    "cleaned_rows": 288395,
+    "pool_rows": 12606,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 65160,
+    "evaluated_rows": 210629
+   },
+   "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": {
+    "day": "2017-07-06",
+    "cleaned_rows": 170231,
+    "pool_rows": 14628,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 11920,
+    "evaluated_rows": 143683
+   },
+   "Tuesday-WorkingHours.pcap_ISCX.csv": {
+    "day": "2017-07-04",
+    "cleaned_rows": 445645,
+    "pool_rows": 26335,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 27428,
+    "evaluated_rows": 391882
+   },
+   "Wednesday-workingHours.pcap_ISCX.csv": {
+    "day": "2017-07-05",
+    "cleaned_rows": 691406,
+    "pool_rows": 22540,
+    "pool_rows_identical": true,
+    "excluded_vector_in_pool": 84519,
+    "evaluated_rows": 584347
+   }
+  },
+  "metrics_argmax": {
+   "n": 2289812,
+   "class_distribution": {
+    "BENIGN": 1980024,
+    "Port Scan": 1971,
+    "DDoS": 307817
+   },
+   "accuracy": 0.997962,
+   "balanced_accuracy": 0.982618,
+   "precision_macro": 0.974807,
+   "recall_macro": 0.982618,
+   "f1_macro": 0.978671,
+   "f1_weighted": 0.998506,
+   "macro_over_classes": [
+    "BENIGN",
+    "Port Scan",
+    "DDoS"
+   ],
+   "predicted_but_absent": [
+    "SSH Brute Force",
+    "SQL Injection",
+    "RCE Attempt",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "per_class": {
+    "BENIGN": {
+     "support": 1980024,
+     "predicted": 1976217,
+     "tp": 1975867,
+     "precision": 0.999823,
+     "recall": 0.997901,
+     "f1": 0.998861,
+     "recall_wilson95": [
+      0.997836,
+      0.997963
+     ],
+     "reliable": true
+    },
+    "SSH Brute Force": {
+     "support": 0,
+     "predicted": 37,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "SQL Injection": {
+     "support": 0,
+     "predicted": 65,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Port Scan": {
+     "support": 1971,
+     "predicted": 2016,
+     "tp": 1875,
+     "precision": 0.93006,
+     "recall": 0.951294,
+     "f1": 0.940557,
+     "recall_wilson95": [
+      0.940882,
+      0.95995
+     ],
+     "reliable": true
+    },
+    "DDoS": {
+     "support": 307817,
+     "predicted": 309092,
+     "tp": 307404,
+     "precision": 0.994539,
+     "recall": 0.998658,
+     "f1": 0.996594,
+     "recall_wilson95": [
+      0.998523,
+      0.998782
+     ],
+     "reliable": true
+    },
+    "RCE Attempt": {
+     "support": 0,
+     "predicted": 1,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "XSS Attempt": {
+     "support": 0,
+     "predicted": 85,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Malware Beacon": {
+     "support": 0,
+     "predicted": 1969,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Credential Stuffing": {
+     "support": 0,
+     "predicted": 285,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Lateral Movement": {
+     "support": 0,
+     "predicted": 45,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    }
+   },
+   "confusion_matrix": {
+    "labels": [
+     "BENIGN",
+     "SSH Brute Force",
+     "SQL Injection",
+     "Port Scan",
+     "DDoS",
+     "RCE Attempt",
+     "XSS Attempt",
+     "Malware Beacon",
+     "Credential Stuffing",
+     "Lateral Movement"
+    ],
+    "rows_true_cols_pred": [
+     [
+      1975867,
+      31,
+      42,
+      66,
+      1665,
+      1,
+      69,
+      1969,
+      270,
+      44
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      58,
+      0,
+      0,
+      1875,
+      23,
+      0,
+      9,
+      0,
+      6,
+      0
+     ],
+     [
+      292,
+      6,
+      23,
+      75,
+      307404,
+      0,
+      7,
+      0,
+      9,
+      1
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    ]
+   },
+   "binary": {
+    "benign": 1980024,
+    "attack": 309788,
+    "fp": 4157,
+    "fn": 350,
+    "fpr": 0.002099,
+    "fpr_wilson95": [
+     0.002037,
+     0.002164
+    ],
+    "fnr": 0.00113,
+    "fnr_wilson95": [
+     0.001018,
+     0.001254
+    ],
+    "attack_recall": 0.99887,
+    "roc_auc": 0.999942,
+    "pr_auc": 0.999677,
+    "auc_not_computed_because": null
+   }
+  },
+  "metrics_alert_line": {
+   "benign": 1980024,
+   "attack": 309788,
+   "fp": 2002,
+   "fn": 1301,
+   "fpr": 0.001011,
+   "fpr_wilson95": [
+    0.000968,
+    0.001056
+   ],
+   "fnr": 0.0042,
+   "fnr_wilson95": [
+    0.003978,
+    0.004434
+   ],
+   "attack_recall": 0.9958,
+   "roc_auc": 0.999942,
+   "pr_auc": 0.999677,
+   "auc_not_computed_because": null
+  },
+  "dedup_sensitivity": {
+   "n": 2108464,
+   "class_distribution": {
+    "BENIGN": 1803161,
+    "Port Scan": 1602,
+    "DDoS": 303701
+   },
+   "accuracy": 0.997931,
+   "balanced_accuracy": 0.978869,
+   "precision_macro": 0.970395,
+   "recall_macro": 0.978869,
+   "f1_macro": 0.974581,
+   "f1_weighted": 0.998474,
+   "macro_over_classes": [
+    "BENIGN",
+    "Port Scan",
+    "DDoS"
+   ],
+   "predicted_but_absent": [
+    "SSH Brute Force",
+    "SQL Injection",
+    "RCE Attempt",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "per_class": {
+    "BENIGN": {
+     "support": 1803161,
+     "predicted": 1799636,
+     "tp": 1799297,
+     "precision": 0.999812,
+     "recall": 0.997857,
+     "f1": 0.998833,
+     "recall_wilson95": [
+      0.997789,
+      0.997924
+     ],
+     "reliable": true
+    },
+    "SSH Brute Force": {
+     "support": 0,
+     "predicted": 36,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "SQL Injection": {
+     "support": 0,
+     "predicted": 65,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Port Scan": {
+     "support": 1602,
+     "predicted": 1643,
+     "tp": 1506,
+     "precision": 0.916616,
+     "recall": 0.940075,
+     "f1": 0.928197,
+     "recall_wilson95": [
+      0.927366,
+      0.950679
+     ],
+     "reliable": true
+    },
+    "DDoS": {
+     "support": 303701,
+     "predicted": 304898,
+     "tp": 303299,
+     "precision": 0.994756,
+     "recall": 0.998676,
+     "f1": 0.996712,
+     "recall_wilson95": [
+      0.998541,
+      0.998799
+     ],
+     "reliable": true
+    },
+    "RCE Attempt": {
+     "support": 0,
+     "predicted": 1,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "XSS Attempt": {
+     "support": 0,
+     "predicted": 76,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Malware Beacon": {
+     "support": 0,
+     "predicted": 1806,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Credential Stuffing": {
+     "support": 0,
+     "predicted": 258,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "Lateral Movement": {
+     "support": 0,
+     "predicted": 45,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    }
+   },
+   "confusion_matrix": {
+    "labels": [
+     "BENIGN",
+     "SSH Brute Force",
+     "SQL Injection",
+     "Port Scan",
+     "DDoS",
+     "RCE Attempt",
+     "XSS Attempt",
+     "Malware Beacon",
+     "Credential Stuffing",
+     "Lateral Movement"
+    ],
+    "rows_true_cols_pred": [
+     [
+      1799297,
+      30,
+      42,
+      62,
+      1576,
+      1,
+      60,
+      1806,
+      243,
+      44
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      58,
+      0,
+      0,
+      1506,
+      23,
+      0,
+      9,
+      0,
+      6,
+      0
+     ],
+     [
+      281,
+      6,
+      23,
+      75,
+      303299,
+      0,
+      7,
+      0,
+      9,
+      1
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ]
+    ]
+   },
+   "binary": {
+    "benign": 1803161,
+    "attack": 305303,
+    "fp": 3864,
+    "fn": 339,
+    "fpr": 0.002143,
+    "fpr_wilson95": [
+     0.002076,
+     0.002211
+    ],
+    "fnr": 0.00111,
+    "fnr_wilson95": [
+     0.000998,
+     0.001235
+    ],
+    "attack_recall": 0.99889,
+    "roc_auc": 0.999949,
+    "pr_auc": 0.999737,
+    "auc_not_computed_because": null
+   }
+  },
+  "unique_vector_label_rows": 2108464,
+  "majority_baseline": {
+   "predicts": "BENIGN",
+   "accuracy": 0.86471,
+   "balanced_accuracy": 0.333333,
+   "f1_macro": 0.309149,
+   "n": 2289812
+  },
+  "classes_absent_note": "only classes the training caps sampled (BENIGN, Port Scan, DDoS) leave unseen rows; every row of every other class was in the training pool, so E2 cannot test them"
+ },
+ "E3_2018_development_days": {
+  "status": "OK",
+  "protocol": "every row of the six CSE-CIC-IDS2018 development days, labels mapped to the served 11 classes by evaluation.taxonomies (T0)",
+  "independent": false,
+  "files": [
+   "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv",
+   "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv",
+   "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv",
+   "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
+   "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
+   "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv"
+  ],
+  "protected_days_skipped_by_guard": [],
+  "protected_days": [
+   "16-02-2018",
+   "20-02-2018",
+   "22-02-2018",
+   "28-02-2018"
+  ],
+  "metrics_argmax": {
+   "n": 5549447,
+   "class_distribution": {
+    "BENIGN": 4049104,
+    "SSH Brute Force": 187589,
+    "SQL Injection": 53,
+    "DDoS": 740240,
+    "XSS Attempt": 151,
+    "Malware Beacon": 286191,
+    "Credential Stuffing": 193716,
+    "Lateral Movement": 92403
+   },
+   "accuracy": 0.729379,
+   "balanced_accuracy": 0.127319,
+   "precision_macro": 0.234265,
+   "recall_macro": 0.127319,
+   "f1_macro": 0.114535,
+   "f1_weighted": 0.641632,
+   "macro_over_classes": [
+    "BENIGN",
+    "SSH Brute Force",
+    "SQL Injection",
+    "DDoS",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "predicted_but_absent": [
+    "Port Scan",
+    "RCE Attempt"
+   ],
+   "per_class": {
+    "BENIGN": {
+     "support": 4049104,
+     "predicted": 5203868,
+     "tp": 4030724,
+     "precision": 0.774563,
+     "recall": 0.995461,
+     "f1": 0.871228,
+     "recall_wilson95": [
+      0.995395,
+      0.995526
+     ],
+     "reliable": true
+    },
+    "SSH Brute Force": {
+     "support": 187589,
+     "predicted": 556,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      2e-05
+     ],
+     "reliable": true
+    },
+    "SQL Injection": {
+     "support": 53,
+     "predicted": 19,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      -0.0,
+      0.067584
+     ],
+     "reliable": true
+    },
+    "Port Scan": {
+     "support": 0,
+     "predicted": 231459,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "DDoS": {
+     "support": 740240,
+     "predicted": 18832,
+     "tp": 16880,
+     "precision": 0.896347,
+     "recall": 0.022803,
+     "f1": 0.044475,
+     "recall_wilson95": [
+      0.022466,
+      0.023146
+     ],
+     "reliable": true
+    },
+    "RCE Attempt": {
+     "support": 0,
+     "predicted": 1,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "XSS Attempt": {
+     "support": 151,
+     "predicted": 365,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      0.02481
+     ],
+     "reliable": true
+    },
+    "Malware Beacon": {
+     "support": 286191,
+     "predicted": 557,
+     "tp": 26,
+     "precision": 0.046679,
+     "recall": 9.1e-05,
+     "f1": 0.000181,
+     "recall_wilson95": [
+      6.2e-05,
+      0.000133
+     ],
+     "reliable": true
+    },
+    "Credential Stuffing": {
+     "support": 193716,
+     "predicted": 93675,
+     "tp": 1,
+     "precision": 1.1e-05,
+     "recall": 5e-06,
+     "f1": 7e-06,
+     "recall_wilson95": [
+      1e-06,
+      2.9e-05
+     ],
+     "reliable": true
+    },
+    "Lateral Movement": {
+     "support": 92403,
+     "predicted": 115,
+     "tp": 18,
+     "precision": 0.156522,
+     "recall": 0.000195,
+     "f1": 0.000389,
+     "recall_wilson95": [
+      0.000123,
+      0.000308
+     ],
+     "reliable": true
+    }
+   },
+   "confusion_matrix": {
+    "labels": [
+     "BENIGN",
+     "SSH Brute Force",
+     "SQL Injection",
+     "Port Scan",
+     "DDoS",
+     "RCE Attempt",
+     "XSS Attempt",
+     "Malware Beacon",
+     "Credential Stuffing",
+     "Lateral Movement"
+    ],
+    "rows_true_cols_pred": [
+     [
+      4030724,
+      540,
+      17,
+      14826,
+      1912,
+      1,
+      360,
+      479,
+      148,
+      97
+     ],
+     [
+      94039,
+      0,
+      0,
+      30,
+      0,
+      0,
+      0,
+      0,
+      93520,
+      0
+     ],
+     [
+      52,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      723314,
+      9,
+      0,
+      37,
+      16880,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      151,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      286162,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      26,
+      2,
+      0
+     ],
+     [
+      361,
+      0,
+      0,
+      193354,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      69065,
+      7,
+      2,
+      23211,
+      40,
+      0,
+      5,
+      52,
+      3,
+      18
+     ]
+    ]
+   },
+   "binary": {
+    "benign": 4049104,
+    "attack": 1500343,
+    "fp": 18380,
+    "fn": 1173144,
+    "fpr": 0.004539,
+    "fpr_wilson95": [
+     0.004474,
+     0.004605
+    ],
+    "fnr": 0.781917,
+    "fnr_wilson95": [
+     0.781256,
+     0.782577
+    ],
+    "attack_recall": 0.218083,
+    "roc_auc": 0.65459,
+    "pr_auc": 0.50436,
+    "auc_not_computed_because": null
+   }
+  },
+  "metrics_alert_line": {
+   "benign": 4049104,
+   "attack": 1500343,
+   "fp": 15631,
+   "fn": 1275649,
+   "fpr": 0.00386,
+   "fpr_wilson95": [
+    0.0038,
+    0.003921
+   ],
+   "fnr": 0.850238,
+   "fnr_wilson95": [
+    0.849666,
+    0.850808
+   ],
+   "attack_recall": 0.149762,
+   "roc_auc": 0.65459,
+   "pr_auc": 0.50436,
+   "auc_not_computed_because": null
+  },
+  "excluding_vectors_in_2017_pool": {
+   "n": 5536754,
+   "class_distribution": {
+    "BENIGN": 4037198,
+    "SSH Brute Force": 187589,
+    "SQL Injection": 53,
+    "DDoS": 740230,
+    "XSS Attempt": 151,
+    "Malware Beacon": 285831,
+    "Credential Stuffing": 193716,
+    "Lateral Movement": 91986
+   },
+   "accuracy": 0.728901,
+   "balanced_accuracy": 0.127318,
+   "precision_macro": 0.234215,
+   "recall_macro": 0.127318,
+   "f1_macro": 0.114503,
+   "f1_weighted": 0.641042,
+   "macro_over_classes": [
+    "BENIGN",
+    "SSH Brute Force",
+    "SQL Injection",
+    "DDoS",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "predicted_but_absent": [
+    "Port Scan",
+    "RCE Attempt"
+   ],
+   "per_class": {
+    "BENIGN": {
+     "support": 4037198,
+     "predicted": 5191175,
+     "tp": 4018818,
+     "precision": 0.774163,
+     "recall": 0.995447,
+     "f1": 0.87097,
+     "recall_wilson95": [
+      0.995381,
+      0.995513
+     ],
+     "reliable": true
+    },
+    "SSH Brute Force": {
+     "support": 187589,
+     "predicted": 556,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      2e-05
+     ],
+     "reliable": true
+    },
+    "SQL Injection": {
+     "support": 53,
+     "predicted": 19,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      -0.0,
+      0.067584
+     ],
+     "reliable": true
+    },
+    "Port Scan": {
+     "support": 0,
+     "predicted": 231459,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "DDoS": {
+     "support": 740230,
+     "predicted": 18832,
+     "tp": 16880,
+     "precision": 0.896347,
+     "recall": 0.022804,
+     "f1": 0.044476,
+     "recall_wilson95": [
+      0.022466,
+      0.023146
+     ],
+     "reliable": true
+    },
+    "RCE Attempt": {
+     "support": 0,
+     "predicted": 1,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "XSS Attempt": {
+     "support": 151,
+     "predicted": 365,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      0.02481
+     ],
+     "reliable": true
+    },
+    "Malware Beacon": {
+     "support": 285831,
+     "predicted": 557,
+     "tp": 26,
+     "precision": 0.046679,
+     "recall": 9.1e-05,
+     "f1": 0.000182,
+     "recall_wilson95": [
+      6.2e-05,
+      0.000133
+     ],
+     "reliable": true
+    },
+    "Credential Stuffing": {
+     "support": 193716,
+     "predicted": 93675,
+     "tp": 1,
+     "precision": 1.1e-05,
+     "recall": 5e-06,
+     "f1": 7e-06,
+     "recall_wilson95": [
+      1e-06,
+      2.9e-05
+     ],
+     "reliable": true
+    },
+    "Lateral Movement": {
+     "support": 91986,
+     "predicted": 115,
+     "tp": 18,
+     "precision": 0.156522,
+     "recall": 0.000196,
+     "f1": 0.000391,
+     "recall_wilson95": [
+      0.000124,
+      0.000309
+     ],
+     "reliable": true
+    }
+   },
+   "confusion_matrix": {
+    "labels": [
+     "BENIGN",
+     "SSH Brute Force",
+     "SQL Injection",
+     "Port Scan",
+     "DDoS",
+     "RCE Attempt",
+     "XSS Attempt",
+     "Malware Beacon",
+     "Credential Stuffing",
+     "Lateral Movement"
+    ],
+    "rows_true_cols_pred": [
+     [
+      4018818,
+      540,
+      17,
+      14826,
+      1912,
+      1,
+      360,
+      479,
+      148,
+      97
+     ],
+     [
+      94039,
+      0,
+      0,
+      30,
+      0,
+      0,
+      0,
+      0,
+      93520,
+      0
+     ],
+     [
+      52,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      723304,
+      9,
+      0,
+      37,
+      16880,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      151,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      285802,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      26,
+      2,
+      0
+     ],
+     [
+      361,
+      0,
+      0,
+      193354,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      68648,
+      7,
+      2,
+      23211,
+      40,
+      0,
+      5,
+      52,
+      3,
+      18
+     ]
+    ]
+   },
+   "binary": {
+    "benign": 4037198,
+    "attack": 1499556,
+    "fp": 18380,
+    "fn": 1172357,
+    "fpr": 0.004553,
+    "fpr_wilson95": [
+     0.004487,
+     0.004619
+    ],
+    "fnr": 0.781803,
+    "fnr_wilson95": [
+     0.781141,
+     0.782463
+    ],
+    "attack_recall": 0.218197,
+    "roc_auc": 0.655147,
+    "pr_auc": 0.505095,
+    "auc_not_computed_because": null
+   }
+  },
+  "dedup_sensitivity": {
+   "n": 3672442,
+   "class_distribution": {
+    "BENIGN": 3119325,
+    "SSH Brute Force": 94048,
+    "SQL Injection": 51,
+    "DDoS": 251905,
+    "XSS Attempt": 150,
+    "Malware Beacon": 144535,
+    "Credential Stuffing": 395,
+    "Lateral Movement": 62033
+   },
+   "accuracy": 0.852533,
+   "balanced_accuracy": 0.133425,
+   "precision_macro": 0.244523,
+   "recall_macro": 0.133425,
+   "f1_macro": 0.130921,
+   "f1_weighted": 0.79002,
+   "macro_over_classes": [
+    "BENIGN",
+    "SSH Brute Force",
+    "SQL Injection",
+    "DDoS",
+    "XSS Attempt",
+    "Malware Beacon",
+    "Credential Stuffing",
+    "Lateral Movement"
+   ],
+   "predicted_but_absent": [
+    "Port Scan",
+    "RCE Attempt"
+   ],
+   "per_class": {
+    "BENIGN": {
+     "support": 3119325,
+     "predicted": 3649614,
+     "tp": 3114197,
+     "precision": 0.853295,
+     "recall": 0.998356,
+     "f1": 0.920143,
+     "recall_wilson95": [
+      0.99831,
+      0.9984
+     ],
+     "reliable": true
+    },
+    "SSH Brute Force": {
+     "support": 94048,
+     "predicted": 496,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      4.1e-05
+     ],
+     "reliable": true
+    },
+    "SQL Injection": {
+     "support": 51,
+     "predicted": 19,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      0.070049
+     ],
+     "reliable": true
+    },
+    "Port Scan": {
+     "support": 0,
+     "predicted": 2703,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "DDoS": {
+     "support": 251905,
+     "predicted": 18588,
+     "tp": 16637,
+     "precision": 0.89504,
+     "recall": 0.066045,
+     "f1": 0.123012,
+     "recall_wilson95": [
+      0.065081,
+      0.067021
+     ],
+     "reliable": true
+    },
+    "RCE Attempt": {
+     "support": 0,
+     "predicted": 1,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": null,
+     "f1": null,
+     "recall_wilson95": null,
+     "reliable": false
+    },
+    "XSS Attempt": {
+     "support": 150,
+     "predicted": 134,
+     "tp": 0,
+     "precision": 0.0,
+     "recall": 0.0,
+     "f1": 0.0,
+     "recall_wilson95": [
+      0.0,
+      0.024971
+     ],
+     "reliable": true
+    },
+    "Malware Beacon": {
+     "support": 144535,
+     "predicted": 557,
+     "tp": 26,
+     "precision": 0.046679,
+     "recall": 0.00018,
+     "f1": 0.000358,
+     "recall_wilson95": [
+      0.000123,
+      0.000264
+     ],
+     "reliable": true
+    },
+    "Credential Stuffing": {
+     "support": 395,
+     "predicted": 215,
+     "tp": 1,
+     "precision": 0.004651,
+     "recall": 0.002532,
+     "f1": 0.003279,
+     "recall_wilson95": [
+      0.000447,
+      0.014199
+     ],
+     "reliable": true
+    },
+    "Lateral Movement": {
+     "support": 62033,
+     "predicted": 115,
+     "tp": 18,
+     "precision": 0.156522,
+     "recall": 0.00029,
+     "f1": 0.000579,
+     "recall_wilson95": [
+      0.000184,
+      0.000459
+     ],
+     "reliable": true
+    }
+   },
+   "confusion_matrix": {
+    "labels": [
+     "BENIGN",
+     "SSH Brute Force",
+     "SQL Injection",
+     "Port Scan",
+     "DDoS",
+     "RCE Attempt",
+     "XSS Attempt",
+     "Malware Beacon",
+     "Credential Stuffing",
+     "Lateral Movement"
+    ],
+    "rows_true_cols_pred": [
+     [
+      3114197,
+      480,
+      17,
+      1881,
+      1911,
+      1,
+      129,
+      479,
+      133,
+      97
+     ],
+     [
+      93966,
+      0,
+      0,
+      7,
+      0,
+      0,
+      0,
+      0,
+      75,
+      0
+     ],
+     [
+      50,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      235223,
+      9,
+      0,
+      36,
+      16637,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      150,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     [
+      144506,
+      0,
+      0,
+      1,
+      0,
+      0,
+      0,
+      26,
+      2,
+      0
+     ],
+     [
+      341,
+      0,
+      0,
+      53,
+      0,
+      0,
+      0,
+      0,
+      1,
+      0
+     ],
+     [
+      61181,
+      7,
+      2,
+      725,
+      40,
+      0,
+      5,
+      52,
+      3,
+      18
+     ]
+    ]
+   },
+   "binary": {
+    "benign": 3119325,
+    "attack": 553117,
+    "fp": 5128,
+    "fn": 535417,
+    "fpr": 0.001644,
+    "fpr_wilson95": [
+     0.0016,
+     0.00169
+    ],
+    "fnr": 0.968,
+    "fnr_wilson95": [
+     0.967532,
+     0.96846
+    ],
+    "attack_recall": 0.032,
+    "roc_auc": 0.60452,
+    "pr_auc": 0.253104,
+    "auc_not_computed_because": null
+   }
+  },
+  "majority_baseline": {
+   "predicts": "BENIGN",
+   "accuracy": 0.729641,
+   "balanced_accuracy": 0.125,
+   "f1_macro": 0.105461,
+   "n": 5549447
+  },
+  "macro_f1": 0.114535
+ },
+ "notes": [],
+ "failed_checks": []
+}

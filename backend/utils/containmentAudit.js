@@ -131,7 +131,8 @@ const spoolEnabled = () => process.env.NODE_ENV !== 'test' || Boolean(process.en
 const spoolPath = () => {
   const uri = String(process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db')
   const db = (uri.split('://')[1]?.split('/')[1]?.split('?')[0] || 'default').replace(/[^\w.-]/g, '_')
-  const dir = process.env.CONTAINMENT_AUDIT_SPOOL_DIR || path.join(__dirname, '..', 'logs')
+  // Rank 8: through utils/logPaths.js (never the real backend/logs while Jest runs)
+  const dir = require('./logPaths').logDir('CONTAINMENT_AUDIT_SPOOL_DIR')
   return path.join(dir, `containment-audit-spool-${db}.jsonl`)
 }
 const LOSS_METRIC = 'sentinel_containment_audit_loss_total'

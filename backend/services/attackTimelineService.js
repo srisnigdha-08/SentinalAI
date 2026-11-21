@@ -20,6 +20,7 @@ const ContainmentAction = require('../models/ContainmentAction')
 const ContainmentAuditEvent = require('../models/ContainmentAuditEvent')
 const BlockedIP = require('../models/BlockedIP')
 const { getMitreTechniquesForSession } = require('../utils/mitreMapping')
+const { withTactics } = require('../utils/attackTechniques')
 const { isPrivilegedRole, redactHoneypotSession, redactThreat, redactAlert } = require('../utils/redact')
 
 const LIMITS = { alerts: 50, predictions: 50, containment: 20, auditPerAction: 100, blocked: 10 }
@@ -86,7 +87,7 @@ const safeCredentials = (credentials) =>
     return out
   })
 
-const withCommandTechniques = (commands) =>
+const withCommandTechniques = (commands, persona = null) =>
   (Array.isArray(commands) ? commands : []).map((c, index) => ({
     index,
     command: c.command,
@@ -95,7 +96,7 @@ const withCommandTechniques = (commands) =>
     success: Boolean(c.success),
     intent: c.intent || null,
     // Same mapping the session-level mitreTechniques comes from, applied per command.
-    techniques: getMitreTechniquesForSession([{ command: c.command, intent: c.intent }]),
+    techniques: getMitreTechniquesForSession([{ command: c.command, intent: c.intent }], { persona }),
   }))
 
 async function getSessionEvidence(id, role = 'viewer') {
@@ -104,7 +105,7 @@ async function getSessionEvidence(id, role = 'viewer') {
   if (!raw) return null
 
   // Per-command techniques are computed from the real command text before any role redaction hides it.
-  const commands = withCommandTechniques(raw.commands)
+  const commands = withCommandTechniques(raw.commands, raw.servedProfile)
   const session = redactHoneypotSession({ ...raw, commands }, role)
   session.credentials = privileged ? safeCredentials(raw.credentials) : safeCredentials(session.credentials)
   if (!privileged) {
@@ -116,6 +117,9 @@ async function getSessionEvidence(id, role = 'viewer') {
   const threatId = raw.linkedThreatLog || null
   const threatDoc = threatId ? await ThreatLog.findById(threatId).select(THREAT_FIELDS).lean() : null
   const threat = threatDoc ? redactThreat(threatDoc, role) : null
+  // Rank 8: stored techniques are {id, name}; the tactics come from the verified ATT&CK table.
+  if (Array.isArray(session.mitreTechniques)) session.mitreTechniques = session.mitreTechniques.map(withTactics)
+  if (threat && Array.isArray(threat.mitreTechniques)) threat.mitreTechniques = threat.mitreTechniques.map(withTactics)
 
   // The honeypot classification stored at closure carries this session's id in rawFeatures.
   const predictions = threatId

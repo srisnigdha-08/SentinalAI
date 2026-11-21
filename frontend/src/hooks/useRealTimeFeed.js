@@ -16,6 +16,7 @@ import { threatAPI } from '../services/api.js'
 import { feedThreatsToRecover, insertByTime } from '../utils/liveFeedSync.js'
 import { isAlertScore, liveSeverity } from '../utils/scoreBands.js'
 import { useScoreLines } from './useScoreLines.js'
+import { captureSourceMeta } from '../utils/capabilities.js'
 
 const CATCH_UP_LIMIT = 20
 
@@ -83,7 +84,7 @@ export function useRealTimeFeed(maxItems = 30) {
     const unsubAI    = on('ai_prediction', (data) => {
       if (isAlertScore(data.threatScore, scoreLinesRef.current)) addItem({
         ip:  data.sourceIP,
-        msg: `AI: ${data.predictedClass} (${((data.threatScore||0)*100).toFixed(0)}%) → ${data.action}`,
+        msg: `AI: ${data.predictedClass} (${((data.threatScore||0)*100).toFixed(0)}%) → ${data.action} [${captureSourceMeta(data.captureSource).short}]`,
         sev: liveSeverity(data, scoreLinesRef.current),
       })
     })

@@ -111,7 +111,7 @@ Original environment files, models, datasets and persistent data remain protecte
 
 | Component | Where | Default state |
 |---|---|---|
-| Passive flow capture (PCAP replay, opt-in live) | `ai-engine/capture/`; heartbeat `POST /api/honeypot/ingest/capture-heartbeat`; status `GET /api/system/capture` | replay only; live off |
+| Passive flow capture (PCAP replay, opt-in live) | `ai-engine/capture/`; heartbeat `POST /api/honeypot/ingest/capture-heartbeat`; status `GET /api/system/capture` | offline PCAP replay implemented and verified; live capture implemented, not enabled |
 | Capture provenance per prediction | `AIPrediction.captureSource` (set by the receiving route) | always on |
 | Correlated auto-block | `backend/services/containmentCorrelationService.js`; `ThreatLog.containmentDecision` | correlated |
 | Real host-firewall adapters with post-apply verification | `backend/services/containment/` (Windows, Linux iptables, `enforcementSafety.js`) | not enabled (mock) |
@@ -119,7 +119,47 @@ Original environment files, models, datasets and persistent data remain protecte
 | Unsupported Windows persona | `UNSUPPORTED_PROFILES` (engine), `switch_profile.UNSERVABLE`, `backend/utils/deceptionProfiles.js` | never selectable |
 | v2 independent evaluation, rollback rehearsal | `evaluation/persona_policy_independent_eval.py`, `honeypot/rollback_rehearsal.py` | offline tools |
 | Arena attacker profiles and batch statistics | `demo/deception_arena.py`, `evaluation/arena_batch.py` | simulated |
-| Session-ML pipeline (no model) | `ai-engine/session_ml/` | blocked: no independent labels |
+| Session-ML pipeline (shadow, no model) | `ai-engine/session_ml/`; `sessionML` block on `/predict/honeypot/internal`; `GET /session-ml/status`; `HoneypotSession.sessionMl` | pipeline verified; model blocked: no independent labels |
 | Capability Status | `GET /api/system/capabilities`, `/dashboard/capabilities` | always on |
 
 Status of each: [CAPABILITIES.md](CAPABILITIES.md).
+
+## Rank 8 remediation notes (2026-11-19)
+
+**MITRE ATT&CK** (`backend/utils/attackTechniques.js`, `mitreMapping.js`):
+- Every technique id, name and tactic is verified against ATT&CK Enterprise v20.1 (where Defense Evasion is now
+  Stealth plus Defense Impairment). Techniques are shown with their tactic in Threat Logs, Honeypot Analytics,
+  Attack Time Machine and Deception Arena.
+- T1595 Active Scanning (Reconnaissance, pre-compromise network probing) is no longer used for on-host commands;
+  `uname`, `id`, `whoami` and `ifconfig` map to Discovery techniques. T1595 remains a candidate for network port scans.
+- Intent-level techniques are used only where true for every command in the intent; otherwise the precise
+  per-command technique applies.
+- Windows rules are persona-gated. Unknown behaviour gets no technique.
+
+**Engine request bodies:** a 2 MB limit on the bytes actually received for every engine route (see SESSION_ML.md).
+The backend's own JSON limit (10 KB, express `raw-body`) already counts received bytes.
+
+**Socket.IO latency.** Baseline from `node backend/benchmarks/socketLatency.js` on 2026-11-19:
+- Setup: an isolated in-process server with the app's Socket.IO options, loopback, Node 24, socket.io 4.8.3,
+  i5-12500H. Server and clients share one process.
+- No latency SLO is defined; an owner-approved target is still needed.
+
+| Scenario | p50 | p95 | p99 |
+|---|---|---|---|
+| WebSocket round trip, 1 client | 0.21 ms | 0.31 ms | 0.41 ms |
+| WebSocket round trip, 50 clients | 6.8 ms | 8.6 ms | 9.6 ms |
+| Broadcast to 10 clients, about 490 B events | 6.5 ms | 11.6 ms | 14.1 ms |
+| Broadcast to 50 clients | 42 ms | 73 ms | 86 ms |
+| 512 KB events to 10 clients | 14.7 ms | 25.6 ms | 28.5 ms |
+
+- Sustained throughput: about 49,000 deliveries/s (10 clients).
+- 0 events dropped in every scenario.
+- Connection setup (p50): 38 ms over WebSocket for 1 client; 70 to 188 ms with the default polling-then-upgrade
+  transport.
+- A message over 1 MB from a client closes that connection (`transport close`).
+- A server-side disconnect is not reconnected automatically (Socket.IO behaviour). A dropped transport reconnects in
+  about 0.6 to 0.9 s.
+
+**Test isolation:**
+- Under Jest, every backend log and audit sink (`utils/logPaths.js`) refuses the real `backend/logs`.
+- No Python test reloads a production module (`tests/test_test_isolation.py`).

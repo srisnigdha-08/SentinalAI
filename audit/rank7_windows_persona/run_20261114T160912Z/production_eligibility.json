@@ -1,0 +1,25 @@
+{
+ "persona": "windows_srv",
+ "supported": true,
+ "experimental": true,
+ "productionEligible": false,
+ "servingEnabled": false,
+ "v1_servable_profiles": [
+  "ubuntu_22",
+  "debian_11",
+  "centos_7",
+  "aws_ec2",
+  "raspberry_pi"
+ ],
+ "v1_unsupported": [
+  "windows_srv"
+ ],
+ "experimental_sessions_learned": false,
+ "cowrie_hook_default": "DISABLED",
+ "shipped_cowrie_cfg_enables_plugin": false,
+ "v2_activation_with_active_requested": {
+  "allowed": false,
+  "readiness": "NOT_READY",
+  "reason": "READINESS_NOT_READY"
+ }
+}

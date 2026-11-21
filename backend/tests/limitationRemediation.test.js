@@ -169,10 +169,14 @@ describe('capability report', () => {
     const r = await getCapabilities()
     const byId = Object.fromEntries(r.items.map((i) => [i.id, i]))
     for (const i of r.items) expect(Object.keys(LABELS)).toContain(i.label)
-    expect(byId.network_capture.label).toBe('implemented_not_enabled')
+    // Network traffic source is two entries: offline replay (verified by its test suite) and live capture (off).
+    expect(byId.pcap_replay.label).toBe('implemented_and_verified')
+    expect(byId.live_capture.label).toBe('implemented_not_enabled')
     expect(byId.host_firewall.label).toBe('implemented_not_enabled')
     expect(byId.host_firewall.summary).toMatch(/SIMULATED/)
-    expect(byId.windows_persona.label).toBe('not_implemented')
+    // Rank 7: the simulation exists, but production serving of windows_srv stays disabled
+    expect(byId.windows_persona.label).toBe('implemented_not_enabled')
+    expect(byId.windows_persona.facts.productionEligible).toBe(false)
     expect(byId.session_ml.label).toBe('blocked')
     expect(byId.deception_arena.label).toBe('simulated')
     expect(byId.ml_generalization.facts.promoted).toBe(false)

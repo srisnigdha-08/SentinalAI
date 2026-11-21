@@ -1,0 +1,12 @@
+{
+ "generated_at": "2026-11-14T16:09:12.530524+00:00",
+ "tests": {
+  "passed": true,
+  "failed": 0
+ },
+ "cowrieVersion": "3.1.3",
+ "supportedCommandCount": 55,
+ "productionEligible": false,
+ "servingEnabled": false,
+ "live": false
+}

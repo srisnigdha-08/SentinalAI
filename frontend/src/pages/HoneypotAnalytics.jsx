@@ -7,9 +7,12 @@ import { honeypotAPI } from '../services/api.js'
 import { useSocket } from '../hooks/useSocket.js'
 import toast from 'react-hot-toast'
 import { useAuth } from '../hooks/useAuth.js'
-import { recommendationSummary, learnerProvenanceSummary, decisionStatusSummary, policyLabel } from '../utils/modelHealth.js'
+import { recommendationSummary, learnerProvenanceSummary, learnerEvidenceSourceSummary, decisionStatusSummary, policyLabel } from '../utils/modelHealth.js'
+import { sessionMlView, reasonCodeText, ruleVerdictText } from '../utils/sessionMl.js'
 import { profileSourceLabel, closedDecisionSummary, learningCountsSummary, shadowSummary, deceptionSignature, requestErrorMessage } from '../utils/deceptionStatus.js'
 import { REPORT_TIME_ZONE } from '../utils/reportingTime.js'
+import { personaLabel } from '../utils/personaLabels.js'
+import { tacticText } from '../utils/mitreTactics.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -25,6 +28,26 @@ const HONEYPOT_METHOD_NOTE =
   'and honeypot-originated blocks can require analyst approval.'
 // Sessions invented by log_parser.py --demo (same convention as the backend's isSyntheticSession).
 const isSyntheticSession = (sessionId) => /^demo-/i.test(String(sessionId || ''))
+
+// Rule-based verdict and shadow ML classification, side by side and never combined (docs/SESSION_ML.md)
+function SessionVerdicts({ session }) {
+  const rule = ruleVerdictText(session)
+  const ml = sessionMlView(session.sessionMl)
+  const reasons = reasonCodeText(session.sessionMl?.reasonCodes)
+  const mono = { fontFamily:'Share Tech Mono,monospace', fontSize:10 }
+  return (
+    <div data-testid="session-verdicts" style={{ display:'flex', flexWrap:'wrap', gap:12, marginTop:6, ...mono }}>
+      <span data-testid="session-rule-verdict" style={{ color:'#00ff88' }}>
+        RULES: {rule || 'not classified'}{session.servedProfile ? ` · persona ${personaLabel(session.servedProfile)}` : ''}
+      </span>
+      <span data-testid="session-ml-verdict" data-ml-state={ml.state} title={ml.title} style={{ color: ml.color }}>
+        ML (SHADOW): {ml.prediction ? `${ml.prediction} · ${ml.scoreText}` : ml.label}
+        {ml.details.length > 0 && <span style={{ color:'#3a6a88' }}> · {ml.details.join(' · ')}</span>}
+        {reasons.length > 0 && <span style={{ color:'#3a6a88' }}> · observed: {reasons.join(', ')}</span>}
+      </span>
+    </div>
+  )
+}
 
 export default function HoneypotAnalytics() {
   const [analytics, setAnalytics] = useState(null)
@@ -254,12 +277,13 @@ export default function HoneypotAnalytics() {
                     </span>
                   )}
                 </div>
+                <SessionVerdicts session={s} />
                 {s.mitreTechniques && s.mitreTechniques.length > 0 && (
                   <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:8, borderTop:'1px dashed #0d3352', paddingTop:8 }}>
                     {s.mitreTechniques.map((tech, i) => (
-                      <span key={i} title={tech.name} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, background:'rgba(0, 212, 255, 0.1)',
+                      <span key={i} title={`${tech.name} (tactic: ${tacticText(tech)})`} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, background:'rgba(0, 212, 255, 0.1)',
                         border:'1px solid rgba(0, 212, 255, 0.3)', color:'#00d4ff', padding:'2px 6px', borderRadius:2 }}>
-                        {tech.id} - {tech.name}
+                        {tech.id} - {tech.name} · {tacticText(tech)}
                       </span>
                     ))}
                   </div>
@@ -330,6 +354,9 @@ export default function HoneypotAnalytics() {
             )}
             {canSeeRecommendation && !recError && recommendation && (
               <span data-testid="learner-provenance" style={{ color:'#3a6a88', fontSize:10 }}>{learnerProvenanceSummary(recommendation.provenance)}</span>
+            )}
+            {canSeeRecommendation && !recError && learnerEvidenceSourceSummary(recommendation?.provenance) && (
+              <span data-testid="learner-evidence-sources" style={{ color:'#3a6a88', fontSize:10 }}>{learnerEvidenceSourceSummary(recommendation.provenance)}</span>
             )}
             {canSeeRecommendation && !recError && decisionStatusSummary(recommendation) && (
               <span data-testid="decision-status" style={{ color:'#3a6a88', fontSize:10 }}>

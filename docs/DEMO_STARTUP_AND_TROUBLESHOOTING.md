@@ -104,7 +104,7 @@ As reported by the Capability Status page (`GET /api/system/capabilities`) on a 
 | Persona policy v2 | shadow only, **NOT READY** | recorded next to v1, never applied |
 | Deception Arena | simulated | results describe the simulator, not real attackers |
 | Session ML | blocked | pipeline exists; no classifier trained (too few independent labels) |
-| Windows persona (`windows_srv`) | not implemented | refused everywhere (Cowrie emulates a Linux shell) |
+| Windows persona (`windows_srv`) | simulation implemented and tested; production serving disabled | experimental Windows-like shell simulation (docs/PERSONAS.md); still refused by the learner, v2, rotator, switcher and backend; not deployed |
 | ML generalisation | experimental | deployed `xgb_cicids_v1` unchanged |
 
 None of these is production-ready because a page renders; the labels above are the evidence-backed status.

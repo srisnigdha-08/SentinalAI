@@ -22,10 +22,10 @@
 
 ## 📌 Executive Summary & Research Abstract
 
-Modern enterprise networks face an onslaught of sophisticated, automated intrusions, Advanced Persistent Threats (APTs), and zero-day vulnerabilities. Conventional Intrusion Detection and Prevention Systems (IDS/IPS) remain predominantly static and signature-bound, leaving them vulnerable to polymorphic payloads and novel evasion tactics.
+Modern enterprise networks face an onslaught of sophisticated, automated intrusions, Advanced Persistent Threats (APTs), and zero-day vulnerabilities. Conventional Intrusion Detection and Prevention Systems (IDS/IPS) remain predominantly static and signature-bound, leaving them vulnerable to polymorphic payloads and novel evasion tactics. This is the motivation, not a claim of what SentinelAI achieves: its detector does **not** reliably detect attacks unlike its training data (see [Known ML limitations](#known-ml-limitations)).
 
 **SentinelAI** is a full-stack cyber defence prototype, designed toward autonomous operation, that combines ML threat detection, adaptive honeypot deception and a policy-governed containment workflow (enforcement is simulated by default). SentinelAI bridges the gap between machine learning research and frontline SOC operations by delivering:
-1. **Multi-Model Anomaly & Intrusion Detection:** XGBoost (served) and Random Forest classifiers plus an Isolation Forest, trained on **CICIDS2017** flow records. Input is flow records sent on demand or replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`); there is no live packet capture.
+1. **Intrusion Detection with an Anomaly Signal:** an XGBoost classifier (the served model; earlier Random Forest models are kept for comparison only) plus an Isolation Forest anomaly signal, trained on **CICIDS2017** flow records. Input is flow records sent on demand, replayed from CICIDS2017 (`ai-engine/demo/replay_cicids.py`) or extracted from a recorded PCAP by the offline capture service (`ai-engine/capture`, `pcap_replay`). Live passive capture is implemented but off by default (it needs `SENTINEL_LIVE_CAPTURE=1` and `--i-understand-live-capture`) and has never been verified on this project's hardware ([docs/CAPTURE.md](docs/CAPTURE.md)); a replayed flow is never labelled live.
 2. **Explainable AI (XAI):** **SHAP** (SHapley Additive exPlanations). Analysts and admins can open **Explain** on a threat from a scored flow: the backend re-scores the feature vector stored with that threat's prediction and shows per-feature contributions only if it reproduces the same class, score and model version (otherwise it says why not). The AI Analytics page shows the global view over recent decisions. SHAP covers the XGBoost classifier, not the Isolation Forest part of the threat score.
 3. **Reinforcement Learning Honeypot Deception:** A tabular **Q-learning** agent scores each Cowrie session and recommends the next decoy persona; `honeypot/deception_rotator.py` applies it to Cowrie. Persona switching was exercised against a live Cowrie instance in WSL by the integration harness (`run_integration.cjs --cowrie`); whether learned rotation keeps attackers engaged longer than a fixed persona has **not** been established for real attackers (`audit/RL001_DESIGN.md`; the Deception Arena below compares the two strategies only on scripted and simulated attackers).
 4. **Live SOC Operations Interface:** A React dashboard with Socket.IO telemetry, MITRE ATT&CK technique mapping of honeypot sessions, and analyst triage governance.
@@ -34,15 +34,29 @@ Modern enterprise networks face an onslaught of sophisticated, automated intrusi
 > **Academic Attribution:**  
 > Developed at the **Department of Information Science and Engineering, RNS Institute of Technology (RNSIT), Bengaluru, India**.  
 > **Authors:** Dr. Bhagyashree Ambore, M. Sri Snigdha, M. H. Ullasa, Jayanth M, Kumari Pallavi.  
-> *Reference Document:* [`paper_text.txt`](paper_text.txt) / [`IMPLIMENTATION.pdf`](IMPLIMENTATION.pdf)
+> *Reference Document:* [`paper_text.txt`](paper_text.txt) / [`IMPLIMENTATION.pdf`](IMPLIMENTATION.pdf). The paper (August 2026) predates the served XGBoost model and the cross-dataset evaluation; where it differs from this README, the README and [`docs/PAPER_CORRECTIONS.md`](docs/PAPER_CORRECTIONS.md) are current.
+
+---
+
+## Known ML limitations
+
+These are the verified results to quote. Sources: [docs/ML_GENERALISATION.md](docs/ML_GENERALISATION.md), [docs/QLEARNING_EVIDENCE.md](docs/QLEARNING_EVIDENCE.md), [docs/SESSION_ML.md](docs/SESSION_ML.md), [docs/AI_HIGH_PRIORITY_FIXES_REPORT.md](docs/AI_HIGH_PRIORITY_FIXES_REPORT.md).
+
+| Area | What is implemented | What the evidence shows |
+|---|---|---|
+| Network-flow detection (XGBoost `xgb_cicids_v1`, served) | Trained on CICIDS2017, registry-pinned, explained with SHAP | **98.97 %** accuracy (macro F1 0.874) on a stratified **random** 80/20 split of CICIDS2017 (`independent_holdout: false`): in-distribution only. On six CSE-CIC-IDS2018 development days (5.55 M flows) it catches **≈15 %** of attacks at the alert line, ROC-AUC **≈0.65**, accuracy 72.94 % against 72.96 % for always predicting BENIGN. **It does not generalise beyond its training dataset and does not detect zero-day or unseen attacks reliably.** |
+| Rare and missing classes | 11-class taxonomy | Training rows: SQL Injection 17, RCE Attempt 9 (all Heartbleed, a memory disclosure rather than code execution), Lateral Movement 29, **Data Exfiltration 0** (not an output class). Results for these classes are not meaningful. |
+| Isolation Forest | Anomaly signal that can raise a threat score or queue BENIGN-classified flows for analyst review; it never raises an alert on its own | Limited measured value: on the chronological CICIDS2017 test the review tier recovered **2 of 2,254** attacks the classifier missed. Not a highly effective ensemble. |
+| Q-learning persona recommender (V1) | Tabular Q-learning, persisted and applied by the rotator; V2 shadow-only | **Effectiveness not demonstrated.** 12,087 of 12,106 episodes (99.84 %) are the synthetic seed, 0 are independent external sessions, and real data changed none of the 6 per-state greedy choices. The state is only the previously served persona. |
+| Session ML | Feature contract, safe loader, shadow inference, dashboard display | **No trained model.** 0 independently labelled sessions exist, so it gives no ML predictions (`MODEL_UNAVAILABLE`); session verdicts come from rules. |
 
 ---
 
 ## 🌟 Key Features
 
-* **🛡️ Dual-Tier ML Intrusion Classifier:** Combines supervised classification (XGBoost `xgb_cicids_v1` is the served model, pinned in `ai-engine/models/registry.json`) with Isolation Forest anomaly scoring over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) to compute a `ThreatScore`.
-* **🧠 Explainable AI (SHAP):** On-demand per-threat explanations (Threat Logs → Explain): positive and negative contributions of all 53 features for the classifier's decision, computed from the stored vector and verified against the stored prediction; plus a global summary on AI Analytics.
-* **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (five Linux personas; the Windows persona is unsupported because Cowrie emulates only a Linux shell); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona against real attackers has not been established: 12,087 of its 12,106 episodes are the synthetic seed and every learning update now records its evidence source ([docs/QLEARNING_EVIDENCE.md](docs/QLEARNING_EVIDENCE.md)); the Deception Arena compares the two only on simulated attacker profiles. Persona policy v2 runs in shadow and is NOT READY.
+* **🛡️ ML Intrusion Classifier with an Anomaly Signal:** An XGBoost classifier (`xgb_cicids_v1`, the served model, pinned in `ai-engine/models/registry.json`) over 53 network-flow features (two time-of-day features are always zero for CICIDS2017) computes a `ThreatScore`; an Isolation Forest anomaly signal can only raise that score or queue a flow for analyst review, and its measured contribution is small (2 of 2,254 missed attacks recovered). Strong on CICIDS2017, poor on CICIDS2018 ([Known ML limitations](#known-ml-limitations)).
+* **🧠 Explainable AI (SHAP):** On-demand per-threat explanations (Threat Logs → Explain): positive and negative contributions of all 53 features for the classifier's decision, computed from the stored vector and verified against the stored prediction; plus a global summary on AI Analytics: the recent-flows view is computed in memory and not persisted, and a reproducible reference summary over the registry-pinned golden vectors is cached with the model SHA-256, feature-schema version and SHAP configuration.
+* **🎯 Reinforcement Learning Deception (Q-Learning):** A tabular Q-learning recommender scores sessions by engagement and recommends the next decoy persona (five Linux personas; the Windows persona is not production-eligible: only an experimental, undeployed Windows-like shell simulation exists, and sessions served by it, or right after it, are never learned); the rotator switches the Cowrie persona between sessions (exercised against live Cowrie in the integration harness). Effectiveness versus a fixed persona against real attackers has not been established: 12,087 of its 12,106 episodes are the synthetic seed and every learning update now records its evidence source ([docs/QLEARNING_EVIDENCE.md](docs/QLEARNING_EVIDENCE.md)); the Deception Arena compares the two only on simulated attacker profiles. Persona policy v2 runs in shadow and is NOT READY.
 * **🏷️ MITRE ATT&CK Matrix Tagging:** Maps honeypot shell commands to MITRE ATT&CK techniques (e.g., `T1110 - Brute Force`, `T1059 - Command and Scripting Interpreter`, `T1082 - System Information Discovery`).
 * **⚡ Real-Time Dispatcher:** Event propagation via Socket.IO from backend ingestion to analyst dashboards (end-to-end latency not yet measured).
 * **🔒 Enterprise Security & Session Management:** Session-backed authentication architecture featuring 15-minute access JWTs, 30-day absolute refresh token rotation, strict CORS isolation, and Asia/Kolkata timezone normalization.
@@ -157,7 +171,7 @@ The **served** model is XGBoost `xgb_cicids_v1` (`ai-engine/models/registry.json
 | Train Mon–Wed, test Thu+Fri (P3) | **50.6%** | 0.12% | Forward in time; 5 of the test attack classes were never trained on |
 | Leave one calendar day out (P4, 4 days with attacks) | **3.1–33.4%** | 0.24–4.1% | Unseen days and tools; even trained classes from a new tool are missed (DDoS LOIC → DoS tools: 0%) |
 
-**The model does not generalise to capture days or attack tools it has not seen.** Several classes have very little data (SQL Injection 21 flows in total, RCE 11, Lateral Movement 36, Data Exfiltration none), so per-class results for them are not meaningful.
+**The model does not generalise to capture days or attack tools it has not seen.** Several classes have very little data (SQL Injection 21 flows in total, RCE 11, Lateral Movement 36, Data Exfiltration none), so per-class results for them are not meaningful. **Data Exfiltration cannot be predicted at all:** the served classifier has 10 output classes and Data Exfiltration is not one of them (the model status reports it as `unmodeled`; adding it needs an approved training and evaluation cycle with labelled data). The time-of-day features were a constant 0 in training and have zero importance, so they cannot influence any prediction.
 
 **Cross-dataset development (not deployed).** Pre-registered experiments on CICIDS2017 plus six CSE-CIC-IDS2018
 development days ([`audit/ML_DEV_RESULTS.md`](audit/ML_DEV_RESULTS.md)) found one candidate (two-stage XGBoost, both
@@ -174,6 +188,11 @@ served `xgb_cicids_v1` caught **15.2 %** of attack flows (7,219 of 47,553) with 
 (198 of 81,821). This is a different network and attack tooling; the run is diagnostic only (results kept in a local,
 uncommitted experiment folder) and the locked 2018 test days were not used. It is shown in the AI Trust Meter's
 "Known model limitations" panel next to, not merged with, the random-split figures.
+
+**Rank 5 full evaluation of the frozen model (2026-11-14, [docs/ML_GENERALISATION.md](docs/ML_GENERALISATION.md)).**
+Every row of the six 2018 development days (5.55 M flows), scored read-only through the served path: attack recall
+**15.0 %** at the alert line, benign false-positive rate 0.39 %, accuracy 72.9 % against 73.0 % for always predicting
+BENIGN, macro F1 0.11. Independent generalisation is **not verified**.
 
 ### Alerting (backend threat/alert creation)
 The alert line (threat score at which a non-BENIGN prediction becomes a threat) is **0.90** (`ALERT_THRESHOLD`),
