@@ -35,14 +35,14 @@ test.after(async () => {
 
 test('pruning keeps the newest N of this database only and never touches other folders', () => {
   const names = [
-    'sentinel-demo-20261101T010000Z',
-    'sentinel-demo-20261103T010000Z',
-    'sentinel-demo-20261102T010000Z',
-    'sentinel-db-20261101T010000Z',
-    'sentinel-demo-20261104T010000Z.partial',
+    'sentinel-demo-20261101T010000000Z',
+    'sentinel-demo-20261103T010000000Z',
+    'sentinel-demo-20261102T010000000Z',
+    'sentinel-db-20261101T010000000Z',
+    'sentinel-demo-20261104T010000000Z.partial',
     'unrelated',
   ]
-  assert.deepEqual(selectExpired(names, 'sentinel-demo', 2), ['sentinel-demo-20261101T010000Z'])
+  assert.deepEqual(selectExpired(names, 'sentinel-demo', 2), ['sentinel-demo-20261101T010000000Z'])
   assert.deepEqual(selectExpired(names, 'sentinel-demo', 5), [])
   assert.throws(() => selectExpired(names, 'sentinel-demo', 0))
 })
@@ -69,12 +69,18 @@ test('verify reports tampering and truncation', async () => {
   fs.rmSync(r.folder, { recursive: true })
 })
 
-test('only --keep backups remain after repeated runs', async () => {
-  for (let i = 0; i < 3; i++) {
-    await backup({ db: 'sentinel-demo', out, keep: 2 }, client)
-    await new Promise((resolve) => setTimeout(resolve, 1100)) // folder names have one-second resolution
-  }
+test('only --keep backups remain after repeated runs, even when they follow each other immediately', async () => {
+  // No pause between runs: second-resolution folder names collided here on a fast CI runner.
+  for (let i = 0; i < 3; i++) await backup({ db: 'sentinel-demo', out, keep: 2 }, client)
   assert.equal(fs.readdirSync(out).filter((n) => n.startsWith('sentinel-demo-')).length, 2)
+})
+
+test('folder names are matched with the database name escaped, never as a pattern', () => {
+  const names = ['sentinel_demo-20261101T010000000Z', 'sentinelXdemo-20261101T010000000Z']
+  assert.deepEqual(selectExpired(names, 'sentinel_demo', 1), [])
+  assert.deepEqual(selectExpired([...names, 'sentinel_demo-20261102T010000000Z'], 'sentinel_demo', 1), [
+    'sentinel_demo-20261101T010000000Z',
+  ])
 })
 
 test('drill restores into a scratch database, matches counts and indexes, and drops it', async () => {
@@ -92,7 +98,7 @@ test('drill restores into a scratch database, matches counts and indexes, and dr
 test('drill refuses a scratch database that already has data', async () => {
   const [latest] = fs.readdirSync(out).filter((n) => n.startsWith('sentinel-demo-')).sort().reverse()
   const now = new Date('2030-01-01T00:00:00Z')
-  const name = DRILL_PREFIX + '20300101T000000Z'
+  const name = DRILL_PREFIX + '20300101T000000000Z'
   await client.db(name).collection('keep').insertOne({ x: 1 })
   await assert.rejects(drill(path.join(out, latest), client, now), /already has collections/)
   assert.equal(await client.db(name).collection('keep').countDocuments(), 1)

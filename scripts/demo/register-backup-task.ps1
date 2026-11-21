@@ -38,7 +38,7 @@ $node = (Get-Command node -ErrorAction Stop).Source
 New-Item -ItemType Directory -Force $Out | Out-Null
 
 $backupCmd = "& '$node' '$Script' backup --db '$DemoDb' --keep $Keep --out '$Out' *>> '$Log'"
-$drillCmd = "`$b = Get-ChildItem '$Out' -Directory | Where-Object Name -match '^$DemoDb-\d{8}T\d{6}Z$' | Sort-Object Name | Select-Object -Last 1; " +
+$drillCmd = "`$b = Get-ChildItem '$Out' -Directory | Where-Object Name -match '^$DemoDb-\d{8}T\d{9}Z$' | Sort-Object Name | Select-Object -Last 1; " +
   "if (`$b) { & '$node' '$Script' drill --backup `$b.FullName *>> '$Log' } else { 'No backup to drill' *>> '$Log' }"
 
 $principal = New-ScheduledTaskPrincipal -UserId "$env:USERDOMAIN\$env:USERNAME" -LogonType Interactive -RunLevel Limited

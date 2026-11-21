@@ -30,11 +30,13 @@ const { MongoClient } = require(path.join(BACKEND_MODULES, 'mongodb'))
 const BSON = require(path.join(BACKEND_MODULES, 'bson'))
 
 const DB_NAME = /^[A-Za-z0-9_-]{1,63}$/
-const FOLDER = (db) => new RegExp(`^${db.replace(/[-]/g, '\\-')}-\\d{8}T\\d{6}Z$`)
+const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')
+// <db>-YYYYMMDDTHHMMSSmmmZ: millisecond resolution, so two backups in the same second get different folders.
+const FOLDER = (db) => new RegExp(`^${escapeRegExp(db)}-\\d{8}T\\d{9}Z$`)
 const DRILL_PREFIX = 'sentinel-restore-check-'
 const BATCH = 500
 
-const stamp = (d = new Date()) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+const stamp = (d = new Date()) => d.toISOString().replace(/[-:.]/g, '')
 const baseUri = () => {
   const uri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017'
   // Connect to the server only; the database is chosen explicitly with --db / the manifest.
