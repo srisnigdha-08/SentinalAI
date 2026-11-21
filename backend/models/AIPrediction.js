@@ -25,6 +25,8 @@ const AIPredictionSchema = new mongoose.Schema(
     // Optional sender-chosen id of a network flow (POST /api/honeypot/ingest/flow). A retried or replayed request with
     // the same flowId returns the stored prediction instead of creating a second prediction and threat.
     flowId: { type: String, maxlength: 128, default: undefined },
+    // When a routine prediction is deleted by the TTL index (M1). Absent = kept indefinitely.
+    expireAt: { type: Date, default: undefined },
     targetIP: String,
     predictedClass: { type: String, required: true },
     classProbabilities: { type: Map, of: Number },
@@ -87,6 +89,9 @@ AIPredictionSchema.index({ threatScore: -1 })
 AIPredictionSchema.index({ sourceIP: 1 })
 // Verified-accuracy aggregate (all-time) reads only analyst-verified predictions
 AIPredictionSchema.index({ verified: 1 })
+// M1: routine predictions carry expireAt (services/aiService.storePrediction) and are deleted by this TTL index;
+// documents without expireAt (threat-linked, review queue, verified, honeypot, older records) are never expired.
+AIPredictionSchema.index({ expireAt: 1 }, { expireAfterSeconds: 0 })
 // One prediction per flowId; predictions without one (every existing record, other routes) are not indexed.
 AIPredictionSchema.index({ flowId: 1 }, { unique: true, partialFilterExpression: { flowId: { $type: 'string' } } })
 module.exports = mongoose.model('AIPrediction', AIPredictionSchema)

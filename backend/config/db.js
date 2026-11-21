@@ -45,8 +45,15 @@ const connectDB = async () => {
       const c = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db', {
         maxPoolSize: positiveInt(process.env.MONGO_MAX_POOL_SIZE, 10),
         serverSelectionTimeoutMS: positiveInt(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS, 5000),
+        // M9: command events feed utils/mongoMetrics (latency, failures, slow operations); MONGO_MONITOR_COMMANDS=false turns them off
+        monitorCommands: process.env.MONGO_MONITOR_COMMANDS !== 'false',
       })
       logger.info('MongoDB connected: ' + c.connection.host + '/' + c.connection.name)
+      try {
+        require('../utils/mongoMetrics').instrument(c.connection.getClient?.())
+      } catch (metricsErr) {
+        logger.warn('MongoDB metrics not attached (' + metricsErr.name + ')') // never blocks start-up
+      }
       break
     } catch (err) {
       // Only the error class is logged: driver messages can contain the connection string.

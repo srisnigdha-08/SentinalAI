@@ -190,6 +190,9 @@ const runFullPipeline = async (record, _io = null, opts = {}) => {
       inputSource: 'network_traffic',
       captureSource,
       ...(typeof opts.flowId === 'string' ? { flowId: opts.flowId } : {}),
+      // L2: when the flow carried its own time (the route validates it), the threat records it as eventTime;
+      // it was never passed on, so every flow threat had eventTime null.
+      ...(record.timestamp ? { timestamp: record.timestamp } : {}),
       sourceIP: record.sourceIP,
       targetIP: record.destinationIP || 'INTERNAL',
       predictedClass: result.predictedClass,

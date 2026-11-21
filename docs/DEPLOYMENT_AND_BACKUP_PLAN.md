@@ -107,6 +107,9 @@ clears activity while keeping users and settings.
 |---|---|
 | Liveness / readiness | backend `/health`, engine `/ready` and `/health` |
 | Metrics | backend `/metrics` (`METRICS_TOKEN`), engine `/metrics`; Prometheus rules `deployment/prometheus/alerts.yml`; Grafana dashboard `deployment/grafana/dashboards/sentinelai-overview.json` |
+| MongoDB | `/metrics`: `sentinel_mongo_commands_total` / `_command_duration_seconds_sum` / `_command_failures_total` / `_slow_commands_total` by command, and pool gauges `sentinel_mongo_pool_connections_open`, `_in_use`, `_waiting`, `sentinel_mongo_pool_checkout_failures_total` (`utils/mongoMetrics.js`); operations slower than `MONGO_SLOW_MS` (500 ms) are logged with type, collection and duration only. No Prometheus alert rule or Grafana panel uses them yet |
+| Data growth | routine network-flow predictions expire after `PREDICTION_RETENTION_DAYS` (30) via a TTL index; threat-linked, review-queue, verified and honeypot predictions are kept. Threats, sessions and alerts are archived only by the opt-in retention service (`RETENTION_ENABLED`); audit logs are append-only and kept |
+| Index changes | the backend builds newly declared indexes at start-up; indexes no schema declares any more (e.g. `threatlogs` `createdAt_-1`, `severity_1_status_1`, `status_1` after the compound-index change) stay until `npm run db:indexes -- --apply --confirm=<database>` |
 | Application log | `backend\logs\sentinel*.log` (rotating, 20 MB × 14), `errors.log`; containment `[AUDIT]` lines |
 | Security audit | `auditlogs` collection (Settings → audit log): sign-ins, permission denials, settings, manual block/unblock |
 | In-app alerts | "AI Engine UNAVAILABLE" and other health alerts on the dashboard |

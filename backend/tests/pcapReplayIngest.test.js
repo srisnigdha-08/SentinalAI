@@ -327,4 +327,12 @@ describe('flowId: a retried or replayed flow is stored once', () => {
     }
     expect(engineCalls).toHaveLength(0)
   })
+
+  test("L2: a flow's own timestamp becomes its threat's eventTime (it used to be dropped)", async () => {
+    attack()
+    await postFlow({ ...TCP_FLOW, timestamp: '2026-11-20T08:30:00.000Z' })
+    const t = await ThreatLog.findOne({}).lean()
+    expect(t.eventTime.toISOString()).toBe('2026-11-20T08:30:00.000Z')
+    expect(t.createdAt.getTime()).toBeGreaterThan(t.eventTime.getTime())
+  })
 })

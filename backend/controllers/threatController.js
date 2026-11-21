@@ -11,7 +11,7 @@ const getThreats = async (req, res, next) => {
     const r = await threatService.findThreats(req.query)
     const role = req.user?.role || 'viewer'
     const safeData = r.data.map((t) => redactThreat(t, role))
-    sendPaginated(res, safeData, r.total, r.page, r.limit)
+    sendPaginated(res, safeData, r.total, r.page, r.limit, { nextCursor: r.nextCursor ?? null })
   } catch (err) {
     next(err)
   }
@@ -219,9 +219,12 @@ const updateThreat = async (req, res, next) => {
       }
     }
     if (updates.tags !== undefined) {
-      if (!Array.isArray(updates.tags)) {
-        return sendError(res, 'Tags must be an array of strings', 400)
-      }
+      const ok =
+        Array.isArray(updates.tags) &&
+        updates.tags.length <= 20 &&
+        updates.tags.every((t) => typeof t === 'string' && t.trim().length > 0 && t.length <= 40)
+      if (!ok)
+        return sendError(res, 'Tags must be an array of at most 20 non-empty strings of up to 40 characters', 400)
     }
     if (updates.handledBy !== undefined && updates.handledBy !== null) {
       const { isValidObjectId } = require('../utils/querySecurity')
