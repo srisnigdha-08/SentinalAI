@@ -12,7 +12,9 @@ The sync thread is started from reactor.callWhenRunning, not from start(): Cowri
 before twistd daemonizes, and a thread started then does not survive the fork. Under `cowrie start` the
 deny-list stayed empty and nothing was ever blocked (only the foreground mode worked).
 """
+import ipaddress
 import os
+import re
 import time
 import requests
 import threading
@@ -22,14 +24,63 @@ try:
     from cowrie.telnet.factory import HoneyPotTelnetFactory
 except ImportError:
     HoneyPotTelnetFactory = None
+try:
+    from cowrie.core.config import CowrieConfig
+except ImportError:
+    CowrieConfig = None
 
 SYNC_INTERVAL = 2.0
+
+
+def honeypot_own_addresses(env=None, config=None):
+    """Addresses that belong to the honeypot host itself and are never refused, even when on the deny-list.
+
+    A connection from one of them comes from this host: the deception rotator's banner check after a persona switch
+    (it connects to Cowrie's listen address, so its source is that address) or an operator testing locally. Refusing
+    them makes every persona switch fail its verification and roll back, which happened when the WSL address of the
+    lab Cowrie was blocked after local test sessions. A TCP peer cannot spoof these from outside: the handshake
+    would have to complete from this host.
+      * loopback (127.0.0.0/8, ::1) - always
+      * the interface(s) in [ssh]/[telnet] listen_endpoints (wildcards ignored)
+      * SENTINEL_BLOCKER_EXEMPT_IPS: extra comma-separated addresses (e.g. a second local interface)
+    """
+    env = os.environ if env is None else env
+    own = set()
+    if config is not None:
+        for section in ("ssh", "telnet"):
+            try:
+                endpoints = config.get(section, "listen_endpoints", fallback="") or ""
+            except Exception:
+                endpoints = ""
+            for addr in re.findall(r"interface=([^\s:]+)", endpoints):
+                own.add(addr)
+    own.update(a.strip() for a in str(env.get("SENTINEL_BLOCKER_EXEMPT_IPS", "")).split(",") if a.strip())
+    valid = set()
+    for addr in own:
+        try:
+            ip = ipaddress.ip_address(addr)
+        except ValueError:
+            continue
+        if not ip.is_unspecified:  # 0.0.0.0 / :: is a wildcard binding, not an address of this host
+            valid.add(str(ip))
+    return frozenset(valid)
+
+
+def is_loopback(ip):
+    try:
+        return ipaddress.ip_address(ip).is_loopback
+    except ValueError:
+        return False
 
 
 class Output(output.Output):
     def start(self):
         self.blocked_ips = frozenset()
         self.last_sync = None
+        self.own_addresses = honeypot_own_addresses(config=CowrieConfig)
+        self._exempt_reported = set()
+        if self.own_addresses:
+            print(f"[SentinelAI] Never refused (this host's own addresses): {', '.join(sorted(self.own_addresses))} and loopback.")
         # Same default as the parser (log_parser.py SENTINEL_API); set SENTINEL_API_URL when the backend is remote.
         self.api_url = os.getenv("SENTINEL_API_URL", "http://localhost:5000/api")
         self.api_key = os.getenv("HONEYPOT_API_KEY", "")
@@ -106,4 +157,12 @@ class Output(output.Output):
     def is_ip_blocked(self, ip):
         # In-memory lookup only: no I/O and no thread per connection (a flood of new IPs used to start a
         # thread and an HTTP request each).
-        return ip in self.blocked_ips
+        if ip not in self.blocked_ips:
+            return False
+        if ip in self.own_addresses or is_loopback(ip):
+            # This host's own address is on the deny-list: say so once, but never refuse it (see honeypot_own_addresses).
+            if ip not in self._exempt_reported:
+                self._exempt_reported.add(ip)
+                print(f"[SentinelAI] {ip} is on the deny-list but is this host's own address; not refused.")
+            return False
+        return True
