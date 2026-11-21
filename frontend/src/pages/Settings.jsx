@@ -5,12 +5,14 @@ import Panel from '../components/Panel.jsx'
 import { threatAPI, containmentAPI, auditAPI } from '../services/api.js'
 import ContainmentConfirmModal from '../components/ContainmentConfirmModal.jsx'
 import toast from 'react-hot-toast'
-import { containmentOutcome } from '../utils/containmentLabels.js'
+import { containmentOutcome, isRealFirewallStatus, adapterDisplayName } from '../utils/containmentLabels.js'
 
 export default function Settings() {
   const [autoBlockEnabled, setAutoBlockEnabled] = useState(false)
   const [blockedIPs, setBlockedIPs] = useState([])
   const [containmentStatus, setContainmentStatus] = useState(null)
+  // Real only when the backend reports a real host-firewall adapter in use (Windows Firewall or Linux iptables)
+  const realFirewall = isRealFirewallStatus(containmentStatus)
   const [auditLogs, setAuditLogs] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -128,19 +130,19 @@ export default function Settings() {
             fontSize: 10,
             padding: '3px 8px',
             borderRadius: 2,
-            background: containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled
+            background: realFirewall
               ? 'rgba(255, 45, 85, 0.15)'
               : 'rgba(0, 212, 255, 0.1)',
             border: `1px solid ${
-              containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled
+              realFirewall
                 ? 'rgba(255, 45, 85, 0.4)'
                 : 'rgba(0, 212, 255, 0.3)'
             }`,
-            color: containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled
+            color: realFirewall
               ? '#ff2d55'
               : '#00d4ff',
           }}>
-            {containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled
+            {realFirewall
               ? '● HOST FIREWALL ENFORCEMENT'
               : '○ SIMULATION / MOCK ADAPTER'}
           </span>
@@ -203,27 +205,27 @@ export default function Settings() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
           
           {/* Host Containment Policy Engine Panel */}
-          <Panel title="Host Containment & Response Policy Engine" badge={containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled ? 'Live Firewall' : 'Simulation Mode'} badgeType={containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled ? 'danger' : 'info'}>
+          <Panel title="Host Containment & Response Policy Engine" badge={realFirewall ? 'Live Firewall' : 'Simulation Mode'} badgeType={realFirewall ? 'danger' : 'info'}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '0.5rem 0' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
                 <div>
                   <div style={{ fontFamily: 'Rajdhani,sans-serif', fontSize: 16, fontWeight: 600, color: '#00d4ff' }}>
-                    Active Enforcement Adapter: {containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled ? 'WindowsFirewallAdapter (Host OS)' : 'MockContainmentAdapter (In-Memory Simulation)'}
+                    Active Enforcement Adapter: {adapterDisplayName(containmentStatus)}
                   </div>
                   <div style={{ color: '#7ab3cc', fontSize: 13, marginTop: '4px' }}>
-                    {containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled
-                      ? 'Inbound block rules are actively managed via Windows Advanced Firewall.'
+                    {realFirewall
+                      ? `Inbound block rules are actively managed via the host firewall (${containmentStatus?.backend}).`
                       : 'Containment actions execute safely in-memory against the SentinelAI policy engine without host network mutation.'}
                   </div>
                 </div>
                 <div style={{
                   padding: '6px 14px',
                   borderRadius: '2px',
-                  background: containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled ? 'rgba(255, 45, 85, 0.15)' : 'rgba(0, 212, 255, 0.1)',
-                  border: `1px solid ${containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled ? '#ff2d55' : '#00d4ff'}`,
+                  background: realFirewall ? 'rgba(255, 45, 85, 0.15)' : 'rgba(0, 212, 255, 0.1)',
+                  border: `1px solid ${realFirewall ? '#ff2d55' : '#00d4ff'}`,
                   fontFamily: 'Share Tech Mono,monospace',
                   fontSize: 11,
-                  color: containmentStatus?.backend === 'windows-firewall' && containmentStatus?.realEnforcementEnabled ? '#ff2d55' : '#00d4ff',
+                  color: realFirewall ? '#ff2d55' : '#00d4ff',
                 }}>
                   ACTIVE RULES: {containmentStatus?.activeContainmentCount || 0} | FAILED: {containmentStatus?.failedContainmentCount || 0}
                 </div>

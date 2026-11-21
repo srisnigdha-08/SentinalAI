@@ -156,6 +156,23 @@ def classify_intent(cmd):
     if re.search(r"rm -rf|dd if=",c):             return "DESTRUCTION"
     return "UNKNOWN"
 
+# Rank 7: Windows-style commands (the experimental simulated Windows shell, honeypot/windows_persona). Applied only
+# to sessions served as windows_srv and only where the Linux rules above found nothing, so every Linux session is
+# classified exactly as before. If the package is not deployed next to the parser, the result stays UNKNOWN.
+def classify_session_intent(cmd, persona=None):
+    intent = classify_intent(cmd)
+    if intent != "UNKNOWN" or persona != "windows_srv":
+        return intent
+    try:
+        import sys
+        here = str(Path(__file__).resolve().parent.parent)
+        if here not in sys.path:
+            sys.path.append(here)
+        from windows_persona.telemetry import classify_windows_intent
+    except ImportError:
+        return intent
+    return classify_windows_intent(cmd)
+
 def _send(ep, data, retries=POST_RETRIES):
     """One delivery with backoff. Returns "ok", "rejected" (4xx: final) or "transient" (retry later)."""
     for attempt in range(retries + 1):
@@ -341,7 +358,7 @@ def on_cmd(e):
     if not sid: return
     if not ensure_session_opened(sid): return
     ip = _sessions[sid]["sourceIP"]
-    intent = classify_intent(cmd)
+    intent = classify_session_intent(cmd, _sessions[sid].get("servedProfile"))
     iocs = extract_iocs(cmd)
     log.info("Command [%s]: %s (content omitted)", intent, ip)
     _sessions[sid]["commands"].append({"command": cmd, "intent": intent})

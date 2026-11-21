@@ -1,0 +1,65 @@
+{
+ "id": "windows_srv",
+ "supported": true,
+ "experimental": true,
+ "productionEligible": false,
+ "servingEnabled": false,
+ "simulation": "windows-like shell simulation over Cowrie SSH; not a Windows host",
+ "identity": {
+  "hostname": "WIN-SRV19-DC01",
+  "domain": "WORKGROUP",
+  "username": "Administrator",
+  "os_name": "Microsoft Windows Server 2019 Datacenter",
+  "os_version": "10.0.17763",
+  "os_build": "17763",
+  "ver_string": "Microsoft Windows [Version 10.0.17763.5329]",
+  "banner": "SSH-2.0-OpenSSH_for_Windows_8.1",
+  "system_root": "C:\\Windows",
+  "home": "C:\\Users\\Administrator",
+  "registered_owner": "Windows User",
+  "registered_organization": "",
+  "product_id": "00430-00000-00000-AA918",
+  "install_date": "3/14/2024, 9:41:07 AM",
+  "boot_time": "11/2/2026, 6:12:55 AM",
+  "manufacturer": "Microsoft Corporation",
+  "model": "Virtual Machine",
+  "system_type": "x64-based PC",
+  "processor": "Intel64 Family 6 Model 85 Stepping 7 GenuineIntel ~2594 Mhz",
+  "bios": "Microsoft Corporation Hyper-V UEFI Release v4.1, 5/13/2023",
+  "memory_mb": 8192,
+  "available_mb": 5121,
+  "time_zone": "(UTC) Coordinated Universal Time",
+  "hotfixes": [
+   "KB5034619",
+   "KB5034127",
+   "KB5034768"
+  ]
+ },
+ "network": {
+  "adapter": "Ethernet",
+  "description": "Microsoft Hyper-V Network Adapter",
+  "mac": "00-15-5D-4A-21-07",
+  "ipv4": "10.20.30.15",
+  "mask": "255.255.255.0",
+  "gateway": "10.20.30.1",
+  "dns": [
+   "10.20.30.10",
+   "10.20.30.11"
+  ],
+  "dhcp": "No",
+  "ipv6_link_local": "fe80::8d1c:3b2e:61a0:4f19%6",
+  "dns_suffix": ""
+ },
+ "prompt": "C:\\Users\\Administrator>",
+ "notSimulated": [
+  "Windows kernel",
+  "cmd.exe",
+  "PowerShell runtime",
+  "RDP",
+  "SMB",
+  "WinRM",
+  "registry",
+  "Active Directory",
+  "real network I/O"
+ ]
+}

@@ -94,7 +94,7 @@ feature vector, and refused if re-scoring does not reproduce the prediction."
 
 ## 9. Honeypot and reinforcement learning
 
-- Real SSH sessions; commands mapped to ATT&CK (rehearsal: T1082, T1033, T1003.008, T1595).
+- Real SSH sessions; commands mapped to ATT&CK with tactics (rehearsal: T1082, T1033 Discovery; T1003.008 Credential Access). The rehearsal recorded T1595 before Rank 8 corrected that mapping.
 - Reward: engagement (duration, commands, intent bonuses, IOCs, login) minus a fingerprinting penalty.
 - Tabular Q-learning (α 0.1, γ 0.9, ε 0.2 → floor 0.05) over 5 Linux personas; one decision per served persona,
   applied by the rotator.

@@ -2,8 +2,27 @@
 
 const { execFile } = require('child_process')
 const net = require('net')
+const path = require('path')
 const util = require('util')
 const execFilePromise = util.promisify(execFile)
+
+/**
+ * Absolute path of netsh.exe under the Windows system directory. A bare "netsh" is looked up by the OS, and on
+ * Windows the lookup can include the current directory, so a planted netsh.exe there would run instead. SystemRoot is
+ * accepted only when it is a plain drive path; anything else falls back to C:\Windows.
+ */
+function netshPath(env = process.env, platform = process.platform) {
+  if (platform !== 'win32') return 'netsh'
+  const root =
+    typeof env.SystemRoot === 'string' && /^[A-Za-z]:\\[A-Za-z0-9_ .\\-]+$/.test(env.SystemRoot)
+      ? env.SystemRoot
+      : 'C:\\Windows'
+  return path.win32.join(root, 'System32', 'netsh.exe')
+}
+
+// Process errors carry string codes (ENOENT, ETIMEDOUT); the action document stores a numeric exit code.
+const numericExitCode = (err) => (typeof err?.code === 'number' && Number.isFinite(err.code) ? err.code : 1)
+const NO_RULE_MATCH = /No rules match the specified criteria/i
 const logger = require('../../utils/logger')
 const ContainmentAdapterInterface = require('./adapterInterface')
 
@@ -24,7 +43,7 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
       options.enabled !== undefined ? options.enabled : process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true'
     // netsh runs without a shell: arguments are passed as an array, so no metacharacter can start a new command.
     this._runNetsh =
-      options.runNetsh || ((args, timeout) => execFilePromise('netsh', args, { timeout, windowsHide: true }))
+      options.runNetsh || ((args, timeout) => execFilePromise(netshPath(), args, { timeout, windowsHide: true }))
   }
 
   getBackendType() {
@@ -84,7 +103,9 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
     if (
       typeof ruleName !== 'string' ||
       !ruleName.startsWith('SentinelAI-Rule-') ||
-      !/^[a-zA-Z0-9_-]+$/.test(ruleName)
+      // Same bound as the Linux adapter: a non-empty suffix of at most 64 characters (a bare prefix or an
+      // arbitrarily long name was accepted before)
+      !/^SentinelAI-Rule-[a-zA-Z0-9_-]{1,64}$/.test(ruleName)
     ) {
       throw new Error(`Invalid or unauthorized rule name: ${ruleName}`)
     }
@@ -136,11 +157,11 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
         success: false,
         ruleId: null,
         ruleName: assignedRuleName,
-        exitCode: err.code || 1,
+        exitCode: numericExitCode(err),
         stdout: (err.stdout || '').trim(),
         stderr: (err.stderr || err.message).trim(),
         executionDurationMs: duration,
-        details: { target: safeTarget, command: cmd, error: err.message },
+        details: { target: safeTarget, command: cmd, error: err.message, errorCode: err.code ?? null },
       }
     }
   }
@@ -169,19 +190,31 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
       }
     } catch (err) {
       const duration = Date.now() - startTime
+      // netsh's own "No rules match" means the rule is already gone: the release succeeded. Only this exact answer
+      // counts; any other error (access denied, timeout, missing netsh) stays a failure.
+      if (NO_RULE_MATCH.test(`${err.stdout || ''}\n${err.stderr || ''}`)) {
+        return {
+          success: true,
+          exitCode: 0,
+          stdout: (err.stdout || '').trim(),
+          stderr: '',
+          executionDurationMs: duration,
+          details: { ruleName: assignedRuleName, command: cmd, alreadyAbsent: true },
+        }
+      }
       logger.error(`[WindowsFirewallAdapter] Rule removal failed: ${err.message}`)
       return {
         success: false,
-        exitCode: err.code || 1,
+        exitCode: numericExitCode(err),
         stdout: (err.stdout || '').trim(),
         stderr: (err.stderr || err.message).trim(),
         executionDurationMs: duration,
-        details: { ruleName: assignedRuleName, command: cmd, error: err.message },
+        details: { ruleName: assignedRuleName, command: cmd, error: err.message, errorCode: err.code ?? null },
       }
     }
   }
 
-  async verifyRule({ containmentId, ruleId, _target, ruleName }) {
+  async verifyRule({ containmentId, ruleId, target, ruleName }) {
     this._assertEnabled()
     const rawRuleName = ruleName || ruleId || this._formatRuleName(containmentId)
     const assignedRuleName = this._sanitizeRuleName(rawRuleName)
@@ -194,10 +227,23 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
       // Match the "Enabled:" line only; a bare includes('Yes') matched any field. Non-English output
       // falls back to "exists", since rules this adapter creates are enabled by default.
       const enabledLine = stdout.match(/^\s*Enabled:\s*(\S+)/m)
+      // A rule with our name is not enough: it must block inbound traffic from this target. Each field is checked
+      // when netsh prints it (English output); a field that is missing (localised output) is not held against it.
+      const field = (name) => (stdout.match(new RegExp(`^\\s*${name}:\\s*(.+)$`, 'm')) || [])[1]?.trim()
+      const mismatches = []
+      if (enabledLine && enabledLine[1] !== 'Yes') mismatches.push('Enabled')
+      const direction = field('Direction')
+      if (direction !== undefined && direction !== 'In') mismatches.push('Direction')
+      const action = field('Action')
+      if (action !== undefined && action !== 'Block') mismatches.push('Action')
+      const remote = field('RemoteIP')
+      const ip = typeof target === 'string' ? target.trim().split('/')[0] : null
+      if (remote !== undefined && ip && !remote.split(',').some((r) => r.trim().split('/')[0] === ip))
+        mismatches.push('RemoteIP')
       return {
         exists,
-        active: exists && (enabledLine ? enabledLine[1] === 'Yes' : true),
-        details: { rawOutput: stdout.trim() },
+        active: exists && mismatches.length === 0,
+        details: { rawOutput: stdout.trim(), mismatches },
       }
     } catch (err) {
       return {
@@ -263,3 +309,4 @@ class WindowsFirewallAdapter extends ContainmentAdapterInterface {
 }
 
 module.exports = WindowsFirewallAdapter
+module.exports.netshPath = netshPath

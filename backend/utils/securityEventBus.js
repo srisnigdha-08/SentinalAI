@@ -188,7 +188,8 @@ class FileOutboxStore extends OutboxStore {
   constructor(filePath) {
     super()
     const path = require('path')
-    this.filePath = filePath || path.join(__dirname, '..', 'logs', 'event_outbox.json')
+    // Rank 8: default directory through utils/logPaths.js (never the real backend/logs while Jest runs)
+    this.filePath = filePath || path.join(require('./logPaths').logDir('OUTBOX_DIR'), 'event_outbox.json')
     this._ensureFile()
   }
 

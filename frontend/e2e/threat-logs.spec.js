@@ -8,11 +8,15 @@ test.describe('Threat Logs Telemetry, Triage & Containment', () => {
     await expect(page).toHaveURL(/\/dashboard\/threats$/);
   });
 
-  test('filters, severity badges, and disabled CSV export render correctly', async ({ page }) => {
-    // 1. Export CSV button is disabled
+  test('filters, severity badges, and CSV export render correctly', async ({ page }) => {
+    // 1. Export CSV downloads the threats matching the current filters
     const exportBtn = page.getByRole('button', { name: /Export CSV/i });
     await expect(exportBtn).toBeVisible();
-    await expect(exportBtn).toBeDisabled();
+    await expect(exportBtn).toBeEnabled();
+    const [download] = await Promise.all([page.waitForEvent('download'), exportBtn.click()]);
+    expect(download.suggestedFilename()).toMatch(/^sentinelai-threats-\d{4}-\d{2}-\d{2}\.csv$/);
+    const csv = await (await download.createReadStream()).toArray().then((c) => Buffer.concat(c).toString('utf8'));
+    expect(csv.replace(/^\uFEFF/, '').split('\r\n')[0]).toBe('Detected (UTC ISO 8601),Detected (IST),Severity,Source IP,Attack Type,Evidence Note,Target,Threat Score (%),Status,MITRE ATT&CK,Threat Intel,Threat ID');
 
     // 2. Filter controls are present
     const searchInput = page.getByPlaceholder('Search IP, type...');

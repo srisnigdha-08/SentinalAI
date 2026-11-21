@@ -120,6 +120,10 @@ def _attach_policy_v2(scorer, q_table_path, seed: Path):
     try:
         from rl_engine.persona_policy_v2 import PersonaPolicyV2, prior_from_q_table
         state = Path(os.getenv("DECEPTION_V2_STATE_PATH") or Path(q_table_path).with_name("persona_policy_v2.json"))
+        # v2 keeps its own file. A state path pointing at the v1 table or the shipped seed would let v2's saves
+        # overwrite v1's learning, so it is refused (v2 stays off; v1 is unaffected).
+        if state.resolve() in (Path(q_table_path).resolve(), Path(seed).resolve()):
+            raise PermissionError(f"v2 state path {state.name} is the v1 Q-table or its seed")
         seed_table, seed_episodes = {}, 0
         if seed.is_file():
             data = json.loads(seed.read_text(encoding="utf-8"))

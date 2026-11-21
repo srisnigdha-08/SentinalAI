@@ -21,7 +21,8 @@ const ENFORCEMENT_STATUSES = [
 const TARGET_TYPES = ['ipv4', 'ipv6', 'cidr']
 const ACTION_TYPES = ['block_ip', 'isolate_host', 'rate_limit']
 const POLICY_DECISIONS = ['ALLOWED', 'DENIED', 'REQUIRES_CONFIRMATION']
-const ENFORCEMENT_BACKENDS = ['mock', 'simulated', 'windows-firewall']
+// linux-iptables was missing: a real Linux action could never be saved (validation error on the first save).
+const ENFORCEMENT_BACKENDS = ['mock', 'simulated', 'windows-firewall', 'linux-iptables']
 
 const VALID_TRANSITIONS = {
   REQUESTED: ['VALIDATING', 'REJECTED'],

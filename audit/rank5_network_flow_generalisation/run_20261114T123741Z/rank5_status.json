@@ -1,0 +1,37 @@
+{
+ "rank5_version": "rank5/1",
+ "generated_at": "2026-11-14T12:50:01.513588+00:00",
+ "smoke_run_not_evidence": false,
+ "seed": 20261114,
+ "software": {
+  "python": "3.11.9",
+  "numpy": "1.26.4",
+  "pandas": "2.2.0"
+ },
+ "model_id": "xgb_cicids_v1",
+ "runtime_seconds": 740.4,
+ "status": {
+  "evaluation_tooling": "READY",
+  "model_integrity": "READY",
+  "dataset_provenance": "READY",
+  "random_split_reproduced": "READY",
+  "chronological_evaluation": "LIMITED",
+  "leakage_checks": "LIMITED",
+  "drift_diagnostics": "READY",
+  "independent_generalisation": "NOT_VERIFIED",
+  "generalisation_finding": "POOR_ON_LATER_DIFFERENT_NETWORK"
+ },
+ "leakage_assessment": "LIMITED",
+ "failed_checks": [],
+ "headline": {
+  "e1_accuracy": 0.989682,
+  "e1_f1_macro": 0.87384,
+  "e2_accuracy": 0.997962,
+  "e2_f1_macro": 0.978671,
+  "e3_accuracy": 0.729379,
+  "e3_balanced_accuracy": 0.127319,
+  "e3_f1_macro": 0.114535,
+  "e3_attack_recall_alert_line": 0.149762,
+  "e3_benign_fpr_alert_line": 0.00386
+ }
+}

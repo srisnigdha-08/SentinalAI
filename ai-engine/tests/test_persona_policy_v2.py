@@ -241,7 +241,9 @@ def test_v2_failure_never_breaks_v1_scoring(fresh_scorer, monkeypatch):
     sc = fresh_scorer()
     monkeypatch.setattr(sc.v2, "observe", MagicMock(side_effect=OSError("disk full")))
     r = sc.process_session(dict(SESSION))
-    assert r["policyV2"] == {"mode": "shadow", "error": "OSError"} and r["deceptionScore"] >= 0
+    # Rank 6: the error is recorded as shadow evidence (status ERROR, no recommendation), v1's result stands
+    assert r["policyV2"] == {"mode": "shadow", "error": "OSError", "status": "ERROR", "recommendation": None}
+    assert r["deceptionScore"] >= 0
 
 
 os.environ["SENTINEL_KEY"] = "test-sentinel-secret-key-12345"
@@ -272,8 +274,11 @@ def test_shadow_recommendation_is_reported_but_never_drives_the_decision(fresh_s
     assert d["shadow"]["recommendation"] == "raspberry_pi" and d["shadow"]["applied"] is False
 
 
-def test_active_mode_serves_v2_and_still_reports_v1(fresh_scorer, client, monkeypatch):
+def test_active_mode_serves_v2_and_still_reports_v1(fresh_scorer, client, monkeypatch, tmp_path):
     sc = fresh_scorer("active")
+    # Rank 6 corrections: active mode is fail-closed; it needs a valid READY readiness file (a temporary fixture here)
+    from v2_readiness_fixture import write_run
+    sc.v2_readiness_dir = write_run(tmp_path / "r6")
     monkeypatch.setattr(main, "_deception_scorer", lambda: sc)
     monkeypatch.setattr(sc.v2, "stats", lambda current: {"policyVersion": POLICY_VERSION, "recommendation": "raspberry_pi",
                                                          "explored": False, "realEpisodes": 3})

@@ -81,6 +81,7 @@ describe('AI Engine routes authentication', () => {
       actualClass: 'BENIGN',
       generatedThreat: '123456789012345678901234',
       inputSource: 'manual',
+      captureSource: 'live_passive',
     })
 
     const stored = aiService.storePrediction.mock.calls[0][0]
@@ -89,6 +90,7 @@ describe('AI Engine routes authentication', () => {
       predictedClass: 'DDoS',
       threatScore: 0.5,
       inputSource: 'network_traffic',
+      captureSource: 'unknown', // server-owned: the engine callback cannot claim live capture
     })
     expect(stored).not.toHaveProperty('verified')
     expect(stored).not.toHaveProperty('actualClass')

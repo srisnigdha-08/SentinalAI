@@ -133,7 +133,8 @@ router.get('/engine/stats', protect, async (req, res, next) => {
  */
 router.get('/engine/explain-global', protect, restrictTo('admin', 'analyst'), async (req, res, next) => {
   try {
-    const summary = await aiSvc.getGlobalExplanation()
+    const scope = req.query.scope === 'reference' ? 'reference' : 'recent'
+    const summary = await aiSvc.getGlobalExplanation(scope)
     if (!summary) return sendError(res, 'Global explanation unavailable', 503)
     sendSuccess(res, summary)
   } catch (err) {
@@ -403,7 +404,10 @@ const aiEngineOnly = (req, res, next) => {
 router.post('/predictions', aiEngineOnly, async (req, res, next) => {
   try {
     const body = req.body || {}
-    const data = { inputSource: 'network_traffic' }
+    // captureSource is server-owned (models/AIPrediction.js): this callback comes from the engine's public /predict
+    // endpoints, whose caller the engine cannot vouch for, so the flow's origin is recorded as unknown. A value in
+    // the body (e.g. live_passive) is ignored: only the capture service's own route may claim live or pcap capture.
+    const data = { inputSource: 'network_traffic', captureSource: 'unknown' }
     for (const field of PREDICTION_CALLBACK_FIELDS) {
       if (body[field] !== undefined) data[field] = body[field]
     }

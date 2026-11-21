@@ -15,7 +15,7 @@ import threading
 import time
 from typing import Iterator, List, Optional
 
-from capture.packets import LINKTYPE_ETHERNET, LINKTYPE_RAW, PacketMeta, parse_frame, read_pcap
+from capture.packets import LINKTYPE_ETHERNET, LINKTYPE_RAW, PacketMeta, PcapError, new_read_stats, parse_frame, read_pcap
 
 
 class CaptureUnavailable(RuntimeError):
@@ -29,12 +29,21 @@ class PcapReplaySource:
     kind = "pcap_replay"
 
     def __init__(self, path: str, max_packets: Optional[int] = None):
+        if not path or not os.path.exists(path):
+            raise PcapError(f"pcap file not found: {os.path.basename(path or '') or '(none given)'}")
+        if not os.path.isfile(path):
+            raise PcapError(f"not a regular file: {os.path.basename(path)}")
+        if max_packets is not None and max_packets < 1:
+            raise PcapError("max_packets must be at least 1")
         self.path, self.max_packets = path, max_packets
         self.description = f"pcap file {os.path.basename(path)}"
+        self.stats = new_read_stats()
 
     def packets(self) -> Iterator[PacketMeta]:
+        """Every call starts a fresh read (and fresh stats): replaying the same file twice yields the same packets."""
+        self.stats = new_read_stats()
         with open(self.path, "rb") as f:
-            yield from read_pcap(f, self.max_packets)
+            yield from read_pcap(f, self.max_packets, self.stats)
 
 
 def list_interfaces() -> List[str]:

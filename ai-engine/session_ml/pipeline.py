@@ -7,65 +7,29 @@ Labels carry a METHOD:
   external  from an independent source (e.g. a shared, labelled honeypot corpus) with its reference
 Only manual/external labels count towards readiness or training.
 """
-import math
-import re
-import statistics as st
 from datetime import datetime, timezone
 from typing import Dict, List
 
-FEATURE_VERSION = "session_v1"
-INTENTS = ("RECONNAISSANCE", "CREDENTIAL_HARVEST", "MALWARE_DOWNLOAD", "PERSISTENCE", "PRIVILEGE_ESCALATION", "REVERSE_SHELL")
+from session_ml import features as _features
+
+# One extractor for training, evaluation and inference (session_ml.features). "session_v2" keeps every session_v1
+# feature with the same definition and adds authentication, command-category, sequence and persona groups.
+FEATURE_VERSION = _features.SCHEMA_VERSION
+INTENTS = _features.INTENTS
 INDEPENDENT_METHODS = ("manual", "external")
 LABEL_METHODS = ("rule",) + INDEPENDENT_METHODS
 MIN_PER_CLASS = 30           # independent labels per class before a candidate may be trained
 MIN_CLASSES = 2
 MIN_TIME_SPAN_DAYS = 14      # labelled sessions must span this long, so a time-aware split is possible
-_FP = re.compile(r"\b(systemd-detect-virt|virt-what|dmidecode|imvirt)\b|/proc/1/cgroup|\.dockerenv")
 
 
 def _ts(v):
-    if isinstance(v, (int, float)):
-        return float(v)
-    if isinstance(v, datetime):
-        return v.timestamp()
-    if isinstance(v, str) and v:
-        try:
-            return datetime.fromisoformat(v.replace("Z", "+00:00")).timestamp()
-        except ValueError:
-            return None
-    return None
+    return _features._ts(v)
 
 
 def extract_features(session: dict) -> Dict[str, float]:
-    """Behavioural features of one session. Commands are read as text and never executed."""
-    cmds = session.get("commands") or []
-    texts = [str(c.get("command", "")) for c in cmds]
-    times = [t for t in (_ts(c.get("timestamp")) for c in cmds) if t is not None]
-    gaps = [b - a for a, b in zip(times, times[1:]) if b >= a]
-    intents = [c.get("intent") for c in cmds]
-    first_words = [t.strip().split()[0] if t.strip() else "" for t in texts]
-    bigrams = set(zip(first_words, first_words[1:]))
-    f = {
-        "n_commands": float(len(texts)),
-        "unique_command_ratio": len(set(texts)) / len(texts) if texts else 0.0,
-        "distinct_programs": float(len(set(first_words) - {""})),
-        "bigram_diversity": len(bigrams) / max(1, len(first_words) - 1),
-        "duration_seconds": float(session.get("durationSeconds") or 0.0),
-        "login_succeeded": float(bool(session.get("loginSucceeded"))),
-        "failed_logins": float(session.get("failedLogins") or 0),
-        "gap_mean_s": st.mean(gaps) if gaps else 0.0,
-        "gap_median_s": st.median(gaps) if gaps else 0.0,
-        "gap_std_s": st.pstdev(gaps) if len(gaps) > 1 else 0.0,
-        "max_command_length": float(max((len(t) for t in texts), default=0)),
-        "pipes_and_redirects": float(sum(t.count("|") + t.count(">") for t in texts)),
-        "downloads": float(sum(bool(re.search(r"\b(wget|curl|tftp|ftpget)\b", t)) for t in texts)),
-        "executes_downloaded": float(any(re.search(r"chmod \+x|\./", t) for t in texts)),
-        "fingerprint_commands": float(sum(bool(_FP.search(t)) for t in texts)),
-        "ioc_count": float(session.get("iocCount") or 0),
-    }
-    for i in INTENTS:
-        f[f"intent_{i.lower()}"] = float(sum(x == i for x in intents))
-    return f
+    """Behavioural features of one session (session_ml.features.extract). Commands are never executed."""
+    return _features.extract(session)[0]
 
 
 FEATURE_NAMES = sorted(extract_features({"commands": []}))

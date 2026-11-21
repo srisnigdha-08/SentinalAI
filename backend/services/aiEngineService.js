@@ -195,7 +195,13 @@ const runFullPipeline = async (record, _io = null, opts = {}) => {
       classProbabilities: result.classProbabilities,
       threatScore: score,
       modelVersion: result.modelVersion || 'v2.1',
-      modelType: result.modelVersion?.includes('xgb') ? 'ensemble' : 'random_forest',
+      // Rank 8: the engine reports the classifier type (xgboost for the served model). Older engines did not, so
+      // the legacy guess remains only as a fallback ('xgboost', no longer 'ensemble', for an xgb_* version).
+      modelType: ['xgboost', 'random_forest', 'stacking'].includes(result.modelType)
+        ? result.modelType
+        : result.modelVersion?.includes('xgb')
+          ? 'xgboost'
+          : 'unknown',
       isAnomaly: result.isAnomaly || false,
       anomalyScore: result.anomalyScore || 0,
       inferenceTimeMs: result.inferenceTimeMs,
@@ -356,9 +362,12 @@ const getDrift = async () => {
 }
 
 /** Mean |SHAP| of the engine's recent verdicts, overall and per class (U5); null when unavailable. */
-const getGlobalExplanation = async () => {
+// Rank 8: scope 'recent' (the engine's in-memory window, not persisted) or 'reference' (reproducible, cached summary
+// over the registry-pinned golden set, with provenance). Only these two values are ever forwarded.
+const getGlobalExplanation = async (scope = 'recent') => {
+  const params = { scope: scope === 'reference' ? 'reference' : 'recent' }
   try {
-    return (await guarded(() => ai.get('/model/explain/global', { timeout: 30000 }), { retry: true })).data
+    return (await guarded(() => ai.get('/model/explain/global', { timeout: 30000, params }), { retry: true })).data
   } catch {
     return null
   }
@@ -394,7 +403,17 @@ const getDeceptionStats = async () => {
   }
 }
 
+/** Read-only honeypot-session classifier status (GET /session-ml/status, docs/SESSION_ML.md); null on failure. */
+const getSessionMlStatus = async () => {
+  try {
+    return (await guarded(() => ai.get('/session-ml/status', { timeout: 3000 }))).data?.status || null
+  } catch {
+    return null
+  }
+}
+
 module.exports = {
+  getSessionMlStatus,
   getDeceptionStats,
   getHealth,
   explainVector,

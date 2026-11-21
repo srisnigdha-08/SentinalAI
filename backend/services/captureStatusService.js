@@ -3,13 +3,23 @@
  * Network capture status for the dashboard (docs/CAPTURE.md). The capture service (ai-engine/capture/service.py)
  * POSTs a heartbeat with its mode and counters; this module keeps the latest one in memory and answers one of:
  *   live_passive  a live passive capture is running and reported within the freshness window
- *   pcap_replay   a recorded-PCAP replay is running, or finished (with when)
+ *   pcap_replay   a recorded-PCAP replay is running, finished (with when), or failed (with the reason: the file was
+ *                 missing, empty, not a classic pcap, an unsupported link type or corrupt)
  *   unavailable   no fresh heartbeat (never started, stopped, crashed) or the service reported it cannot capture
  * A replay is never reported as live: the mode comes from the service's own source kind, validated here.
  */
 const MODES = ['live_passive', 'pcap_replay']
-const STATUSES = ['starting', 'running', 'finished', 'unavailable']
-const COUNTERS = ['packets', 'flows', 'posted', 'post_errors', 'rate_limited', 'dropped_packets']
+const STATUSES = ['starting', 'running', 'finished', 'failed', 'unavailable']
+const COUNTERS = [
+  'packets',
+  'flows',
+  'posted',
+  'post_errors',
+  'rate_limited',
+  'dropped_packets',
+  'records',
+  'skipped_frames',
+]
 const FRESH_MS = Math.max(5000, Number(process.env.CAPTURE_HEARTBEAT_STALE_MS) || 60000)
 
 let latest = null
@@ -55,8 +65,20 @@ function getStatus(now = Date.now()) {
       fresh,
       last: latest,
     }
+  // A replay that ended (finished or failed) stays reported as that replay: it is a fact about a file, not a feed.
   if (latest.mode === 'pcap_replay' && latest.status === 'finished')
     return { mode: 'pcap_replay', state: 'finished', fresh, last: latest }
+  if (latest.mode === 'pcap_replay' && latest.status === 'failed')
+    return {
+      mode: 'pcap_replay',
+      state: 'failed',
+      reason: latest.lastError || 'The PCAP replay failed.',
+      fresh,
+      last: latest,
+    }
+  // A live capture never reports "failed" (it reports "unavailable"); treat it the same way if it ever does.
+  if (latest.status === 'failed')
+    return { mode: 'unavailable', reason: latest.lastError || 'The capture service failed.', fresh, last: latest }
   if (!fresh)
     return {
       mode: 'unavailable',

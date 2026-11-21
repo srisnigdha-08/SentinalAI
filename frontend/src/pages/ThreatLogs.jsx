@@ -15,6 +15,9 @@ import toast from 'react-hot-toast'
 import { containmentOutcome } from '../utils/containmentLabels.js'
 import { scoreColor } from '../utils/scoreBands.js'
 import { useScoreLines } from '../hooks/useScoreLines.js'
+import { tacticText } from '../utils/mitreTactics.js'
+import { fetchAllThreats, threatsCsv, threatCsvFilename } from '../utils/threatCsv.js'
+import { saveBlob, blobErrorMessage } from '../utils/download.js'
 
 const STATUS_STYLES = {
   BLOCKED:        { background:'rgba(255,45,85,.15)',  color:'#ff2d55', border:'1px solid rgba(255,45,85,.3)'  },
@@ -107,6 +110,39 @@ export default function ThreatLogs() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(page) }, [page])
 
+  // Export CSV: every row matching the table's current filters, paged from GET /api/threats (no export endpoint).
+  // The ref blocks a second export while one is in flight, even before React re-renders the disabled button.
+  const [exporting, setExporting] = useState(false)
+  const exportingRef = useRef(false)
+  const exportCsv = async () => {
+    if (exportingRef.current) return
+    exportingRef.current = true
+    setExporting(true)
+    const toastId = toast.loading('Preparing CSV export...')
+    const filters = {
+      ...(sevFilter  && { severity: sevFilter }),
+      ...(typeFilter && { type: typeFilter }),
+      ...(search     && { search }),
+    }
+    try {
+      const { rows, total, truncated } = await fetchAllThreats(threatAPI.list, filters)
+      if (rows.length === 0) {
+        toast.error('No threats match the current filters; nothing to export.', { id: toastId })
+        return
+      }
+      const name = threatCsvFilename(filters)
+      saveBlob(new Blob([threatsCsv(rows)], { type: 'text/csv;charset=utf-8' }), name)
+      toast.success(truncated
+        ? `Exported the newest ${rows.length.toLocaleString()} of ${total.toLocaleString()} threats: ${name}. Narrow the filters to export the rest.`
+        : `Exported ${rows.length.toLocaleString()} threats: ${name}`, { id: toastId, duration: truncated ? 8000 : 4000 })
+    } catch (err) {
+      toast.error(`Export failed: ${await blobErrorMessage(err, 'Threat export failed')}`, { id: toastId })
+    } finally {
+      exportingRef.current = false
+      setExporting(false)
+    }
+  }
+
   const handleSearch = (e) => {
     if (e.key === 'Enter') { setPage(1); load(1) }
   }
@@ -180,11 +216,12 @@ export default function ThreatLogs() {
               : '○ SIMULATION / MOCK ADAPTER'}
           </span>
         </div>
-        <button disabled title="CSV export is not available yet" style={{
-          background:'transparent', border:'1px solid #1a4a6e', color:'#7ab3cc',
+        <button type="button" onClick={exportCsv} disabled={exporting} aria-busy={exporting}
+          title="Download every threat matching the current filters as CSV (up to 5,000 rows)" style={{
+          background:'transparent', border:'1px solid #1a4a6e', color: exporting ? '#3a6a88' : '#7ab3cc',
           fontFamily:'Rajdhani,sans-serif', fontWeight:600, fontSize:11,
-          letterSpacing:1, textTransform:'uppercase', padding:'7px 14px', borderRadius:2, cursor:'pointer',
-        }}>Export CSV</button>
+          letterSpacing:1, textTransform:'uppercase', padding:'7px 14px', borderRadius:2, cursor: exporting ? 'wait' : 'pointer',
+        }}>{exporting ? 'Exporting...' : 'Export CSV'}</button>
       </div>
 
       <div style={{ display:'flex', gap:12, marginBottom:'1rem', alignItems:'center', flexWrap:'wrap' }}>
@@ -251,9 +288,9 @@ export default function ThreatLogs() {
                     {l.mitreTechniques && l.mitreTechniques.length > 0 && (
                       <div style={{ display:'flex', flexWrap:'wrap', gap:4, marginTop:4 }}>
                         {l.mitreTechniques.map((tech, i) => (
-                          <span key={i} title={tech.name} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, background:'rgba(0, 212, 255, 0.1)',
+                          <span key={i} title={`${tech.name} (tactic: ${tacticText(tech)})`} style={{ fontFamily:'Share Tech Mono,monospace', fontSize:9, background:'rgba(0, 212, 255, 0.1)',
                             border:'1px solid rgba(0, 212, 255, 0.3)', color:'#00d4ff', padding:'1px 4px', borderRadius:2, display:'inline-block' }}>
-                            {tech.id} - {tech.name}
+                            {tech.id} - {tech.name} · {tacticText(tech)}
                           </span>
                         ))}
                       </div>

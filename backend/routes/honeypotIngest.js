@@ -324,7 +324,19 @@ router.post('/', internalAuth, async (req, res, next) => {
     if (c) {
       if (eventType === 'SESSION_OPENED') result = await c.onSessionOpened(data, io)
       else if (eventType === 'COMMAND_INPUT')
-        result = await c.onCommandReceived({ ...data, intent: c.classifyIntent(data.command || '') }, io)
+        result = await c.onCommandReceived(
+          {
+            ...data,
+            // Rank 7: Windows-style rules only for sessions served as the experimental windows_srv persona and
+            // only where the Linux rules found nothing (utils/windowsPersona.js); Linux sessions are unchanged.
+            intent: await require('../utils/windowsPersona').intentForSession(
+              data.command || '',
+              data.sessionId,
+              c.classifyIntent(data.command || '')
+            ),
+          },
+          io
+        )
       // M1: a failed command marks the stored one; it is not a second command.
       else if (eventType === 'COMMAND_FAILED') result = await c.onCommandFailed(data, io)
       else if (eventType === 'FILE_UPLOAD') result = await c.onFileUpload(data, io)

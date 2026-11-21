@@ -1,0 +1,439 @@
+{
+ "rank5_version": "rank5/1",
+ "generated_at": "2026-11-14T12:50:01.513588+00:00",
+ "smoke_run_not_evidence": false,
+ "seed": 20261114,
+ "software": {
+  "python": "3.11.9",
+  "numpy": "1.26.4",
+  "pandas": "2.2.0"
+ },
+ "model_id": "xgb_cicids_v1",
+ "runtime_seconds": 740.4,
+ "cicids2017_training_files": {
+  "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": {
+   "recorded_sha256": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+   "actual_sha256": "6ff1580f5f81c0ae28a26f7631721018577f5f7c5e0feac28b795fcfe7b411ee",
+   "match": true,
+   "day": "2017-07-07"
+  },
+  "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": {
+   "recorded_sha256": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+   "actual_sha256": "ca1824c51bfbb7b3c72290a11be04366ba8815878c6a1cc5c44cb1cee269e99b",
+   "match": true,
+   "day": "2017-07-07"
+  },
+  "Friday-WorkingHours-Morning.pcap_ISCX.csv": {
+   "recorded_sha256": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+   "actual_sha256": "53a41c24d570ea83b7ac55b2e94df94e7a8216aeb80a2af0246b6bc8bb543000",
+   "match": true,
+   "day": "2017-07-07"
+  },
+  "Monday-WorkingHours.pcap_ISCX.csv": {
+   "recorded_sha256": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+   "actual_sha256": "852c4beb34eda186f32561fa79df7a0747e92e1a6535b01270820dd9ffe17f34",
+   "match": true,
+   "day": "2017-07-03"
+  },
+  "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": {
+   "recorded_sha256": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+   "actual_sha256": "6bcda3857c2504676034e3ea57762d38393cc734cb377a726bd5cb153961b1b5",
+   "match": true,
+   "day": "2017-07-06"
+  },
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": {
+   "recorded_sha256": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+   "actual_sha256": "d67066211fb1689c78406f1506f4c44704ecb92088353d5c96d96d6474eb819d",
+   "match": true,
+   "day": "2017-07-06"
+  },
+  "Tuesday-WorkingHours.pcap_ISCX.csv": {
+   "recorded_sha256": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+   "actual_sha256": "52b8692ae8c7d2ed04671fe2b98335693c0a92c7ab157d8c8b534d6523080851",
+   "match": true,
+   "day": "2017-07-04"
+  },
+  "Wednesday-workingHours.pcap_ISCX.csv": {
+   "recorded_sha256": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a",
+   "actual_sha256": "893c27dc968bf7a8adef1689f90be55ca4a4dc3088fb63d6ff247ac56856df2a",
+   "match": true,
+   "day": "2017-07-05"
+  }
+ },
+ "cicids2017_provenance_ok": true,
+ "e1_split": {
+  "protocol": "stratified random 80/20, random_state 42 (train.py), rebuilt and count-checked",
+  "reproduced": true,
+  "train_rows": 99627,
+  "test_rows": 24907
+ },
+ "e1_rebuilt_counts": {
+  "deduplication": {
+   "rows_before": 148015,
+   "rows_after": 124534,
+   "removed": 23481,
+   "conflicting_label_vectors": 33
+  },
+  "class_counts": {
+   "train": {
+    "BENIGN": 74682,
+    "SSH Brute Force": 2575,
+    "SQL Injection": 17,
+    "Port Scan": 283,
+    "DDoS": 14440,
+    "RCE Attempt": 9,
+    "XSS Attempt": 522,
+    "Malware Beacon": 1149,
+    "Credential Stuffing": 5921,
+    "Lateral Movement": 29
+   },
+   "test": {
+    "BENIGN": 18671,
+    "SSH Brute Force": 644,
+    "SQL Injection": 4,
+    "Port Scan": 71,
+    "DDoS": 3610,
+    "RCE Attempt": 2,
+    "XSS Attempt": 130,
+    "Malware Beacon": 288,
+    "Credential Stuffing": 1480,
+    "Lateral Movement": 7
+   }
+  }
+ },
+ "e2_files": {
+  "Friday-WorkingHours-Afternoon-DDos.pcap_ISCX.csv": {
+   "day": "2017-07-07",
+   "cleaned_rows": 225711,
+   "pool_rows": 22444,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 4358,
+   "evaluated_rows": 198909
+  },
+  "Friday-WorkingHours-Afternoon-PortScan.pcap_ISCX.csv": {
+   "day": "2017-07-07",
+   "cleaned_rows": 286096,
+   "pool_rows": 22397,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 155834,
+   "evaluated_rows": 107865
+  },
+  "Friday-WorkingHours-Morning.pcap_ISCX.csv": {
+   "day": "2017-07-07",
+   "cleaned_rows": 190911,
+   "pool_rows": 14553,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 12027,
+   "evaluated_rows": 164331
+  },
+  "Monday-WorkingHours.pcap_ISCX.csv": {
+   "day": "2017-07-03",
+   "cleaned_rows": 529481,
+   "pool_rows": 12512,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 28803,
+   "evaluated_rows": 488166
+  },
+  "Thursday-WorkingHours-Afternoon-Infilteration.pcap_ISCX.csv": {
+   "day": "2017-07-06",
+   "cleaned_rows": 288395,
+   "pool_rows": 12606,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 65160,
+   "evaluated_rows": 210629
+  },
+  "Thursday-WorkingHours-Morning-WebAttacks.pcap_ISCX.csv": {
+   "day": "2017-07-06",
+   "cleaned_rows": 170231,
+   "pool_rows": 14628,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 11920,
+   "evaluated_rows": 143683
+  },
+  "Tuesday-WorkingHours.pcap_ISCX.csv": {
+   "day": "2017-07-04",
+   "cleaned_rows": 445645,
+   "pool_rows": 26335,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 27428,
+   "evaluated_rows": 391882
+  },
+  "Wednesday-workingHours.pcap_ISCX.csv": {
+   "day": "2017-07-05",
+   "cleaned_rows": 691406,
+   "pool_rows": 22540,
+   "pool_rows_identical": true,
+   "excluded_vector_in_pool": 84519,
+   "evaluated_rows": 584347
+  }
+ },
+ "cse_cic_ids2018_development_days": {
+  "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": {
+   "sha256": "d96f38e7496aba83475031e6fb8c6fdf1abf6aa1b71325a917798f3c7de93de1",
+   "day": "2018-03-02",
+   "csv_rows": 1048575,
+   "dropped_non_finite": 4050,
+   "evaluated_rows": 1044525,
+   "raw_labels": [
+    "benign",
+    "bot"
+   ],
+   "timestamps": {
+    "rows": 1048575,
+    "invalid": 0,
+    "min": "2018-03-02T01:00:00",
+    "max": "2018-03-02T12:59:59",
+    "dates": [
+     "2018-03-02"
+    ],
+    "rows_per_date": {
+     "2018-03-02": 1048575
+    }
+   },
+   "vector_in_2017_pool": 4799,
+   "unique_vector_label_rows": 771587
+  },
+  "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": {
+   "sha256": "d0a7f5059d9823b6e9b392b759e306481a3502d190dea7a1b5502ae079ea069b",
+   "day": "2018-02-23",
+   "csv_rows": 1048575,
+   "dropped_non_finite": 5708,
+   "evaluated_rows": 1042867,
+   "raw_labels": [
+    "benign",
+    "brute force web",
+    "brute force xss",
+    "sql injection"
+   ],
+   "timestamps": {
+    "rows": 1048575,
+    "invalid": 0,
+    "min": "2018-02-23T01:00:00",
+    "max": "2018-02-23T12:59:59",
+    "dates": [
+     "2018-02-23"
+    ],
+    "rows_per_date": {
+     "2018-02-23": 1048575
+    }
+   },
+   "vector_in_2017_pool": 1815,
+   "unique_vector_label_rows": 829409
+  },
+  "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv": {
+   "sha256": "b0534c5d7d8b41e03df71c6966c995d116a8ed28e61f377c8b14cdf5d28f4edf",
+   "day": "2018-03-01",
+   "csv_rows": 331100,
+   "dropped_non_finite": 2919,
+   "evaluated_rows": 328181,
+   "raw_labels": [
+    "benign",
+    "infilteration"
+   ],
+   "timestamps": {
+    "rows": 331100,
+    "invalid": 0,
+    "min": "2018-03-01T01:00:00",
+    "max": "2018-03-01T12:59:59",
+    "dates": [
+     "2018-03-01"
+    ],
+    "rows_per_date": {
+     "2018-03-01": 331100
+    }
+   },
+   "vector_in_2017_pool": 2074,
+   "unique_vector_label_rows": 249150
+  },
+  "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": {
+   "sha256": "fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b",
+   "day": "2018-02-15",
+   "csv_rows": 1048575,
+   "dropped_non_finite": 8027,
+   "evaluated_rows": 1040548,
+   "raw_labels": [
+    "benign",
+    "dos attacks goldeneye",
+    "dos attacks slowloris"
+   ],
+   "timestamps": {
+    "rows": 1048575,
+    "invalid": 0,
+    "min": "2018-02-15T01:00:00",
+    "max": "2018-02-15T12:59:59",
+    "dates": [
+     "2018-02-15"
+    ],
+    "rows_per_date": {
+     "2018-02-15": 1048575
+    }
+   },
+   "vector_in_2017_pool": 2817,
+   "unique_vector_label_rows": 794812
+  },
+  "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": {
+   "sha256": "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147",
+   "day": "2018-02-14",
+   "csv_rows": 1048575,
+   "dropped_non_finite": 3824,
+   "evaluated_rows": 1044751,
+   "raw_labels": [
+    "benign",
+    "ftp bruteforce",
+    "ssh bruteforce"
+   ],
+   "timestamps": {
+    "rows": 1048575,
+    "invalid": 0,
+    "min": "1970-01-05T03:01:17",
+    "max": "2018-02-14T12:59:59",
+    "dates": [
+     "1970-01-05",
+     "1970-01-08",
+     "1970-01-12",
+     "2018-02-14"
+    ],
+    "rows_per_date": {
+     "1970-01-05": 1,
+     "1970-01-08": 1,
+     "1970-01-12": 3,
+     "2018-02-14": 1048570
+    }
+   },
+   "vector_in_2017_pool": 1188,
+   "unique_vector_label_rows": 619346
+  },
+  "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": {
+   "sha256": "a5f4a1c2689e0aa6566c03a58466de9c407c0be0cbd3cc69306544026611be04",
+   "day": "2018-02-21",
+   "csv_rows": 1048575,
+   "dropped_non_finite": 0,
+   "evaluated_rows": 1048575,
+   "raw_labels": [
+    "benign",
+    "ddos attack hoic",
+    "ddos attack loic udp"
+   ],
+   "timestamps": {
+    "rows": 1048575,
+    "invalid": 0,
+    "min": "2018-02-21T01:55:46",
+    "max": "2018-02-21T10:43:21",
+    "dates": [
+     "2018-02-21"
+    ],
+    "rows_per_date": {
+     "2018-02-21": 1048575
+    }
+   },
+   "vector_in_2017_pool": 0,
+   "unique_vector_label_rows": 561388
+  }
+ },
+ "leakage": {
+  "checks": [
+   {
+    "check": "E1 test vectors also in E1 train",
+    "count": 15,
+    "of": 24907,
+    "note": "drop_duplicate_rows removes identical (vector, label) rows only; a vector with conflicting labels can sit on both sides"
+   },
+   {
+    "check": "E1 split is random over rows of the same days and attack episodes",
+    "result": "IN-DISTRIBUTION",
+    "note": "not chronological; inflates generalisation estimates by construction"
+   },
+   {
+    "check": "E2 rows sharing a vector with the training pool",
+    "result": "excluded before scoring",
+    "count": 390049
+   },
+   {
+    "check": "E2 rows from the same capture days and attack episodes as training",
+    "result": "LEAKY BY DESIGN",
+    "note": "E2 measures unseen rows, not unseen traffic"
+   },
+   {
+    "check": "E3 rows sharing an exact vector with the 2017 training pool",
+    "count": 12693,
+    "of": 5549447
+   },
+   {
+    "check": "E3 chronologically after every training row",
+    "result": "PASS",
+    "rows_dated_on_or_before_training": 0,
+    "rows_with_implausible_dates": 5,
+    "per_file": {
+     "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": {
+      "implausible_dates": 0,
+      "dated_on_or_before_training": 0,
+      "unparseable": 0
+     },
+     "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "implausible_dates": 0,
+      "dated_on_or_before_training": 0,
+      "unparseable": 0
+     },
+     "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv": {
+      "implausible_dates": 0,
+      "dated_on_or_before_training": 0,
+      "unparseable": 0
+     },
+     "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "implausible_dates": 0,
+      "dated_on_or_before_training": 0,
+      "unparseable": 0
+     },
+     "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "implausible_dates": 5,
+      "dated_on_or_before_training": 0,
+      "unparseable": 0
+     },
+     "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": {
+      "implausible_dates": 0,
+      "dated_on_or_before_training": 0,
+      "unparseable": 0
+     }
+    },
+    "note": "2017 training days 2017-07-03..2017-07-07 (published schedule; file names). Rows dated before 2000-01-01 are clock artefacts in the source CSV and are reported separately"
+   },
+   {
+    "check": "2018 files cut at the spreadsheet row limit",
+    "result": "SUSPECTED",
+    "files": {
+     "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": 1048575,
+     "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": 1048575,
+     "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": 1048575,
+     "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": 1048575,
+     "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": 1048575
+    },
+    "note": "exactly 1,048,575 data rows suggests the published CSV was saved by a spreadsheet program and later flows of that day are missing; metrics cover only the rows present"
+   },
+   {
+    "check": "protected 2018 days opened",
+    "result": "NO",
+    "note": "assert_permitted on every path; none on disk"
+   },
+   {
+    "check": "preprocessing fitted on test data",
+    "result": "NO",
+    "note": "the served StandardScaler / models were fitted once at training; nothing is fitted here"
+   },
+   {
+    "check": "time-of-day features",
+    "result": "constant 0 in training and in every set here (no timestamp passed)"
+   },
+   {
+    "check": "E3 used in earlier development",
+    "result": "YES",
+    "note": "the six days trained / selected OTHER candidates (protocols v2-v4); never this model or its lines"
+   },
+   {
+    "check": "near-duplicate flows",
+    "result": "NOT_CHECKED",
+    "note": "only exact duplicates are measured"
+   }
+  ],
+  "assessment": "LIMITED"
+ }
+}

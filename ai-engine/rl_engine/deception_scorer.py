@@ -4,7 +4,7 @@ SentinelAI Q-Learning Deception Engine
 Adapts honeypot OS profile based on attacker engagement.
 Run demo: python deception_scorer.py
 """
-import json, math, random, logging, os, re, sys, tempfile, secrets, time
+import copy, json, math, random, logging, os, re, sys, tempfile, secrets, time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
@@ -98,6 +98,15 @@ LEARNED_SESSIONS_MAX = 20000
 def normalise_source(value) -> str:
     v = str(value or "").strip().lower()
     return v if v in EVIDENCE_SOURCES else "unknown"
+
+
+def source_issue(value):
+    """Why a raw evidence label became "unknown": "missing" (none given), "invalid" (not a known source), or None
+    when the label was valid. Recorded so the report can separate unlabelled evidence from mislabelled evidence;
+    neither is ever counted as real or independent evidence."""
+    if value is None or not str(value).strip():
+        return "missing"
+    return None if str(value).strip().lower() in EVIDENCE_SOURCES else "invalid"
 
 
 def servable_profiles():
@@ -246,6 +255,13 @@ class DeceptionQLearner:
         self.arm_evidence = {a: {s: 0 for s in EVIDENCE_SOURCES} for a in PROFILES_LIST}
         self.update_log = []
         self.duplicates_rejected = 0
+        # Sessions refused because they carried no session id (cannot be deduplicated or traced), and updates whose
+        # source label was missing or not a known source (counted as "unknown"). Absent in older tables: 0.
+        self.missing_session_id_rejected = 0
+        self.provenance_issues = {"missing": 0, "invalid": 0}
+        # Rejections counted here but not yet written: kept apart so a merge with another process's save adds them
+        # instead of replacing them with the other process's totals.
+        self._pending_rejections = {"duplicate": 0, "missing_session_id": 0}
         self._pending_meta = []
         self._load()
 
@@ -279,11 +295,16 @@ class DeceptionQLearner:
             self.arm_evidence[a] = {s: int(row.get(s, 0)) for s in EVIDENCE_SOURCES}
         self.update_log = list(ev.get("update_log") or [])[-UPDATE_LOG_MAX:]
         self.duplicates_rejected = int(ev.get("duplicates_rejected", 0))
+        self.missing_session_id_rejected = int(ev.get("missing_session_id_rejected", 0))
+        issues = ev.get("provenance_issues") or {}
+        self.provenance_issues = {k: int(issues.get(k, 0)) for k in ("missing", "invalid")}
 
     def _evidence_payload(self):
         ids = list(self.learned_sessions.items())[-LEARNED_SESSIONS_MAX:]
         return {"counts": self.evidence_counts, "per_persona": self.arm_evidence, "learned_sessions": dict(ids),
-                "update_log": self.update_log[-UPDATE_LOG_MAX:], "duplicates_rejected": self.duplicates_rejected}
+                "update_log": self.update_log[-UPDATE_LOG_MAX:], "duplicates_rejected": self.duplicates_rejected,
+                "missing_session_id_rejected": self.missing_session_id_rejected,
+                "provenance_issues": dict(self.provenance_issues)}
 
     @staticmethod
     def _fill_missing(table):
@@ -306,33 +327,49 @@ class DeceptionQLearner:
         return abs(td_error)
 
     def _merge_foreign_writes(self, target: Path):
-        """Another process saved since we last read/wrote: adopt its state, replay our pending updates."""
+        """Another process saved since we last read/wrote: adopt its state, replay our pending updates.
+
+        A pending update for a session the other process has already learned is dropped entirely (no second TD
+        update, episode, arm sample or evidence count) and counted as a rejected duplicate. Before this, the TD
+        update was replayed for every pending update and only the evidence count was deduplicated, so one session
+        learned concurrently by two processes moved the Q-values twice."""
         with open(target, encoding="utf-8") as f:
             disk = json.load(f)
         table = disk.get("q_table", {})
+        mine = list(zip(self._pending, self._pending_meta))
+        self._load_evidence(disk)
+        self.duplicates_rejected += self._pending_rejections["duplicate"]
+        self.missing_session_id_rejected += self._pending_rejections["missing_session_id"]
+        kept, skipped = [], 0
+        for pend, meta in mine:
+            sid = meta[0]
+            if sid and sid in self.learned_sessions:
+                skipped += 1
+                continue
+            kept.append((pend, meta))  # within one process a repeat was already refused by update()
         errors = [self._td_update(table, state, action, reward, next_state)
-                  for state, action, reward, next_state in self._pending]
+                  for (state, action, reward, next_state), _ in kept]
         self.td_errors = (disk.get("td_errors", []) + [round(e, 4) for e in errors])[-CONVERGENCE_WINDOW:]
         arms = {a: {"n": 0, "mean": 0.0} for a in PROFILES_LIST}
         for a, st in (disk.get("arm_stats") or {}).items():
             if a in arms:
                 arms[a] = {"n": int(st.get("n", 0)), "mean": float(st.get("mean", 0.0))}
         self.arm_stats = arms
-        for _, action, reward, _ in self._pending:
+        for (_, action, reward, _), _meta in kept:
             self._record_arm(action, reward)
         self.q_table = self._fill_missing(table)
         self.seed_provenance = disk.get("seed_provenance", self.seed_provenance)
-        # Evidence: the other process's records plus ours (sessions it already learned are not counted twice)
-        mine = self._pending_meta
-        self._load_evidence(disk)
-        for sid, source, action, entry in mine:
-            if sid and sid in self.learned_sessions:
-                continue
+        for _, (sid, source, action, entry) in kept:
             self._count_evidence(sid, source, action, entry)
-        self.episode_count = disk.get("episode_count", 0) + len(self._pending)
-        self.total_reward = disk.get("total_reward", 0.0) + sum(r for _, _, r, _ in self._pending)
-        self.reward_history = (disk.get("reward_history", []) + [round(r, 2) for _, _, r, _ in self._pending])[-100:]
-        log.info("Q-table merged with another process's writes (%d pending updates replayed)", len(self._pending))
+        self.duplicates_rejected += skipped
+        rewards = [r for (_, _, r, _), _ in kept]
+        self.episode_count = disk.get("episode_count", 0) + len(kept)
+        self.total_reward = disk.get("total_reward", 0.0) + sum(rewards)
+        self.reward_history = (disk.get("reward_history", []) + [round(r, 2) for r in rewards])[-100:]
+        self._pending = [p for p, _ in kept]
+        self._pending_meta = [m for _, m in kept]
+        log.info("Q-table merged with another process's writes (%d pending updates replayed, %d duplicates dropped)",
+                 len(kept), skipped)
 
     def save(self):
         target = Path(self.q_table_path).resolve()
@@ -421,6 +458,7 @@ class DeceptionQLearner:
             self._disk_signature = _file_signature(target)
             self._pending = []
             self._pending_meta = []
+            self._pending_rejections = {"duplicate": 0, "missing_session_id": 0}
 
     def current_epsilon(self) -> float:
         return max(EPSILON_MIN, self.epsilon / (1 + self.episode_count * 0.01))
@@ -454,6 +492,9 @@ class DeceptionQLearner:
         return self.greedy_action(state)
 
     def _count_evidence(self, session_id, source, action, entry):
+        issue = entry.get("sourceIssue") if isinstance(entry, dict) else None
+        if issue in self.provenance_issues:
+            self.provenance_issues[issue] += 1
         self.evidence_counts[source] = self.evidence_counts.get(source, 0) + 1
         row = self.arm_evidence.setdefault(action, {s: 0 for s in EVIDENCE_SOURCES})
         row[source] = row.get(source, 0) + 1
@@ -471,23 +512,71 @@ class DeceptionQLearner:
         """One TD update. With a session_id the update is traced to it, and a session already learned is refused
         (returns False, nothing changes). Returns True when the table was updated."""
         session_id = str(session_id) if session_id else None
+        # Rank 8 (F1): production learning eligibility, enforced where the table is written. A state, action or next
+        # state outside the servable personas (windows_srv, the experimental simulated Windows shell) is refused
+        # before any side effect: no Q-value, counter, log entry or file write. Defence in depth behind
+        # SessionScorer.process_session, so no caller can route an experimental persona into V1.
+        bad = [p for p in (state, action, next_state) if p in UNSUPPORTED_PROFILES or p not in PROFILES]
+        if bad:
+            log.warning("Q-learner: update refused, persona not eligible for production learning (%s)", ",".join(map(str, bad))[:80])
+            return False
+        issue = source_issue(source)
         source = normalise_source(source)
         if self.already_learned(session_id):
-            self.duplicates_rejected += 1
             log.info("Q-learner: session %s already learned; duplicate update refused", session_id[:64])
+            self.note_rejection("duplicate")
             return False
         entry = {"sessionId": session_id, "source": source, "state": state, "persona": action,
                  "reward": round(float(reward), 4), "at": datetime.now(timezone.utc).isoformat()}
-        self._count_evidence(session_id, source, action, entry)
-        self._pending_meta.append((session_id, source, action, entry))
-        td_error = self._td_update(self.q_table, state, action, reward, next_state)
-        self.td_errors = (self.td_errors + [round(td_error, 4)])[-CONVERGENCE_WINDOW:]
-        self._pending.append((state, action, reward, next_state))
-        self._record_arm(action, reward)
-        self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
-        # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
-        if self.episode_count % max(1, int(os.getenv("Q_SAVE_EVERY", "1"))) == 0: self.save()
+        if issue:
+            entry["sourceIssue"] = issue
+        # A failed save must not leave a false success behind: without this, the session stayed marked as learned
+        # in memory although nothing was written, so the caller's retry was refused as a duplicate and the update
+        # was never persisted. On any failure the in-memory state is restored and the error is raised.
+        snapshot = self._snapshot()
+        try:
+            self._count_evidence(session_id, source, action, entry)
+            self._pending_meta.append((session_id, source, action, entry))
+            td_error = self._td_update(self.q_table, state, action, reward, next_state)
+            self.td_errors = (self.td_errors + [round(td_error, 4)])[-CONVERGENCE_WINDOW:]
+            self._pending.append((state, action, reward, next_state))
+            self._record_arm(action, reward)
+            self.episode_count+=1; self.total_reward+=reward; self.reward_history.append(round(reward,2))
+            # Saving is atomic and the table is tiny, so persist every episode by default (Q_SAVE_EVERY to tune).
+            if self.episode_count % max(1, int(os.getenv("Q_SAVE_EVERY", "1"))) == 0: self.save()
+        except Exception:
+            self._restore(snapshot)
+            log.warning("Q-learner: update for session %s not recorded (save failed); state restored",
+                        (session_id or "-")[:64])
+            raise
         return True
+
+    def note_rejection(self, kind):
+        """Count a refused session ("duplicate" or "missing_session_id") and persist the count. Nothing else changes:
+        no Q-value, episode or evidence count. If the write fails the count stays pending for the next save."""
+        self._pending_rejections[kind] += 1
+        if kind == "duplicate":
+            self.duplicates_rejected += 1
+        else:
+            self.missing_session_id_rejected += 1
+        try:
+            self.save()
+        except Exception as e:  # noqa: BLE001 - a counter write must not turn a refusal into an error
+            log.warning("Q-learner: rejection count not persisted yet (%s); kept for the next save", type(e).__name__)
+
+    _SNAPSHOT_FIELDS = ("q_table", "episode_count", "total_reward", "reward_history", "td_errors", "arm_stats",
+                        "evidence_counts", "arm_evidence", "update_log", "duplicates_rejected",
+                        "missing_session_id_rejected", "provenance_issues", "_pending", "_pending_meta", "_pending_rejections",
+                        "_disk_signature", "q_table_path", "seed_provenance")
+
+    def _snapshot(self):
+        snap = {k: copy.deepcopy(getattr(self, k)) for k in self._SNAPSHOT_FIELDS}
+        snap["learned_sessions"] = dict(self.learned_sessions)  # values are strings: a shallow copy is exact
+        return snap
+
+    def _restore(self, snap):
+        for k, v in snap.items():
+            setattr(self, k, v)
 
     def get_profile_rankings(self):
         avg={p:sum(self.q_table[s].get(p,0) for s in PROFILES_LIST)/len(PROFILES_LIST) for p in PROFILES_LIST}
@@ -509,6 +598,9 @@ class DeceptionQLearner:
         evidence = {"bySource": dict(self.evidence_counts), "trackedSessionEpisodes": tracked,
                     "perPersona": {a: dict(r) for a, r in self.arm_evidence.items()},
                     "duplicatesRejected": self.duplicates_rejected,
+                    "missingSessionIdRejected": self.missing_session_id_rejected,
+                    "provenanceIssues": dict(self.provenance_issues),
+                    "updateLog": {"entries": len(self.update_log), "max": UPDATE_LOG_MAX},
                     "independentExternalSessions": self.evidence_counts.get("external", 0)}
         if not seed:
             return {"seed": "unknown", "seedEpisodes": None, "sessionEpisodes": None, "synthetic": None,
@@ -545,23 +637,53 @@ class SessionScorer:
         if active not in PROFILES: active=self.current
         state=session.get("previousProfile")
         if state not in PROFILES: state=self.last_active or active
+        # Rank 7 + Rank 8 (F1): production learning eligibility of BOTH personas of the transition. A session served
+        # by an experimental persona (windows_srv, the simulated Windows shell), or a session whose previous served
+        # persona was one, is scored and reported but is never production evidence: v1 does not learn it (no
+        # Q-value, episode, count or file write), v2 does not observe it, and the learner keeps its last servable
+        # state. The experimental persona can therefore never become a Q-learning state, directly or as the
+        # previous state of the next Linux session.
+        not_learned=("EXPERIMENTAL_PERSONA" if active in UNSUPPORTED_PROFILES else
+                     "UNSUPPORTED_PREVIOUS_PERSONA" if state in UNSUPPORTED_PROFILES else None)
+        if not_learned:
+            if not_learned=="UNSUPPORTED_PREVIOUS_PERSONA":
+                log.info("Q-learner: session not learned, previous persona %s is not eligible for production learning", state)
+            nxt=self.learner.greedy_action(self.current if self.current not in UNSUPPORTED_PROFILES else SUPPORTED_PROFILES[0])
+            return {"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),
+                    "prevProfile":state,"activeProfile":active,"nextProfile":nxt,"nextConfig":PROFILES[nxt],"recommendationApplied":False,
+                    "fingerprintDetected":fingerprinted,"learned":False,"notLearnedReason":not_learned,
+                    "experimentalPersona":active in UNSUPPORTED_PROFILES,"experimentalPreviousPersona":state in UNSUPPORTED_PROFILES,
+                    "evidenceSource":normalise_source(session.get("evidenceSource")),"duplicate":False,
+                    "missingSessionId":not str(session.get("sessionId") or "").strip(),"learnerStats":self.learner.get_stats()}
         for s in (state, active):
             row=self.learner.q_table.setdefault(s,{})
             for a in PROFILES_LIST: row.setdefault(a,0.0)
-        source=normalise_source(session.get("evidenceSource"))
-        learned=self.learner.update(state,active,reward,active,session_id=session.get("sessionId"),source=source)
+        raw_source=session.get("evidenceSource")
+        source=normalise_source(raw_source)
+        session_id=str(session.get("sessionId") or "").strip()
+        if session_id:
+            learned=self.learner.update(state,active,reward,active,session_id=session_id,source=raw_source)
+        else:
+            # A session without an id cannot be deduplicated or traced, so a resubmission would be learned again
+            # and inflate the evidence counts. It is scored and answered as before, but never learned.
+            learned=False
+            self.learner.note_rejection("missing_session_id")
+            log.info("Q-learner: session without an id scored but not learned")
         self.last_active=active; self.current=active
         next_p=self.learner.choose_action(active)
-        out={"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learned":learned,"evidenceSource":source,"duplicate":not learned,"learnerStats":self.learner.get_stats()}
+        out={"sessionId":session.get("sessionId"),"deceptionScore":round(max(0.0,min(reward*5,100)),1),"rawReward":round(reward,3),"prevProfile":state,"activeProfile":active,"nextProfile":next_p,"nextConfig":PROFILES[next_p],"recommendationApplied":False,"fingerprintDetected":fingerprinted,"learned":learned,"evidenceSource":source,"duplicate":bool(session_id) and not learned,"missingSessionId":not session_id,"learnerStats":self.learner.get_stats()}
         if self.v2 is not None:
             # The same observation (session, served persona, reward) feeds v2 exactly once (session-id dedupe).
             # v2 must never break v1 scoring: any failure is logged and reported, v1's result stands.
             try:
+                from rl_engine.persona_policy_v2 import validate_recommendation
                 learned=self.v2.observe(session.get("sessionId"),active,reward)
-                out["policyV2"]={"mode":self.v2_mode,"learned":learned,**self.v2.stats(active)}
+                v2_stats=self.v2.stats(active)
+                rec,status=validate_recommendation(v2_stats.get("recommendation"))
+                out["policyV2"]={"mode":self.v2_mode,"learned":learned,**v2_stats,"recommendation":rec,"status":status}
             except Exception as e:  # noqa: BLE001
                 log.warning("Persona policy v2 update failed (%s); v1 result unaffected",type(e).__name__)
-                out["policyV2"]={"mode":self.v2_mode,"error":type(e).__name__}
+                out["policyV2"]={"mode":self.v2_mode,"error":type(e).__name__,"status":"ERROR","recommendation":None}
         return out
 
     def get_current_profile(self): return {"name":self.current,"config":PROFILES[self.current]}

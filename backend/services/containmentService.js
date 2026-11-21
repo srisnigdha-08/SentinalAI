@@ -130,6 +130,38 @@ const compensateLateRule = async (actionDoc, adapter, rule) => {
   return lateRule
 }
 
+// The action document stores numeric exit codes; an adapter that reports a process error code (e.g. 'ENOENT') must
+// not make the FAILED / ROLLBACK_FAILED save itself fail and leave the action unrecorded.
+const exitCodeOf = (v) => (v === undefined || v === null ? null : typeof v === 'number' && Number.isFinite(v) ? v : 1)
+
+/**
+ * A real host-firewall apply that failed, or whose rule could not be verified, may still have left a rule behind
+ * (a timeout after netsh/iptables created it, or a rule that exists but does not match). The rule is looked up with
+ * the read-only tri-state inspectRule, removed when it is or may be present, and looked up again. Outcomes:
+ *   NOT_PRESENT        the backend positively said no such rule exists; nothing to remove
+ *   REMOVED            removal confirmed (inspect answered ABSENT afterwards)
+ *   PRESENT_UNREMOVED  the rule is or may still be in place; it is flagged recovery.lateRule = PRESENT_UNREMOVED so
+ *                      the reconciliation pass retries it and the operator recovery view lists it. Never assumed gone.
+ * Adapters without post-apply verification (the mock) are not inspected: they cannot half-apply a host rule.
+ */
+const cleanupFailedApplication = async (adapter, rule) => {
+  let before = null
+  let after = null
+  let removal = null
+  let detail = null
+  try {
+    before = (await adapter.inspectRule(rule))?.state || 'UNKNOWN'
+    if (before === 'ABSENT') return { outcome: 'NOT_PRESENT', before, after: 'ABSENT', detail }
+    const removed = await adapter.removeRule(rule)
+    removal = removed?.success === true ? 'SUCCEEDED' : 'FAILED'
+    if (!removed?.success) detail = String(removed?.stderr || 'removeRule failed').slice(0, 300)
+    after = (await adapter.inspectRule(rule))?.state || 'UNKNOWN'
+  } catch (err) {
+    detail = String(err.message).slice(0, 300)
+  }
+  return { outcome: after === 'ABSENT' ? 'REMOVED' : 'PRESENT_UNREMOVED', before, after, removal, detail }
+}
+
 /**
  * Executes a fully typed, policy-governed containment request (Phase 4).
  *
@@ -310,6 +342,9 @@ const requestContainment = async ({
 
   // Step 9: Invoke Adapter
   let adapterResult
+  // An adapter that throws refused before running any command (safety gate closed, invalid target or rule name):
+  // nothing can have been applied. A returned failure means a command ran and may have half-applied.
+  let adapterRefused = false
   try {
     adapterResult = await adapter.applyRule({
       containmentId: actionDoc.containmentId,
@@ -318,6 +353,7 @@ const requestContainment = async ({
       ruleName: `SentinelAI-Rule-${actionDoc.containmentId}`,
     })
   } catch (adapterErr) {
+    adapterRefused = true
     adapterResult = {
       success: false,
       stderr: adapterErr.message,
@@ -325,16 +361,18 @@ const requestContainment = async ({
       executionDurationMs: 0,
     }
   }
+  const realAdapter = adapter.requiresPostApplyVerification === true
+  const ruleParams = {
+    containmentId: actionDoc.containmentId,
+    ruleId: adapterResult.ruleId || undefined,
+    target: normalized,
+    ruleName: adapterResult.ruleName || `SentinelAI-Rule-${actionDoc.containmentId}`,
+  }
+  let cleanup = null
 
   // Step 9b: a successful command is not proof of a block. Real host adapters declare requiresPostApplyVerification;
   // their rule is looked up again, and an unconfirmed rule fails the action (and is removed if half-created).
-  if (adapterResult.success && adapter.requiresPostApplyVerification === true) {
-    const ruleParams = {
-      containmentId: actionDoc.containmentId,
-      ruleId: adapterResult.ruleId,
-      target: normalized,
-      ruleName: adapterResult.ruleName || `SentinelAI-Rule-${actionDoc.containmentId}`,
-    }
+  if (adapterResult.success && realAdapter) {
     let verified = false
     try {
       const v = await adapter.verifyRule(ruleParams)
@@ -352,11 +390,6 @@ const requestContainment = async ({
       details: { backend: adapter.getBackendType(), ruleName: ruleParams.ruleName },
     })
     if (!verified) {
-      try {
-        await adapter.removeRule(ruleParams)
-      } catch (cleanupErr) {
-        logger.error(`[Containment] Cleanup of unverified rule failed: ${cleanupErr.message}`)
-      }
       adapterResult = {
         ...adapterResult,
         success: false,
@@ -365,21 +398,67 @@ const requestContainment = async ({
     }
   }
 
+  // Step 9c: a real adapter whose command ran but failed (or whose rule was not verified) may have left a rule.
+  // Clean it up and record exactly what is known; an unconfirmed removal is never reported as clean.
+  if (!adapterResult.success && realAdapter && !adapterRefused) {
+    cleanup = await cleanupFailedApplication(adapter, ruleParams)
+    if (cleanup.outcome === 'PRESENT_UNREMOVED') {
+      logger.error(
+        `[Containment] ${actionDoc.containmentId} (${normalized}): a rule from the failed apply could not be confirmed ` +
+          `removed (${cleanup.after || 'no answer'}); flagged for reconciliation`
+      )
+    }
+    logContainmentAudit({
+      action: cleanup.outcome === 'PRESENT_UNREMOVED' ? 'FAILED_APPLY_CLEANUP_UNCONFIRMED' : 'FAILED_APPLY_CLEANUP',
+      containmentId: actionDoc.containmentId,
+      correlationId,
+      target: normalized,
+      enforcementBackend: adapter.getBackendType(),
+      enforcementStatus: 'APPLYING',
+      operatorId: requester?._id || requester?.id,
+      details: { ...cleanup, ruleName: ruleParams.ruleName },
+    })
+  }
+
   // Step 10: Process Adapter Result
   if (!adapterResult.success) {
+    const cleanupNote = cleanup
+      ? cleanup.outcome === 'PRESENT_UNREMOVED'
+        ? ' | CLEANUP_UNCONFIRMED: a rule may remain; flagged for reconciliation'
+        : cleanup.outcome === 'REMOVED'
+          ? ' | CLEANUP: the partially applied rule was removed and confirmed absent'
+          : ' | CLEANUP: no rule was left behind'
+      : ''
     actionDoc.transitionTo('FAILED', {
-      failureReason: adapterResult.stderr || 'Adapter enforcement failed',
+      failureReason: `${adapterResult.stderr || 'Adapter enforcement failed'}${cleanupNote}`.slice(0, 1000),
       enforcementDetails: {
         adapterName: adapter.constructor.name,
         ruleName: adapterResult.ruleName,
         ruleId: adapterResult.ruleId,
-        exitCode: adapterResult.exitCode,
+        exitCode: exitCodeOf(adapterResult.exitCode),
         stdout: adapterResult.stdout,
         stderr: adapterResult.stderr,
         executionDurationMs: adapterResult.executionDurationMs,
       },
     })
     await fencedSave(actionDoc)
+    if (cleanup?.outcome === 'PRESENT_UNREMOVED') {
+      // Reuses the late-rule mechanism: retried with back-off by removeLateRules, listed by GET /containment/recovery
+      try {
+        await ContainmentAction.updateOne(
+          { _id: actionDoc._id },
+          {
+            $set: {
+              'recovery.lateRule': 'PRESENT_UNREMOVED',
+              'recovery.lateRuleAt': new Date(),
+              'recovery.lateRuleLastError': String(cleanup.detail || cleanup.after || 'no answer').slice(0, 500),
+            },
+          }
+        )
+      } catch (err) {
+        logger.error(`[Containment] Could not flag unremoved rule for ${actionDoc.containmentId}: ${err.message}`)
+      }
+    }
 
     logContainmentAudit({
       action: 'ENFORCEMENT_FAILED',
@@ -388,7 +467,11 @@ const requestContainment = async ({
       target: normalized,
       enforcementStatus: 'FAILED',
       operatorId: requester?._id || requester?.id,
-      details: { stderr: adapterResult.stderr, exitCode: adapterResult.exitCode },
+      details: {
+        stderr: adapterResult.stderr,
+        exitCode: exitCodeOf(adapterResult.exitCode),
+        cleanup: cleanup ? cleanup.outcome : adapterRefused ? 'NOT_APPLIED' : null,
+      },
     })
 
     const error = new Error(`Adapter enforcement failed: ${adapterResult.stderr || 'Unknown adapter error'}`)
@@ -599,13 +682,39 @@ const rollbackContainment = async ({ containmentId, operator, reason, releaseLeg
     }
   }
 
+  // Step 2b: a real host rule is looked up again after a reported removal. A rule still PRESENT is a failed release
+  // (the action stays ROLLBACK_FAILED and can be retried); ABSENT or an inconclusive lookup keeps the removal result.
+  if (removeResult.success && adapter.requiresPostApplyVerification === true) {
+    let state = null
+    try {
+      state = (
+        await adapter.inspectRule({
+          containmentId: actionDoc.containmentId,
+          ruleId: actionDoc.enforcementDetails?.ruleId || undefined,
+          target: actionDoc.normalizedTarget,
+          ruleName: actionDoc.enforcementDetails?.ruleName || undefined,
+        })
+      )?.state
+    } catch (inspectErr) {
+      logger.warn(`[Containment] Post-release lookup failed: ${inspectErr.message}`)
+    }
+    if (state === 'PRESENT') {
+      removeResult = {
+        ...removeResult,
+        success: false,
+        exitCode: 1,
+        stderr: 'RELEASE_NOT_VERIFIED: the rule is still present after the removal command reported success',
+      }
+    }
+  }
+
   // Step 3: Process Removal Result
   if (!removeResult.success) {
     actionDoc.transitionTo('ROLLBACK_FAILED', {
       failureReason: removeResult.stderr || 'Adapter rollback failed',
       rollbackDetails: {
         ruleId: actionDoc.enforcementDetails?.ruleId,
-        exitCode: removeResult.exitCode,
+        exitCode: exitCodeOf(removeResult.exitCode),
         stdout: removeResult.stdout,
         stderr: removeResult.stderr,
         executionDurationMs: removeResult.executionDurationMs,
@@ -777,10 +886,15 @@ const getContainmentStatus = async () => {
     enforcementStatus: { $in: ['FAILED', 'ROLLBACK_FAILED'] },
   })
 
+  const backend = adapter.getBackendType()
   return {
-    backend: adapter.getBackendType(),
+    backend,
     adapterName: adapter.constructor.name,
-    realEnforcementEnabled: process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT === 'true',
+    // True only when a real host-firewall adapter is the one in use (the enable flag alone does not select it: the
+    // factory also needs the host-bound confirmation and refuses in tests). Was the Windows flag alone, which could
+    // say "enabled" while the mock adapter was active and never covered linux-iptables.
+    realEnforcementEnabled: backend === 'windows-firewall' || backend === 'linux-iptables',
+    simulated: !(backend === 'windows-firewall' || backend === 'linux-iptables'),
     activeContainmentCount: activeCount,
     failedContainmentCount: failedCount,
     timestamp: new Date().toISOString(),

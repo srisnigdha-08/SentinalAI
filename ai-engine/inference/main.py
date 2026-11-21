@@ -96,6 +96,76 @@ async def request_id_middleware(request, call_next):
     response.headers["X-Request-Id"] = request_id
     return response
 
+# Honeypot-session payloads carry attacker-typed command text; bound them before parsing (docs/SESSION_ML.md).
+MAX_HONEYPOT_SESSION_BYTES = 2_000_000
+# Rank 8: the same ceiling for every other request body (they had none). The largest legitimate body is
+# /predict/batch (at most 500 records, about 1.2 MB).
+MAX_REQUEST_BODY_BYTES = 2_000_000
+HONEYPOT_SESSION_PATHS = ("/predict/honeypot", "/deception/score")
+
+
+class BodySizeLimit:
+    """Rank 8: enforce the body limit on the bytes actually received, not on Content-Length alone.
+
+    The previous check trusted Content-Length, so a chunked body (no length), a false small length or a malformed
+    header passed unchecked. This ASGI middleware: rejects a valid declared length over the limit before reading
+    anything (413); refuses a malformed or negative Content-Length (400); otherwise reads the body, counting bytes,
+    and answers 413 as soon as the count exceeds the limit, without reading further, so it never holds more than the
+    limit in memory. A body within the limit is replayed to the application unchanged."""
+
+    def __init__(self, app, limit=MAX_REQUEST_BODY_BYTES, session_limit=MAX_HONEYPOT_SESSION_BYTES):
+        self.app, self.limit, self.session_limit = app, limit, session_limit
+
+    @staticmethod
+    async def _reject(send, status, error, limit=None):
+        import json as _json
+        detail = {"error": error}
+        if limit is not None:
+            detail["limitBytes"] = limit
+        body = _json.dumps({"detail": detail}).encode()
+        await send({"type": "http.response.start", "status": status,
+                    "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode())]})
+        await send({"type": "http.response.body", "body": body})
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") in ("GET", "HEAD", "OPTIONS", "DELETE"):
+            return await self.app(scope, receive, send)
+        session = scope.get("path", "").startswith(HONEYPOT_SESSION_PATHS)
+        limit = self.session_limit if session else self.limit
+        error = "SESSION_TOO_LARGE" if session else "REQUEST_TOO_LARGE"
+        declared = [v for k, v in scope.get("headers", []) if k.lower() == b"content-length"]
+        if declared:
+            raw = declared[-1].decode("latin-1").strip()
+            if len(declared) > 1 and len({d.strip() for d in declared}) > 1 or not raw.isdigit():
+                return await self._reject(send, 400, "INVALID_CONTENT_LENGTH")
+            if int(raw) > limit:
+                return await self._reject(send, 413, error, limit)
+        chunks, total = [], 0
+        while True:
+            message = await receive()
+            if message["type"] == "http.disconnect":
+                return
+            body = message.get("body", b"")
+            total += len(body)
+            if total > limit:
+                return await self._reject(send, 413, error, limit)
+            chunks.append(body)
+            if not message.get("more_body", False):
+                break
+        replayed = False
+
+        async def replay():
+            nonlocal replayed
+            if not replayed:
+                replayed = True
+                return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
+            return await receive()
+
+        return await self.app(scope, replay, send)
+
+
+app.add_middleware(BodySizeLimit)
+
 @app.exception_handler(RequestValidationError)
 async def validation_error_handler(request, exc):
     # Raw input may contain NaN/Infinity or captured credentials. Neither belongs in error JSON.
@@ -378,21 +448,13 @@ def model_drift():
     return report
 
 GLOBAL_SHAP_ROWS = 200
+# Rank 8: the reference summary is a derived result, cached OUTSIDE the model directory (never inside models/).
+GLOBAL_SHAP_CACHE_DIR = Path(os.getenv("GLOBAL_SHAP_CACHE_DIR") or (ENGINE_ROOT / "derived" / "global_shap"))
+GLOBAL_SHAP_CONFIG = {"explainer": "shap.TreeExplainer", "statistic": "mean |SHAP| of each row's predicted class",
+                      "topOverall": 10, "topPerClass": 5}
 
-@app.get("/model/explain/global", dependencies=[Depends(verify_api_key)])
-def model_explain_global():
-    """
-    U5: which features drive the model's recent verdicts. Mean |SHAP| (for each flow's assigned class) over the
-    last GLOBAL_SHAP_ROWS scored flows, overall and per predicted class. Computed on demand from the drift window.
-    """
-    if not predictor or not predictor._loaded:
-        raise HTTPException(503, "Not ready")
-    if predictor.explainer is None:
-        raise HTTPException(501, "Deployed model has no SHAP explainer")
-    vectors, _ = drift_monitor.recent(GLOBAL_SHAP_ROWS)
-    if not vectors:
-        return {"samples": 0, "overall": [], "by_class": {}}
-    X = np.vstack(vectors)
+
+def _summarise_shap(X):
     labels, _, cls_pos = predictor._classify_many(X)
     contrib = predictor.shap_for_classes(X, cls_pos)
     names = [pred_label(int(c)) for c in labels]
@@ -404,8 +466,96 @@ def model_explain_global():
     by_class = {}
     for name in sorted(set(names)):
         mask = np.array([n == name for n in names])
-        by_class[name] = {"samples": int(mask.sum()), "top": top(contrib[mask], 5)}
-    return {"samples": int(len(X)), "overall": top(contrib, 10), "by_class": by_class}
+        by_class[name] = {"samples": int(mask.sum()), "top": top(contrib[mask], GLOBAL_SHAP_CONFIG["topPerClass"])}
+    return {"samples": int(len(X)), "overall": top(contrib, GLOBAL_SHAP_CONFIG["topOverall"]), "by_class": by_class}
+
+
+def _model_identity():
+    # predictor.registry is the load summary: {"classifier": <file>, "classifierSha256": <hash>, ...}
+    reg = predictor.registry or {}
+    return {"modelSha256": reg.get("classifierSha256"), "modelFile": reg.get("classifier"),
+            "modelVersion": predictor.rf_meta.get("version"), "featureSchemaVersion": FEATURE_SCHEMA_VERSION}
+
+
+def _pinned_golden():
+    """The golden-set pin from models/registry.json (read-only): {"file", "rows", "sha256"} or {}."""
+    import json as _json
+    try:
+        return _json.loads((Path(MODEL_DIR) / "registry.json").read_text(encoding="utf-8")).get("golden") or {}
+    except (OSError, ValueError):
+        return {}
+
+
+def reference_global_shap(cache_dir: Optional[Path] = None) -> dict:
+    """Rank 8: reproducible global explanation over a fixed, versioned sample: the golden regression vectors pinned
+    (by SHA-256) in models/registry.json. Cached as JSON keyed by model SHA-256, feature schema, golden-set SHA-256
+    and SHAP configuration, so any change to those yields a new key (the stale result is never served). Read-only on
+    the model directory."""
+    import json as _json
+    identity = _model_identity()
+    golden = _pinned_golden()
+    if not identity["modelSha256"] or not golden.get("file") or not golden.get("sha256"):
+        raise HTTPException(501, "Registry pins no model or golden set: no reproducible reference sample")
+    gpath = Path(MODEL_DIR) / golden["file"]
+    raw = gpath.read_bytes()
+    gsha = hashlib.sha256(raw).hexdigest()
+    if gsha != golden["sha256"]:
+        raise HTTPException(409, "Golden set does not match the hash pinned in the registry")
+    key_src = _json.dumps({**identity, "goldenSha256": gsha, "config": GLOBAL_SHAP_CONFIG}, sort_keys=True)
+    key = hashlib.sha256(key_src.encode()).hexdigest()[:24]
+    cache_dir = Path(cache_dir or GLOBAL_SHAP_CACHE_DIR)
+    path = cache_dir / f"global_shap_{key}.json"
+    try:
+        cached = _json.loads(path.read_text(encoding="utf-8"))
+        prov = cached.get("provenance", {})
+        if prov.get("cacheKey") == key and prov.get("modelSha256") == identity["modelSha256"]:
+            return {**cached, "cache": "hit"}
+    except (OSError, ValueError):
+        pass
+    gold = _json.loads(raw)
+    X = np.asarray(gold["vectors"], dtype=float)
+    result = {"scope": "reference", **_summarise_shap(X),
+              "provenance": {**identity, "generatedAt": datetime.now(timezone.utc).isoformat(),
+                             "sample": {"source": f"models/{golden['file']}", "sha256": gsha, "rows": int(len(X)),
+                                        "seed": gold.get("seed"),
+                                        "note": "fixed regression vectors pinned in models/registry.json; "
+                                                "a reproducible reference, not a representative traffic sample"},
+                             "shapConfig": GLOBAL_SHAP_CONFIG, "cacheKey": key, "persisted": True}}
+    try:
+        cache_dir.mkdir(parents=True, exist_ok=True)
+        tmp = path.with_suffix(".tmp")
+        tmp.write_text(_json.dumps(result, indent=1), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as e:
+        result["provenance"]["persisted"] = False
+        log.warning("Global SHAP reference not cached (%s)", type(e).__name__)
+    return {**result, "cache": "miss"}
+
+
+@app.get("/model/explain/global", dependencies=[Depends(verify_api_key)])
+def model_explain_global(scope: str = "recent"):
+    """
+    U5: which features drive the model's verdicts (mean |SHAP| for each flow's assigned class, overall and per class).
+
+    scope=recent (default, unchanged): the last GLOBAL_SHAP_ROWS scored flows from the in-memory drift window. It is
+    EPHEMERAL: recomputed on demand, lost on restart (provenance.persisted = false).
+    scope=reference (Rank 8): the reproducible, cached summary over the pinned golden set (reference_global_shap).
+    """
+    if not predictor or not predictor._loaded:
+        raise HTTPException(503, "Not ready")
+    if predictor.explainer is None:
+        raise HTTPException(501, "Deployed model has no SHAP explainer")
+    if scope not in ("recent", "reference"):
+        raise HTTPException(422, "scope must be 'recent' or 'reference'")
+    if scope == "reference":
+        return reference_global_shap()
+    vectors, _ = drift_monitor.recent(GLOBAL_SHAP_ROWS)
+    prov = {**_model_identity(), "generatedAt": datetime.now(timezone.utc).isoformat(),
+            "sample": {"source": f"last {GLOBAL_SHAP_ROWS} flows scored by this engine process (in memory)"},
+            "shapConfig": GLOBAL_SHAP_CONFIG, "persisted": False}
+    if not vectors:
+        return {"scope": "recent", "samples": 0, "overall": [], "by_class": {}, "provenance": prov}
+    return {"scope": "recent", **_summarise_shap(np.vstack(vectors)), "provenance": prov}
 
 _reload_lock = threading.Lock()
 
@@ -447,12 +597,32 @@ def predict_internal(record: Record, explain: bool = False):
         _upd(result)
     return {"success": True, "result": result}
 
+def _session_ml_shadow(session: dict) -> dict:
+    """Shadow session-ML classification (session_ml.classifier; docs/SESSION_ML.md). Separate from the network-flow
+    model and from the rule result: it never changes predictedClass, threatScore, alerts or containment, and a failure
+    here is reported, never raised."""
+    try:
+        from session_ml.classifier import default_classifier
+        return default_classifier().classify(session)
+    except Exception as e:  # noqa: BLE001
+        log.warning("Session ML shadow classification failed (%s)", type(e).__name__)
+        return {"status": "INFERENCE_ERROR", "reason": type(e).__name__, "shadowOnly": True, "prediction": None,
+                "sessionId": (session.get("sessionId") or None) if isinstance(session, dict) else None}
+
 @app.post("/predict/honeypot/internal", dependencies=[Depends(verify_api_key)])
 def predict_honeypot_internal(session: SessionData):
     if not predictor: raise HTTPException(503, "Not ready")
-    result = predictor.predict_from_honeypot(session.model_dump())
+    payload = session.model_dump()
+    result = predictor.predict_from_honeypot(payload)
     _upd(result)
-    return {"success": True, "result": result}
+    # "result" is the unchanged rule-based classification; "sessionML" is the separate, shadow-only ML block.
+    return {"success": True, "result": result, "sessionML": _session_ml_shadow(payload)}
+
+@app.get("/session-ml/status", dependencies=[Depends(verify_api_key)])
+def session_ml_status():
+    """Read-only: mode, feature schema and model state of the honeypot-session classifier (never the flow model)."""
+    from session_ml.classifier import default_classifier
+    return {"success": True, "status": default_classifier().status()}
 
 @app.post("/predict/eval", dependencies=[Depends(verify_api_key)])
 def predict_eval(record: Record, explain: bool = False):
@@ -554,7 +724,8 @@ def deception_stats():
         scorer = _deception_scorer()
         stats = scorer.learner.get_stats()
         return {"success": True, "learnerStats": stats, "provenance": stats.get("provenance"),
-                "v2Mode": scorer.v2_mode, "servablePersonas": list(SUPPORTED_PROFILES),
+                "v2Mode": scorer.v2_mode, "v2Activation": _v2_activation(scorer) if scorer.v2 is not None else None,
+                "servablePersonas": list(SUPPORTED_PROFILES),
                 "unsupportedPersonas": sorted(UNSUPPORTED_PROFILES)}
 
 
@@ -576,18 +747,48 @@ def deception_recommendation(current: str = "centos_7"):
                "explored": next_profile != greedy, "learnerStats": learner.get_stats()}
         if scorer.v2 is not None:
             # Persona policy v2. Shadow: reported only, never applied (the backend reads nextProfile/policy/explored).
-            # Active (DECEPTION_V2=active): v2 drives nextProfile; v1's pick is still reported for comparison.
+            # Active (DECEPTION_V2=active, the owner's switch) is fail-closed (rl_engine/v2_activation.py): v2 drives
+            # nextProfile only if the newest Rank 6 readiness evidence is valid and READY; otherwise v1 serves.
             try:
                 v2 = scorer.v2.stats(current)
             except Exception as e:  # noqa: BLE001 - v2 must never break v1 recommendations
                 log.warning("Persona policy v2 recommendation failed (%s); serving v1", type(e).__name__)
                 v2 = None
-            if v2 and scorer.v2_mode == "active":
+            if v2:
+                # Only a servable persona is ever reported or applied; otherwise v1's pick stands.
+                from rl_engine.persona_policy_v2 import validate_recommendation
+                rec, status = validate_recommendation(v2.get("recommendation"))
+                v2 = {**v2, "recommendation": rec, "status": status}
+            activation = _v2_activation(scorer)
+            out["v2Activation"] = activation
+            if v2 and activation["allowed"] and v2["status"] == "OK":
                 out.update({"nextProfile": v2["recommendation"], "policy": v2["policyVersion"], "explored": v2["explored"],
                             "policyV1": {"nextProfile": next_profile, "policy": learner.policy, "explored": next_profile != greedy}})
             elif v2:
                 out["shadow"] = {"mode": "shadow", "applied": False, **v2}
         return out
+
+
+_v2_last_block = None
+
+
+def _v2_activation(scorer) -> dict:
+    """The fail-closed activation decision. A blocked activation request is logged once per reason (the rotator
+    polls this endpoint) and returned as v2Activation for diagnostics; it never raises."""
+    global _v2_last_block
+    try:
+        from rl_engine.v2_activation import activation_decision
+        d = activation_decision(scorer.v2_mode, getattr(scorer, "v2_readiness_dir", None))
+    except Exception as e:  # noqa: BLE001 - fail closed
+        d = {"allowed": False, "requested": scorer.v2_mode == "active", "readiness": None,
+             "reason": f"READINESS_CHECK_ERROR:{type(e).__name__}"}
+    if d.get("requested") and not d["allowed"]:
+        if d["reason"] != _v2_last_block:
+            log.warning("DECEPTION_V2=active requested but blocked (%s, readiness %s); v1 serves", d["reason"], d.get("readiness"))
+            _v2_last_block = d["reason"]
+    else:
+        _v2_last_block = None
+    return d
 
 class AuthTelemetryRecord(BaseModel):
     # Typed and bounded (L2): optional fields are Optional, strings have length limits, numbers are finite.

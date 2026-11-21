@@ -547,7 +547,7 @@ WSL cannot reach the Windows backend in NAT mode, and opening a firewall path wa
 - **Docker stack:** untested; no Docker here.
 - **Blocker against the real backend:** the backend side (`check-block`) is unit-tested, but the WSL↔Windows hop wasn't run.
 - **Real downloads:** need outbound internet.
-- **Persona fidelity:** windows_srv has no filesystem; no txtcmds; command output such as `lsb_release` and the package list is still Cowrie's default.
+- **Persona fidelity:** the served Linux personas use Cowrie's default command output for `lsb_release` and the package list. windows_srv is not served; its experimental Windows-like shell simulation (in-memory filesystem, allowlisted commands; docs/PERSONAS.md) is not deployed.
 - **Seed `sess-*` sessions:** not badged.
 - **Not implemented:** retraining, multi-protocol decoys, GeoIP.
 - **By design:** retention, auto-block and the firewall are off or mock by default.

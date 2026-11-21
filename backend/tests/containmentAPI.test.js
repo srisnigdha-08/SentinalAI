@@ -165,4 +165,61 @@ describe('Containment API & Authorization Boundary', () => {
     expect(res.status).toBe(404)
     expect(res.body.error).toContain('not found')
   })
+
+  describe('no path around authorization reaches the adapter', () => {
+    const body = { target: '203.0.113.44', reason: 'authorization boundary' }
+    let applySpy
+    let removeSpy
+    beforeEach(() => {
+      applySpy = jest.spyOn(mockAdapter, 'applyRule')
+      removeSpy = jest.spyOn(mockAdapter, 'removeRule')
+    })
+    afterEach(() => {
+      expect(applySpy).not.toHaveBeenCalled()
+      expect(removeSpy).not.toHaveBeenCalled()
+    })
+
+    test('unauthenticated POST /actions and /rollback are refused with 401', async () => {
+      expect((await request(app).post('/api/containment/actions').send(body)).status).toBe(401)
+      expect((await request(app).post('/api/containment/actions/x/rollback').send({})).status).toBe(401)
+    })
+
+    test('the internal honeypot key is not a containment credential', async () => {
+      const key = { 'X-API-Key': process.env.HONEYPOT_API_KEY }
+      expect((await request(app).post('/api/containment/actions').set(key).send(body)).status).toBe(401)
+      expect((await request(app).post('/api/containment/actions/x/rollback').set(key).send({})).status).toBe(401)
+    })
+
+    test('a viewer cannot request or release containment (403)', async () => {
+      const viewer = makeUser({ _id: '507f1f77bcf86cd799439055', role: 'viewer', email: 'viewer2@test.com' })
+      const login = await auth.issue(viewer)
+      const bearer = { Authorization: `Bearer ${login.token}` }
+      expect((await request(app).post('/api/containment/actions').set(bearer).send(body)).status).toBe(403)
+      expect((await request(app).post('/api/containment/actions/x/rollback').set(bearer).send({})).status).toBe(403)
+    })
+
+    test('a forged bearer token is refused (401)', async () => {
+      const res = await request(app)
+        .post('/api/containment/actions')
+        .set('Authorization', 'Bearer not.a.valid.token')
+        .send(body)
+      expect(res.status).toBe(401)
+    })
+  })
+
+  test('status reports simulated enforcement even when the Windows enable flag alone is set', async () => {
+    const saved = process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT
+    process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT = 'true'
+    try {
+      const analyst = makeUser({ _id: '507f1f77bcf86cd799439044', role: 'analyst', email: 'analyst3@test.com' })
+      const login = await auth.issue(analyst)
+      ContainmentAction.countDocuments = jest.fn().mockResolvedValue(0)
+      const res = await request(app).get('/api/containment/status').set('Authorization', `Bearer ${login.token}`)
+      expect(res.status).toBe(200)
+      expect(res.body.data).toMatchObject({ backend: 'mock', realEnforcementEnabled: false, simulated: true })
+    } finally {
+      if (saved === undefined) delete process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT
+      else process.env.ENABLE_REAL_WINDOWS_FIREWALL_ENFORCEMENT = saved
+    }
+  })
 })

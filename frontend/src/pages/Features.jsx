@@ -7,7 +7,7 @@ const FEATURES = [
   { icon:'📡', title:'Real-Time Monitoring', accent:'#ffaa00', text:'Socket.IO-powered live threat feed, dashboard updates and alert notifications pushed to analysts as events are processed.' },
   { icon:'🔐', title:'JWT Role-Based Auth', accent:'#8b5cf6', text:'Full RBAC system with Admin, Analyst, and Viewer roles. bcrypt-hashed credentials, refresh token rotation, and session management via MongoDB.' },
   { icon:'📊', title:'Threat Intelligence', accent:'#00d4ff', text:'IOC extraction from honeypot sessions, campaign correlation, MITRE ATT&CK mapping of attacker commands, and historical trend analytics.' },
-  { icon:'🛡️', title:'Dual-Engine Ensemble', accent:'#ff2d55', text:'Fixed-weight combination of a supervised XGBoost classifier and an unsupervised Isolation Forest anomaly score.' },
+  { icon:'🛡️', title:'Dual-Engine Ensemble', accent:'#ff2d55', text:'The supervised XGBoost classifier sets the score; an unsupervised Isolation Forest anomaly signal is blended in (0.7/0.3) but can only raise an attack score, and flags anomalous BENIGN flows as "Unknown" for analyst review.' },
 ]
 
 export default function Features() {

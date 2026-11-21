@@ -1,0 +1,30 @@
+{
+ "generated_at": "2026-11-14T16:09:12.530524+00:00",
+ "rank": 7,
+ "package": "honeypot/windows_persona",
+ "modules": [
+  "__init__.py",
+  "cowrie_hook.py",
+  "cowrie_shell.py",
+  "persona.py",
+  "shell.py",
+  "telemetry.py",
+  "vfs.py"
+ ],
+ "cowrie_plugin": "honeypot/cowrie/sentinelwindows.py (not deployed, off by default)",
+ "integration": [
+  "log_parser.classify_session_intent (windows sessions only)",
+  "backend utils/windowsPersona.js + honeypotIngest intent",
+  "mitreMapping Windows techniques",
+  "deception_scorer: experimental persona scored, never learned",
+  "capabilityService windows_persona + windows_persona_simulation",
+  "frontend personaLabels"
+ ],
+ "behaviour_classes": {
+  "unit_tested": true,
+  "integration_tested": "in-process with real Cowrie 3.1.3 protocol objects and in-memory MongoDB",
+  "mocked": "Cowrie terminal/transport, logger, AI engine (backend)",
+  "simulated": "all command output, filesystem and network",
+  "live": false
+ }
+}

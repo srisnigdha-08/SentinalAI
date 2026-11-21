@@ -1,42 +1,48 @@
 /**
  * MITRE ATT&CK Mapping Utility
- * Maps command intents and threat classifications to MITRE technique IDs and names.
+ * Maps command intents, commands and threat classifications to MITRE ATT&CK techniques (id, name, tactics).
+ *
+ * Every technique comes from utils/attackTechniques.js (verified against ATT&CK Enterprise v20.1), so ids, names and
+ * tactics are official and no rule can reference an invented technique. Rank 8 corrections:
+ *  - T1595 Active Scanning (Reconnaissance: probing a victim's infrastructure over the network, pre-compromise) was
+ *    used for on-host reconnaissance commands. Commands such as uname, id, whoami and ifconfig are Discovery
+ *    (T1082, T1033, T1016) and get those from the command rules; T1595 is kept only for network port scans.
+ *  - Intent-level techniques are kept only where they hold for EVERY command that produces the intent; otherwise
+ *    the precise per-command technique is used (e.g. `chmod +x` is not T1548, `crontab` is not T1543).
+ *  - Windows-style rules apply only to sessions served as the simulated windows_srv persona (persona-gated), so a
+ *    Linux session can never acquire a Windows-only technique.
  */
 const logger = require('./logger')
+const { t } = require('./attackTechniques')
 
+// Intent -> techniques that are true for every command the intent rules can produce. An intent mapped to [] has no
+// generic technique: its commands are mapped individually below (getMitreTechniquesForCommands).
 const MITRE_ATTACK_MAP = {
-  CREDENTIAL_HARVEST: [{ id: 'T1003', name: 'OS Credential Dumping' }],
-  MALWARE_DOWNLOAD: [{ id: 'T1105', name: 'Ingress Tool Transfer' }],
-  REVERSE_SHELL: [
-    { id: 'T1059', name: 'Command and Scripting Interpreter' },
-    { id: 'T1071', name: 'Application Layer Protocol' },
-  ],
-  PERSISTENCE: [
-    { id: 'T1543', name: 'Create or Modify System Process' },
-    { id: 'T1053', name: 'Scheduled Task/Job' },
-  ],
-  PRIVILEGE_ESCALATION: [{ id: 'T1548', name: 'Abuse Elevation Control Mechanism' }],
-  RECONNAISSANCE: [{ id: 'T1595', name: 'Active Scanning' }],
-  DESTRUCTION: [{ id: 'T1485', name: 'Data Destruction' }],
+  CREDENTIAL_HARVEST: [], // /etc/passwd|shadow -> T1003.008, credential files -> T1552.001, SAM -> T1003.002 ...
+  MALWARE_DOWNLOAD: [t('T1105')], // every trigger downloads a file (wget/curl URL, certutil, bitsadmin, iwr)
+  REVERSE_SHELL: [t('T1059')], // every trigger starts an interpreter; raw-socket channels add T1095 per command
+  PERSISTENCE: [], // crontab -> T1053.003, systemctl enable -> T1543.002, schtasks -> T1053.005 ...
+  PRIVILEGE_ESCALATION: [], // setuid bits -> T1548.001; plain chmod -> T1222.002 (not privilege escalation)
+  RECONNAISSANCE: [], // on-host discovery: uname -> T1082, id/whoami -> T1033, ifconfig -> T1016 (never T1595)
+  DESTRUCTION: [], // recursive wipes of system/user trees -> T1485; vssadmin delete shadows -> T1490 (per command)
 }
 
 const THREAT_MITRE_MAP = {
-  'SSH Brute Force': [{ id: 'T1110', name: 'Brute Force' }],
-  'SSH Intrusion Attempt': [
-    { id: 'T1110', name: 'Brute Force' },
-    { id: 'T1021', name: 'Remote Services' },
-  ],
-  'SQL Injection': [{ id: 'T1190', name: 'Exploit Public-Facing Application' }],
-  DDoS: [{ id: 'T1498', name: 'Network Denial of Service' }],
-  'Port Scan': [{ id: 'T1046', name: 'Network Service Discovery' }],
-  'RCE Attempt': [{ id: 'T1190', name: 'Exploit Public-Facing Application' }],
-  'XSS Attempt': [{ id: 'T1190', name: 'Exploit Public-Facing Application' }],
-  'Malware Beacon': [{ id: 'T1071', name: 'Application Layer Protocol' }],
-  'Credential Stuffing': [{ id: 'T1110', name: 'Brute Force' }],
-  Ransomware: [{ id: 'T1486', name: 'Data Encrypted for Impact' }],
-  'Lateral Movement': [{ id: 'T1021', name: 'Remote Services' }],
-  'Data Exfiltration': [{ id: 'T1048', name: 'Exfiltration Over Alternative Protocol' }],
-  'Zero-Day Exploit': [{ id: 'T1190', name: 'Exploit Public-Facing Application' }],
+  'SSH Brute Force': [t('T1110')],
+  'SSH Intrusion Attempt': [t('T1110'), t('T1021')],
+  'SQL Injection': [t('T1190')],
+  DDoS: [t('T1498')],
+  // A port scan is observed as network traffic: Active Scanning when it comes from outside (Reconnaissance), Network
+  // Service Discovery when a compromised host scans (Discovery). A flow cannot tell which, so both are candidates.
+  'Port Scan': [t('T1595'), t('T1046')],
+  'RCE Attempt': [t('T1190')],
+  'XSS Attempt': [t('T1190')],
+  'Malware Beacon': [t('T1071')],
+  'Credential Stuffing': [t('T1110.004')],
+  Ransomware: [t('T1486')],
+  'Lateral Movement': [t('T1021')],
+  'Data Exfiltration': [t('T1048')],
+  'Zero-Day Exploit': [t('T1190')],
 }
 
 // Per-command techniques (Phase 5): finer than the intent map, e.g. T1003.008 rather than T1003. "Start" anchors
@@ -44,40 +50,65 @@ const THREAT_MITRE_MAP = {
 const START = String.raw`(?:^|[;&|(\x60]\s*|\$\(\s*)(?:sudo\s+|busybox\s+)?`
 const cmd = (names) => new RegExp(`${START}(?:${names})(?:\\s|$|[;&|)])`, 'i')
 const COMMAND_TECHNIQUES = [
-  [cmd('uname|hostnamectl|lscpu|nproc|free|lsb_release'), { id: 'T1082', name: 'System Information Discovery' }],
-  [/cat\s+\/proc\/(cpuinfo|version|meminfo)/i, { id: 'T1082', name: 'System Information Discovery' }],
-  [cmd('whoami|id|who|w|last'), { id: 'T1033', name: 'System Owner/User Discovery' }],
-  [cmd('ifconfig|netstat|ss|route|arp'), { id: 'T1016', name: 'System Network Configuration Discovery' }],
-  [/(^|[;&|]\s*)ip\s+(a|addr|r|route)\b/i, { id: 'T1016', name: 'System Network Configuration Discovery' }],
-  [cmd('ps|top|pstree'), { id: 'T1057', name: 'Process Discovery' }],
-  [cmd('wget|curl|tftp|ftpget'), { id: 'T1105', name: 'Ingress Tool Transfer' }],
-  [/\/etc\/(passwd|shadow)\b/i, { id: 'T1003.008', name: '/etc/passwd and /etc/shadow' }],
-  [/\.aws\/credentials|\.ssh\/id_rsa\b|\.git-credentials/i, { id: 'T1552.001', name: 'Credentials In Files' }],
-  [/crontab|\/etc\/cron/i, { id: 'T1053.003', name: 'Cron' }],
-  [/systemctl\s+(enable|start)|\/etc\/systemd\//i, { id: 'T1543.002', name: 'Systemd Service' }],
-  [/\b(bash|sh)\s+-i\b|\/dev\/tcp\//i, { id: 'T1059.004', name: 'Unix Shell' }],
-  [/\bpython[0-9.]*\s+-c\b/i, { id: 'T1059.006', name: 'Python' }],
+  [cmd('uname|hostnamectl|lscpu|nproc|free|lsb_release'), t('T1082')],
+  [/cat\s+\/proc\/(cpuinfo|version|meminfo)/i, t('T1082')],
+  [cmd('whoami|id|who|w|last'), t('T1033')],
+  [cmd('ifconfig|netstat|ss|route|arp'), t('T1016')],
+  [/(^|[;&|]\s*)ip\s+(a|addr|r|route)\b/i, t('T1016')],
+  [cmd('ps|top|pstree'), t('T1057')],
+  [cmd('wget|curl|tftp|ftpget'), t('T1105')],
+  [/\/etc\/(passwd|shadow)\b/i, t('T1003.008')],
+  [/\.aws\/credentials|\.ssh\/id_rsa\b|\.git-credentials/i, t('T1552.001')],
+  [/crontab|\/etc\/cron/i, t('T1053.003')],
+  [/systemctl\s+(enable|start)|\/etc\/systemd\//i, t('T1543.002')],
+  [/\b(bash|sh)\s+-i\b|\/dev\/tcp\//i, t('T1059.004')],
+  [/\bpython[0-9.]*\s+-c\b/i, t('T1059.006')],
+  // Raw TCP/UDP reverse-shell channels (not an application-layer protocol).
+  [/\/dev\/(tcp|udp)\/|\bnc(at)?\s+[^;&|]*\s-e\s/i, t('T1095')],
+  [/\bchmod\s+(\+x|[0-7]*[1357][0-7]*\s)/i, t('T1222.002')],
+  [/\bchmod\s+([ugoa]*\+[rwx]*s|[2467][0-7]{3}\s)|\bsetuid\b/i, t('T1548.001')],
+  [/history\s+-c|\.bash_history/i, t('T1070.003')],
+  [/unset\s+HISTFILE|HISTSIZE=0|HISTFILESIZE=0/i, t('T1690')],
+  [/authorized_keys/i, t('T1098.004')],
+  [cmd('useradd|adduser'), t('T1136.001')],
+  [/iptables\s+-F|ufw\s+disable/i, t('T1686')],
+  [/setenforce\s+0/i, t('T1685')],
+  // Clearing Linux system logs: deleting, shredding or truncating files under /var/log, or vacuuming the journal.
+  // Reading a log (cat/tail/grep /var/log/...) and appending to one (>>) are not clearing and are not mapped.
   [
-    /\bchmod\s+(\+x|[0-7]*[1357][0-7]*\s)/i,
-    { id: 'T1222.002', name: 'Linux and Mac File and Directory Permissions Modification' },
+    /\b(rm|shred|truncate|unlink)\b[^;&|]*\/var\/log\b|(^|[^>])>\s*\/var\/log\/|\bjournalctl\b[^;&|]*--vacuum-/i,
+    t('T1685.006'),
   ],
-  [/history\s+-c|unset\s+HISTFILE|\.bash_history/i, { id: 'T1070.003', name: 'Clear Command History' }],
-  [/authorized_keys/i, { id: 'T1098.004', name: 'SSH Authorized Keys' }],
-  [cmd('useradd|adduser'), { id: 'T1136.001', name: 'Local Account' }],
-  [/iptables\s+-F|ufw\s+disable|setenforce\s+0/i, { id: 'T1562.004', name: 'Disable or Modify System Firewall' }],
-  [/xmrig|minerd|stratum\+tcp/i, { id: 'T1496', name: 'Resource Hijacking' }],
+  [/xmrig|minerd|stratum\+tcp/i, t('T1496')],
+  // Recursive deletion of the root or of system/user trees. `rm -rf /tmp/x` (often clean-up) is deliberately not
+  // mapped: deleting one's own files is not evidence of data destruction.
+  [
+    /\brm\s+(-[a-z]*\s+)*-[a-z]*r[a-z]*\s+(-[a-z]+\s+)*(\/|\/\*|~|\/(home|root|etc|var|boot|usr|opt|srv)\/?)(\s|$|;)/i,
+    t('T1485'),
+  ],
 ]
 
-/** Techniques for a list of command strings, first occurrence order, de-duplicated by id. */
-function getMitreTechniquesForCommands(commands) {
+// Windows-style command rules (the simulated windows_srv shell, utils/windowsPersona.js). Applied ONLY when the
+// session's persona is windows_srv (see getMitreTechniquesForCommands), never to Linux sessions.
+const WINDOWS_PERSONA = 'windows_srv'
+const windowsRules = () => require('./windowsPersona').WINDOWS_COMMAND_TECHNIQUES
+
+const strip = (tech) => ({ id: tech.id, name: tech.name, tactics: [...tech.tactics] })
+
+/**
+ * Techniques for a list of command strings, first occurrence order, de-duplicated by id.
+ * opts.persona: the persona that served the session; Windows-style rules apply only for windows_srv.
+ */
+function getMitreTechniquesForCommands(commands, opts = {}) {
+  const rules = opts.persona === WINDOWS_PERSONA ? [...COMMAND_TECHNIQUES, ...windowsRules()] : COMMAND_TECHNIQUES
   const techniques = []
   const seen = new Set()
   for (const command of commands || []) {
     const text = String(command || '')
-    for (const [pattern, tech] of COMMAND_TECHNIQUES) {
+    for (const [pattern, tech] of rules) {
       if (!seen.has(tech.id) && pattern.test(text)) {
         seen.add(tech.id)
-        techniques.push(tech)
+        techniques.push(strip(tech))
       }
     }
   }
@@ -95,7 +126,7 @@ function getMitreTechniquesForIntents(intents) {
       for (const tech of mappings) {
         if (!seen.has(tech.id)) {
           seen.add(tech.id)
-          techniques.push(tech)
+          techniques.push(strip(tech))
         }
       }
     } else {
@@ -112,14 +143,20 @@ function getMitreTechniquesForThreat(attackType) {
     logger.warn(`[MITRE Mapping] No MITRE technique mapping found for threat attackType: "${attackType}"`)
     return []
   }
-  return mappings
+  return mappings.map(strip)
 }
 
-/** Intent techniques plus per-command techniques for a session's commands ({command, intent}). */
-function getMitreTechniquesForSession(commands = []) {
+/**
+ * Intent techniques plus per-command techniques for a session's commands ({command, intent}).
+ * opts.persona: the session's served persona (Windows-style rules only for windows_srv).
+ */
+function getMitreTechniquesForSession(commands = [], opts = {}) {
   const merged = [...getMitreTechniquesForIntents(commands.map((c) => c.intent).filter(Boolean))]
-  const seen = new Set(merged.map((t) => t.id))
-  for (const tech of getMitreTechniquesForCommands(commands.map((c) => c.command))) {
+  const seen = new Set(merged.map((tech) => tech.id))
+  for (const tech of getMitreTechniquesForCommands(
+    commands.map((c) => c.command),
+    opts
+  )) {
     if (!seen.has(tech.id)) {
       seen.add(tech.id)
       merged.push(tech)
@@ -128,12 +165,17 @@ function getMitreTechniquesForSession(commands = []) {
   return merged
 }
 
+/** Stored form ({id, name}): records keep their existing shape; tactics are derived from the id when read. */
+const storedForm = (techniques) => (techniques || []).map((tech) => ({ id: tech.id, name: tech.name }))
+
 module.exports = {
   MITRE_ATTACK_MAP,
   THREAT_MITRE_MAP,
   COMMAND_TECHNIQUES,
+  WINDOWS_PERSONA,
   getMitreTechniquesForIntents,
   getMitreTechniquesForCommands,
   getMitreTechniquesForSession,
   getMitreTechniquesForThreat,
+  storedForm,
 }

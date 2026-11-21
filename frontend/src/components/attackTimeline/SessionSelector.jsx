@@ -4,6 +4,7 @@ import SeverityBadge from '../SeverityBadge.jsx'
 import { honeypotAPI } from '../../services/api.js'
 import { dateText, timeText } from '../../utils/reportingTime.js'
 import { formatDuration, parseTime } from '../../utils/attackTimeline.js'
+import { personaLabel } from '../../utils/personaLabels.js'
 
 const PAGE_SIZE = 10
 const STATUSES = ['active', 'closed', 'analysed']
@@ -149,7 +150,7 @@ export default function SessionSelector({ params, setParams, onOpen }) {
                       {severity ? <SeverityBadge sev={severity} /> : <span style={{ color: '#3a6a88' }}>No linked threat</span>}
                       {score && <span style={{ marginLeft: 6, fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>{score}</span>}
                     </td>
-                    <td style={{ padding: '8px', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>{s.servedProfile || 'Not recorded'}</td>
+                    <td style={{ padding: '8px', fontFamily: 'Share Tech Mono,monospace', fontSize: 11 }}>{personaLabel(s.servedProfile)}</td>
                     <td style={{ padding: '8px', textAlign: 'right' }}>
                       <button type="button" style={{ ...btn, color: '#00d4ff', borderColor: '#00d4ff' }} onClick={() => onOpen(s._id)} aria-label={`Replay session ${s.sessionId}`}>
                         Replay ▶

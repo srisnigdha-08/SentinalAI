@@ -9,7 +9,7 @@ import { BarChart, Bar,
 import { aiAPI, CANONICAL_CLASSES, trainingSampleAPI } from '../services/api.js'
 import { useAuth } from '../hooks/useAuth.js'
 import toast from 'react-hot-toast'
-import { driftSummary, topShiftRows, classMixRows, globalShapRows } from '../utils/modelHealth.js'
+import { driftSummary, topShiftRows, classMixRows, globalShapRows, classifierVersion, classSupportSummary, shapProvenanceText } from '../utils/modelHealth.js'
 
 const TT = ({ active, payload, label }) => active && payload?.length ? (
   <div style={{ background:'#081f35', border:'1px solid #0d3352', borderRadius:2, padding:'8px 12px', fontFamily:'Share Tech Mono,monospace', fontSize:11 }}>
@@ -21,6 +21,7 @@ const TT = ({ active, payload, label }) => active && payload?.length ? (
 import { useSocket } from '../hooks/useSocket.js'
 import { scoreColor, scoreLogType } from '../utils/scoreBands.js'
 import { useScoreLines } from '../hooks/useScoreLines.js'
+import { captureSourceMeta } from '../utils/capabilities.js'
 
 export default function AIAnalytics() {
   // THR-003: render uses the lines directly; the socket handler (subscribed once) reads the ref
@@ -42,6 +43,7 @@ export default function AIAnalytics() {
   const [verifyLoading, setVerifyLoading] = useState(false)
   const [drift,     setDrift]     = useState(null)
   const [globalShap, setGlobalShap] = useState(null)
+  const [referenceShap, setReferenceShap] = useState(null)
   const [driftLoaded, setDriftLoaded] = useState(false)
   const [reloading, setReloading] = useState(false)
   const { connected, on } = useSocket()
@@ -56,6 +58,9 @@ export default function AIAnalytics() {
     aiAPI.explainGlobal()
       .then(r => setGlobalShap(r.data?.data || null))
       .catch(() => setGlobalShap(null))
+    aiAPI.explainGlobal('reference')
+      .then(r => setReferenceShap(r.data?.data || null))
+      .catch(() => setReferenceShap(null))
   }
 
   const handleReloadModel = async () => {
@@ -65,7 +70,7 @@ export default function AIAnalytics() {
       const res = await aiAPI.reloadModel()
       const current = res.data?.data?.current
       if (current) setModelInfo(current)
-      toast.success(`Model reloaded: ${current?.rfVersion || 'registry models'}`)
+      toast.success(`Model reloaded: ${classifierVersion(current) || 'registry models'}`)
       refreshDrift()
     } catch (err) {
       toast.error(err.response?.data?.error || 'Model reload failed; previous model still serving')
@@ -163,7 +168,7 @@ export default function AIAnalytics() {
       setLiveLogs(prev => [
         {
           type: scoreLogType(data.threatScore, scoreLinesRef.current),
-          text: `[INFER] ${data.sourceIP} → score=${((data.threatScore || 0) * 100).toFixed(0)}% → ${data.predictedClass} [${data.action || 'EVALUATED'}]`,
+          text: `[INFER] ${data.sourceIP} → score=${((data.threatScore || 0) * 100).toFixed(0)}% → ${data.predictedClass} [${data.action || 'EVALUATED'}] [${captureSourceMeta(data.captureSource).short}]`,
           ts: new Date().toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
         },
         ...prev
@@ -211,7 +216,7 @@ export default function AIAnalytics() {
         </div>
         <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:11, background:'rgba(0,255,136,.1)',
           color:'#00ff88', border:'1px solid rgba(0,255,136,.3)', padding:'6px 14px', borderRadius:1 }}>
-          {modelInfo?.rfVersion ? `${modelInfo.rfVersion.toUpperCase()} ACTIVE` : 'ML PIPELINE ACTIVE'}
+          {classifierVersion(modelInfo) ? `${classifierVersion(modelInfo).toUpperCase()} ACTIVE` : 'ML PIPELINE ACTIVE'}
         </span>
       </div>
 
@@ -279,11 +284,21 @@ export default function AIAnalytics() {
         <Panel title="Model Health & Input Drift" badge={driftLoaded ? driftInfo.label : 'LOADING'} badgeType={driftLoaded ? driftInfo.badgeType : 'info'} style={{ marginBottom:'1rem' }}>
           <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:12, fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
             <div style={{ display:'flex', gap:16, flexWrap:'wrap' }}>
-              <span>Model: <strong style={{ color:'#e2f1ff' }}>{modelInfo?.rfVersion || '—'}</strong></span>
+              <span>Model: <strong style={{ color:'#e2f1ff' }}>{classifierVersion(modelInfo) || '—'}</strong>{modelInfo?.classifierType ? ` (${modelInfo.classifierType})` : ''}</span>
               <span>Alert line: <strong style={{ color:'#ffaa00' }}>{typeof thresholds.monitor === 'number' ? thresholds.monitor.toFixed(2) : '—'}</strong></span>
               <span>Block line: <strong style={{ color:'#ff2d55' }}>{typeof thresholds.block === 'number' ? thresholds.block.toFixed(2) : '—'}</strong></span>
               <span>Registry: <strong style={{ color: modelInfo?.registry ? '#00ff88' : '#3a6a88' }}>{modelInfo?.registry ? 'PINNED' : '—'}</strong></span>
             </div>
+            {classSupportSummary(modelInfo).text && (
+              <div data-testid="class-support" style={{ flexBasis:'100%', fontSize:10, color:'#ffaa00' }}>
+                {classSupportSummary(modelInfo).text}
+              </div>
+            )}
+            {referenceShap?.provenance && (
+              <div data-testid="shap-reference" style={{ flexBasis:'100%', fontSize:10, color:'#3a6a88' }}>
+                {shapProvenanceText(referenceShap)}
+              </div>
+            )}
             <div style={{ display:'flex', gap:8 }}>
               <button
                 onClick={refreshDrift}
@@ -333,6 +348,9 @@ export default function AIAnalytics() {
             <div style={{ marginTop:12 }}>
               <div style={{ fontSize:10, color:'#3a6a88', letterSpacing:1, marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>
                 FEATURES DRIVING RECENT VERDICTS (MEAN |SHAP| OVER {globalShap?.samples} FLOWS)
+              </div>
+              <div data-testid="shap-provenance" style={{ fontSize:10, color:'#3a6a88', marginBottom:6, fontFamily:'Share Tech Mono,monospace' }}>
+                {shapProvenanceText(globalShap)}
               </div>
               {shapRows.map(r => (
                 <div key={r.feature} style={{ display:'flex', alignItems:'center', gap:8, padding:'2px 0', fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#7ab3cc' }}>
@@ -425,6 +443,10 @@ export default function AIAnalytics() {
                     <div style={{ flex:1 }}>
                       <span style={{ fontSize:13, fontWeight:600, color:'#e2f1ff', marginRight:8 }}>{p.predictedClass}</span>
                       <span style={{ fontFamily:'Share Tech Mono,monospace', fontSize:11, color:'#3a6a88' }}>{p.sourceIP} · {p.modelType || 'RandomForest'}</span>
+                      <span data-testid="prediction-capture-source" data-capture-source={p.captureSource || 'unknown'} title={captureSourceMeta(p.captureSource).text}
+                        style={{ fontFamily:'Share Tech Mono,monospace', fontSize:10, marginLeft:8, color: captureSourceMeta(p.captureSource).color }}>
+                        {captureSourceMeta(p.captureSource).short}
+                      </span>
                     </div>
                     <div style={{ display:'flex', alignItems:'center', gap: 8 }}>
                       <div style={{ height:4, width:60, background:'#0d3352', borderRadius:2 }}>
@@ -593,7 +615,7 @@ export default function AIAnalytics() {
               ...liveLogs,
               ...preds.map(p => ({
                 type: scoreLogType(p.threatScore, scoreLines),
-                text: `[INFER] ${p.sourceIP} → score=${((p.threatScore||0)*100).toFixed(0)}% → ${p.predictedClass} [${p.modelType || 'RandomForest'}]`,
+                text: `[INFER] ${p.sourceIP} → score=${((p.threatScore||0)*100).toFixed(0)}% → ${p.predictedClass} [${p.modelType || 'RandomForest'}] [${captureSourceMeta(p.captureSource).short}]`,
                 ts: new Date(p.createdAt || Date.now()).toLocaleTimeString('en-IN', { timeZone: REPORT_TIME_ZONE, hour12: false })
               }))
             ].slice(0, 15).map((log, i) => (

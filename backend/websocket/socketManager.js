@@ -33,9 +33,13 @@ const init = (io) => {
       // Do NOT allow viewer to join privileged rooms
       if (verifiedRole === 'admin' || verifiedRole === 'analyst') {
         socket.join('threat_subscribers_privileged')
-        if (customRoom && (customRoom === 'admin' || customRoom === 'analyst')) {
-          socket.join(customRoom)
-        }
+      }
+      // A client-named room is never a grant. The only role room a socket joins is its server-verified role (joined
+      // above), so an analyst asking for 'admin' (which receives critical_alert and admin-only alerts) is refused.
+      if (customRoom !== undefined && customRoom !== verifiedRole) {
+        logger.warn(
+          `[WS] ${socket.id} (role '${verifiedRole}') requested room '${String(customRoom).slice(0, 64)}'; refused`
+        )
       }
 
       clients.set(socket.id, {
@@ -298,11 +302,16 @@ const emitAIPrediction = (p) => {
       p.severity ||
       (p.threatScore >= 0.85 ? 'CRITICAL' : p.threatScore >= 0.7 ? 'HIGH' : p.threatScore >= 0.4 ? 'MEDIUM' : 'LOW'),
     action: p.action || (p.threatScore >= 0.92 ? 'BLOCK' : p.threatScore >= 0.7 ? 'MONITOR' : 'ALLOW'),
-    modelType: p.modelType || 'random_forest',
-    modelVersion: p.modelVersion || 'v2.1',
+    // Rank 8: no invented model identity when a record lacks one (it used to default to a Random Forest v2.1)
+    modelType: p.modelType || 'unknown',
+    modelVersion: p.modelVersion || 'unknown',
     isAnomaly: p.isAnomaly || false,
     anomalyScore: p.anomalyScore || 0,
     inferenceTimeMs: p.inferenceTimeMs ?? null,
+    // Provenance travels with the event (pcap_replay, live_passive, dataset_replay, manual, unknown) so the dashboard
+    // never has to guess whether a live-feed prediction came from a recording or from the network.
+    inputSource: p.inputSource || null,
+    captureSource: p.captureSource || 'unknown',
     createdAt: (p.createdAt || new Date()).toISOString(),
     timestamp: (p.createdAt || new Date()).toISOString(),
   }

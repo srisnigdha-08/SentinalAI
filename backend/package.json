@@ -24,6 +24,9 @@
       "**/tests/**/*.test.js"
     ],
     "testTimeout": 10000,
+    "setupFiles": [
+      "<rootDir>/tests/setup/isolateLogs.js"
+    ],
     "maxWorkers": 4,
     "collectCoverageFrom": [
       "services/**/*.js",

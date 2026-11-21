@@ -36,6 +36,18 @@ SEEN_LIMIT = 2000
 MODELS_DIR = (Path(__file__).resolve().parent.parent / "models").resolve()
 
 
+# Shadow evidence (docs/PERSONA_POLICY_V2.md section 9): every v2 pick is checked before it is reported or used.
+SHADOW_STATUSES = ("OK", "INVALID_RECOMMENDATION", "ERROR")
+
+
+def validate_recommendation(recommendation):
+    """(persona, status): the pick if it is a servable persona, else (None, "INVALID_RECOMMENDATION"). An unsupported
+    persona (windows_srv) or an unknown name is never passed on and never replaced by another persona."""
+    if isinstance(recommendation, str) and recommendation in servable_profiles():
+        return recommendation, "OK"
+    return None, "INVALID_RECOMMENDATION"
+
+
 def normalise(reward: float) -> float:
     return min(1.0, max(0.0, (float(reward) - REWARD_MIN) / (REWARD_MAX - REWARD_MIN)))
 

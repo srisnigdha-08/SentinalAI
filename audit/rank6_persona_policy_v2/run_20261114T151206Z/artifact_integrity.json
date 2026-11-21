@@ -1,0 +1,73 @@
+{
+ "rank6_version": "rank6/1",
+ "generated_at": "2026-11-14T15:12:09.202508+00:00",
+ "policy_version": "persona-ducb-v2",
+ "v2_defaults": {
+  "discount": 0.99,
+  "exploration": 0.15,
+  "switch_margin": 0.04,
+  "prior_weight": 1.0
+ },
+ "data_source": "mongosh read-only find (real_session_report.load)",
+ "before": {
+  "shipped_seed": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\q_table.json",
+   "sha256": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff"
+  },
+  "repository_runtime_table": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\runtime\\q_table.json",
+   "sha256": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+  },
+  "per_user_runtime_table": {
+   "path": "%USERPROFILE%\\AppData\\Local\\SentinelAI\\runtime\\q_table.json",
+   "sha256": "d585e8700ebc52ef213d916248e58401838e69145faab0d96449ebdbd1de0541"
+  },
+  "per_user_v2_state": {
+   "path": "%USERPROFILE%\\AppData\\Local\\SentinelAI\\runtime\\persona_policy_v2.json",
+   "sha256": null
+  },
+  "demo_q_table": {
+   "path": "%USERPROFILE%\\.sentinelai\\demo\\q_table.json",
+   "sha256": "99cf9af14c2b873b86b52e285a06a90c53097547afe2309f5a6a7b3694849fcf"
+  },
+  "demo_v2_state": {
+   "path": "%USERPROFILE%\\.sentinelai\\demo\\persona_policy_v2.json",
+   "sha256": "0c555e557a8eb6d1d2949f4aac38b7e5b7537958cbbb81761a1595d870798aae"
+  },
+  "model_registry": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\registry.json",
+   "sha256": "5f76c13605910bd63e4a3c8df778ebf206d1e1ebba0eb10c6bf43588e5678ff3"
+  }
+ },
+ "after": {
+  "shipped_seed": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\q_table.json",
+   "sha256": "bf9b46a1d1cf1b283797a544e7e597900b4a042e6c87ac199a3cc709498990ff"
+  },
+  "repository_runtime_table": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\runtime\\q_table.json",
+   "sha256": "08209e9989189bd45b6edf35486a446f120df36287a277a9dddd35f6379152f7"
+  },
+  "per_user_runtime_table": {
+   "path": "%USERPROFILE%\\AppData\\Local\\SentinelAI\\runtime\\q_table.json",
+   "sha256": "d585e8700ebc52ef213d916248e58401838e69145faab0d96449ebdbd1de0541"
+  },
+  "per_user_v2_state": {
+   "path": "%USERPROFILE%\\AppData\\Local\\SentinelAI\\runtime\\persona_policy_v2.json",
+   "sha256": null
+  },
+  "demo_q_table": {
+   "path": "%USERPROFILE%\\.sentinelai\\demo\\q_table.json",
+   "sha256": "99cf9af14c2b873b86b52e285a06a90c53097547afe2309f5a6a7b3694849fcf"
+  },
+  "demo_v2_state": {
+   "path": "%USERPROFILE%\\.sentinelai\\demo\\persona_policy_v2.json",
+   "sha256": "0c555e557a8eb6d1d2949f4aac38b7e5b7537958cbbb81761a1595d870798aae"
+  },
+  "model_registry": {
+   "path": "%USERPROFILE%\\Desktop\\Projects\\sentinelai-complete\\ai-engine\\models\\registry.json",
+   "sha256": "5f76c13605910bd63e4a3c8df778ebf206d1e1ebba0eb10c6bf43588e5678ff3"
+  }
+ },
+ "unchanged": true
+}

@@ -102,9 +102,21 @@ def parse_frame(buf: bytes, linktype: int, ts: float) -> Optional[PacketMeta]:
     return None
 
 
-def read_pcap(stream: BinaryIO, max_packets: Optional[int] = None) -> Iterator[PacketMeta]:
-    """Classic libpcap files (both byte orders, micro- and nanosecond). pcapng is refused with a clear error."""
+def new_read_stats() -> dict:
+    """Counters read_pcap() fills in: records read, frames skipped (not TCP/UDP over IP), and truncation."""
+    return {"records": 0, "skipped_frames": 0, "truncated": False, "linktype": None}
+
+
+def read_pcap(stream: BinaryIO, max_packets: Optional[int] = None, stats: Optional[dict] = None) -> Iterator[PacketMeta]:
+    """Classic libpcap files (both byte orders, micro- and nanosecond). pcapng is refused with a clear error.
+
+    A file that ends inside a record (a cut-off capture) is not an error: every complete record before the cut is
+    replayed and stats["truncated"] is set, so the caller can report it instead of failing silently.
+    """
+    stats = stats if stats is not None else new_read_stats()
     head = stream.read(24)
+    if len(head) == 0:
+        raise PcapError("empty file (0 bytes): not a pcap")
     if len(head) < 24:
         raise PcapError("file too short for a pcap header")
     magic = head[:4]
@@ -118,22 +130,30 @@ def read_pcap(stream: BinaryIO, max_packets: Optional[int] = None) -> Iterator[P
     linktype = struct.unpack(endian + "I", head[20:24])[0] & 0x0FFFFFFF
     if linktype not in SUPPORTED_LINKTYPES:
         raise PcapError(f"unsupported link type {linktype}")
+    stats["linktype"] = linktype
     n = 0
     while max_packets is None or n < max_packets:
         rec = stream.read(16)
+        if len(rec) == 0:
+            return
         if len(rec) < 16:
+            stats["truncated"] = True  # cut off inside a record header
             return
         sec, frac, incl, _orig = struct.unpack(endian + "IIII", rec)
         if incl > MAX_SNAPLEN:
             raise PcapError(f"record length {incl} exceeds {MAX_SNAPLEN}: corrupt file")
         data = stream.read(incl)
         if len(data) < incl:
+            stats["truncated"] = True  # cut off inside a record's data
             return
         n += 1
+        stats["records"] = n
         meta = parse_frame(data, linktype, sec + frac * unit)
         del data  # the frame (and any payload in it) is not kept
         if meta is not None:
             yield meta
+        else:
+            stats["skipped_frames"] += 1
 
 
 def write_pcap(path, frames, linktype=LINKTYPE_ETHERNET):

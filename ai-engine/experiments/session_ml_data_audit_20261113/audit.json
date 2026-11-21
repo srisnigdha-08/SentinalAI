@@ -1,0 +1,401 @@
+{
+ "audit": "honeypot-session label audit for the session classifier (docs/SESSION_ML.md)",
+ "date": "2026-11-13",
+ "method": "READ-ONLY: scripts/session_ml_data_audit.js against the local MongoDB (listDatabases, listCollections, countDocuments, aggregate, find limit 1). Only databases whose name starts with 'sentinel'. No record was written; no IP address, command text or credential is reproduced here.",
+ "databases": [
+  "sentinel-cowrie-verify-20261022",
+  "sentinel-db",
+  "sentinel-demo",
+  "sentinel-honeypot-verify",
+  "sentinel-metrics-bench-20261023",
+  "sentinel-runbook-verify-20261022",
+  "sentinelai_dev_20261018",
+  "sentinelai_test"
+ ],
+ "totals": {
+  "sessions": 119,
+  "closed": 116,
+  "withCommands": 79,
+  "commands": 348,
+  "ruleLabelled": 68,
+  "independentLabels": 0,
+  "simulatedIdPrefix": 48,
+  "trainingSamples": 0
+ },
+ "classLabelsBySource": {
+  "aiClassification (rule-based or absent)": {
+   "BENIGN": 29,
+   "SSH Brute Force": 21,
+   "SSH Intrusion Attempt": 16,
+   "RCE Attempt": 8,
+   "Port Scan": 2,
+   "null": 43
+  },
+  "independent (analyst / external)": 0
+ },
+ "servedPersonas": {
+  "centos_7": 32,
+  "ubuntu_22": 36,
+  "null": 51
+ },
+ "findings": [
+  "119 sessions in 8 SentinelAI databases; 0 independently labelled (no analyst or external label field or record exists; trainingsamples is empty in every database).",
+  "Every class label present comes from the rule-based classifier (aiClassificationMethod=honeypot_rules: 68) or is absent; a model trained on them would only imitate the rules.",
+  "Sessions come from a handful of lab source IPs (two databases: 1 IP for all sessions), so sources and campaigns cannot be separated between training and test.",
+  "Identical command sequences are common (14 of 19 sessions in sentinel-cowrie-verify-20261022 share one sequence; 12 of 22 in sentinel-honeypot-verify).",
+  "48 sessions carry simulated id prefixes (demo-/arena-/sim-); evidenceSource is unset on every stored session (they predate labelling).",
+  "Only ubuntu_22 and centos_7 were ever served; debian_11, aws_ec2 and raspberry_pi have no session."
+ ],
+ "decision": "Do not train. The readiness gate (>= 30 independent labels in >= 2 classes spanning >= 14 days) is not met (0 independent labels). Infrastructure is shipped in shadow mode with no model artifact.",
+ "perDatabase": {
+  "sentinel-cowrie-verify-20261022": {
+   "total": 19,
+   "status": {
+    "closed": 19
+   },
+   "aiClassification": {
+    "BENIGN": 3,
+    "SSH Brute Force": 9,
+    "SSH Intrusion Attempt": 5,
+    "RCE Attempt": 2
+   },
+   "aiClassificationMethod": {
+    "honeypot_rules": 19
+   },
+   "servedProfile": {
+    "centos_7": 9,
+    "ubuntu_22": 10
+   },
+   "evidenceSource": {
+    "null": 19
+   },
+   "evidenceLabelMethod": {
+    "null": 19
+   },
+   "distinctSourceIPs": 1,
+   "sessionsPerSourceIP": [
+    "1 IP(s) with 19 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 1,
+    "sessions": 14
+   },
+   "startTimeSpan": {
+    "min": "2026-10-22T06:31:12.611Z",
+    "max": "2026-10-22T07:44:50.940Z"
+   },
+   "simulatedIdPrefix": 0,
+   "commandStats": {
+    "total": 19,
+    "withCommands": 5,
+    "commands": 24,
+    "loginOk": 6
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinel-db": {
+   "total": 8,
+   "status": {
+    "closed": 8
+   },
+   "aiClassification": {
+    "BENIGN": 8
+   },
+   "aiClassificationMethod": {
+    "null": 8
+   },
+   "servedProfile": {
+    "null": 8
+   },
+   "evidenceSource": {
+    "null": 8
+   },
+   "evidenceLabelMethod": {
+    "null": 8
+   },
+   "distinctSourceIPs": 4,
+   "sessionsPerSourceIP": [
+    "1 IP(s) with 1 session(s)",
+    "2 IP(s) with 2 session(s)",
+    "1 IP(s) with 3 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 0,
+    "sessions": 0
+   },
+   "startTimeSpan": {
+    "min": "2026-09-11T06:41:15.598Z",
+    "max": "2026-09-23T13:17:08.132Z"
+   },
+   "simulatedIdPrefix": 7,
+   "commandStats": {
+    "total": 8,
+    "withCommands": 7,
+    "commands": 29,
+    "loginOk": 7
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinel-demo": {
+   "total": 19,
+   "status": {
+    "closed": 19
+   },
+   "aiClassification": {
+    "SSH Intrusion Attempt": 6,
+    "BENIGN": 12,
+    "RCE Attempt": 1
+   },
+   "aiClassificationMethod": {
+    "honeypot_rules": 19
+   },
+   "servedProfile": {
+    "ubuntu_22": 16,
+    "centos_7": 3
+   },
+   "evidenceSource": {
+    "null": 19
+   },
+   "evidenceLabelMethod": {
+    "null": 19
+   },
+   "distinctSourceIPs": 3,
+   "sessionsPerSourceIP": [
+    "1 IP(s) with 3 session(s)",
+    "1 IP(s) with 7 session(s)",
+    "1 IP(s) with 9 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 2,
+    "sessions": 10
+   },
+   "startTimeSpan": {
+    "min": "2026-10-22T09:40:18.723Z",
+    "max": "2026-11-12T11:08:45.846Z"
+   },
+   "simulatedIdPrefix": 0,
+   "commandStats": {
+    "total": 19,
+    "withCommands": 13,
+    "commands": 25,
+    "loginOk": 14
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinel-honeypot-verify": {
+   "total": 22,
+   "status": {
+    "active": 1,
+    "closed": 21
+   },
+   "aiClassification": {
+    "Port Scan": 2,
+    "RCE Attempt": 3,
+    "BENIGN": 6,
+    "null": 1,
+    "SSH Brute Force": 10
+   },
+   "aiClassificationMethod": {
+    "honeypot_rules": 21,
+    "null": 1
+   },
+   "servedProfile": {
+    "centos_7": 20,
+    "ubuntu_22": 1,
+    "null": 1
+   },
+   "evidenceSource": {
+    "null": 22
+   },
+   "evidenceLabelMethod": {
+    "null": 22
+   },
+   "distinctSourceIPs": 7,
+   "sessionsPerSourceIP": [
+    "5 IP(s) with 1 session(s)",
+    "1 IP(s) with 5 session(s)",
+    "1 IP(s) with 12 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 1,
+    "sessions": 12
+   },
+   "startTimeSpan": {
+    "min": "2026-10-21T18:00:48.655Z",
+    "max": "2026-10-21T18:39:45.765Z"
+   },
+   "simulatedIdPrefix": 1,
+   "commandStats": {
+    "total": 22,
+    "withCommands": 10,
+    "commands": 44,
+    "loginOk": 11
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinel-metrics-bench-20261023": {
+   "total": 40,
+   "status": {
+    "closed": 40
+   },
+   "aiClassification": {
+    "null": 40
+   },
+   "aiClassificationMethod": {
+    "null": 40
+   },
+   "servedProfile": {
+    "null": 40
+   },
+   "evidenceSource": {
+    "null": 40
+   },
+   "evidenceLabelMethod": {
+    "null": 40
+   },
+   "distinctSourceIPs": 6,
+   "sessionsPerSourceIP": [
+    "1 IP(s) with 3 session(s)",
+    "2 IP(s) with 6 session(s)",
+    "1 IP(s) with 7 session(s)",
+    "1 IP(s) with 8 session(s)",
+    "1 IP(s) with 10 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 0,
+    "sessions": 0
+   },
+   "startTimeSpan": {
+    "min": "2026-10-19T19:57:43.617Z",
+    "max": "2026-10-22T14:30:13.378Z"
+   },
+   "simulatedIdPrefix": 40,
+   "commandStats": {
+    "total": 40,
+    "withCommands": 40,
+    "commands": 211,
+    "loginOk": 0
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinel-runbook-verify-20261022": {
+   "total": 9,
+   "status": {
+    "closed": 9
+   },
+   "aiClassification": {
+    "SSH Intrusion Attempt": 5,
+    "SSH Brute Force": 2,
+    "RCE Attempt": 2
+   },
+   "aiClassificationMethod": {
+    "honeypot_rules": 9
+   },
+   "servedProfile": {
+    "ubuntu_22": 9
+   },
+   "evidenceSource": {
+    "null": 9
+   },
+   "evidenceLabelMethod": {
+    "null": 9
+   },
+   "distinctSourceIPs": 1,
+   "sessionsPerSourceIP": [
+    "1 IP(s) with 9 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 1,
+    "sessions": 7
+   },
+   "startTimeSpan": {
+    "min": "2026-10-22T08:49:04.442Z",
+    "max": "2026-10-22T08:49:55.323Z"
+   },
+   "simulatedIdPrefix": 0,
+   "commandStats": {
+    "total": 9,
+    "withCommands": 2,
+    "commands": 11,
+    "loginOk": 3
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinelai_dev_20261018": {
+   "total": 0,
+   "status": {},
+   "aiClassification": {},
+   "aiClassificationMethod": {},
+   "servedProfile": {},
+   "evidenceSource": {},
+   "evidenceLabelMethod": {},
+   "distinctSourceIPs": 0,
+   "sessionsPerSourceIP": [],
+   "identicalCommandSequences": {
+    "groups": 0,
+    "sessions": 0
+   },
+   "startTimeSpan": null,
+   "simulatedIdPrefix": 0,
+   "commandStats": null,
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  },
+  "sentinelai_test": {
+   "total": 2,
+   "status": {
+    "active": 2
+   },
+   "aiClassification": {
+    "null": 2
+   },
+   "aiClassificationMethod": {
+    "null": 2
+   },
+   "servedProfile": {
+    "null": 2
+   },
+   "evidenceSource": {
+    "null": 2
+   },
+   "evidenceLabelMethod": {
+    "null": 2
+   },
+   "distinctSourceIPs": 2,
+   "sessionsPerSourceIP": [
+    "2 IP(s) with 1 session(s)"
+   ],
+   "identicalCommandSequences": {
+    "groups": 0,
+    "sessions": 0
+   },
+   "startTimeSpan": {
+    "min": "2026-11-13T08:27:22.742Z",
+    "max": "2026-11-13T08:27:22.743Z"
+   },
+   "simulatedIdPrefix": 0,
+   "commandStats": {
+    "total": 2,
+    "withCommands": 2,
+    "commands": 4,
+    "loginOk": 0
+   },
+   "labelLikeCollections": {
+    "trainingsamples": 0
+   }
+  }
+ }
+}

@@ -2,6 +2,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, Responsive
 import Panel from '../Panel.jsx'
 import { KIND_META, STATUS_META, TERMINATION_LABEL, fmt, interval, trialRows, trialsCsv, evidenceJson } from '../../utils/deceptionArena.js'
 import { dateText, timeText } from '../../utils/reportingTime.js'
+import { tacticText } from '../../utils/mitreTactics.js'
 
 const mono = { fontFamily: 'Share Tech Mono,monospace' }
 const sub = { ...mono, fontSize: 10, color: '#3a6a88', letterSpacing: 1 }
@@ -81,7 +82,7 @@ function StrategyCard({ name, s, persona, testId }) {
         {(d.missing > 0 || c.missing > 0) && row('Missing observations', `${d.missing} duration, ${c.missing} commands`)}
         {s.techniques.length > 0 && (
           <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-            {s.techniques.map((t) => <span key={t.id} title={`${t.name} (derived from commands)`} style={{ ...mono, fontSize: 10, color: '#00d4ff', border: '1px dashed rgba(0,212,255,.4)', padding: '0 5px' }}>◆ {t.id}</span>)}
+            {s.techniques.map((t) => <span key={t.id} title={`${t.name} · ${tacticText(t)} (derived from commands)`} style={{ ...mono, fontSize: 10, color: '#00d4ff', border: '1px dashed rgba(0,212,255,.4)', padding: '0 5px' }}>◆ {t.id}</span>)}
           </div>
         )}
       </>)}

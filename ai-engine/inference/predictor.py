@@ -596,6 +596,7 @@ class SentinelPredictor:
             "inferenceTimeMs":ms,
             "action":action,
             "modelVersion":self.rf_meta.get("version","v2.1"),
+            "modelType":getattr(self, "model_type", None),  # Rank 8: classifier type (xgboost for the served model)
             "featureImportance":explanation,
             "ipReputationScore": rep_score,
             "featureVector": [float(v) for v in x],
@@ -673,7 +674,79 @@ class SentinelPredictor:
                          "sufficientTrainingData": None if rows is None else rows >= MIN_TRAINING_ROWS}
         return out
 
+    # ── Rank 8: accurate naming. The served classifier is XGBoost; self.clf is the canonical handle and self.rf /
+    # self.rf_meta are kept as backward-compatible aliases (existing code, saved metadata and API fields use them).
+    @property
+    def classifier_meta(self) -> dict:
+        return self.rf_meta
+
+    def class_support(self) -> dict:
+        """Rank 8: every label in the label map with its training/test support and what the flow model can do with it.
+
+        status: "supported" (trained, >= MIN_TRAINING_ROWS rows), "low_support" (trained on fewer rows: predictions
+        for it are not validated), "unmodeled" (no training rows: the deployed classifier cannot output it at all).
+        Counts come from the model's own metadata; nothing is estimated."""
+        from utils.features import LABEL_MAP, LABEL_SOURCES, MIN_TRAINING_ROWS
+        counts = self.rf_meta.get("class_counts") or {}
+        train, test = counts.get("train", {}), counts.get("test", {})
+        outputs = getattr(self.rf, "classes_", None) if self._loaded else None
+        can_output = {LABEL_NAMES.get(int(c)) for c in outputs} if outputs is not None else None
+        out = {}
+        for name, idx in sorted(LABEL_MAP.items(), key=lambda kv: kv[1]):
+            rows = train.get(name)
+            predictable = None if can_output is None else name in can_output
+            if predictable is False or not rows:
+                status = "unmodeled"
+            elif rows < MIN_TRAINING_ROWS:
+                status = "low_support"
+            else:
+                status = "supported"
+            out[name] = {"labelIndex": idx, "trainingRows": rows or 0, "testRows": test.get(name, 0),
+                         "canBePredicted": predictable, "status": status,
+                         "minimumTrainingRows": MIN_TRAINING_ROWS,
+                         "meaning": LABEL_SOURCES.get(name, {}).get("meaning")}
+        return out
+
+    def feature_limitations(self) -> dict:
+        """Rank 8: features the deployed model cannot use, read from its own metadata (drift reference, importances)."""
+        out = {}
+        names = list(self.rf_meta.get("feature_names") or FEATURE_NAMES)
+        ref = self.rf_meta.get("drift_reference") or {}
+        tree = None
+        try:
+            if self._loaded and hasattr(self.clf, "named_steps"):
+                tree = self.clf.named_steps.get("xgb") or self.clf.named_steps.get("rf")
+        except Exception:  # noqa: BLE001 - diagnostics only
+            tree = None
+        imp = getattr(tree, "feature_importances_", None)
+        for f in ("time_of_day_sin", "time_of_day_cos"):
+            if f not in names:
+                continue
+            i = names.index(f)
+            edges = (ref.get("edges") or [None] * len(names))[i] if ref.get("edges") else None
+            constant = edges == [0.0]
+            importance = float(imp[i]) if imp is not None and i < len(imp) else None
+            out[f] = {"trainingValueConstant": constant, "trainingValue": 0.0 if constant else None,
+                      "importance": importance,
+                      "influencesPredictions": None if importance is None else importance > 0,
+                      "source": "flow record 'timestamp' (UTC); 0.0 when absent or invalid",
+                      "note": ("Trained as a constant 0 (the CICIDS2017 CSVs used for training carry no timestamp) and "
+                               "unused by the trees: extracted for provenance only, it cannot change a prediction.")}
+        return out
+
     def get_model_info(self):
         from utils.features import LABEL_MAP
         from inference.model_checks import read_history
-        return {"lineage":read_history(self.model_dir, last=5),"classProvenance":self.class_provenance(),"modelsLoaded":self._loaded,"rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),"featureCount":len(FEATURE_NAMES),"thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD,"reviewMinAnomalySignal":REVIEW_MIN_SIGNAL},"registry":self.registry}
+        support = self.class_support()
+        return {"lineage":read_history(self.model_dir, last=5),"classProvenance":self.class_provenance(),"modelsLoaded":self._loaded,
+                # Rank 8: canonical names (the classifier is XGBoost); rfVersion / rfMetrics stay for existing consumers.
+                "classifierType":self.model_type,"classifierVersion":self.rf_meta.get("version","not loaded"),
+                "classifierMetrics":self.rf_meta.get("metrics",{}),
+                "rfVersion":self.rf_meta.get("version","not loaded"),"ifVersion":self.if_meta.get("version","not loaded"),"rfMetrics":self.rf_meta.get("metrics",{}),
+                "legacyFieldNames":{"rfVersion":"classifierVersion","rfMetrics":"classifierMetrics"},
+                "classSupport":support,
+                "unmodeledClasses":[n for n, v in support.items() if v["status"] == "unmodeled"],
+                "lowSupportClasses":[n for n, v in support.items() if v["status"] == "low_support"],
+                "featureLimitations":self.feature_limitations(),
+                "featureCount":len(FEATURE_NAMES),"featureSchemaVersion":FEATURE_SCHEMA_VERSION,
+                "thresholds":{"block":BLOCK_THRESHOLD,"monitor":MONITOR_THRESHOLD,"anomaly":ANOMALY_THRESHOLD,"reviewMinAnomalySignal":REVIEW_MIN_SIGNAL},"registry":self.registry}

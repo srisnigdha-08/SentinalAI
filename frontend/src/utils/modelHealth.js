@@ -41,6 +41,46 @@ export function topShiftRows(report, limit = 5) {
   }))
 }
 
+/** Rank 8: the served classifier is XGBoost; prefer the canonical fields, fall back to the legacy rf* names. */
+export function classifierVersion(info) {
+  return info?.classifierVersion || info?.rfVersion || null
+}
+
+export function classifierMetrics(info) {
+  return info?.classifierMetrics || info?.rfMetrics || {}
+}
+
+/**
+ * Rank 8: classes the network-flow model cannot output (no training data) and classes trained on too few rows.
+ * Text for the dashboard; never claims detection for either group.
+ */
+export function classSupportSummary(info) {
+  const support = info?.classSupport && typeof info.classSupport === 'object' ? info.classSupport : {}
+  const unmodeled = Object.keys(support).filter((k) => support[k]?.status === 'unmodeled')
+  const lowSupport = Object.keys(support).filter((k) => support[k]?.status === 'low_support')
+  const parts = []
+  if (unmodeled.length) parts.push(`Not modelled (cannot be predicted): ${unmodeled.join(', ')}`)
+  if (lowSupport.length)
+    parts.push(
+      `Low support, not validated: ${lowSupport
+        .map((k) => `${k} (${support[k].trainingRows} training rows)`)
+        .join(', ')}`
+    )
+  return { unmodeled, lowSupport, text: parts.join(' · ') }
+}
+
+/** Rank 8: where a global SHAP summary comes from (recent = in memory, not persisted; reference = reproducible). */
+export function shapProvenanceText(summary) {
+  const p = summary?.provenance
+  if (!p) return ''
+  const model = p.modelSha256 ? `model ${String(p.modelSha256).slice(0, 12)}` : 'model unknown'
+  if (summary.scope === 'reference') {
+    const s = p.sample || {}
+    return `Reproducible reference: ${s.rows ?? '?'} pinned golden vectors (${String(s.sha256 || '').slice(0, 12)}), ${model}, schema ${p.featureSchemaVersion}, generated ${p.generatedAt}${p.persisted ? ', cached' : ', not cached'}`
+  }
+  return `Recent flows, computed in memory and not persisted (lost on engine restart); ${model}, schema ${p.featureSchemaVersion}`
+}
+
 /** Global SHAP summary (GET /api/ai/engine/explain-global) as rows for a small table. */
 export function globalShapRows(summary, limit = 8) {
   const rows = Array.isArray(summary?.overall) ? summary.overall : []
@@ -68,6 +108,22 @@ export function learnerProvenanceSummary(prov) {
   const sessions = `${prov.sessionEpisodes} update${prov.sessionEpisodes === 1 ? '' : 's'} from scored sessions`
   if (!prov.synthetic) return `${sessions}; started from an empty table.`
   return `${sessions}; ${prov.seedEpisodes} inherited from a synthetic warm start, not attacker data.`
+}
+
+/**
+ * Session updates by evidence source (docs/QLEARNING_EVIDENCE.md). Only "external" is independent evidence;
+ * operator updates are real traffic from the project's own operators, and untracked ones predate provenance tracking.
+ * Returns null when the learner reported no source breakdown.
+ */
+export function learnerEvidenceSourceSummary(prov) {
+  const by = prov?.bySource
+  if (!by || typeof by !== 'object') return null
+  const n = (k) => (Number.isFinite(Number(by[k])) ? Number(by[k]) : 0)
+  const untracked = Number.isFinite(Number(prov.untrackedSessionEpisodes)) ? Number(prov.untrackedSessionEpisodes) : null
+  const parts = [`operator ${n('operator')}`, `external ${n('external')}`, `simulated ${n('simulated')}`, `unknown ${n('unknown')}`]
+  if (untracked !== null) parts.push(`untracked ${untracked}`)
+  const independent = n('external')
+  return `By source: ${parts.join(', ')}. Independent evidence: ${independent === 0 ? 'none' : `${independent} external session${independent === 1 ? '' : 's'}`}.`
 }
 
 /**

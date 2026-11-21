@@ -1,0 +1,483 @@
+SENTINELAI - FINAL CROSS-RANK AUDIT (RANKS 1-7)
+Run: run_20261116T093057Z      Date: 2026-11-16 (UTC)      Mode: read-only audit
+Machine-readable findings: findings.json (same directory)
+
+=====================================================================================================================
+1. EXECUTIVE SUMMARY
+=====================================================================================================================
+The seven ranks are consistently integrated and safely gated. Every production invariant holds and was verified by
+hash against trusted baselines and evidence. Every risky capability is off by default and behind more than one gate:
+live capture, real firewall enforcement, V2 activation, session-ML and the Windows persona.
+
+Tests run in this audit:
+  Engine     1,466 tests passed, 0 failed, 0 skipped
+  Backend    1,150 tests passed (43 of 122 suites)
+  Frontend   180 unit tests passed
+  Cowrie     8 in-process integration checks passed (Cowrie 3.1.3)
+  Lint       backend ESLint clean
+
+Findings: 0 critical, 0 high, 2 medium, 11 low, 3 informational.
+
+  F1 (medium, confirmed, latent)  A windows_srv session can still change the V1 Q-table: it is used as the
+                                  PREVIOUS state when the next Linux session is learned. Not reachable today,
+                                  because windows_srv cannot be served.
+  F2 (medium, resolved)           Rank 6 left a backend test suite failing, and its report missed it. Fixed in
+                                  Rank 7.
+  Low items                       Simulator realism (cmd /c quoting, env leak), one telemetry false positive,
+                                  ATT&CK rules not persona-gated, stale documentation lines, and missing
+                                  evidence directories for Ranks 1-2.
+
+VERDICT: ready for the final demonstration and for interview presentation, provided claims stay qualified (sections
+14-15). Not production-ready, by design: the evidence for the learning and ML components is synthetic, operator,
+simulated or limited.
+
+=====================================================================================================================
+2. GIT WORKING-TREE STATUS (read-only)
+=====================================================================================================================
+Branch:         main
+Upstream:       main...origin/main (no ahead/behind shown)
+HEAD:           2129bf0 Merge pull request #39
+Staged:         0
+Stash entries:  1 (pre-existing; not inspected or modified)
+Modified:       50 tracked files
+Untracked:      45 entries
+
+All changes are uncommitted Rank 1-7 work. Compared with the status recorded before Rank 7, only Rank 7's own files
+were added. Nothing changed during this audit: the git status before and after every test run was identical.
+
+Protected paths (named only; never opened, searched or hashed in this audit):
+  ai-engine/experiments/deployed_2018dev_diagnostic_20261111/
+  ai-engine/experiments/feature_parity_20261110/
+  ai-engine/experiments/feature_parity_v2_20261110/
+  audit/PR_DRAFT_backend-remediation.md
+These appear in git status only.
+
+=====================================================================================================================
+3. RANK-BY-RANK AUDIT MATRIX
+=====================================================================================================================
+Status vocabulary: implemented / unit-tested / in-process integration-tested / offline replay-tested / mock-tested /
+live-tested / production-enabled / production-ready.
+
+Rank 1 - Network traffic source
+  Status
+    Offline PCAP replay: implemented, unit-tested and replay-tested.
+    Live capture: implemented, NOT enabled, never live-tested.
+  Gates (ai-engine/capture/sources.py, check_live_capture)
+    SENTINEL_LIVE_CAPTURE=1, AND the --i-understand-live-capture flag, AND exactly one named interface (no "any",
+    no wildcards), AND, when SENTINEL_CAPTURE_INTERFACES is set, an allowlisted interface present on the host.
+    No demo script sets SENTINEL_LIVE_CAPTURE.
+  Metadata
+    captureSource is consistent end to end: capture/flows.py -> backend honeypotIngest -> AIPrediction
+    (live_passive|pcap_replay|dataset_replay|manual|unknown) -> socketManager -> frontend captureSourceMeta.
+    inputSource (network_traffic|honeypot_log) is a separate axis and is used consistently.
+  Gap
+    Public engine callbacks omit captureSource (R5). This is a side path only.
+
+Rank 2 - Host-firewall containment
+  Status
+    Windows Firewall and iptables adapters: implemented and mock-tested (a recording runner replaces
+    netsh/iptables).
+    Real enforcement: NOT enabled and never executed.
+  Gate (backend/services/containment/adapterFactory.js, getContainmentAdapter)
+    NODE_ENV=test or CONTAINMENT_DRY_RUN forces the mock adapter. Real enforcement also requires
+    enforcementSafety.realEnforcementDecision: backend choice, enable flag and host-bound confirmation phrase.
+    The default is 'mock'.
+    No demo script requests a real backend.
+  Tests: 23 containment and firewall suites, 348 tests passed.
+
+Rank 3 - Q-learning evidence
+  V1 is authoritative.
+    process_session learns with V1 only; V2 is only observed.
+  Production Q-tables are unchanged:
+    shipped seed, repo runtime, per-user runtime, demo table, model registry and history.
+  Provenance
+    Historical evidence is reported as 19 session-driven updates, all untracked, with 0 independent external.
+    Synthetic seed episodes (12,087) are kept separate.
+  Locking, rollback and concurrency
+    Rank 3/4 suites pass, including the multi-process learner test (test_medium_fixes) on temporary files.
+
+Rank 4 - Honeypot-session ML
+  Status: feature pipeline (session_v2, 46 features), artifact loader and shadow inference implemented and
+  unit-tested.
+  NO model artifact exists: ai-engine/models/session_ml/ is absent, so status is NO_MODEL.
+    The loader refuses pickle/joblib and checks SHA-256 and schema (session_ml/classifier.py, load_artifact).
+    SESSION_ML_MODE has no "active" mode.
+    The rule-based result is returned unchanged; sessionML is a separate block (inference/main.py).
+  Labels: rule-generated labels are not presented as ground truth (data audit in ai-engine/experiments/).
+  Capability label: session_ml = blocked.
+
+Rank 5 - Network-flow ML generalisation
+  Model integrity
+    xgb_cicids_v1 has 53 features (meta).
+    All 34 files under ai-engine/models are byte-identical to the pre-Rank-1 baseline.
+  Evaluation (audit/rank5_network_flow_generalisation/run_20261114T123741Z/rank5_status.json)
+    E1 random split:  accuracy 0.9897
+    E2:               accuracy 0.9980
+    E3 2018:          accuracy 0.729, balanced accuracy 0.127, macro F1 0.115, attack recall at the alert line 15%
+    independent_generalisation = NOT_VERIFIED
+    leakage = LIMITED
+  Protected days
+    The six 2018 development days used contain none of the four protected days.
+    Every load goes through assert_permitted.
+    evaluation/protected_data.py is unchanged (hash matches the Rank 7 evidence).
+  Documentation
+    README and docs/ML_GENERALISATION.md state the E3 limitation plainly ("does not generalise ... not
+    verified").
+
+Rank 6 - Persona Policy V2
+  Status: V1 authoritative; V2 shadow-only; readiness NOT_READY.
+    Gates 1-6 PASS
+    Gate 7 (session evidence)   INSUFFICIENT_DATA
+    Gate 8 (independent evidence) INSUFFICIENT_DATA
+    Gate 9 (decision stability)   FAIL
+    Gate 10 (acceptance criteria) NOT_MET
+  Activation guard
+    rl_engine/v2_activation.py is wired into /deception/recommendation (inference/main.py, _v2_activation).
+    DECEPTION_V2=active alone is blocked with READINESS_NOT_READY.
+    Missing, invalid, smoke, stale or mismatched evidence and failed gates all block (70 guard tests).
+    If the guard itself crashes, it blocks.
+  Provenance
+    The 19 replayed sessions are labelled operator, inferred from their source address.
+    0 have recorded or verified provenance; 0 are verified external.
+  Capability Status
+    Reflects the engine's activation decision and never shows READY from an older run.
+  Known limitations
+    No expiry age on readiness evidence. Gate 10 is hard-coded NOT_MET, so READY is unreachable by design (I1).
+
+Rank 7 - Windows honeypot persona
+  Status
+    Windows-like shell SIMULATION: implemented, unit-tested, and in-process integration-tested inside Cowrie
+    3.1.3.
+    Not deployed, never live-tested.
+    Flags: experimental=true, productionEligible=false, servingEnabled=false.
+  Security boundary (inspected in the code, not only the tests)
+    honeypot/windows_persona imports only re, copy, base64, binascii, dataclasses and datetime.
+    There is no path to a process, socket, DNS lookup, host file or eval/exec.
+    The filesystem (vfs.py) is a per-session deepcopy of an in-memory tree; resolution is pure string work.
+    Chaining, pipes, redirection, nested cmd/powershell and -enc are interpreted by the simulator and run only the
+    same allowlist.
+    Inside real Cowrie objects, with process/socket creation patched to fail: 0 calls, 0 files written.
+  Production exclusion
+    windows_srv stays in deception_scorer.UNSUPPORTED_PROFILES and switch_profile.UNSERVABLE.
+    The backend's SERVABLE_DECEPTION_PROFILES are unchanged (5).
+    V2 rejects windows_srv (INVALID_RECOMMENDATION).
+  Running service
+    The live Cowrie install has no sentinelwindows plugin in src/cowrie/output/ and nothing about it in
+    etc/cowrie.cfg. The served persona is centos_7.
+  Gaps: F1 (previous-state leak), F3/F4 (realism), F5 (false positive), R1-R3, R6.
+
+=====================================================================================================================
+4. CROSS-RANK INTEGRATION FINDINGS
+=====================================================================================================================
+Persona names
+  The same six ids are used in all of these:
+    ai-engine/rl_engine/deception_scorer.py PROFILES
+    honeypot/switch_profile.py PROFILES
+    honeypot/parsers/log_parser.py PERSONAS
+    backend/utils/deceptionProfiles.js
+    frontend/src/utils/personaLabels.js (windows_srv only)
+    honeypot/windows_persona/persona.py
+  Identity (hostname, OS, build, banner) is consistent and tested.
+
+Persona selection vs production eligibility
+  Consistent. windows_srv is unsupported in the learner, V2, switcher, rotator and backend.
+  The Rank 7 status flags are separate from those sets, so nothing was silently expanded.
+
+Q-learning observation vs learning eligibility
+  F1: the experimental-persona gate covers the served persona but not previousProfile
+  (deception_scorer.py process_session + honeypotService.js findPreviousServedProfile).
+
+Linux vs Windows intent
+  Parser (log_parser.classify_session_intent) and backend (windowsPersona.intentForSession): the Linux rule always
+  wins, and the Windows rules apply only when the session's served persona is windows_srv.
+  The Python and JS rule sets agree on a shared 28-case corpus.
+
+ATT&CK
+  Windows technique rules are global (R1). The existing Linux mappings are intact (mitreMapping tests pass).
+
+Telemetry vs ingestion
+  The simulator emits standard cowrie.command.input / cowrie.command.failed, so the existing parser and backend
+  ingest Windows sessions unchanged. The extra sentinel.windows.command event is not parsed (R6).
+
+Session ML
+  windows_srv maps to persona_unknown (features.py). This is consistent and documented.
+
+Threat scoring and containment
+  Containment uses scores and correlation only; it is independent of persona. A windows session is scored with the
+  same reward, and containment behaviour is unchanged.
+
+Capability Status vs runtime gates
+  Entries are derived from the same sources as the gates:
+    containment: adapterFactory.describeEnforcement
+    V2: the engine's v2Activation
+    Windows: deceptionProfiles.PERSONA_STATUS plus the newest Rank 7 evidence
+  Missing evidence never upgrades a label.
+
+Frontend vs backend persona definitions
+  Consistent; every persona display uses personaLabel().
+
+Experimental code in production paths
+  None reachable. The Windows hook is off by default, needs three explicit conditions, and is not installed.
+
+=====================================================================================================================
+5. PRODUCTION INVARIANT VERIFICATION
+=====================================================================================================================
+OK   XGBoost network-flow model and all model artifacts
+     34/34 files match the pre-Rank-1 sha256 baseline.
+     Production policy artifacts match the Rank 7 artifact_hashes.json.
+OK   53-feature schema
+     xgb_classifier_xgb_cicids_v1_meta.json has n_features / feature_names = 53.
+OK   Q-learning V1 authoritative and unchanged
+     Q-tables (seed, repo runtime, per-user runtime, demo), registry and registry history match the baseline.
+OK   V2 shadow-only and NOT_READY
+     DECEPTION_V2 is unset (default shadow). Guard decision for active: blocked, READINESS_NOT_READY.
+     The demo V2 state file is unchanged.
+OK   Windows persona experimental and disabled (see Rank 7).
+OK   Session ML non-production (no artifact).
+OK   Real firewall enforcement disabled (mock default; tests force mock).
+OK   Live capture disabled (environment gate not set anywhere).
+OK   Key code files match the Rank 7 evidence:
+     v2_activation.py, persona_policy_v2.py, deception_scorer.py, protected_data.py, switch_profile.py,
+     deceptionProfiles.js, shadowPolicy.js.
+OK   Databases
+     No MongoDB writes: tests used in-memory servers, and the Rank 7 lookup is read-only.
+OK   Historical evidence untouched; this report is a new directory.
+OK   backend/logs byte-identical after every backend run (logs redirected to a temporary directory).
+NOTE ~/.sentinelai/demo/demo-env.ps1 differs from the earliest baseline. Your demo start-up writes this file, and it
+     already differed before Rank 6. Its contents were not read.
+
+=====================================================================================================================
+6. SECURITY FINDINGS
+=====================================================================================================================
+- Windows simulator host isolation: NO DEFECT FOUND. Basis:
+    imports and calls inspected in all 7 modules
+    AST test enforcing no os/subprocess/socket/pathlib/io and no eval/exec/open/compile, with literal getattr only
+    an injection corpus run with process, socket, DNS, open, eval and exec patched to fail
+    in-process checks inside Cowrie 3.1.3
+  What these tests prove: no call path from attacker text to those facilities exists in the package.
+  What they do not prove: Cowrie's own SSH stack and Twisted are outside this boundary.
+- Resource bounds:
+    line 8,191 characters; 32 statements; depth 3; output 64 KB; file 64 KB; 256 nodes per session
+    events per line are bounded but not explicitly capped (R2)
+    per-session memory up to ~16 MB (R3)
+- Telemetry false positive F5 (REVERSE_SHELL).
+- Containment: real execution is impossible under NODE_ENV=test and without the confirmation phrase; adapters use
+  execFile argument arrays (firewallExecFile tests).
+- Live capture: requires 4 explicit gates.
+- Secrets: no secret values were read or printed by this audit; environment files were not opened.
+
+=====================================================================================================================
+7. TEST EXECUTION RESULTS AND SKIPPED TESTS
+=====================================================================================================================
+Engine (pytest, ai-engine)
+  Command:
+    .venv/Scripts/python -m pytest tests --ignore=tests/test_predictor.py -q -p no:cacheprovider
+  Result: 1,445 passed, 0 failed, 0 errors, 0 skipped (66 files).
+  Then, in a separate process:
+    .venv/Scripts/python -m pytest tests/test_predictor.py -q
+  Result: 21 passed. It is run alone because of its known importlib.reload side effect on later tests.
+  Safety: all 27 files flagged by a side-effect scan were inspected. Dataset reads are of permitted files; the
+  protected-day test passes only names to the guard; model writes and subprocesses use tmp_path. Git status, model
+  hashes and Q-table hashes were identical before and after.
+
+Backend (Jest; LOG_DIR and CONTAINMENT_AUDIT_SPOOL_DIR pointed at a temporary directory; aiEngineService mocked
+where it is used)
+  20 suites, 802 tests passed:
+    rank7WindowsPersona, rank6PersonaPolicyV2, rank5Capability, qlearningEvidenceCapability, sessionMlIntegration,
+    pcapReplayIngest, limitationRemediation, deceptionDecision, deceptionProfile, deceptionArena,
+    honeypotCollectorContract, improvements, mitreMapping, dashboardWorkflows, roleMatrix,
+    honeypotAuditFixes, honeypotIngestContract, honeypotPhase5, mediumHoneypot, flowIngestValidation
+  23 suites, 348 tests passed (containment and firewall):
+    firewallContainmentVerification, firewallExecFile, realFirewallAdapters (mocked runner), windowsFirewallSafety,
+    containment*, correlatedAutoBlockIntegration, manualBlockEnforcement, mediumContainment, featureCapture,
+    blockFromTriageStatus, unblockRepeatDetections
+  Total: 43 of 122 suites, 1,150 tests, 0 failures. backend/logs unchanged.
+  NOT RUN: 79 suites. Their side effects were not proven safe. Specifically excluded:
+    composeRoleContainmentAudit, containmentAuditSpool, serverLifecycle, replicaSetLeastPrivilege
+      (reference a real MONGO_URI)
+    gracefulShutdownReal
+      (utils/emergencyAudit.js writes to the fixed backend/logs/emergency_audit.log)
+    the remaining suites
+      (not inspected)
+  THIS IS NOT A FULL BACKEND SUITE PASS.
+
+Frontend
+  Command: node --test tests/*.test.mjs
+  Result: 180 passed, 0 failed, 0 skipped.
+  Playwright end-to-end was NOT run (it needs a running stack).
+
+Cowrie 3.1.3 in-process (WSL, Cowrie's own interpreter)
+  Script: ai-engine/tests/cowrie_windows_integration.py
+  Result: 8/8 passed, forbiddenCalls [], 0 files written in the Cowrie directory.
+
+Lint
+  backend `npx eslint .` clean. Ruff is not installed in the engine environment (not run).
+
+=====================================================================================================================
+8. EVIDENCE QUALITY ASSESSMENT
+=====================================================================================================================
+Rank 1
+  Implementation and test evidence: yes.
+  Machine-readable run: none.
+  Live evidence: none (by design).
+  Limitations: documented (docs/CAPTURE.md).
+Rank 2
+  Implementation and mock-test evidence: yes.
+  Machine-readable run: none.
+  Real-enforcement evidence: none (by design).
+  Limitations: documented (CONTAINMENT_ENFORCEMENT.md).
+Rank 3
+  Evidence report: ai-engine/experiments/qlearning_evidence_v2_20261113/report.json.
+  Provenance is explicit. Effectiveness: not evaluable (0 external sessions).
+Rank 4
+  Data audit: ai-engine/experiments/session_ml_data_audit_20261113.
+  No model, no independent labels. Status: blocked. Clear.
+Rank 5
+  Run: run_20261114T123741Z.
+  Contains data provenance, metrics, per-class/per-day results, drift and status. Strongest evidence of the set.
+  It includes a Markdown report file (RANK5_GENERALISATION_REPORT.md) despite your instruction against .md reports;
+  this is a process note only.
+Rank 6
+  Two runs (original and corrections), artifact integrity, a schema-validated evidence log and a provenance
+  reconciliation. Clear NOT_READY.
+Rank 7
+  Run: run_20261114T160912Z (test results, security, eligibility, hashes, limitations).
+  Behaviour classes (unit / integration / mocked / simulated / live=false) are distinguished.
+  The evidence does not capture F1/F3/F4/F5, which this audit found.
+
+=====================================================================================================================
+9. DOCUMENTATION MISMATCHES
+=====================================================================================================================
+D1  docs/COWRIE_COMPLETE_GUIDE.md:394
+    Says switch_profile refuses windows_srv "without --allow-unservable". In fact the flag never bypasses the
+    refusal (honeypot/switch_profile.py, generate_config).
+D2  docs/HONEYPOT_STUDY_GUIDE.md:550
+    "windows_srv has no filesystem" is stale; the simulated filesystem exists but is not deployed.
+D2  README.md:45
+    Still correct for production, but omits the experimental simulation.
+D2  docs/PERSONAS.md, Rank 7 section, three overstatements:
+    "cmd /c|/k" (F3); sessions "never learned" (F1); "No Linux command matches them" (R1).
+R6  docs/PERSONAS.md says the structured event "records" category and ATT&CK ids. True only in Cowrie's JSON log;
+    no SentinelAI component ingests it.
+No overclaims were found in README about accuracy, live capture or enforcement. The README states the E3 limitation
+and "independent generalisation is not verified".
+
+=====================================================================================================================
+10. ISSUES BY PRIORITY
+=====================================================================================================================
+CRITICAL  none
+HIGH      none
+MEDIUM    F1 (confirmed latent defect); F2 (resolved process issue)
+LOW       F3, F4, F5, R1, R2, R3, R4, R5, R6, D1, D2, D3
+INFO      I1 (known limitation), I2 (not independently verifiable), I3 (audit side effect, below)
+
+I3 - audit side effect
+  The audit's read-only wsl.exe invocation booted the stopped WSL VM at 09:29:51 UTC. Its boot configuration
+  auto-started Cowrie (twistd PID 345, 09:29:57 UTC, persona centos_7). Nothing was configured or restarted by the
+  audit, and Cowrie was not stopped (stopping is outside an audit's permissions). Stop it yourself if it should not
+  run (e.g. `wsl --shutdown`).
+
+I3b - audit process deviation
+  The "files changed since Rank 7" scan (`find . -newer <rank7 evidence> -not -path ...`) used -not -path exclusions
+  instead of -prune. find therefore traversed the three protected ai-engine/experiments directories, reading
+  directory entries and modification times. It never opened, read, hashed or printed any file in them; the
+  exclusions removed them from the output. This breaks the "never inspect/search" rule for those paths and is
+  disclosed here.
+  Scan result: only docs/CAPABILITIES.md, docs/DEMO_STARTUP_AND_TROUBLESHOOTING.md and docs/PERSONAS.md were newer
+  than the Rank 7 evidence. These are Rank 7's documentation edits made just after its evidence run, so nothing
+  changed between Rank 7 and this audit.
+
+=====================================================================================================================
+11. EXACT FILES AND SYMBOLS PER CONFIRMED FINDING
+=====================================================================================================================
+F1  ai-engine/rl_engine/deception_scorer.py
+      SessionScorer.process_session: the `active in UNSUPPORTED_PROFILES` early return; `state` accepted from
+      previousProfile
+    backend/services/honeypotService.js
+      findPreviousServedProfile; the closeSession payload previousProfile
+F2  backend/tests/deceptionProfile.test.js
+    backend/utils/shadowPolicy.js (shadowPolicyRecord)
+F3  honeypot/windows_persona/shell.py
+      c_cmd: `" ".join(args[1:])` keeps the quotes
+F4  honeypot/windows_persona/shell.py
+      c_cmd: `inner.__dict__.update(sh.__dict__)` shares the env dict
+F5  honeypot/windows_persona/telemetry.py (INTENT_RULES "REVERSE_SHELL")
+    backend/utils/windowsPersona.js (INTENT_RULES)
+    honeypot/collectors/session_collector.js (onCommandReceived alert list)
+(Potential risks and documentation items list their files in findings.json.)
+
+=====================================================================================================================
+12. RECOMMENDED REMEDIATION ORDER
+=====================================================================================================================
+1. F1: block learning when previousProfile is unsupported, and add a regression test. This must be done before any
+   owner ever enables Windows serving.
+2. F5: make "-enc/-EncodedCommand" mandatory in the REVERSE_SHELL rule, in both the Python and JS rule sets, and
+   add a corpus negative.
+3. Documentation pass: D1, D2, the R1 wording, the R6 wording, and a note in the Rank 6 record about F2.
+4. F3 and F4: simulator realism (cmd /c quoting; env copy). R2: explicit per-line event cap. R3: per-session byte
+   cap.
+5. D3: optional evidence runs for Ranks 1-2 (test results + gate snapshot).
+6. Before claiming a full backend pass: make utils/emergencyAudit.js honour LOG_DIR, then inspect and run the
+   remaining 79 suites against an in-memory database.
+
+=====================================================================================================================
+13. FINAL PROJECT READINESS VERDICT
+=====================================================================================================================
+READY FOR FINAL DEMONSTRATION AND INTERVIEW PRESENTATION, WITH QUALIFIED CLAIMS.
+NOT PRODUCTION-READY.
+- Integration across Ranks 1-7 is consistent. Every gate is enforced in code and was verified, not only
+  documented.
+- No production artifact, database or historical evidence was altered.
+- The open defects are latent (F1) or cosmetic/telemetry-level (F3-F5) and do not affect the demo paths.
+  F1 is unreachable while windows_srv cannot be served.
+
+=====================================================================================================================
+14. CLAIMS THAT ARE SAFE TO MAKE
+=====================================================================================================================
+Network-flow detection
+- An XGBoost network-flow classifier (53 features) trained on CICIDS2017, served by a FastAPI engine.
+- 99%+ accuracy on in-distribution splits.
+- Measured and disclosed failure to generalise to a later, different network (CSE-CIC-IDS2018: macro F1 0.115,
+  ~15% attack recall at the alert line).
+Traffic source
+- Offline PCAP replay is implemented and tested end to end, with the traffic source tracked on every prediction.
+- Live capture exists behind four explicit gates and is disabled.
+Containment
+- Host-firewall containment adapters (Windows Firewall, iptables) with a verified lifecycle, verified-after-apply
+  and cleanup, tested with mocked command execution.
+- The demo uses simulated containment plus Cowrie's real deny-list for the honeypot.
+Deception and Q-learning
+- A Cowrie SSH honeypot with five Linux deception personas and a tabular Q-learning persona recommender.
+- Learning provenance is tracked and reported honestly (synthetic warm start vs untracked session updates; 0
+  external sessions).
+- A second persona policy runs in shadow mode with a fail-closed activation guard and ten readiness gates.
+- It is NOT_READY, and the system keeps the first policy in charge.
+Session ML
+- A honeypot-session ML pipeline (feature schema, safe artifact loader, shadow inference) that correctly refuses to
+  claim a model, because no independent labels exist.
+Windows persona
+- An experimental Windows-style shell SIMULATION over Cowrie: allowlisted commands, an isolated in-memory
+  filesystem, nothing executed on the host.
+- Tested in-process inside Cowrie 3.1.3. Not deployed.
+Engineering
+- Safety-first engineering: protected test data guard, hash-verified artifacts, capability status that never
+  upgrades without evidence.
+
+=====================================================================================================================
+15. CLAIMS THAT MUST NOT BE MADE
+=====================================================================================================================
+- "The IDS generalises to unseen networks" or "99% accuracy in the real world".
+- "SentinelAI blocks attackers on the host firewall", or "real firewall enforcement is active / was tested on a
+  host".
+- "Live packet capture is running / was validated".
+- "Q-learning (or V2) improves deception" or "is validated against real attackers": there are 0 external sessions,
+  and the 19 historical sessions are untracked/operator-labelled.
+- "V2 is ready / deployed / production".
+- "The session-ML classifier detects attackers": no model exists.
+- "SentinelAI runs a Windows Server honeypot", or "real cmd.exe / PowerShell / RDP / SMB / WinRM".
+  It is a simulation, never deployed or served.
+- "All tests pass".
+  Engine: all 67 files passed.
+  Backend: 43 of 122 suites were run.
+  End-to-end: not run.
+- "Production-ready".

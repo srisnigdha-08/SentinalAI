@@ -66,7 +66,8 @@ describe('Phase 5 honeypot improvements', () => {
     expect(canary[0].severity).toBe('CRITICAL')
     const s = await HoneypotSession.findOne({ sessionId: 'c1' })
     expect(s.commands.every((c) => c.intent === 'CREDENTIAL_HARVEST')).toBe(true)
-    expect(s.mitreTechniques.map((t) => t.id)).toEqual(expect.arrayContaining(['T1003', 'T1552.001']))
+    // Rank 8: reading planted credential files is T1552.001 Credentials In Files; it is not T1003 OS Credential Dumping
+    expect(s.mitreTechniques.map((t) => t.id)).toEqual(['T1552.001'])
     expect(s.filesAccessed).toContain('/.aws/credentials')
   })
 
@@ -74,7 +75,10 @@ describe('Phase 5 honeypot improvements', () => {
     await open('m1')
     for (const c of ['uname -a', 'whoami', 'cat /etc/shadow', '(crontab -l; echo x) | crontab -']) await cmd('m1', c)
     const ids = (await HoneypotSession.findOne({ sessionId: 'm1' })).mitreTechniques.map((t) => t.id)
-    expect(ids).toEqual(expect.arrayContaining(['T1082', 'T1033', 'T1003.008', 'T1053.003', 'T1595', 'T1003']))
+    // Rank 8: precise per-command techniques; on-host reconnaissance is never T1595 Active Scanning, and the generic
+    // T1003 parent is not added on top of T1003.008
+    expect([...ids].sort()).toEqual(['T1003.008', 'T1033', 'T1053.003', 'T1082'])
+    expect(ids).not.toContain('T1595')
     expect(new Set(ids).size).toBe(ids.length)
   })
 

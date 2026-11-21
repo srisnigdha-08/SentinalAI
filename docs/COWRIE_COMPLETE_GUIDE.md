@@ -391,7 +391,7 @@ Event counts in today's JSON: connect 7, version 7, kex 7, login.failed 6, login
 | H2 | `[4l`/`[4h` escape codes | **Not fixed** | Comes from Cowrie's terminal code; no config option exists |
 | H2 | Textbook userdb | **Fixed** | `userdb.txt` is root-only. Removed: toor, password, `admin` with uid 0, and per-distro users that could log in on the wrong persona. Live: `pi/raspberry` refused |
 | H2 | Docker used the stock fs.pickle | **Fixed (untested)** | Compose mounts `./personas`; the repo `cowrie.cfg` points at them. No Docker here to run it |
-| H2 | `windows_srv` persona | **Fixed** | `switch_profile.py` refuses it (exit 2) without `--allow-unservable`; the rotator skips it |
+| H2 | `windows_srv` persona | **Fixed** | `switch_profile.py` refuses it (exit 2), under every flag (`--allow-unservable` no longer bypasses the refusal); the rotator skips it. An experimental Windows-like shell *simulation* exists (docs/PERSONAS.md) but is not deployed or production-eligible |
 | H2 | SSH algorithm list / server HASSH | **Not fixable** in shell mode | Inherent to Twisted Conch; proxy mode is the only answer |
 | H2 | No `lsb_release`, uniform timing | **Partially** | `lsb_release` added for Ubuntu/Debian/Raspbian via per-persona txtcmds. Live: `lsb_release -a` prints Ubuntu 22.04.3 LTS. CentOS and Amazon Linux rightly lack it. No timing jitter |
 | H2 | Host private keys 0644 | **Fixed (WSL install)** | `chmod 600` applied |

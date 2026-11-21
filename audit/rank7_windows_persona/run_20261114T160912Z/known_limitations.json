@@ -1,0 +1,10 @@
+[
+ "A Windows-like shell SIMULATION over Cowrie's SSH transport, not a Windows host: no Windows kernel, cmd.exe, PowerShell runtime, registry, services, Active Directory, RDP, SMB or WinRM.",
+ "Fixed allowlist of commands with fictional output; scripts, .bat/.ps1 files, WMI, the registry, `for`, `if`, `reg`, `schtasks` and PowerShell objects/pipelines beyond a few filters are not simulated (unknown commands get Windows-style errors).",
+ "The SSH layer is still Cowrie/OpenSSH-for-Windows banner over Cowrie's SSH stack; key exchange and server fingerprints are Cowrie's, which a careful attacker can still distinguish.",
+ "netstat/tasklist/sc list fictional services (RDP 3389, SMB 445, WinRM 5985) as output only; nothing listens on those ports.",
+ "Not deployed: the Cowrie plugin is off by default and not installed; switch_profile.py still refuses windows_srv; no live session has been served.",
+ "Sessions served by windows_srv would be scored but never learned (V1/V2), so no Windows effectiveness evidence can accumulate until an owner decides otherwise.",
+ "Session ML features map windows_srv to persona_unknown (the classifier was built on the five Linux personas).",
+ "A genuine Windows target would need an isolated Windows VM, which is not available and was not created."
+]
