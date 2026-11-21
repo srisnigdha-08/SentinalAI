@@ -15,6 +15,14 @@ export const isRealFirewallBackend = (backend) =>
 export const isRealFirewallStatus = (status) =>
   Boolean(status) && status.realEnforcementEnabled === true && isRealFirewallBackend(status.backend)
 
+// Containment confirmation dialog: which engine the block will go through. A host firewall is named only when the
+// backend reports that exact real adapter in use; anything else (mock, simulated, unknown, missing) is the mock.
+export function enforcementEngineLabel(status) {
+  if (isRealFirewallStatus(status))
+    return { simulated: false, engine: `${REAL_FIREWALL_BACKENDS[status.backend].toUpperCase()} (HOST)`, mode: 'Live Host Rules' }
+  return { simulated: true, engine: 'SIMULATION / MOCK ADAPTER', mode: 'Safe Dev Mode' }
+}
+
 export function adapterDisplayName(status) {
   if (isRealFirewallStatus(status))
     return `${status.adapterName || 'Host firewall adapter'} (${REAL_FIREWALL_BACKENDS[status.backend]}, host OS)`

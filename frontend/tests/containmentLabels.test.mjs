@@ -5,6 +5,7 @@ import {
   REAL_FIREWALL_BACKENDS,
   adapterDisplayName,
   containmentOutcome,
+  enforcementEngineLabel,
   isRealFirewallBackend,
   isRealFirewallStatus,
   manualBlockOutcome,
@@ -68,4 +69,28 @@ test('the Settings panel decides real vs simulated through the shared helper, fo
   assert.match(settings, /adapterDisplayName\(containmentStatus\)/)
   assert.doesNotMatch(settings, /'windows-firewall'/) // no backend-specific check left that could miss linux-iptables
   assert.match(settings, /SIMULATION \/ MOCK ADAPTER/)
+})
+
+test('the confirmation dialog names each real firewall correctly and everything else as the mock', () => {
+  assert.deepEqual(enforcementEngineLabel({ backend: 'linux-iptables', realEnforcementEnabled: true }), {
+    simulated: false, engine: 'LINUX IPTABLES (HOST)', mode: 'Live Host Rules',
+  })
+  assert.equal(enforcementEngineLabel({ backend: 'windows-firewall', realEnforcementEnabled: true }).engine,
+    'WINDOWS FIREWALL (HOST)')
+  for (const status of [
+    null, undefined, {}, { backend: 'mock' }, { backend: 'mock', realEnforcementEnabled: true },
+    { backend: 'windows-firewall', realEnforcementEnabled: false }, { backend: 'linux-iptables' },
+    { backend: 'simulated', realEnforcementEnabled: true }, { backend: 'nft', realEnforcementEnabled: true },
+  ]) {
+    const label = enforcementEngineLabel(status)
+    assert.equal(label.simulated, true, JSON.stringify(status))
+    assert.equal(label.engine, 'SIMULATION / MOCK ADAPTER', JSON.stringify(status))
+    assert.equal(label.mode, 'Safe Dev Mode')
+  }
+})
+
+test('the confirmation dialog takes its label from the shared helper, with no hard-coded firewall name', () => {
+  const modal = readFileSync(new URL('../src/components/ContainmentConfirmModal.jsx', import.meta.url), 'utf8')
+  assert.match(modal, /enforcementEngineLabel\(backendInfo\)/)
+  assert.doesNotMatch(modal, /WINDOWS FIREWALL|IPTABLES/i)
 })
