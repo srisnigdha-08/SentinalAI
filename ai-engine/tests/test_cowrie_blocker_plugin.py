@@ -127,3 +127,45 @@ def test_without_key_nothing_is_requested(blocker, monkeypatch):
     module.requests.get.reset_mock()
     assert plugin.sync_once() is False
     module.requests.get.assert_not_called()
+
+
+# ── The honeypot host's own addresses are never refused (rotator banner check after a persona switch) ──
+
+class FakeCowrieConfig:
+    def __init__(self, sections):
+        self.sections = sections
+
+    def get(self, section, option, fallback=None):
+        return self.sections.get(section, {}).get(option, fallback)
+
+
+def test_own_addresses_come_from_listen_endpoints_and_env(blocker):
+    module, _, _, _ = blocker
+    cfg = FakeCowrieConfig({"ssh": {"listen_endpoints": "tcp:2222:interface=172.29.32.17"},
+                            "telnet": {"listen_endpoints": "tcp:2223:interface=0.0.0.0"}})
+    own = module.honeypot_own_addresses(env={"SENTINEL_BLOCKER_EXEMPT_IPS": " 10.0.0.5, not-an-ip ,::"}, config=cfg)
+    # the SSH interface and the extra address; the wildcard bindings and the malformed value are ignored
+    assert own == frozenset({"172.29.32.17", "10.0.0.5"})
+    assert module.honeypot_own_addresses(env={}, config=None) == frozenset()
+
+
+def test_loopback_and_own_address_on_the_deny_list_are_not_refused(monkeypatch, capsys):
+    monkeypatch.setenv("SENTINEL_BLOCKER_EXEMPT_IPS", "172.29.32.17")
+    module, plugin, ssh, telnet, reactor = load_blocker(monkeypatch)
+    reactor.run()
+    deny_list(module, ["172.29.32.17", "127.0.0.1", "::1", "203.0.113.9"])
+    assert plugin.sync_once() is True
+    for host in ("172.29.32.17", "127.0.0.1", "127.0.0.53", "::1"):
+        assert ssh().buildProtocol(types.SimpleNamespace(host=host)) == "protocol", host
+        assert telnet().buildProtocol(types.SimpleNamespace(host=host)) == "protocol", host
+    # every other deny-listed address is still refused
+    assert ssh().buildProtocol(types.SimpleNamespace(host="203.0.113.9")) is None
+    out = capsys.readouterr().out
+    assert out.count("172.29.32.17 is on the deny-list but is this host's own address") == 1  # reported once
+
+
+def test_own_address_not_on_the_deny_list_needs_no_exemption(blocker):
+    module, plugin, ssh, _ = blocker
+    deny_list(module, ["203.0.113.9"]); plugin.sync_once()
+    assert plugin.is_ip_blocked("127.0.0.1") is False
+    assert plugin.is_ip_blocked("203.0.113.9") is True

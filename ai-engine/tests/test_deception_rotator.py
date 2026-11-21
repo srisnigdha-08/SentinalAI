@@ -543,3 +543,40 @@ def test_pid_alive_on_this_platform(rotator):
         assert rotator._pid_alive(os.getpid()) is True and rotator._pid_alive(child.pid) is False
     else:  # Windows: never probed (os.kill would terminate the process); the lock's age decides
         assert rotator._pid_alive(os.getpid()) is None
+
+
+def test_read_banner_names_a_refused_connection(tmp_path, caplog):
+    """A Cowrie that accepts and closes without a banner (how the SentinelAI blocker refuses a deny-listed address)
+    is reported as such, not as a bare 'empty', so a self-blocked honeypot is diagnosable from the rotator log."""
+    import logging
+    import socket
+    import threading
+    spec = importlib.util.spec_from_file_location("rot_refused", HONEYPOT / "deception_rotator.py")
+    real = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(real)
+    srv = socket.socket()
+    srv.bind(("127.0.0.1", 0))
+    srv.listen(8)
+    stop = threading.Event()
+
+    def accept_and_close():
+        srv.settimeout(0.2)
+        while not stop.is_set():
+            try:
+                conn, _ = srv.accept()
+                conn.close()
+            except OSError:
+                pass
+
+    t = threading.Thread(target=accept_and_close, daemon=True)
+    t.start()
+    try:
+        with caplog.at_level(logging.WARNING, logger="sentinel.rotator"):
+            assert real.read_banner(srv.getsockname(), timeout_s=1.5) is None
+    finally:
+        stop.set()
+        t.join(2)
+        srv.close()
+    msg = " ".join(r.getMessage() for r in caplog.records)
+    assert "accepted then closed without a banner" in msg
+    assert "deny-list" in msg

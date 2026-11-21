@@ -141,6 +141,7 @@ def read_banner(address, timeout_s: float):
     """The SSH identification line served at address, polled until timeout_s (Cowrie needs a moment to bind)."""
     deadline = time.monotonic() + timeout_s
     last = None
+    closed_empty = 0  # connections accepted, then closed with no banner
     while True:
         try:
             with socket.create_connection(address, timeout=5) as s:
@@ -148,10 +149,18 @@ def read_banner(address, timeout_s: float):
                 line = s.recv(256).decode("utf-8", errors="replace").strip()
                 if line:
                     return line
+                closed_empty += 1
         except OSError as e:
             last = e
         if time.monotonic() >= deadline:
-            log.warning("No SSH banner from %s:%s (%s)", address[0], address[1], type(last).__name__ if last else "empty")
+            if closed_empty:
+                # Cowrie listened and accepted, then closed without a banner: that is how the SentinelAI blocker plugin
+                # refuses a deny-listed address, and this check connects from this host's own address.
+                log.warning("No SSH banner from %s:%s: %d connection(s) accepted then closed without a banner; Cowrie is "
+                            "up but refused this host (is its own address on the SentinelAI deny-list?)",
+                            address[0], address[1], closed_empty)
+            else:
+                log.warning("No SSH banner from %s:%s (%s)", address[0], address[1], type(last).__name__ if last else "empty")
             return None
         time.sleep(1)
 
