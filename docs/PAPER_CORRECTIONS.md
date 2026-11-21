@@ -7,7 +7,9 @@ Every place where the paper (`IMPLIMENTATION.pdf`; line numbers below refer to i
 
 Numbers are for the served model `xgb_classifier_xgb_cicids_v1` (XGBoost, registered 2026-10-21 after it beat the Random Forest under chronological evaluation; Phase 5 M-5). See `docs/CRITICAL_FIXES_REPORT.md` and `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md`.
 
-I have not edited the PDF or `paper_text.txt`.
+I have not edited the PDF or the body of `paper_text.txt`. On 2026-11-21 a one-line notice pointing here was added at the top of `paper_text.txt`; the PDF's LaTeX source is not in this repository.
+
+**Section 9 (2026-11-21) is newer than sections 1–8.** It adds the cross-dataset (CSE-CIC-IDS2018) result, the Q-learning and session-ML evidence audits, and the Isolation Forest's measured contribution. Where a replacement text in sections 1–8 differs from section 9 (abstract, Table II, Tier 3, Table IV, conclusion), use section 9 and keep the extra detail from 1–8 that it does not contradict, such as the chronological and leave-one-day-out rows.
 
 ## 1. Abstract and conclusion
 
@@ -95,3 +97,178 @@ Line numbers are approximate positions in `paper_text.txt`. Evidence: `docs/HONE
 | ~598 | "a pool of honeypot nodes" | "one SSH honeypot node (Cowrie; Telnet is not enabled); further protocols (e.g. Dionaea) are future work" | `honeypotService.getNodeStatus` |
 | add | — | "Honeypot sessions are classified by transparent rules over the login outcome, the programs run and IOC counts, not by the flow models, because Cowrie records no packet-flow features." | `utils/features.py` `classify_honeypot_session` (rules v2) |
 | add | — | "Blocks derived from honeypot sessions are enforced by a Cowrie plugin that refuses connections from deny-listed IPs; host firewall enforcement uses a mock adapter unless explicitly enabled, honeypot-originated blocks are capped per hour, and they can be set to require analyst approval." | `sentinelblocker.py`, `adapterFactory.js`, `HONEYPOT_AUTOBLOCK_MODE` |
+
+## 9. November 2026 update: cross-dataset evaluation and evidence audits (2026-11-21)
+
+These corrections bring the paper in line with `docs/ML_GENERALISATION.md`, `docs/QLEARNING_EVIDENCE.md` and `docs/SESSION_ML.md`. Apply them to the LaTeX source, recompile, then re-extract `paper_text.txt`. Line numbers refer to `paper_text.txt` without the notice line added at its top.
+
+Every figure below was checked against these sources:
+
+| Figure | Source |
+|---|---|
+| 98.97 % accuracy, macro F1 0.874, random split, `independent_holdout: false` | `ai-engine/models/xgb_classifier_xgb_cicids_v1_meta.json`; `audit/rank5_network_flow_generalisation/run_20261114T123741Z/metrics.json` (E1) |
+| CICIDS2018: recall 14.98 % at the 0.90 line, ROC-AUC 0.655, accuracy 72.94 % vs 72.96 % majority, macro F1 0.115, benign FPR 0.39 %, 5,549,447 flows | same `metrics.json` (E3) |
+| Training rows SQLi 17, RCE 9 (Heartbleed), Lateral Movement 29, Data Exfiltration 0 | model meta `class_counts`, `label_sources` |
+| Isolation Forest review tier: 2 of 2,254 missed attacks recovered | `docs/AI_HIGH_PRIORITY_FIXES_REPORT.md` (chronological CICIDS2017 test, review level 0.55) |
+| Q-learning: 12,106 episodes, 12,087 seed (99.84 %), 0 independent external, 0 of 6 greedy choices changed | `ai-engine/experiments/qlearning_evidence_v2_20261113/report.json` |
+| Session ML: 0 independent labels, no model | `ai-engine/experiments/session_ml_data_audit_20261113/audit.json`; `docs/SESSION_ML.md` |
+| RF 98.43 %, weighted F1 0.9862, macro F1 0.8448 (earlier model, not served) | paper Table IV; `docs/C1_EVALUATION_PLAN_AND_RESULTS.md` |
+
+
+### 9.1 Abstract (lines 29–42)
+
+**Replace** from "validated end-to-end: a Random Forest classifier …" to "… in place of the originally proposed PPO
+policy for the current, discrete-action-space phase of the system." **with:**
+
+> integrated end-to-end. The served XGBoost classifier, trained on real CICIDS2017 traffic, achieves 98.97 % accuracy
+> (macro F1 0.874) on a stratified random split of that dataset. This is in-distribution performance: on six days of
+> the later CSE-CIC-IDS2018 dataset the same frozen model detects about 15 % of attack flows (ROC-AUC 0.65), no
+> better than always predicting benign, so it does not generalise beyond its training data. A tabular Q-learning
+> agent, used in place of the originally proposed PPO policy for the current discrete action space, recommends
+> honeypot profiles and is applied by a rotator. Its effectiveness has not been demonstrated: 99.8 % of its
+> experience is a synthetic warm start, and no independent attacker sessions have been collected.
+
+### 9.2 Index terms (lines 43–46)
+
+**Replace** with:
+
+> Index Terms—SentinelAI, Cyber Defence, Adaptive Honeypot, Reinforcement Learning, Intrusion Detection,
+> Explainable AI, Cross-Dataset Generalisation, Threat Intelligence, Security Orchestration
+
+"Zero-Day Attack", "Deep Learning", "Autonomous Cyber Defence" and "Self-Evolving Security" are removed because no
+implemented component provides them.
+
+### 9.3 Contributions, last bullet (lines 107–114)
+
+**Replace** "including a Random Forest detection model validated on real CICIDS2017 traffic and a Q-learning-based
+honeypot profile recommendation mechanism with a persistent, auditable policy." **with:**
+
+> including an XGBoost detection model trained on real CICIDS2017 traffic and evaluated both in-distribution and on
+> CSE-CIC-IDS2018, and a Q-learning-based honeypot profile recommendation mechanism with a persistent, auditable
+> policy whose effectiveness is not yet demonstrated.
+
+Add one bullet after it:
+
+> • A negative cross-dataset result: high random-split accuracy on CICIDS2017 does not carry over to another
+> network, which shows that random-split accuracy alone cannot establish intrusion-detection capability.
+
+### 9.4 Table II, "Multi-Model Threat Detection" row (page 6)
+
+**Replace** the "Current Realisation" cell with:
+
+> XGBoost (served), Isolation Forest, and earlier Random Forest models are implemented. The served XGBoost model
+> reaches 98.97 % accuracy (macro F1 0.874) on a random CICIDS2017 split but about 15 % attack recall on
+> CSE-CIC-IDS2018. The Isolation Forest provides an anomaly signal of limited measured value. The 1D-CNN/LSTM tier,
+> the autoencoder and a learned meta-learner are not implemented; fusion is a fixed weighted rule.
+
+### 9.5 Table II, "Adaptive Honeypot Intelligence" row
+
+**Replace** from "The recommendation is persisted …" to the end of the cell with:
+
+> The recommendation is persisted and applied to Cowrie between sessions by a rotator. The state is the previously
+> served persona. 12,087 of 12,106 learning episodes are a synthetic warm start, and real sessions changed none of
+> the six per-state greedy choices, so adaptive deception is implemented but not demonstrated.
+
+### 9.6 Tier 3 — Anomaly Detection (lines 576–582)
+
+**Replace** "Isolation Forest [27] and an autoencoder independently produce anomaly scores for traffic that does not
+conform to known attack or benign signatures, enabling detection of zero-day and previously unseen attacks [3]." **with:**
+
+> In the proposed design, Isolation Forest [27] and an autoencoder produce anomaly scores for traffic that does not
+> conform to the training data, intended to help with previously unseen attacks [3]. In the implementation only the
+> Isolation Forest exists. Its signal can raise a threat score or queue a flow the classifier calls benign for
+> analyst review, but it never raises an alert on its own. On a chronological CICIDS2017 test the review tier
+> recovered only 2 of 2,254 attacks the classifier missed, so it does not provide zero-day detection.
+
+### 9.7 Section VIII-A, dataset paragraph (lines 849–865)
+
+**Replace** from "In the current implementation, four of the eight official CICIDS2017 capture files are integrated" to
+"… is the immediate next step identified in the roadmap." **with:**
+
+> In the current implementation, all eight official CICIDS2017 capture files are integrated. Several classes remain
+> almost unrepresented: the training split contains 17 SQL Injection, 9 RCE Attempt (all Heartbleed, a memory
+> disclosure mapped to this class for lack of other data, which is a label-quality limitation), 29 Lateral Movement
+> and no Data Exfiltration flows, so Data Exfiltration cannot be predicted and results for the other three are not
+> meaningful. CSE-CIC-IDS2018 has been used for cross-dataset evaluation of the frozen model (Section IX-A), not
+> for training.
+
+In Table III, change the CICIDS2018 status to "Evaluation only (six development days)".
+
+### 9.8 Section IX-A, Measured Detection Performance (lines 916–958)
+
+**Replace** the opening paragraph, Table IV and both caveats with:
+
+> Table IV reports the served classifier on two evaluation sets that are kept apart. On a stratified random 80/20
+> split of de-duplicated CICIDS2017 data, flows from the same capture sessions appear in both training and test, so
+> this measures in-distribution performance only (the model metadata records `independent_holdout: false`). The
+> same frozen model was then scored, without any refitting, on every flow of six CSE-CIC-IDS2018 development days
+> recorded on a different network. These days were used in developing other candidate models, so they are not a
+> sealed holdout. Four further 2018 days are reserved for a one-shot external test that has not been run.
+>
+> TABLE IV — MEASURED DETECTION PERFORMANCE OF THE SERVED XGBOOST MODEL
+>
+> | Evaluation set | Flows | Accuracy | Macro F1 | Attack recall (0.90 line) | Benign FPR (0.90 line) | ROC-AUC |
+> |---|---|---|---|---|---|---|
+> | CICIDS2017 random split | 24,907 | 98.97 % | 0.874 | 95.2 % | 0.23 % | 0.9998 |
+> | CSE-CIC-IDS2018, six days | 5,549,447 | 72.94 % (always-benign baseline 72.96 %) | 0.115 | 15.0 % | 0.39 % | 0.65 |
+>
+> The 2018 result shows the model does not generalise to another network: it is no better than always predicting
+> benign. The feature distributions of the two datasets differ strongly (covariate shift between networks, tools and
+> flow-extractor builds). The earlier Random Forest figure (98.43 % accuracy, 0.9862 weighted F1, 0.8448 macro F1)
+> came from a random split before de-duplication, and that model is not served. Per-class results for SQL
+> Injection, RCE Attempt and Lateral Movement are not meaningful, and Data Exfiltration is not modelled
+> (Section VIII-A).
+
+Also delete the sentence "False-positive rate, AUC-ROC, and end-to-end response latency have not yet been
+instrumented …", or reduce it to "End-to-end response latency has not yet been measured."
+
+### 9.9 Section IX-C, Adaptive Honeypot (lines 967–986)
+
+**Replace** from "implemented and running against live honeypot sessions …" to "… it does not automatically modify the
+active Cowrie configuration at runtime." **with:**
+
+> implemented, with a persistent Q-table that records the source of every learning update. A rotator applies the
+> recommended persona to Cowrie between sessions. The available evidence does not show that the policy works:
+> 12,087 of the table's 12,106 episodes (99.84 %) are a synthetic warm start, the 19 session-driven updates came
+> from operator-generated traffic, no independent attacker sessions exist, and real data changed none of the six
+> per-state greedy choices. The state is only the previously served persona.
+
+Keep the following paragraph (the static-honeypot comparison has not been run). Append: "A comparison on scripted and
+simulated attackers (Deception Arena) found no difference."
+
+### 9.10 Section XI-H, Discussion (lines 1153–1162)
+
+**Replace** "The honeypot intelligence component also processes real interaction data to generate adaptive profile
+recommendations rather than relying solely on a fixed policy. However, the active Cowrie configuration remains
+unchanged automatically in the current implementation; runtime application of the recommended deception profile is
+reserved for future work." **with:**
+
+> The honeypot intelligence component scores each session and applies a learned profile recommendation between
+> sessions, but its benefit over a fixed persona has not been demonstrated. A honeypot-session ML pipeline is also
+> implemented in shadow mode; no model has been trained, because no independently labelled sessions exist.
+
+### 9.11 Section XIII, Conclusion (lines 1229–1235)
+
+**Replace** "a Random Forest detection model validated on real CICIDS2017 traffic at 98.43% accuracy and 0.9862
+weighted F1, a Q-learning-based honeypot profile recommendation mechanism with a persistent, auditable policy," **with:**
+
+> an XGBoost detection model with 98.97 % accuracy on a random CICIDS2017 split but about 15 % attack recall on
+> CSE-CIC-IDS2018, a Q-learning-based honeypot profile recommendation mechanism whose effectiveness is not yet
+> demonstrated,
+
+Add this sentence before "Closing the autonomous-response loop …":
+
+> The central empirical finding is negative: in-distribution accuracy did not transfer to another dataset, so
+> cross-dataset evaluation, not random-split accuracy, must be the acceptance test for future models.
+
+### 9.12 Section IV-B, objective 1 (line 307)
+
+No change is needed, because it is stated as a design target. If you keep it, add: "(met in-distribution on
+CICIDS2017; not met on CSE-CIC-IDS2018)."
+
+### 9.13 Out of scope here
+
+These are outdated non-ML statements, not changed by this page:
+- the containment wording in Table II
+- §XI-G, which mentions four Jest test files; the project now has more than 2,000 automated tests
+- "the active Cowrie configuration is not automatically modified"

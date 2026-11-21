@@ -1,3 +1,5 @@
+[NOTE 2026-11-21: verbatim text of IMPLIMENTATION.pdf (2026-08-19). Its ML results are superseded: the served model is XGBoost (98.97 % on a random CICIDS2017 split, about 15 % attack recall on CICIDS2018), Q-learning effectiveness is not demonstrated, and no session-ML model exists. Corrected text: docs/PAPER_CORRECTIONS.md]
+
 === PAGE 1 ===
 SentinelAI: An Adaptive Cyber Defence Platform
 with Explainable Intrusion Detection and
