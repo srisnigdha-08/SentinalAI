@@ -137,14 +137,14 @@ detector of novel attacks."*
 
 | Step | Do | Expected (rehearsal) | Explain |
 |---|---|---|---|
-| C1 | Admin → **Settings → AI Auto-Blocking ON** | *ACTIVE / ON*; audit `SETTINGS_CHANGED` | off by default; one flow ≥ 0.92 is enough (no correlation) |
-| C2 | Re-run the replay with `--rows 4` | the 2 DDoS sources are contained | containment policy runs before any action |
-| C3 | **Settings** | *Active Enforcement Adapter: MockContainmentAdapter (In-Memory Simulation)*; blocklist rows *Triggered by AI Engine*, reason `AI Engine auto-block (score = 1)` | **simulated** rule; no host firewall change |
-| C4 | Threat Logs / dashboard queue | rows **BLOCKED** | every open detection of that address is marked |
+| C1 | Admin → **Settings → AI Auto-Blocking ON** | *ACTIVE / ON*; audit `SETTINGS_CHANGED` | off by default. Under the default **correlated** policy one flow is never enough: an address needs ≥ 3 suspicious flows within 300 s, ≥ 2 of them at the 0.92 block line |
+| C2 | Re-run the replay with `--rows 4` | the DDoS rows are stored as threats and held as **`NEEDS_APPROVAL`** (triage shows the reasons); nothing is blocked automatically | the replay gives every row its own source address (`198.51.100.N`), so no address reaches the correlation threshold. This is the safety design: a single flow waits for an analyst |
+| C3 | **Threat Logs** → **Block** on one `NEEDS_APPROVAL` DDoS row → confirm | the dialog shows *SIMULATION / MOCK ADAPTER*; the containment record becomes `ACTIVE` with `enforcementBackend: mock`; **Settings** shows *Active Enforcement Adapter: MockContainmentAdapter (In-Memory Simulation)* | analyst approval of a held detection; the policy check runs first; **simulated** rule, no host firewall change |
+| C4 | Threat Logs / dashboard queue | that address's rows **BLOCKED** | every open detection of that address is marked |
 | C5 | Settings → Manual enforcement: `127.0.0.1` → ENFORCE IP BLOCK | refused: *"Target 127.0.0.1 matches protected network infrastructure or loopback address"* (403) | protected targets: loopback, link-local, local services, `CONTAINMENT_PROTECTED_TARGETS` |
 | C6 | Manual block of the **Windows host's WSL address** (`172.29.32.1` in the rehearsal), then SSH as in A1 | SSH fails at once (*connection forcibly closed*) | the **one real enforcement**: Cowrie's blocker reads the deny-list |
 | C7 | Settings → **Unblock IP** on it, SSH again | `ROLLED_BACK`; SSH works | operator rollback; audit `IP_UNBLOCKED_MANUAL` |
-| C8 | Unblock the auto-blocked replay IPs | rows back to their previous status (e.g. MONITORING) | containment `ROLLED_BACK`, deny-list cleared, `ip_unblocked` event |
+| C8 | Unblock the replay IP blocked in C3 | rows back to their previous status (e.g. MONITORING) | containment `ROLLED_BACK`, deny-list cleared, `ip_unblocked` event |
 | C9 | Containment audit trail | backend window (or `backend\logs\sentinel*.log`): `[AUDIT] CONTAINMENT_REQUESTED → CONTAINMENT_ACTIVE`, `ALREADY_ACTIVE_HIT` for a repeat detection | these structured lines are in the backend log; **Settings → audit log** shows sign-ins, settings changes and manual block/unblock |
 | C10 | **Outage:** close the "SentinelAI-demo: AI engine" window, replay `--rows 2` | flows stored as **DEGRADED / MEDIUM, never blocked** (even with auto-block on); alert *"AI Engine UNAVAILABLE"*; backend `/health` → 503; dashboard keeps working | fail-safe: no blocking without a model decision |
 | C11 | `powershell -ExecutionPolicy Bypass -File scripts\demo\restart-engine.ps1` | `AI engine … UP` in ≈ 11 s; backend `/health` 200 without a restart; next replay scored normally | circuit breaker closes by itself |
@@ -152,6 +152,23 @@ detector of novel attacks."*
 
 Never say "the firewall blocked the attacker". Say: *"the containment decision, state machine and audit are real;
 the host-firewall action is simulated by a mock adapter; the honeypot refuses the deny-listed address."*
+
+C1–C4 were rehearsed on 2026-11-03, before the correlated policy became the default (PR #38). The steps above
+follow the current behaviour described in [`DEMO_ABC_RUNBOOK.md`](DEMO_ABC_RUNBOOK.md) §Demo C. Do a dry run
+before presenting.
+
+## 4b. Optional: investigation tools (≈ 3 minutes, read-only)
+
+Not part of the 2026-11-03 rehearsal. Each page only reads stored records; check them in your dry run.
+
+| Step | Do | Expected | Explain |
+|---|---|---|---|
+| D1 | **Attack Time Machine** (`/dashboard/attack-time-machine`), pick the Demo A session | its stored events replay in order (play, pause, step, 0.5–4×), with MITRE techniques per command | a replay of recorded events, not live traffic; detections and containment appear only when linked to that session |
+| D2 | **AI Trust Meter** (`/dashboard/ai-trust-meter`), pick a Demo B prediction | a categorical state (e.g. *No identified issues* / *Review recommended*) with reasons and the model's known limitations | there is no trust or correctness percentage |
+| D3 | **Capability Status** (`/dashboard/capabilities`) | *Default containment (mock adapter)*: IMPLEMENTED AND TESTED — SIMULATED; *Real host-firewall enforcement* and *live network capture*: IMPLEMENTED, NOT ENABLED; *Persona policy v2*: SHADOW ONLY; *Honeypot-session ML model*: BLOCKED (insufficient labelled data); the Windows persona entries say it is not served in production | the system reports its own limits from the running services |
+
+The Windows persona cannot be demonstrated: `honeypot/switch_profile.py` refuses to serve `windows_srv`, and the
+simulated shell is not installed in Cowrie.
 
 ## 5. If something fails during the presentation
 

@@ -44,11 +44,26 @@ These are the verified results to quote. Sources: [docs/ML_GENERALISATION.md](do
 
 | Area | What is implemented | What the evidence shows |
 |---|---|---|
-| Network-flow detection (XGBoost `xgb_cicids_v1`, served) | Trained on CICIDS2017, registry-pinned, explained with SHAP | **98.97 %** accuracy (macro F1 0.874) on a stratified **random** 80/20 split of CICIDS2017 (`independent_holdout: false`): in-distribution only. On six CSE-CIC-IDS2018 development days (5.55 M flows) it catches **≈15 %** of attacks at the alert line, ROC-AUC **≈0.65**, accuracy 72.94 % against 72.96 % for always predicting BENIGN. **It does not generalise beyond its training dataset and does not detect zero-day or unseen attacks reliably.** |
+| Network-flow detection (XGBoost `xgb_cicids_v1`, served) | Trained on CICIDS2017, registry-pinned, explained with SHAP | **98.97 %** accuracy (macro F1 0.874) on a stratified **random** 80/20 split of CICIDS2017 (`independent_holdout: false`): in-distribution only. On six CSE-CIC-IDS2018 development days (5.55 M flows; used in earlier development of other candidates, so not a sealed holdout) it catches **14.98 %** of attacks at the alert line, ROC-AUC **0.655**, macro F1 0.115, accuracy 72.94 % against 72.96 % for always predicting BENIGN. **It does not generalise beyond its training dataset and does not detect zero-day or unseen attacks reliably.** |
 | Rare and missing classes | 11-class taxonomy | Training rows: SQL Injection 17, RCE Attempt 9 (all Heartbleed, a memory disclosure rather than code execution), Lateral Movement 29, **Data Exfiltration 0** (not an output class). Results for these classes are not meaningful. |
 | Isolation Forest | Anomaly signal that can raise a threat score or queue BENIGN-classified flows for analyst review; it never raises an alert on its own | Limited measured value: on the chronological CICIDS2017 test the review tier recovered **2 of 2,254** attacks the classifier missed. Not a highly effective ensemble. |
 | Q-learning persona recommender (V1) | Tabular Q-learning, persisted and applied by the rotator; V2 shadow-only | **Effectiveness not demonstrated.** 12,087 of 12,106 episodes (99.84 %) are the synthetic seed, 0 are independent external sessions, and real data changed none of the 6 per-state greedy choices. The state is only the previously served persona. |
-| Session ML | Feature contract, safe loader, shadow inference, dashboard display | **No trained model.** 0 independently labelled sessions exist, so it gives no ML predictions (`MODEL_UNAVAILABLE`); session verdicts come from rules. |
+| Session ML | Feature contract, safe loader, shadow inference, dashboard display | **No trained model.** 0 independently labelled sessions exist (the 68 rule-labelled sessions are not ground truth), so it gives no ML predictions (`MODEL_UNAVAILABLE`); session verdicts come from rules. |
+
+### Which document to trust
+
+| Purpose | Authoritative document |
+|---|---|
+| Project overview and setup | this README |
+| Architecture and what is enabled, simulated or blocked | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md), [docs/CAPABILITIES.md](docs/CAPABILITIES.md) |
+| ML evaluation and generalisation | [docs/ML_GENERALISATION.md](docs/ML_GENERALISATION.md) |
+| Q-learning evidence and persona policy v2 | [docs/QLEARNING_EVIDENCE.md](docs/QLEARNING_EVIDENCE.md), [docs/PERSONA_POLICY_V2.md](docs/PERSONA_POLICY_V2.md) |
+| Session ML status | [docs/SESSION_ML.md](docs/SESSION_ML.md) |
+| Demo instructions | [docs/DEMO_REHEARSAL_SCRIPT.md](docs/DEMO_REHEARSAL_SCRIPT.md) (presenter script), [docs/DEMO_ABC_RUNBOOK.md](docs/DEMO_ABC_RUNBOOK.md) (short reference) |
+| Viva and technical explanations | [docs/VIVA_GUIDE.md](docs/VIVA_GUIDE.md) |
+| Research paper corrections | [docs/PAPER_CORRECTIONS.md](docs/PAPER_CORRECTIONS.md) |
+
+`IMPLIMENTATION.pdf` / `paper_text.txt` (August 2026) and `Project-PPT-Batch_No.pptx` (an unfilled template) are not authoritative. Older phase reports in `docs/` and the root (`HANDOFF.md`, `GATE1_CONTRACT.md`) are kept as history.
 
 ---
 
@@ -183,7 +198,7 @@ that has not been run.
 
 **Domain-balanced candidates (protocol v4, 2026-11-13, not deployed).** Pre-registered before running: weighting every capture day equally with stronger regularisation (C5, C5E) raised recall on unseen 2018 development days over the served recipe (+34 pp, paired 95 % CI 7–64 pp) but with more false alarms, and did not beat the earlier candidate; under the pre-registered rule no candidate is eligible ([`audit/ML_DEV_RESULTS.md`](audit/ML_DEV_RESULTS.md#protocol-v4)). The served model is unchanged.
 
-**Deployed model on six CSE-CIC-IDS2018 development days (diagnostic, 2026-11-11).** At the 0.90 alert line the
+**Deployed model on six CSE-CIC-IDS2018 development days (diagnostic, 2026-11-11; a sampled run, superseded by the full Rank 5 evaluation below, whose figures are the ones to quote).** At the 0.90 alert line the
 served `xgb_cicids_v1` caught **15.2 %** of attack flows (7,219 of 47,553) with a **0.24 %** benign false-alarm rate
 (198 of 81,821). This is a different network and attack tooling; the run is diagnostic only (results kept in a local,
 uncommitted experiment folder) and the locked 2018 test days were not used. It is shown in the AI Trust Meter's
