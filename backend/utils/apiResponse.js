@@ -5,11 +5,11 @@ const sendError = (res, message = 'Error', statusCode = 500, errors = null) => {
   if (errors) b.errors = errors
   res.status(statusCode).json(b)
 }
-const sendPaginated = (res, data, total, page, limit) =>
+const sendPaginated = (res, data, total, page, limit, extra = {}) =>
   res.status(200).json({
     success: true,
     data,
-    pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / limit) },
+    pagination: { total, page: parseInt(page), limit: parseInt(limit), pages: Math.ceil(total / limit), ...extra },
     timestamp: new Date().toISOString(),
   })
 module.exports = { sendSuccess, sendError, sendPaginated }

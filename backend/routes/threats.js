@@ -218,9 +218,18 @@ router.post('/unblock-ip', restrictTo('admin', 'analyst'), unblockIPManual)
  *         schema:
  *           type: string
  *           enum: [low, medium, high, critical]
+ *       - in: query
+ *         name: after
+ *         description: >
+ *           Keyset cursor (the previous response's pagination.nextCursor). Continues below that row instead of
+ *           skipping earlier ones; only with the default newest-first order. 400 when malformed.
+ *         schema:
+ *           type: string
  *     responses:
  *       200:
- *         description: Paginated threat logs retrieved
+ *         description: >
+ *           Paginated threat logs retrieved. pagination.nextCursor is set when more rows follow in newest-first
+ *           order (null otherwise).
  *   post:
  *     tags:
  *       - Threats

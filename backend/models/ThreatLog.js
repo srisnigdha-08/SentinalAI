@@ -42,8 +42,8 @@ const ThreatLogSchema = new mongoose.Schema(
         'FALSE_POSITIVE',
         'DEGRADED',
       ],
+      // Indexed through { status: 1, createdAt: -1 } below (its prefix serves status-only queries).
       default: 'DETECTED',
-      index: true,
     },
     triageNotes: { type: String, default: '', maxlength: 1000 },
 
@@ -53,6 +53,8 @@ const ThreatLogSchema = new mongoose.Schema(
       enum: ['DETECTED', 'INVESTIGATING', 'CONTAINED', 'MONITORING', 'ESCALATED', 'DEGRADED', null],
       default: null,
     },
+    // L1: the BlockedIP (deny-list entry) document this threat was blocked under. Not the same thing as
+    // ContainmentAction.containmentId, which is that action's string id; kept under this name for existing data.
     containmentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'BlockedIP',
@@ -65,6 +67,7 @@ const ThreatLogSchema = new mongoose.Schema(
       default: null,
       index: true,
     },
+    // When the event happened according to its source (flow timestamp, manual entry); createdAt is when it was stored.
     eventTime: {
       type: Date,
       default: null,
@@ -86,9 +89,16 @@ const ThreatLogSchema = new mongoose.Schema(
     },
     mitreAttack: { tactic: String, technique: String },
     mitreTechniques: [{ id: { type: String, required: true }, name: { type: String, required: true }, _id: false }],
-    rawPayload: { type: String, select: false },
+    // L4: bounded in the schema as well as in the API, so no writer can grow a threat towards the 16 MB limit.
+    rawPayload: { type: String, select: false, maxlength: 65536 },
     handledBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-    notes: { type: String, default: '' },
+    notes: { type: String, default: '', maxlength: 1000 },
+    // L3: analyst labels (PUT /api/threats/:id). Accepted by the API before but missing here, so they were dropped.
+    tags: {
+      type: [{ type: String, trim: true, maxlength: 40 }],
+      default: undefined,
+      validate: { validator: (v) => !v || v.length <= 20, message: 'At most 20 tags' },
+    },
     // Why automatic containment was or was not requested (services/containmentCorrelationService.js). Auditable
     // record of the decision; absent on threats below the block line and on threats stored before it existed.
     containmentDecision: {
@@ -127,8 +137,14 @@ const ThreatLogSchema = new mongoose.Schema(
   },
   { timestamps: true }
 )
-ThreatLogSchema.index({ createdAt: -1 })
-ThreatLogSchema.index({ severity: 1, status: 1 })
+// M3 / L8: the threat list sorts newest first with _id as the tie-breaker (stable keyset pagination), optionally
+// filtered by status, severity or attack type. Each shape has an index ending in { createdAt: -1, _id: -1 }, so
+// MongoDB never sorts in memory or walks the whole date index for a rare status. These replace the former
+// { createdAt: -1 }, { severity: 1, status: 1 } and { status: 1 } indexes, whose queries their prefixes still serve.
+ThreatLogSchema.index({ createdAt: -1, _id: -1 })
+ThreatLogSchema.index({ status: 1, createdAt: -1, _id: -1 })
+ThreatLogSchema.index({ severity: 1, createdAt: -1, _id: -1 })
+ThreatLogSchema.index({ attackType: 1, createdAt: -1, _id: -1 })
 ThreatLogSchema.index({ sourceIP: 1, createdAt: -1 })
 ThreatLogSchema.index({ 'threatIntel.status': 1 })
 ThreatLogSchema.pre('save', function (next) {

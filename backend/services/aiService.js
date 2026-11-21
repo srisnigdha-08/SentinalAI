@@ -48,6 +48,11 @@ const findPredictions = async ({ page = 1, limit = 20, minScore, verified, revie
   return { data, total, page: safePage, limit: safeLimit }
 }
 
+const predictionRetentionDays = () => {
+  const n = Number(process.env.PREDICTION_RETENTION_DAYS)
+  return process.env.PREDICTION_RETENTION_DAYS !== undefined && Number.isFinite(n) && n >= 0 ? n : 30
+}
+
 const storePrediction = async (data) => {
   const payload = { ...data }
   payload.needsReview = data.action === 'REVIEW'
@@ -106,6 +111,19 @@ const storePrediction = async (data) => {
   // follow-up save can leave a threat whose prediction does not point back (M3).
   const threatId = willCreateThreat ? new mongoose.Types.ObjectId() : null
   if (threatId) payload.generatedThreat = threatId
+  // M1: a routine network-flow prediction (no threat, not queued for review, not verified) expires after
+  // PREDICTION_RETENTION_DAYS (default 30; 0 keeps them all) through the TTL index on expireAt. Threat-linked,
+  // review-queue and honeypot predictions get no expireAt and are kept; verifying a prediction removes it.
+  const retentionDays = predictionRetentionDays()
+  if (
+    retentionDays > 0 &&
+    data.inputSource === 'network_traffic' &&
+    !payload.generatedThreat &&
+    !payload.needsReview &&
+    !payload.verified
+  ) {
+    payload.expireAt = new Date(Date.now() + retentionDays * 24 * 3600 * 1000)
+  }
   const pred = await AIPrediction.create(payload)
   if (willCreateThreat) {
     // Authoritative Block Threshold & autoBlockEnabled setting
@@ -283,6 +301,8 @@ const verifyPrediction = async (id, userId, actualClass) => {
         verifiedAt,
         needsReview: false,
       },
+      // A verified prediction is evidence (and a training-sample source): it never expires.
+      $unset: { expireAt: 1 },
       $push: {
         verificationHistory: historyEntry,
       },

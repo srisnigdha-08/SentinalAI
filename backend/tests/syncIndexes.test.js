@@ -40,7 +40,9 @@ test('the dry run reports the leftover index and the missing ones, and changes n
   const diff = await diffAll(models)
   const threat = diff.find((d) => d.model === 'ThreatLog')
   expect(threat.toDrop).toEqual(['severity_1'])
-  expect(threat.toCreate).toEqual(expect.arrayContaining(['createdAt:-1', 'sourceIP:1+createdAt:-1']))
+  expect(threat.toCreate).toEqual(
+    expect.arrayContaining(['createdAt:-1+_id:-1', 'status:1+createdAt:-1+_id:-1', 'sourceIP:1+createdAt:-1'])
+  )
   expect(await indexNames('threatlogs')).toEqual(before)
   // Loading the models and diffing must not create the collections of models that have none yet.
   expect(collectionsBefore).toEqual(['threatlogs'])
@@ -62,7 +64,8 @@ test('apply drops the leftover, creates the declared indexes, keeps _id_ and the
   expect(results).toEqual([{ model: 'ThreatLog', dropped: ['severity_1'] }])
   const names = await indexNames('threatlogs')
   expect(names).toContain('_id_')
-  expect(names).toContain('createdAt_-1')
+  expect(names).toContain('createdAt_-1__id_-1')
+  expect(names).toContain('attackType_1_createdAt_-1__id_-1')
   expect(names).not.toContain('severity_1')
   expect(await mongoose.connection.db.collection('threatlogs').countDocuments()).toBe(1)
   const again = (await diffAll(models)).find((d) => d.model === 'ThreatLog')
