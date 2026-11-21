@@ -376,11 +376,17 @@ router.post('/', internalAuth, async (req, res, next) => {
  *               sourceIP: { type: string }
  *               destinationIP: { type: string }
  *               timestamp: { type: string, format: date-time }
+ *               flowId:
+ *                 type: string
+ *                 pattern: '^[A-Za-z0-9._:-]{8,128}$'
+ *                 description: >
+ *                   Optional idempotency key. A request repeating a stored flowId is not scored again: it returns
+ *                   the stored prediction with duplicate=true, and no second prediction or threat is created.
  *     responses:
  *       200:
- *         description: Prediction stored and pushed
+ *         description: Prediction stored and pushed (or, for a repeated flowId, the stored one with duplicate=true)
  *       400:
- *         description: Invalid IP or too few flow fields
+ *         description: Invalid IP, too few flow fields, or a malformed flowId
  */
 router.post('/flow', internalAuth, async (req, res, next) => {
   try {
@@ -405,20 +411,45 @@ router.post('/flow', internalAuth, async (req, res, next) => {
     if (Object.keys(record).filter((k) => FLOW_FIELDS.includes(k)).length < MIN_FLOW_FIELDS)
       return sendError(res, `At least ${MIN_FLOW_FIELDS} numeric flow fields are required`, 400)
 
+    // Optional idempotency key: a retry or replay of the same flow returns the stored prediction (no second threat).
+    let flowId
+    if (body.flowId !== undefined) {
+      if (typeof body.flowId !== 'string' || !FLOW_ID.test(body.flowId))
+        return sendError(res, 'flowId must be 8-128 characters: letters, digits, . _ : -', 400)
+      flowId = body.flowId
+      const existing = await storedFlow(flowId)
+      if (existing) return sendSuccess(res, flowResponse(existing, true))
+    }
+
     // capture/service.py labels every flow pcap_replay or live_passive; the older sniffer sends no label.
     const captureSource = ['pcap_replay', 'live_passive'].includes(body.captureSource) ? body.captureSource : 'unknown'
-    const result = await require('../services/aiEngineService').runFullPipeline(record, req.app.get('io'), {
-      captureSource,
-    })
-    sendSuccess(res, {
-      predictedClass: result.predictedClass,
-      threatScore: result.threatScore,
-      action: result.action,
-      predictionId: result._id,
-    })
+    let result
+    try {
+      result = await require('../services/aiEngineService').runFullPipeline(record, req.app.get('io'), {
+        captureSource,
+        ...(flowId ? { flowId } : {}),
+      })
+    } catch (err) {
+      // Lost a race with a concurrent request for the same flowId: answer with the prediction it stored.
+      const existing = err.duplicateFlowId ? await storedFlow(flowId) : null
+      if (existing) return sendSuccess(res, flowResponse(existing, true))
+      throw err
+    }
+    sendSuccess(res, flowResponse({ ...result, _id: result._id }, false))
   } catch (err) {
     next(err)
   }
+})
+
+const FLOW_ID = /^[A-Za-z0-9._:-]{8,128}$/
+const storedFlow = (flowId) =>
+  require('../models/AIPrediction').findOne({ flowId }).select('predictedClass threatScore action').lean()
+const flowResponse = (p, duplicate) => ({
+  predictedClass: p.predictedClass,
+  threatScore: p.threatScore,
+  action: p.action,
+  predictionId: p._id,
+  ...(duplicate ? { duplicate: true } : {}),
 })
 
 /**

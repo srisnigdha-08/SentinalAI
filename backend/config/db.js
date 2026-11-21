@@ -30,19 +30,39 @@ const ensureDefaultAdmin = async () => {
   }
 }
 
-const connectDB = async () => {
-  try {
-    const c = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db', {
-      maxPoolSize: positiveInt(process.env.MONGO_MAX_POOL_SIZE, 10),
-      serverSelectionTimeoutMS: positiveInt(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS, 5000),
-    })
-    logger.info('MongoDB connected: ' + c.connection.host + '/' + c.connection.name)
-    await ensureDefaultAdmin()
-  } catch (err) {
-    logger.error('MongoDB connection failed (' + err.name + ')')
-    throw err
-  }
+const nonNegativeInt = (value, fallback) => {
+  const n = parseInt(value, 10)
+  return Number.isInteger(n) && n >= 0 ? n : fallback
 }
+// Start-up retry: MongoDB starting a moment after the backend (service restart, container order) is not fatal.
+// MONGO_CONNECT_RETRIES extra attempts (default 5; 0 = fail on the first error), backoff 1 s, 2 s, 4 s ... capped at 15 s.
+const backoffMs = (attempt) => Math.min(1000 * 2 ** attempt, 15000)
+
+const connectDB = async () => {
+  const retries = nonNegativeInt(process.env.MONGO_CONNECT_RETRIES, 5)
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const c = await mongoose.connect(process.env.MONGO_URI || 'mongodb://localhost:27017/sentinel-db', {
+        maxPoolSize: positiveInt(process.env.MONGO_MAX_POOL_SIZE, 10),
+        serverSelectionTimeoutMS: positiveInt(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS, 5000),
+      })
+      logger.info('MongoDB connected: ' + c.connection.host + '/' + c.connection.name)
+      break
+    } catch (err) {
+      // Only the error class is logged: driver messages can contain the connection string.
+      if (attempt >= retries) {
+        logger.error('MongoDB connection failed (' + err.name + ') after ' + (attempt + 1) + ' attempt(s)')
+        throw err
+      }
+      const wait = backoffMs(attempt)
+      logger.warn(`MongoDB connection failed (${err.name}); retry ${attempt + 1}/${retries} in ${wait} ms`)
+      await connectDB.sleep(wait)
+    }
+  }
+  await ensureDefaultAdmin()
+}
+connectDB.sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+connectDB.backoffMs = backoffMs
 mongoose.connection.on('disconnected', () => logger.warn('MongoDB disconnected'))
 mongoose.connection.on('reconnected', () => logger.info('MongoDB reconnected'))
 connectDB.ensureDefaultAdmin = ensureDefaultAdmin

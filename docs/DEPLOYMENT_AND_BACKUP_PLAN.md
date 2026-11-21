@@ -9,7 +9,7 @@ has been deployed publicly; Docker is not installed on the project laptop; real 
 |---|---|---|
 | Native single-host (Windows services + MongoDB 7 + WSL Cowrie) | **Implemented and tested** | clean clone, demo scripts, integration harness 42/42, batch 15 rehearsal |
 | Production frontend build | **Implemented and tested** | `npm run build`; served with CSP by `vite preview` in the clean-clone test |
-| Health / readiness | **Implemented and tested** | backend `/health` (503 when database or engine is down); engine `/ready` (models verified) and `/health` |
+| Health / readiness | **Implemented and tested** | backend `/health` (503 when database or engine is down) and `/health/ready` both send MongoDB a `ping` (cached 2 s, 1 s deadline), so a connected but unresponsive server is reported as `unresponsive`; start-up retries the connection (`MONGO_CONNECT_RETRIES`, default 5, backoff 1–15 s); engine `/ready` (models verified) and `/health` |
 | Restart and recovery | **Implemented and tested** | engine/MongoDB outages, socket reconnect, `restart-engine.ps1` (11 s) |
 | Database backup and restore | **Implemented and tested (Node scripts)** | batch 15 round trip: `sentinel-demo` → new database, 12/12 collections identical in documents and indexes, after fixing the dropped `sparse` index option |
 | CORS, cookies, origins | **Implemented, tested on loopback** | `CLIENT_URL` allow-list; cookies `httpOnly`, `SameSite=Strict`, `Secure` in production; plain HTTP refused off loopback |
@@ -17,7 +17,7 @@ has been deployed publicly; Docker is not installed on the project laptop; real 
 | nginx (`frontend/nginx.conf`) | **Implemented, untested** | serves the built SPA on 8080 with CSP, HTTP only, container only |
 | Monitoring (Prometheus rules, Grafana dashboard, `/metrics`) | **Implemented, partly tested** | rules unit-tested in CI (`promtool`); never scraped live |
 | HTTPS / TLS | **Missing** | no certificate or TLS termination configuration in the repository |
-| Scheduled backups | **Missing** | backups are manual |
+| Scheduled backups | **Implemented and tested, not registered** | local: `scripts/demo/backup-local-db.cjs` (verified backups, rotation, monthly restore drill; tested on in-memory MongoDB) and `scripts/demo/register-backup-task.ps1` to schedule it (not run on this machine: registering a task is the owner's decision). Compose: `scripts/deploy/db_backup.cjs` from cron (§4) |
 | Secrets management | **Missing** | `.env` files; SEC-001 (credentials in Git history) open, risk accepted |
 | Real firewall enforcement | **Blocked by design** | Windows Firewall adapter disabled, never run live |
 | Multi-host / public deployment | **Missing** | not designed or tested |
@@ -71,9 +71,32 @@ node scratch\restore_sentinel_db.mjs backups\<folder> --target-db sentinel-resto
   identical. The test found and fixed a defect: the backup dropped index options, so the unique **sparse**
   `containmentactions.targetLock` index (one active containment per target) was lost on restore.
 
-**Recommended later (needs approval to install MongoDB Database Tools):** `mongodump --uri <uri> --out <dir>` and
-`mongorestore --uri <uri> --nsFrom 'sentinel-demo.*' --nsTo 'sentinel-restore-check.*' <dir>`; schedule a daily dump
-with Windows Task Scheduler and keep at least 7 copies.
+**Scheduled local backups (no extra installation).** `scripts/demo/backup-local-db.cjs` streams every collection to
+BSON with its index definitions (all options), writes a SHA-256 manifest, verifies the folder, and keeps the newest
+`--keep` copies of that database. Backups go to `%USERPROFILE%\.sentinelai\backups` (outside the repository).
+
+```powershell
+node scripts\demo\backup-local-db.cjs backup --db sentinel-demo --keep 7     # one backup now
+node scripts\demo\backup-local-db.cjs verify --backup <folder>               # offline integrity check
+node scripts\demo\backup-local-db.cjs drill  --backup <folder>               # restore test (scratch database, dropped after)
+powershell -ExecutionPolicy Bypass -File scripts\demo\register-backup-task.ps1   # daily 02:00 backup + 4-weekly drill
+powershell -ExecutionPolicy Bypass -File scripts\demo\register-backup-task.ps1 -Remove
+```
+
+The drill restores into a new database `sentinel-restore-check-<UTC>` (refused if it already holds data), compares
+document counts and index definitions with the manifest, then drops that scratch database; it never writes to the
+source. Recovery point: one day (the daily task); point-in-time recovery needs the replica set below.
+
+**Compose replica set.** `scripts/deploy/db_backup.cjs` (encrypted, oplog-consistent, `--keep` rotation, `verify`,
+`restore`) is the backup for that deployment. Schedule it on the Docker host, for example daily with cron:
+`0 2 * * * node /srv/sentinelai/scripts/deploy/db_backup.cjs backup --project sentinelai --compose-file docker-compose.yml --compose-file docker-compose.tls.yml --compose-file docker-compose.replicaset.yml --compose-env .env --out /backups --recipient age1... --keep 14`.
+That deployment also runs with real multi-document transactions (`MONGO_USE_TRANSACTIONS=true`, checked by
+`scripts/deploy/replicaset_verify.cjs`); the base Compose stack and the native demo are standalone and use the
+compensating-rollback path instead.
+
+**Index drift.** Mongoose builds missing indexes but never drops ones a schema no longer declares.
+`npm run db:indexes` (in `backend/`) lists the differences without changing anything; apply them with
+`npm run db:indexes -- --apply --confirm=<database>` after a backup.
 
 **Before a demo:** back up `sentinel-demo` once (above). If demo data goes wrong, `scripts\demo\reset-demo-db.ps1`
 clears activity while keeping users and settings.
@@ -108,7 +131,7 @@ any `CHANGE_ME` placeholder.
 1. No TLS termination; plain HTTP.
 2. Credentials in Git history (SEC-001) not rotated; no secrets manager.
 3. Docker deployment never executed; no multi-host design.
-4. No scheduled backups or tested disaster recovery beyond the manual round trip.
+4. Scheduled local backups and the restore drill exist but are not registered on this machine; no off-machine copy.
 5. Detection does not generalise to unseen attack days or tools; flows are replayed, not captured.
 6. Enforcement simulated; single-flow auto-block without correlation.
 7. Single engine process (≈ 120–130 requests/s); analytics queries grow linearly with stored threats.

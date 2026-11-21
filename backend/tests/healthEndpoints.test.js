@@ -17,13 +17,19 @@ jest.mock('../utils/logger', () => ({ info: jest.fn(), error: jest.fn(), warn: j
 jest.mock('../websocket/socketManager', () => ({ init: jest.fn(), getStats: jest.fn() }))
 const mockAi = { getHealth: jest.fn() }
 jest.mock('../services/aiEngineService', () => mockAi)
+const mockDb = { databaseHealth: jest.fn() }
+jest.mock('../utils/dbHealth', () => mockDb)
 
 const request = require('supertest')
-const mongoose = require('mongoose')
 const { app, revocationDelivery } = require('../server')
 
+// db: true (ping answers), false (driver disconnected) or 'unresponsive' (connected, but the ping fails or times out)
 const state = (db, ai, revocation) => {
-  mongoose.connection.readyState = db ? 1 : 0 // same stub as roleMatrix.test.js (readyState has a setter)
+  mockDb.databaseHealth.mockResolvedValue(
+    db === true
+      ? { ok: true, state: 'connected' }
+      : { ok: false, state: db === 'unresponsive' ? 'unresponsive' : 'disconnected' }
+  )
   mockAi.getHealth.mockResolvedValue(ai ? { status: 'ok' } : { status: 'unreachable', error: 'down' })
   jest.spyOn(revocationDelivery, 'available').mockReturnValue(revocation)
 }
@@ -58,6 +64,15 @@ test('MongoDB down: not ready (503), but alive so the process is not restarted f
   const ready = await request(app).get('/health/ready')
   expect(ready.status).toBe(503)
   expect(ready.body).toMatchObject({ status: 'unavailable', dependencies: { database: 'disconnected' } })
+})
+
+test('MongoDB connected but not answering a ping: not ready, and strict /health is 503', async () => {
+  state('unresponsive', true, true)
+  const ready = await request(app).get('/health/ready')
+  expect(ready.status).toBe(503)
+  expect(ready.body).toMatchObject({ status: 'unavailable', dependencies: { database: 'unresponsive' } })
+  expect((await request(app).get('/health')).status).toBe(503)
+  expect((await request(app).get('/health/live')).status).toBe(200)
 })
 
 test('revocation delivery unavailable: not ready (sessions cannot be checked safely)', async () => {

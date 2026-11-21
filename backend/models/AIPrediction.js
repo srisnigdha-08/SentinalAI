@@ -22,6 +22,9 @@ const AIPredictionSchema = new mongoose.Schema(
       default: undefined,
     },
     sourceIP: { type: String },
+    // Optional sender-chosen id of a network flow (POST /api/honeypot/ingest/flow). A retried or replayed request with
+    // the same flowId returns the stored prediction instead of creating a second prediction and threat.
+    flowId: { type: String, maxlength: 128, default: undefined },
     targetIP: String,
     predictedClass: { type: String, required: true },
     classProbabilities: { type: Map, of: Number },
@@ -36,6 +39,8 @@ const AIPredictionSchema = new mongoose.Schema(
       default: 'unknown',
     },
     isAnomaly: { type: Boolean, default: false },
+    // The pipeline's decision for this flow (aiEngineService.runFullPipeline). Absent on records stored before it was kept.
+    action: { type: String, enum: ['ALLOW', 'MONITOR', 'BLOCK', 'REVIEW'], default: undefined },
     // Classifier said BENIGN but the anomaly tier flagged it strongly (engine action REVIEW): analyst queue,
     // never a threat or a block. Cleared by verification.
     needsReview: { type: Boolean, default: false },
@@ -82,4 +87,6 @@ AIPredictionSchema.index({ threatScore: -1 })
 AIPredictionSchema.index({ sourceIP: 1 })
 // Verified-accuracy aggregate (all-time) reads only analyst-verified predictions
 AIPredictionSchema.index({ verified: 1 })
+// One prediction per flowId; predictions without one (every existing record, other routes) are not indexed.
+AIPredictionSchema.index({ flowId: 1 }, { unique: true, partialFilterExpression: { flowId: { $type: 'string' } } })
 module.exports = mongoose.model('AIPrediction', AIPredictionSchema)

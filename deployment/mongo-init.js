@@ -63,6 +63,8 @@ const operationalCollections = [
   'trainingsamples',
   'outboxevents',
   'deceptiondecisions',
+  // Deception Arena experiments (models/DeceptionExperiment.js sets this collection name explicitly)
+  'deception_experiments',
   'backups',
   // retentionService writes archived_* (the older archive_* names are kept for existing deployments)
   'archived_threatlogs',
